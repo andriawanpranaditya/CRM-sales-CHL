@@ -1,4 +1,4 @@
-import { db, DEFAULT_SETTINGS } from '@/lib/db';
+import { db, DEFAULT_SETTINGS, DEFAULT_UNITS } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +11,7 @@ export async function GET() {
   rows.forEach(r => { out[r.key] = r.items; });
   const sales = await sql`SELECT name FROM users WHERE role = 'sales' AND active = true ORDER BY name`;
   out.sales = sales.map(s => s.name);
+  if (!out.units) out.units = DEFAULT_UNITS;
   return Response.json(out);
 }
 
@@ -23,6 +24,10 @@ export async function PUT(req) {
       await sql`INSERT INTO settings (key, items) VALUES (${key}, ${JSON.stringify(b[key])})
                 ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(b[key])}`;
     }
+  }
+  if (b.units && typeof b.units === 'object' && !Array.isArray(b.units)) {
+    await sql`INSERT INTO settings (key, items) VALUES ('units', ${JSON.stringify(b.units)})
+              ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(b.units)}`;
   }
   return Response.json({ ok: true });
 }

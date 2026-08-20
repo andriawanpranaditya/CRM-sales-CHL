@@ -163,7 +163,11 @@ export default function FormPage() {
               setTrx({ ...trx, lead_code: e.target.value, project: (l && l.project) || trx.project, bayar: (l && l.bayar) || trx.bayar });
             }}>{leadOpt}</select></div>
           <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
-          <div className="field"><label>Blok / Unit</label><input {...ft('unit')} placeholder="mis. B-12" /></div>
+          <div className="field"><label>Blok / Unit</label>
+            {(set.units && set.units[trx.project] && set.units[trx.project].length)
+              ? <select {...ft('unit')}>{[''].concat(set.units[trx.project]).map(u => <option key={'u' + u} value={u}>{u || '— pilih —'}</option>)}</select>
+              : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
+          </div>
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Closing</option><option>Batal</option></select></div>

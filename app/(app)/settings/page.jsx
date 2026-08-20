@@ -7,12 +7,17 @@ const LABELS = { status: 'Status Pipeline', sumber: 'Sumber Lead', project: 'Pro
 
 export default function SettingsPage() {
   const [vals, setVals] = useState(null);
+  const [units, setUnits] = useState({});
+  const [projList, setProjList] = useState([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api('/api/settings').then(s => {
       const v = {}; Object.keys(LABELS).forEach(k => v[k] = (s[k] || []).join('\n'));
       setVals(v);
+      setProjList(s.project || []);
+      const u = {}; (s.project || []).forEach(p => u[p] = ((s.units || {})[p] || []).join('\n'));
+      setUnits(u);
     }).catch(e => toast(e.message));
   }, []);
 
@@ -20,6 +25,7 @@ export default function SettingsPage() {
     setBusy(true);
     try {
       const body = {}; Object.keys(LABELS).forEach(k => body[k] = vals[k].split('\n').map(x => x.trim()).filter(Boolean));
+      body.units = {}; Object.keys(units).forEach(p => body.units[p] = units[p].split('\n').map(x => x.trim()).filter(Boolean));
       await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) });
       toast('Settings tersimpan — semua dropdown ter-update');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -37,6 +43,17 @@ export default function SettingsPage() {
             <textarea value={vals[k]} onChange={e => setVals({ ...vals, [k]: e.target.value })} /></div>
         ))}
       </div>
+      <div className="card" style={{ marginTop: 18 }}>
+        <h2>Blok / Unit per Project</h2>
+        <div className="note">Daftar ini mengisi dropdown <b>Blok/Unit</b> di Form Booking dan penandaan di <b>Master Stock</b>. Satu baris = satu unit. Format: <b>Bio Ave 3 no.15</b> atau <b>Blok A4 no.15</b>. Daftar awal dibuat dari siteplan — silakan sesuaikan dengan stok resmi.</div>
+        <div className="set-grid">
+          {projList.map(p => (
+            <div className="field" key={'unit-' + p}><label>{p} ({(units[p] || '').split('\n').filter(Boolean).length} unit)</label>
+              <textarea style={{ minHeight: 260 }} value={units[p] || ''} onChange={e => setUnits({ ...units, [p]: e.target.value })} /></div>
+          ))}
+        </div>
+      </div>
+
       <div className="form-foot">
         <button className="btn btn-primary" onClick={simpan} disabled={busy}>Simpan Settings</button>
       </div>

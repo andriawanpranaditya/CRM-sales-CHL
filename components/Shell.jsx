@@ -10,6 +10,7 @@ const MENUS = [
   { href: '/followup', ico: '↻', label: 'Follow Up', roles: ['manager'] },
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
+  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
 ];
@@ -28,12 +29,28 @@ export default function Shell({ user, children }) {
     router.push('/login'); router.refresh();
   }
 
+  async function gantiPassword() {
+    const lama = prompt('Password lama:');
+    if (lama === null || lama === '') return;
+    const baru = prompt('Password baru (min. 6 karakter):');
+    if (baru === null || baru === '') return;
+    const res = await fetch('/api/auth/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lama, baru }),
+    });
+    const d = await res.json().catch(() => ({}));
+    alert(res.ok ? 'Password berhasil diganti. Gunakan password baru saat login berikutnya.' : (d.error || 'Gagal mengganti password'));
+  }
+
   return (
     <div className="app">
       <header className="m-topbar">
         <div className="m-logo">CRM<span> SALES</span></div>
         <img src="/logo.png" alt="" />
-        <button className="btn-logout" onClick={logout}>{user.name} · Keluar</button>
+        <span style={{ display: 'flex', gap: 6 }}>
+          <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
+          <button className="btn-logout" onClick={logout}>{user.name} · Keluar</button>
+        </span>
       </header>
       <aside className="sidebar">
         <div className="brand">
@@ -51,7 +68,10 @@ export default function Shell({ user, children }) {
         <div className="side-foot">
           <span><span className="u-name">{user.name}</span>
             <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : 'Sales — Form Input'}</span></span>
-          <button className="btn-logout" onClick={logout}>Keluar</button>
+          <span style={{ display: 'flex', gap: 4 }}>
+            <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
+            <button className="btn-logout" onClick={logout}>Keluar</button>
+          </span>
         </div>
       </aside>
       <main className="main">{children}</main>

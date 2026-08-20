@@ -78,6 +78,15 @@ export async function GET(req) {
     await sql`UPDATE settings SET items = ${JSON.stringify(items)} WHERE key = 'status'`;
   }
 
+  await sql`CREATE TABLE IF NOT EXISTS unit_positions (
+    id serial PRIMARY KEY,
+    project text NOT NULL,
+    unit text NOT NULL,
+    x real NOT NULL,
+    y real NOT NULL,
+    UNIQUE (project, unit)
+  )`;
+
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})
               ON CONFLICT (key) DO NOTHING`;
