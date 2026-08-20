@@ -95,7 +95,9 @@ export default function Dashboard() {
     const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
-    const salesNs = [...new Set(pl.map(l => l.sales).filter(Boolean))];
+    // Hanya sales yang punya lead pada project & periode terpilih — yang lain tidak dimunculkan
+    const salesNs = [...new Set(pl.map(l => l.sales).filter(Boolean))]
+      .filter(sn => pl.some(l => l.sales === sn));
     const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)

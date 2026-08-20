@@ -14,7 +14,10 @@ export default function ReportPage() {
   if (!leads) return <div className="loading">Memuat…</div>;
 
   const fLeads = proj ? leads.filter(l => l.project === proj) : leads;
-  const salesNames = [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
+  // Filter project aktif → hanya sales yang punya lead di project itu; tanpa filter → semua akun sales
+  const salesNames = proj
+    ? [...new Set(fLeads.map(l => l.sales).filter(Boolean))]
+    : [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking', 'Closing', 'Lost'];
 
   return (
