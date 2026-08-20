@@ -74,7 +74,9 @@ export default function Shell({ user, children }) {
           </span>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">{children}
+        <div className="copyright">copyright &copy; 2026 by Andriawanp</div>
+      </main>
     </div>
   );
 }

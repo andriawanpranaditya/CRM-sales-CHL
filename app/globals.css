@@ -116,6 +116,8 @@ th.num{text-align:right}
 .set-grid textarea{min-height:180px;resize:vertical}
 .loading{color:var(--muted);padding:30px;text-align:center}
 
+.copyright{text-align:center;color:var(--muted);font-size:11px;margin-top:34px;letter-spacing:.4px;opacity:.8}
+
 /* ===== Login ===== */
 .login{position:fixed;inset:0;background:linear-gradient(160deg,#16241C 0%,#1C2B23 55%,#23694A 160%);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
 .login-card{width:100%;max-width:400px;background:var(--card);border-radius:18px;padding:28px 26px 26px;box-shadow:0 24px 64px rgba(0,0,0,.4)}

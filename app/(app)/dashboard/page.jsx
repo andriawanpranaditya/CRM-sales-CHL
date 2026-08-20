@@ -13,10 +13,11 @@ export default function Dashboard() {
   const [proj, setProj] = useState('');
   const [d1, setD1] = useState('');
   const [d2, setD2] = useState('');
+  const [stock, setStock] = useState([]);
 
   useEffect(() => {
-    Promise.all([api('/api/leads'), api('/api/followups'), api('/api/trx'), api('/api/settings')])
-      .then(([l, f, t, s]) => { setLeads(l); setFus(f); setTrx(t); setSet(s); })
+    Promise.all([api('/api/leads'), api('/api/followups'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
+      .then(([l, f, t, s, st]) => { setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); })
       .catch(e => toast(e.message));
   }, []);
 
@@ -116,6 +117,26 @@ export default function Dashboard() {
       })
       .sort((a, b) => (b.status === 'Hot') - (a.status === 'Hot') || (b.overdue === true) - (a.overdue === true));
 
+    // ===== Rekap stok per project (kondisi saat ini: transaksi + manual) =====
+    // Nilai per unit = transaksi terakhir non-Batal unit tsb
+    const lastVal = {};
+    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
+      if (!t.unit || !t.project) return;
+      const key = t.project + '|' + t.unit;
+      if (t.jenis === 'Batal') delete lastVal[key];
+      else lastVal[key] = Number(t.nilai) || 0;
+    });
+    const projList = proj ? [proj] : (set.project || []);
+    const stokRows = projList.map(p2 => {
+      const total = ((set.units || {})[p2] || []).length;
+      const su = stock.filter(u => u.project === p2);
+      const merahU = su.filter(u => u.warna === 'merah');
+      const kuningU = su.filter(u => u.warna === 'kuning');
+      const nJual = merahU.reduce((a, u) => a + (lastVal[p2 + '|' + u.unit] || 0), 0);
+      const nRes = kuningU.reduce((a, u) => a + (lastVal[p2 + '|' + u.unit] || 0), 0);
+      return { p: p2, total, merah: merahU.length, kuning: kuningU.length, nJual, nRes };
+    });
+
     const html = `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Report CRM</title>
 <style>
 body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1C2B23}
@@ -175,7 +196,14 @@ ${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm
 </tr>`).join('') : '<tr><td colspan="7">Tidak ada lead Warm/Hot saat ini.</td></tr>'}
 </table>
 
-<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL.</p>
+<h2>5. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
+<table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>
+${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning)}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
+${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
+</table>
+<p class="muted">Unit hasil penandaan manual (tanpa transaksi) terhitung pada jumlah namun bernilai Rp 0. Nilai diambil dari transaksi terakhir tiap unit.</p>
+
+<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
 
     const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });

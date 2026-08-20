@@ -41,6 +41,7 @@ export default function LoginPage() {
         </div>
         <button className="btn btn-primary login-btn" disabled={busy}>{busy ? 'Memeriksa...' : 'Masuk'}</button>
         <div className="login-foot">Akun dibuat oleh Manager di menu Pengguna.<br />Sales otomatis hanya melihat Form Input.</div>
+        <div className="copyright" style={{ marginTop: 10 }}>copyright &copy; 2026 by Andriawanp</div>
       </form>
     </div>
   );
