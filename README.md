@@ -60,6 +60,7 @@ npm run dev                  # buka http://localhost:3000
 ```
 
 ## Struktur data
+1
 
 - `users` — akun (manager/sales, password ter-hash bcrypt)
 - `leads` — data konsumen, kode LEAD-0001 otomatis
