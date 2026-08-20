@@ -122,7 +122,7 @@ export default function FormPage() {
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{opsi('sales')}</select>}
           </div>
-          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).map(o => <option key={o}>{o}</option>)}</select></div>
+          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>

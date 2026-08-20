@@ -90,6 +90,10 @@ export default function Dashboard() {
     const projLabel = proj || 'Semua Project';
     const ST = set.status || [];
     const cnt = st => pl.filter(l => l.status === st).length;
+    // Booking & Closing dihitung dari TRANSAKSI yang benar-benar diinput (lead unik), bukan dari status pipeline
+    const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
+    const trxLeads = jenis => new Set(pt.filter(t => t.jenis === jenis).map(t => t.lead_code));
+    const bookSet = trxLeads('Booking'), closeSet = trxLeads('Closing');
     const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
     const closeV = pt.filter(t => t.jenis === 'Closing').reduce((a, t) => a + Number(t.nilai || 0), 0);
     const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -135,13 +139,13 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 <p>
 <span class="kpi">Lead Masuk<br/><b>${pl.length}</b></span>
 <span class="kpi">Follow Up<br/><b>${pf.length}</b></span>
-<span class="kpi">Booking<br/><b>${cnt('Booking')}</b></span>
-<span class="kpi">Closing<br/><b>${cnt('Closing')}</b></span>
+<span class="kpi">Booking (transaksi)<br/><b>${bookSet.size}</b></span>
+<span class="kpi">Closing (transaksi)<br/><b>${closeSet.size}</b></span>
 <span class="kpi">Nilai Booking<br/><b>${rp(bookV)}</b></span>
 <span class="kpi">Nilai Closing<br/><b>${rp(closeV)}</b></span>
 </p>
 
-<h2>2. STATUS PIPELINE (lead masuk pada periode)</h2>
+<h2>2. STATUS PIPELINE (posisi status lead — bukan jumlah transaksi)</h2>
 <table><tr><th>Status</th><th>Jumlah</th></tr>
 ${ST.map(st => `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}</td><td>${cnt(st)}</td></tr>`).join('')}
 </table>
@@ -151,7 +155,9 @@ ${ST.map(st => `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="wa
 ${salesNs.length ? salesNs.map(sn => {
       const mine = pl.filter(l => l.sales === sn);
       const c = st => mine.filter(l => l.status === st).length;
-      return `<tr><td><b>${esc(sn)}</b></td><td>${mine.length}</td><td>${c('Warm')}</td><td>${c('Hot')}</td><td>${c('Booking')}</td><td>${c('Closing')}</td><td>${mine.length ? Math.round(c('Closing') / mine.length * 100) + '%' : '0%'}</td></tr>`;
+      const bk = [...bookSet].filter(code => salesOf[code] === sn).length;
+      const cl = [...closeSet].filter(code => salesOf[code] === sn).length;
+      return `<tr><td><b>${esc(sn)}</b></td><td>${mine.length}</td><td>${c('Warm')}</td><td>${c('Hot')}</td><td>${bk}</td><td>${cl}</td><td>${mine.length ? Math.round(cl / mine.length * 100) + '%' : '0%'}</td></tr>`;
     }).join('') : '<tr><td colspan="7">Tidak ada data pada periode ini.</td></tr>'}
 </table>
 
