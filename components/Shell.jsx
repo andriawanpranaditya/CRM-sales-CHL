@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
@@ -17,6 +18,10 @@ export default function Shell({ user, children }) {
   const path = usePathname();
   const router = useRouter();
   const menus = MENUS.filter(m => m.roles.includes(user.role));
+
+  useEffect(() => {
+    if (user.role === 'sales' && !path.startsWith('/form')) router.replace('/form');
+  }, [path, user.role, router]);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
