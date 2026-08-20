@@ -31,10 +31,28 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { user, err } = await requireUser('manager'); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
-  if (b.status) await sql`UPDATE leads SET status = ${b.status}, updated_at = now() WHERE id = ${b.id}`;
+  const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
+  if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
+  const cur = rows[0];
+  if (user.role === 'sales' && cur.sales !== user.name) {
+    return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
+  }
+  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu'];
+  const m = { ...cur };
+  for (const k of FIELDS) if (k in b) m[k] = b[k];
+  if (user.role === 'manager' && 'sales' in b && b.sales) m.sales = b.sales;
+  if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
+  await sql`UPDATE leads SET
+    tgl = ${m.tgl || null}, nama = ${m.nama}, wa = ${m.wa || ''}, email = ${m.email || ''},
+    domisili = ${m.domisili || ''}, kerja = ${m.kerja || ''}, sumber = ${m.sumber || ''},
+    project = ${m.project || ''}, tipe = ${m.tipe || ''}, tujuan = ${m.tujuan || ''},
+    budget = ${Number(m.budget) || 0}, bayar = ${m.bayar || ''}, sales = ${m.sales},
+    status = ${m.status || 'New'}, catatan = ${m.catatan || ''}, next_fu = ${m.next_fu || null},
+    updated_at = now()
+    WHERE id = ${b.id}`;
   return Response.json({ ok: true });
 }

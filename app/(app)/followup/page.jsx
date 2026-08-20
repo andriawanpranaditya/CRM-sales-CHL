@@ -7,11 +7,18 @@ export default function FollowUpPage() {
   const [fus, setFus] = useState(null);
   const [sort, setSort] = useState('tanggal');
   const [filter, setFilter] = useState('');
+  const [proj, setProj] = useState('');
+  const [set, setSet] = useState({ project: [] });
 
-  useEffect(() => { api('/api/followups').then(setFus).catch(e => toast(e.message)); }, []);
+  useEffect(() => {
+    Promise.all([api('/api/followups'), api('/api/settings')])
+      .then(([f, s]) => { setFus(f); setSet(s); }).catch(e => toast(e.message));
+  }, []);
   if (!fus) return <div className="loading">Memuat…</div>;
 
-  let rows = filter ? fus.filter(f => f.lead_code === filter) : [...fus];
+  let rows = [...fus];
+  if (proj) rows = rows.filter(f => f.project === proj);
+  if (filter) rows = rows.filter(f => f.lead_code === filter);
   if (sort === 'lead') rows.sort((a, b) => a.lead_code.localeCompare(b.lead_code) || new Date(b.tgl) - new Date(a.tgl));
   const codes = [...new Set(fus.map(f => f.lead_code))].sort();
 
@@ -19,6 +26,11 @@ export default function FollowUpPage() {
     <>
       <div className="page-head"><div><h1>Follow Up</h1>
         <div className="sub">Histori komunikasi per konsumen — satu konsumen boleh punya banyak baris</div></div></div>
+      <div className="fu-toolbar">
+        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
+        {(set.project || []).map(p => (
+          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+      </div>
       <div className="fu-toolbar">
         <span className="hint" style={{ fontWeight: 600 }}>Urutkan:</span>
         <button className={'sort-btn' + (sort === 'tanggal' ? ' active' : '')} onClick={() => setSort('tanggal')}>Tanggal Terbaru</button>

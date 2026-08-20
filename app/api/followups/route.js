@@ -7,8 +7,8 @@ export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const rows = user.role === 'manager'
-    ? await sql`SELECT f.*, l.nama FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`
-    : await sql`SELECT f.*, l.nama FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
+    ? await sql`SELECT f.*, l.nama, l.project FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`
+    : await sql`SELECT f.*, l.nama, l.project FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
   return Response.json(rows);
 }
 

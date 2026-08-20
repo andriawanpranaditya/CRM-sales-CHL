@@ -71,15 +71,23 @@ export default function Dashboard() {
     toast('File Excel terunduh — tiap kolom ada tombol sort & filter');
   }
 
-  function downloadWord() {
+  async function downloadWord() {
+    // Ambil logo sebagai base64 agar tertanam di dokumen Word
+    let logoTag = '';
+    try {
+      const blob = await fetch('/icon-192.png').then(r => r.blob());
+      const dataUrl = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      logoTag = `<img src="${dataUrl}" width="72" height="72" style="border-radius:12px" alt="CHL"/>`;
+    } catch {}
     const inPeriod = t => {
       if (!t) return !d1 && !d2;
       const x = String(t).slice(0, 10);
       return (!d1 || x >= d1) && (!d2 || x <= d2);
     };
-    const pl = leads.filter(l => inPeriod(l.tgl));
-    const pf = fus.filter(f => inPeriod(f.tgl));
-    const pt = trx.filter(t => inPeriod(t.tgl));
+    const pl = fLeads.filter(l => inPeriod(l.tgl));
+    const pf = fFus.filter(f => inPeriod(f.tgl));
+    const pt = fTrx.filter(t => inPeriod(t.tgl));
+    const projLabel = proj || 'Semua Project';
     const ST = set.status || [];
     const cnt = st => pl.filter(l => l.status === st).length;
     const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
@@ -92,7 +100,7 @@ export default function Dashboard() {
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
     const now = new Date(); now.setHours(0, 0, 0, 0);
-    const recos = leads.filter(l => l.status === 'Warm' || l.status === 'Hot')
+    const recos = fLeads.filter(l => l.status === 'Warm' || l.status === 'Hot')
       .map(l => {
         const myFus = fus.filter(f => f.lead_code === l.lead_code);
         const last = myFus[0];
@@ -113,9 +121,13 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 .kpi{display:inline-block;border:1px solid #D8D6CC;padding:8px 16px;margin:4px 8px 4px 0}
 .kpi b{font-size:16pt;color:#23694A}
 </style></head><body>
+<table style="border:none;width:100%"><tr>
+<td style="border:none;width:84px;vertical-align:middle">${logoTag}</td>
+<td style="border:none;vertical-align:middle">
 <p style="letter-spacing:3px;color:#C9922E;font-weight:bold;margin:0">CIPTA HARMONI LESTARI</p>
 <h1>REPORT CRM SALES</h1>
-<p class="muted">Periode: <b>${esc(periode)}</b> &nbsp;|&nbsp; Dibuat: ${dd(new Date().toISOString())} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app</p>
+</td></tr></table>
+<p class="muted">Project: <b>${esc(projLabel)}</b> &nbsp;|&nbsp; Periode: <b>${esc(periode)}</b> &nbsp;|&nbsp; Dibuat: ${dd(new Date().toISOString())} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app</p>
 
 <h2>1. RINGKASAN</h2>
 <p>
@@ -161,7 +173,7 @@ ${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm
     const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Report_CRM_CHL_${d1 || 'awal'}_${d2 || 'kini'}.doc`;
+    a.download = `Report_CRM_CHL_${(proj || 'Semua').replace(/\s+/g, '')}_${d1 || 'awal'}_${d2 || 'kini'}.doc`;
     document.body.appendChild(a); a.click(); a.remove();
     toast('Report Word terunduh');
   }
@@ -185,7 +197,7 @@ ${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm
           <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadWord}>⬇ Report Word</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel (semua data)</button>
-        <span className="hint">Word: kosongkan tanggal utk seluruh data, Warm &amp; Hot ter-highlight. Excel: 3 sheet lengkap + tombol sort/filter tiap kolom, utk arsip offline.</span>
+        <span className="hint">Report Word mengikuti <b>filter project di atas</b> (Semua / per project) + berlogo CHL. Kosongkan tanggal utk seluruh periode; Warm &amp; Hot ter-highlight. Excel: 3 sheet lengkap + sort/filter tiap kolom utk arsip offline.</span>
       </div>
       <div className="grid kpis">
         {[['Total Lead', fLeads.length], ['Hot', byStatus('Hot')], ['Booking', byStatus('Booking')], ['Closing', byStatus('Closing')]]

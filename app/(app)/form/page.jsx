@@ -15,7 +15,11 @@ export default function FormPage() {
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '' });
   const [busy, setBusy] = useState(false);
   const [showList, setShowList] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [pwOld, setPwOld] = useState('');
+  const [pwNew, setPwNew] = useState('');
   const [fus, setFus] = useState([]);
+  const [editId, setEditId] = useState(null);
 
   async function refresh() {
     const [s, l, u, f] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me'), api('/api/followups')]);
@@ -37,11 +41,34 @@ export default function FormPage() {
     if (!lead.sales) return toast('Sales / PIC wajib dipilih');
     setBusy(true);
     try {
-      const d = await api('/api/leads', { method: 'POST', body: JSON.stringify(lead) });
-      toast('Lead tersimpan — ' + d.lead_code);
+      if (editId) {
+        await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
+        toast('Lead berhasil diperbarui');
+      } else {
+        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify(lead) });
+        toast('Lead tersimpan — ' + d.lead_code);
+      }
+      setEditId(null);
       setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
       setLeads(await api('/api/leads'));
     } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+
+  function mulaiEdit(l) {
+    setEditId(l.id);
+    setTab('lead');
+    const d10 = x => x ? String(x).slice(0, 10) : '';
+    setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
+      kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
+      budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
+      catatan: l.catatan || '', next_fu: d10(l.next_fu) });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
+  }
+
+  function batalEdit() {
+    setEditId(null);
+    setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
   }
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
@@ -75,7 +102,8 @@ export default function FormPage() {
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{t}</button>))}
       </div>
 
-      {tab === 'lead' && <div className="card">
+      {tab === 'lead' && <div className="card" style={editId ? { borderColor: 'var(--brass)', borderWidth: 2 } : undefined}>
+        {editId && <div className="note">✏️ Sedang mengedit lead <b>{leads.find(l => l.id === editId)?.lead_code}</b> — perbaiki datanya lalu klik <b>Update Lead</b>, atau <b>Batal</b> untuk kembali input baru.</div>}
         <div className="form-grid">
           <div className="field"><label>Tanggal Lead</label><input type="date" {...fl('tgl')} /></div>
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
@@ -99,8 +127,9 @@ export default function FormPage() {
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>
         <div className="form-foot">
-          <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>Simpan Lead</button>
-          <span className="hint">ID Lead dibuat otomatis oleh sistem.</span>
+          <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>{editId ? 'Update Lead' : 'Simpan Lead'}</button>
+          {editId && <button className="btn btn-ghost" onClick={batalEdit}>Batal</button>}
+          <span className="hint">{editId ? 'Perubahan langsung tersimpan ke database.' : 'ID Lead dibuat otomatis oleh sistem.'}</span>
         </div>
       </div>}
 
@@ -134,15 +163,39 @@ export default function FormPage() {
           <span className="hint">Status pipeline lead ikut ter-update otomatis.</span>
         </div>
       </div>}
-      <div style={{ marginTop: 16 }}>
-        <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => setShowList(v => !v)}>
+      <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-ghost" style={{ flex: '2 1 240px' }} onClick={() => setShowPw(false) || setShowList(v => !v)}>
           {showList ? '▲ Tutup Daftar' : '▼ Lihat Lead & Hasil Follow Up Saya (' + leads.length + ' lead)'}
+        </button>
+        <button className="btn btn-ghost" style={{ flex: '1 1 160px' }} onClick={() => setShowList(false) || setShowPw(v => !v)}>
+          🔑 Ganti Password
         </button>
       </div>
 
+      {showPw && <div className="card" style={{ marginTop: 12 }}>
+        <h2>Ganti Password Saya</h2>
+        <div className="form-grid">
+          <div className="field"><label>Password Lama</label>
+            <input type="password" value={pwOld} onChange={e => setPwOld(e.target.value)} /></div>
+          <div className="field"><label>Password Baru (min. 5 karakter)</label>
+            <input type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" disabled={busy} onClick={async () => {
+            if (!pwOld || !pwNew) return toast('Isi password lama dan baru');
+            setBusy(true);
+            try {
+              await api('/api/users', { method: 'PUT', body: JSON.stringify({ oldPassword: pwOld, newPassword: pwNew }) });
+              toast('Password berhasil diganti — pakai password baru saat login berikutnya');
+              setPwOld(''); setPwNew(''); setShowPw(false);
+            } catch (e) { toast(e.message); } finally { setBusy(false); }
+          }}>Simpan Password Baru</button>
+        </div>
+      </div>}
+
       {showList && <div style={{ marginTop: 12 }}>
         <div className="tbl-wrap"><table>
-          <thead><tr><th>ID Lead</th><th>Nama</th><th>Status</th><th>FU Terakhir</th><th>Hasil / Next Action</th><th>Next FU</th></tr></thead>
+          <thead><tr><th>ID Lead</th><th>Nama</th><th>Status</th><th>FU Terakhir</th><th>Hasil / Next Action</th><th>Next FU</th><th>Aksi</th></tr></thead>
           <tbody>
             {leads.length ? [...leads].reverse().map(l => {
               const myFus = fus.filter(f => f.lead_code === l.lead_code);
@@ -156,8 +209,9 @@ export default function FormPage() {
                 <td data-label="FU Terakhir">{last ? <>{fmtDate(last.tgl)}<br /><span className="hint">{last.detail}</span></> : <span style={{ color: 'var(--muted)' }}>belum ada</span>}</td>
                 <td data-label="Hasil / Next Action">{last ? (last.next_action || last.objection || '—') : '—'}</td>
                 <td data-label="Next FU">{nfu ? <>{fmtDate(nfu)}{r && <> <span className={'badge ' + r[1]}>{r[0]}</span></>}</> : '—'}</td>
+                <td data-label="Aksi"><button className="sort-btn" onClick={() => mulaiEdit(l)}>✏️ Edit</button></td>
               </tr>;
-            }) : <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead — input lead pertama Anda di tab 1.</td></tr>}
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead — input lead pertama Anda di tab 1.</td></tr>}
           </tbody>
         </table></div>
       </div>}

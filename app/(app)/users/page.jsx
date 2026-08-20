@@ -58,13 +58,14 @@ export default function UsersPage() {
         <div className="form-foot"><button className="btn btn-primary" onClick={tambah} disabled={busy}>Tambah Akun</button></div>
       </div>
       <div className="tbl-wrap"><table>
-        <thead><tr><th>Username</th><th>Nama</th><th>Email</th><th>Peran</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Username</th><th>Nama</th><th>Email</th><th>Password</th><th>Peran</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead>
         <tbody>
           {users.map(u => (
             <tr key={u.id}>
               <td data-label="Username"><b>{u.username}</b></td>
               <td data-label="Nama">{u.name}</td>
               <td data-label="Email">{u.email || <span style={{ color: 'var(--red)' }}>belum diisi</span>}</td>
+              <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
               <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : 'b-book')}>{u.role}</span></td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>

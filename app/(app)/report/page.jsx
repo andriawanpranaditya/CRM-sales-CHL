@@ -6,25 +6,32 @@ import { api } from '@/components/util';
 export default function ReportPage() {
   const [leads, setLeads] = useState(null);
   const [set, setSet] = useState({ status: [] });
+  const [proj, setProj] = useState('');
   useEffect(() => {
     Promise.all([api('/api/leads'), api('/api/settings')])
       .then(([l, s]) => { setLeads(l); setSet(s); }).catch(e => toast(e.message));
   }, []);
   if (!leads) return <div className="loading">Memuat…</div>;
 
-  const salesNames = [...new Set([...(set.sales || []), ...leads.map(l => l.sales)].filter(Boolean))];
+  const fLeads = proj ? leads.filter(l => l.project === proj) : leads;
+  const salesNames = [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking', 'Closing', 'Lost'];
 
   return (
     <>
       <div className="page-head"><div><h1>Report per Sales</h1>
         <div className="sub">100% otomatis — dihitung dari status pipeline di Database Lead</div></div></div>
+      <div className="fu-toolbar">
+        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
+        {(set.project || []).map(p => (
+          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+      </div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>Sales / PIC</th><th className="num">Total</th>
           {ST.map(s => <th className="num" key={s}>{s}</th>)}<th className="num">Closing Rate</th></tr></thead>
         <tbody>
           {salesNames.length ? salesNames.map(s => {
-            const mine = leads.filter(l => l.sales === s);
+            const mine = fLeads.filter(l => l.sales === s);
             const c = st => mine.filter(l => l.status === st).length;
             return <tr key={s}>
               <td data-label="Sales"><b>{s}</b></td>
