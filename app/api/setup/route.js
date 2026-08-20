@@ -78,6 +78,14 @@ export async function GET(req) {
     await sql`UPDATE settings SET items = ${JSON.stringify(items)} WHERE key = 'status'`;
   }
 
+  await sql`CREATE TABLE IF NOT EXISTS unit_manual (
+    id serial PRIMARY KEY,
+    project text NOT NULL,
+    unit text NOT NULL,
+    status text NOT NULL CHECK (status IN ('Terjual','Reserved','Kosong')),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (project, unit)
+  )`;
   await sql`CREATE TABLE IF NOT EXISTS unit_positions (
     id serial PRIMARY KEY,
     project text NOT NULL,

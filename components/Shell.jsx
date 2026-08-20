@@ -10,7 +10,7 @@ const MENUS = [
   { href: '/followup', ico: '↻', label: 'Follow Up', roles: ['manager'] },
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
-  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager'] },
+  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'sales'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
 ];
@@ -21,7 +21,7 @@ export default function Shell({ user, children }) {
   const menus = MENUS.filter(m => m.roles.includes(user.role));
 
   useEffect(() => {
-    if (user.role === 'sales' && !path.startsWith('/form')) router.replace('/form');
+    if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock')) router.replace('/form');
   }, [path, user.role, router]);
 
   async function logout() {
