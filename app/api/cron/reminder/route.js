@@ -29,7 +29,7 @@ export async function GET(req) {
     WHERE l.next_fu IS NOT NULL
       AND u.email IS NOT NULL AND u.email <> ''
       AND l.next_fu::date <= ${today}
-      AND l.status NOT IN ('Closing', 'Lost')
+      AND l.status NOT IN ('Closing', 'Lost', 'Drop')
     ORDER BY l.next_fu`;
 
   const bySales = {};

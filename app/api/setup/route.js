@@ -52,7 +52,7 @@ export async function GET(req) {
   await sql`CREATE TABLE IF NOT EXISTS transactions (
     id serial PRIMARY KEY,
     lead_code text NOT NULL,
-    jenis text NOT NULL CHECK (jenis IN ('Booking','Closing','Batal')),
+    jenis text NOT NULL CHECK (jenis IN ('Reserved','Booking','Closing','Batal')),
     tgl date,
     nilai bigint DEFAULT 0,
     catatan text,
@@ -64,7 +64,19 @@ export async function GET(req) {
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_fu date`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`;
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS project text`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bayar text`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS unit text`;
+  // Jenis transaksi baru: Reserved
+  await sql`ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_jenis_check`;
+  await sql`ALTER TABLE transactions ADD CONSTRAINT transactions_jenis_check CHECK (jenis IN ('Reserved','Booking','Closing','Batal'))`;
+  // Rename status pipeline: Lost -> Drop (data lama ikut dirapikan)
+  await sql`UPDATE leads SET status = 'Drop' WHERE status = 'Lost'`;
+  const stRow = await sql`SELECT items FROM settings WHERE key = 'status'`;
+  if (stRow.length) {
+    const items = stRow[0].items.map(x => x === 'Lost' ? 'Drop' : x);
+    await sql`UPDATE settings SET items = ${JSON.stringify(items)} WHERE key = 'status'`;
+  }
 
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})

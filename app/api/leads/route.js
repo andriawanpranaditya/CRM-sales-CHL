@@ -56,3 +56,25 @@ export async function PATCH(req) {
     WHERE id = ${b.id}`;
   return Response.json({ ok: true });
 }
+
+// Hapus lead (beserta follow up & transaksinya) atau CLEAR SEMUA data — khusus manager
+export async function DELETE(req) {
+  const { err } = await requireUser('manager'); if (err) return err;
+  const b = await req.json();
+  const sql = db();
+  if (b.all === true) {
+    if (b.confirm !== 'HAPUS SEMUA') return Response.json({ error: 'Konfirmasi tidak cocok' }, { status: 400 });
+    const t = await sql`DELETE FROM transactions RETURNING id`;
+    const f = await sql`DELETE FROM followups RETURNING id`;
+    const l = await sql`DELETE FROM leads RETURNING id`;
+    return Response.json({ ok: true, terhapus: { lead: l.length, followup: f.length, transaksi: t.length } });
+  }
+  if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
+  const rows = await sql`SELECT lead_code FROM leads WHERE id = ${b.id}`;
+  if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
+  const code = rows[0].lead_code;
+  await sql`DELETE FROM transactions WHERE lead_code = ${code}`;
+  await sql`DELETE FROM followups WHERE lead_code = ${code}`;
+  await sql`DELETE FROM leads WHERE id = ${b.id}`;
+  return Response.json({ ok: true });
+}

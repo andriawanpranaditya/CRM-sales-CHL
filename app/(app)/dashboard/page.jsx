@@ -145,9 +145,9 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 <span class="kpi">Nilai Closing<br/><b>${rp(closeV)}</b></span>
 </p>
 
-<h2>2. STATUS PIPELINE (posisi status lead — bukan jumlah transaksi)</h2>
+<h2>2. STATUS PIPELINE (posisi status lead saat ini; Booking &amp; Closing dilaporkan dari transaksi pada Ringkasan)</h2>
 <table><tr><th>Status</th><th>Jumlah</th></tr>
-${ST.map(st => `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}</td><td>${cnt(st)}</td></tr>`).join('')}
+${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}</td><td>${cnt(st)}</td></tr>`).join('')}
 </table>
 
 <h2>3. KINERJA PER SALES (lead masuk pada periode)</h2>
@@ -208,7 +208,9 @@ ${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm
         <span className="hint">Report Word mengikuti <b>filter project di atas</b> (Semua / per project) + berlogo CHL. Kosongkan tanggal utk seluruh periode; Warm &amp; Hot ter-highlight. Excel: 3 sheet lengkap + sort/filter tiap kolom utk arsip offline.</span>
       </div>
       <div className="grid kpis">
-        {[['Total Lead', fLeads.length], ['Hot', byStatus('Hot')], ['Booking', byStatus('Booking')], ['Closing', byStatus('Closing')]]
+        {[['Total Lead', fLeads.length], ['Hot', byStatus('Hot')],
+          ['Booking', new Set(fTrx.filter(t => t.jenis === 'Booking').map(t => t.lead_code)).size],
+          ['Closing', new Set(fTrx.filter(t => t.jenis === 'Closing').map(t => t.lead_code)).size]]
           .map(([l, v]) => <div className="kpi" key={l}><div className="lbl">{l}</div><div className="val">{v}</div></div>)}
       </div>
       <div className="grid two-col">
@@ -217,7 +219,7 @@ ${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm
           <div className="pipe">
             {(set.status || []).map(st => {
               const n = byStatus(st);
-              const cls = st === 'Hot' ? ' hot' : st === 'Lost' ? ' lost' : '';
+              const cls = st === 'Hot' ? ' hot' : (st === 'Lost' || st === 'Drop') ? ' lost' : '';
               return <div className={'pipe-row' + cls} key={st}><span>{st}</span>
                 <div className="bar"><div className="fill" style={{ width: (n / max * 100) + '%' }} /></div>
                 <span className="n">{n}</span></div>;

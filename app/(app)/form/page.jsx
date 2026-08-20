@@ -12,7 +12,7 @@ export default function FormPage() {
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
-  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '' });
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
   const [busy, setBusy] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -88,7 +88,7 @@ export default function FormPage() {
     try {
       await api('/api/trx', { method: 'POST', body: JSON.stringify(trx) });
       toast('Transaksi tersimpan — status pipeline ter-update');
-      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '' });
+      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
 
@@ -140,8 +140,14 @@ export default function FormPage() {
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
             <textarea rows={2} {...ff('detail')} /></div>
           <div className="field"><label>Objection</label><input {...ff('objection')} /></div>
-          <div className="field"><label>Next Action</label><input {...ff('next_action')} /></div>
-          <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...ff('next_tgl')} /></div>
+          <div className="field"><label>Next Action</label>
+            <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl })}>
+              <option value="">— pilih —</option>
+              <option value="Lanjut Follow Up">Lanjut Follow Up</option>
+              <option value="Drop">Drop</option>
+            </select></div>
+          <div className="field"><label>Tgl Next Follow Up{fu.next_action === 'Drop' ? ' (nonaktif — Drop)' : ''}</label>
+            <input type="date" {...ff('next_tgl')} disabled={fu.next_action === 'Drop'} /></div>
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanFU} disabled={busy}>Simpan Follow Up</button>
@@ -151,16 +157,23 @@ export default function FormPage() {
 
       {tab === 'trx' && <div className="card">
         <div className="form-grid">
-          <div className="field"><label>ID Lead <span className="req">*</span></label><select {...ft('lead_code')}>{leadOpt}</select></div>
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={trx.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              setTrx({ ...trx, lead_code: e.target.value, project: (l && l.project) || trx.project, bayar: (l && l.bayar) || trx.bayar });
+            }}>{leadOpt}</select></div>
+          <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
+          <div className="field"><label>Blok / Unit</label><input {...ft('unit')} placeholder="mis. B-12" /></div>
+          <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
-            <select {...ft('jenis')}><option>Booking</option><option>Closing</option><option>Batal</option></select></div>
+            <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Closing</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
           <div className="field"><label>Nilai (Rp) <span className="req">*</span></label><input type="number" min="0" {...ft('nilai')} /></div>
           <div className="field"><label>Catatan</label><input {...ft('catatan')} /></div>
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanTrx} disabled={busy}>Simpan Transaksi</button>
-          <span className="hint">Status pipeline lead ikut ter-update otomatis.</span>
+          <span className="hint">Booking/Closing/Batal meng-update status pipeline otomatis (Batal → Drop). Reserved tidak mengubah status.</span>
         </div>
       </div>}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>

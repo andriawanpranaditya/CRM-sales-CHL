@@ -40,6 +40,21 @@ export default function SettingsPage() {
       <div className="form-foot">
         <button className="btn btn-primary" onClick={simpan} disabled={busy}>Simpan Settings</button>
       </div>
+
+      <div className="card" style={{ marginTop: 18, borderColor: 'var(--red-soft)' }}>
+        <h2 style={{ color: 'var(--red)' }}>Zona Berbahaya</h2>
+        <div className="note" style={{ background: 'var(--red-soft)', borderColor: '#EAC2BA', color: 'var(--red)' }}>
+          Menghapus SEMUA lead, follow up, dan transaksi dari database secara permanen. Akun pengguna &amp; settings tidak ikut terhapus. Sebaiknya <b>Download Excel</b> dulu di Dashboard sebagai arsip.
+        </div>
+        <button className="btn btn-danger" style={{ width: 'auto' }} onClick={async () => {
+          const c = prompt('Ketik persis: HAPUS SEMUA\nuntuk menghapus seluruh data lead, follow up, dan transaksi.');
+          if (c === null) return;
+          try {
+            const d = await api('/api/leads', { method: 'DELETE', body: JSON.stringify({ all: true, confirm: c }) });
+            toast('Data terhapus: ' + d.terhapus.lead + ' lead, ' + d.terhapus.followup + ' FU, ' + d.terhapus.transaksi + ' transaksi');
+          } catch (e) { toast(e.message); }
+        }}>🗑 Hapus SEMUA Data (Clear)</button>
+      </div>
       <Toast />
     </>
   );

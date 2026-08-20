@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
-const SEL = { New: ['#E5EEF6', '#2D5D8E'], Cold: ['#E8EAEE', '#5A6675'], Warm: ['#FBF1DC', '#8A6415'], Hot: ['#F6E3C0', '#8A5F14'], Appointment: ['#E5EEF6', '#2D5D8E'], 'Site Visit': ['#E5EEF6', '#2D5D8E'], Booking: ['#E4EFE8', '#23694A'], Closing: ['#23694A', '#FFFFFF'], Lost: ['#F9E7E3', '#B3402F'] };
+const SEL = { New: ['#E5EEF6', '#2D5D8E'], Cold: ['#E8EAEE', '#5A6675'], Warm: ['#FBF1DC', '#8A6415'], Hot: ['#F6E3C0', '#8A5F14'], Appointment: ['#E5EEF6', '#2D5D8E'], 'Site Visit': ['#E5EEF6', '#2D5D8E'], Booking: ['#E4EFE8', '#23694A'], Closing: ['#23694A', '#FFFFFF'], Lost: ['#F9E7E3', '#B3402F'], Drop: ['#F9E7E3', '#B3402F'] };
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState(null);
@@ -14,6 +14,14 @@ export default function LeadsPage() {
     .then(([l, s]) => { setLeads(l); setSet(s); }).catch(e => toast(e.message));
   useEffect(() => { load(); }, []);
 
+  async function hapus(l) {
+    if (!confirm('Hapus ' + l.lead_code + ' — ' + l.nama + '?\nFollow up & transaksi lead ini ikut terhapus. Tidak bisa dibatalkan.')) return;
+    try {
+      await api('/api/leads', { method: 'DELETE', body: JSON.stringify({ id: l.id }) });
+      setLeads(ls => ls.filter(x => x.id !== l.id));
+      toast(l.lead_code + ' terhapus');
+    } catch (e) { toast(e.message); }
+  }
   async function ubahStatus(id, status) {
     try {
       await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id, status }) });
@@ -38,7 +46,7 @@ export default function LeadsPage() {
       </div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>ID Lead</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Domisili</th><th>Sumber</th><th>Project</th>
-          <th>Tipe</th><th className="num">Budget</th><th>Bayar</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th></tr></thead>
+          <th>Tipe</th><th className="num">Budget</th><th>Bayar</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(l => {
             const c = SEL[l.status] || ['#EFEEE8', '#1C2B23'];
@@ -62,8 +70,9 @@ export default function LeadsPage() {
               </td>
               <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{(() => { const r = reminder(l.next_fu); return r ? <> <span className={'badge ' + r[1]}>{r[0]}</span></> : null; })()}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
               <td data-label="Catatan">{l.catatan}</td>
+              <td data-label="Aksi"><button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(l)}>Hapus</button></td>
             </tr>;
-          }) : <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead.</td></tr>}
+          }) : <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead.</td></tr>}
         </tbody>
       </table></div>
       <Toast />

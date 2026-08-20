@@ -18,7 +18,7 @@ export default function ReportPage() {
   const salesNames = proj
     ? [...new Set(fLeads.map(l => l.sales).filter(Boolean))]
     : [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
-  const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking', 'Closing', 'Lost'];
+  const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking', 'Closing', 'Drop'];
 
   return (
     <>

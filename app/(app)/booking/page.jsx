@@ -25,21 +25,23 @@ export default function BookingPage() {
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>
       <div className="tbl-wrap"><table>
-        <thead><tr><th>ID Lead</th><th>Nama</th><th>Project</th><th>Tipe</th><th>Jenis</th>
-          <th>Tanggal</th><th className="num">Nilai</th><th>Catatan</th></tr></thead>
+        <thead><tr><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Project</th><th>Blok/Unit</th><th>Jenis</th>
+          <th>Tanggal</th><th className="num">Nilai</th><th>Cara Bayar</th><th>Catatan</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(t => (
             <tr key={t.id}>
               <td data-label="ID Lead"><span className="id-tag">{t.lead_code}</span></td>
-              <td data-label="Nama"><b>{t.nama || ''}</b></td>
+              <td data-label="Nama"><b>{t.nama || ''}</b>{t.tipe ? <span className="hint"> · {t.tipe}</span> : null}</td>
+              <td data-label="Sales">{t.sales || ''}</td>
               <td data-label="Project">{t.project || ''}</td>
-              <td data-label="Tipe">{t.tipe || ''}</td>
+              <td data-label="Blok/Unit">{t.unit || '—'}</td>
               <td data-label="Jenis"><span className={'badge ' + (BADGE[t.jenis === 'Batal' ? 'Lost' : t.jenis] || 'b-cold')}>{t.jenis}</span></td>
               <td data-label="Tanggal">{fmtDate(t.tgl)}</td>
               <td className="num" data-label="Nilai">{fmtRp(t.nilai)}</td>
+              <td data-label="Cara Bayar">{t.bayar || ''}</td>
               <td data-label="Catatan">{t.catatan}</td>
             </tr>
-          )) : <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi — input dari Form Input → Booking / Closing.</td></tr>}
+          )) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi — input dari Form Input → Booking / Closing.</td></tr>}
         </tbody>
       </table></div>
       <Toast />
