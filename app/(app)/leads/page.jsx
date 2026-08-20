@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, fmtDate, fmtRp } from '@/components/util';
+import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
 const SEL = { New: ['#E5EEF6', '#2D5D8E'], Cold: ['#E8EAEE', '#5A6675'], Warm: ['#FBF1DC', '#8A6415'], Hot: ['#F6E3C0', '#8A5F14'], Appointment: ['#E5EEF6', '#2D5D8E'], 'Site Visit': ['#E5EEF6', '#2D5D8E'], Booking: ['#E4EFE8', '#23694A'], Closing: ['#23694A', '#FFFFFF'], Lost: ['#F9E7E3', '#B3402F'] };
 
@@ -38,7 +38,7 @@ export default function LeadsPage() {
       </div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>ID Lead</th><th>Tanggal</th><th>Nama</th><th>WhatsApp</th><th>Domisili</th><th>Sumber</th><th>Project</th>
-          <th>Tipe</th><th className="num">Budget</th><th>Bayar</th><th>Sales</th><th>Status</th><th>Catatan</th></tr></thead>
+          <th>Tipe</th><th className="num">Budget</th><th>Bayar</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(l => {
             const c = SEL[l.status] || ['#EFEEE8', '#1C2B23'];
@@ -60,9 +60,10 @@ export default function LeadsPage() {
                   {(set.status || []).map(s => <option key={s}>{s}</option>)}
                 </select>
               </td>
+              <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{(() => { const r = reminder(l.next_fu); return r ? <> <span className={'badge ' + r[1]}>{r[0]}</span></> : null; })()}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
               <td data-label="Catatan">{l.catatan}</td>
             </tr>;
-          }) : <tr><td colSpan={13} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead.</td></tr>}
+          }) : <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead.</td></tr>}
         </tbody>
       </table></div>
       <Toast />

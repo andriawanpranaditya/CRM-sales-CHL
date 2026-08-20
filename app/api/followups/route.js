@@ -23,5 +23,9 @@ export async function POST(req) {
   }
   await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, created_by)
     VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${user.username})`;
+  // Sinkron: jadwal FU berikutnya tampil di Database Lead
+  if (b.next_tgl) {
+    await sql`UPDATE leads SET next_fu = ${b.next_tgl}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
+  }
   return Response.json({ ok: true });
 }

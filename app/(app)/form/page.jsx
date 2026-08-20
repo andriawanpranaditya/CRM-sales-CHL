@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, todayISO } from '@/components/util';
+import { api, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
 
 export default function FormPage() {
   const [tab, setTab] = useState('lead');
@@ -14,10 +14,12 @@ export default function FormPage() {
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '' });
   const [busy, setBusy] = useState(false);
+  const [showList, setShowList] = useState(false);
+  const [fus, setFus] = useState([]);
 
   async function refresh() {
-    const [s, l, u] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me')]);
-    setSet(s); setLeads(l); setMe(u);
+    const [s, l, u, f] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me'), api('/api/followups')]);
+    setSet(s); setLeads(l); setMe(u); setFus(f);
     if (u.role === 'sales') setLead(x => ({ ...x, sales: u.name }));
   }
   useEffect(() => { refresh().catch(e => toast(e.message)); }, []);
@@ -49,6 +51,7 @@ export default function FormPage() {
       await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
       toast('Follow up tersimpan');
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
+      Promise.all([api('/api/leads'), api('/api/followups')]).then(([l, f]) => { setLeads(l); setFus(f); });
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   async function simpanTrx() {
@@ -92,6 +95,7 @@ export default function FormPage() {
               : <select {...fl('sales')}>{opsi('sales')}</select>}
           </div>
           <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).map(o => <option key={o}>{o}</option>)}</select></div>
+          <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>
         <div className="form-foot">
@@ -130,6 +134,34 @@ export default function FormPage() {
           <span className="hint">Status pipeline lead ikut ter-update otomatis.</span>
         </div>
       </div>}
+      <div style={{ marginTop: 16 }}>
+        <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => setShowList(v => !v)}>
+          {showList ? '▲ Tutup Daftar' : '▼ Lihat Lead & Hasil Follow Up Saya (' + leads.length + ' lead)'}
+        </button>
+      </div>
+
+      {showList && <div style={{ marginTop: 12 }}>
+        <div className="tbl-wrap"><table>
+          <thead><tr><th>ID Lead</th><th>Nama</th><th>Status</th><th>FU Terakhir</th><th>Hasil / Next Action</th><th>Next FU</th></tr></thead>
+          <tbody>
+            {leads.length ? [...leads].reverse().map(l => {
+              const myFus = fus.filter(f => f.lead_code === l.lead_code);
+              const last = myFus[0];
+              const nfu = l.next_fu || (last && last.next_tgl);
+              const r = reminder(nfu);
+              return <tr key={l.lead_code}>
+                <td data-label="ID Lead"><span className="id-tag">{l.lead_code}</span></td>
+                <td data-label="Nama"><b>{l.nama}</b>{myFus.length > 0 && <span className="hint"> · {myFus.length}x FU</span>}</td>
+                <td data-label="Status"><span className={'badge ' + (BADGE[l.status] || 'b-cold')}>{l.status}</span></td>
+                <td data-label="FU Terakhir">{last ? <>{fmtDate(last.tgl)}<br /><span className="hint">{last.detail}</span></> : <span style={{ color: 'var(--muted)' }}>belum ada</span>}</td>
+                <td data-label="Hasil / Next Action">{last ? (last.next_action || last.objection || '—') : '—'}</td>
+                <td data-label="Next FU">{nfu ? <>{fmtDate(nfu)}{r && <> <span className={'badge ' + r[1]}>{r[0]}</span></>}</> : '—'}</td>
+              </tr>;
+            }) : <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead — input lead pertama Anda di tab 1.</td></tr>}
+          </tbody>
+        </table></div>
+      </div>}
+
       <Toast />
     </>
   );

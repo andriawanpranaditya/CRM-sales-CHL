@@ -60,6 +60,10 @@ export async function GET(req) {
     created_at timestamptz NOT NULL DEFAULT now()
   )`;
 
+  // Migrasi ringan (aman dijalankan berulang)
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_fu date`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`;
+
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})
               ON CONFLICT (key) DO NOTHING`;

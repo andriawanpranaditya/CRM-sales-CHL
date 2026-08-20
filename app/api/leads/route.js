@@ -19,10 +19,10 @@ export async function POST(req) {
   const sales = user.role === 'sales' ? user.name : (b.sales || '');
   if (!sales) return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
-  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, project, tipe, tujuan, budget, bayar, sales, status, catatan, created_by)
+  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, created_by)
     VALUES (${b.tgl || null}, ${b.nama}, ${b.wa || ''}, ${b.email || ''}, ${b.domisili || ''}, ${b.kerja || ''},
             ${b.sumber || ''}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
-            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${user.username})
+            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${user.username})
     RETURNING id`;
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
