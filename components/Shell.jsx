@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import ReminderBell from '@/components/ReminderBell';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -47,7 +48,8 @@ export default function Shell({ user, children }) {
       <header className="m-topbar">
         <div className="m-logo">CRM<span> SALES</span></div>
         <img src="/logo.png" alt="" />
-        <span style={{ display: 'flex', gap: 6 }}>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <ReminderBell user={user} />
           <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
           <button className="btn-logout" onClick={logout}>{user.name} · Keluar</button>
         </span>
@@ -74,7 +76,9 @@ export default function Shell({ user, children }) {
           </span>
         </div>
       </aside>
-      <main className="main">{children}
+      <main className="main">
+        <div className="bell-desktop"><ReminderBell user={user} /></div>
+        {children}
         <div className="copyright">copyright &copy; 2026 by Andriawanp</div>
       </main>
     </div>

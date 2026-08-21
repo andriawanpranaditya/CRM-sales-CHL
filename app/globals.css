@@ -118,6 +118,27 @@ th.num{text-align:right}
 
 .copyright{text-align:center;color:var(--muted);font-size:11px;margin-top:34px;letter-spacing:.4px;opacity:.8}
 
+/* ===== Lonceng pengingat FU ===== */
+.bell-wrap{position:relative;display:inline-block}
+.bell-btn{position:relative;background:var(--card);border:1px solid var(--line);border-radius:50%;width:40px;height:40px;font-size:17px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.bell-btn.has{border-color:var(--brass);animation:bell-pulse 2.4s ease infinite}
+@keyframes bell-pulse{0%,100%{box-shadow:0 2px 8px rgba(201,146,46,.15)}50%{box-shadow:0 2px 14px rgba(201,146,46,.5)}}
+.bell-badge{position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;font-size:10.5px;font-weight:800;min-width:19px;height:19px;border-radius:10px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--card)}
+.bell-backdrop{position:fixed;inset:0;z-index:70}
+.bell-panel{position:absolute;right:0;top:48px;width:min(360px,88vw);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.22);z-index:71;overflow:hidden}
+.bell-head{background:var(--ink);color:#EDEBE2;font-family:'Archivo';font-weight:700;font-size:13px;padding:11px 16px}
+.bell-list{max-height:52vh;overflow-y:auto}
+.rem-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);border-left:4px solid var(--brass);text-decoration:none;color:var(--ink);font-size:13px}
+.rem-item:hover{background:var(--green-soft)}
+.bell-foot{padding:9px 14px;font-size:11px;color:var(--muted);background:var(--gray-soft)}
+.bell-foot a{color:var(--green);font-weight:600}
+.bell-desktop{position:fixed;top:18px;right:24px;z-index:60}
+@media(max-width:760px){
+  .bell-desktop{display:none}
+  .m-topbar .bell-btn{width:34px;height:34px;font-size:15px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#fff}
+  .m-topbar .bell-panel{position:fixed;top:56px;right:8px;left:8px;width:auto}
+}
+
 /* ===== Login ===== */
 .login{position:fixed;inset:0;background:linear-gradient(160deg,#16241C 0%,#1C2B23 55%,#23694A 160%);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
 .login-card{width:100%;max-width:400px;background:var(--card);border-radius:18px;padding:28px 26px 26px;box-shadow:0 24px 64px rgba(0,0,0,.4)}
