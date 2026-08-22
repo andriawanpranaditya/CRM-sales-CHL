@@ -35,8 +35,8 @@ export default function ReminderBell({ user }) {
       if (d.total > 0 && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !notified.current) {
         const key = 'crm_notif_' + d.today;
         if (!localStorage.getItem(key)) {
-          new Notification('CRM Sales CHL — Pengingat Follow Up', {
-            body: `📅 ${d.hariIni.length} follow up hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : ''),
+          new Notification('CRM Sales CHL — Pengingat', {
+            body: `📅 ${d.hariIni.length} FU hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : '') + ((d.stok || []).length ? ` · 🗺 ${d.stok.length} unit perlu ditandai di Master Stock` : ''),
             icon: '/icon-192.png', badge: '/icon-192.png',
           });
           try { localStorage.setItem(key, '1'); } catch {}
@@ -106,11 +106,21 @@ export default function ReminderBell({ user }) {
         <div className="bell-panel">
           <div className="bell-head">Pengingat Follow Up {data ? '— ' + fmtDate(data.today) : ''}</div>
           {!data || !total ? (
-            <div className="hint" style={{ padding: '14px 16px' }}>✅ Tidak ada follow up yang jatuh tempo. Mantap!</div>
+            <div className="hint" style={{ padding: '14px 16px' }}>✅ Tidak ada pengingat. Mantap!</div>
           ) : (
             <div className="bell-list">
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
+              {(data.stok || []).length > 0 && <>
+                <div className="bell-sub">🗺 Penjualan baru — tandai di Master Stock ({data.stok.length})</div>
+                {data.stok.map(u => (
+                  <a key={u.project + u.unit} href="/stock" className="rem-item" style={{ borderLeftColor: u.warna === 'merah' ? 'var(--red)' : 'var(--brass)' }}>
+                    <span><b>{u.unit}</b> <span className="hint">({u.project})</span><br />
+                      <span className="hint">Klik untuk membuka Master Stock &amp; tandai lokasinya</span></span>
+                    <span className={'badge ' + (u.warna === 'merah' ? 'b-lost' : 'b-warm')}>{u.warna === 'merah' ? 'TERJUAL' : 'RESERVED'}</span>
+                  </a>
+                ))}
+              </>}
             </div>
           )}
           <div className="bell-foot">

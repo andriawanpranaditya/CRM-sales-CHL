@@ -25,5 +25,34 @@ export async function GET() {
 
   const hariIni = rows.filter(r => r.next_fu === today);
   const terlambat = rows.filter(r => r.next_fu < today);
-  return Response.json({ today, hariIni, terlambat, total: rows.length });
+
+  // Khusus manager: unit bertransaksi/berstatus yang BELUM ditandai di peta Master Stock
+  let stok = [];
+  if (user.role === 'manager') {
+    const trx = await sql`
+      SELECT t.id, t.jenis, t.unit,
+             COALESCE(NULLIF(t.project, ''), l.project, '') AS project
+      FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.unit IS NOT NULL AND t.unit <> ''
+      ORDER BY t.id`;
+    const manual = await sql`SELECT project, unit, status FROM unit_manual`;
+    const posRows = await sql`SELECT project, unit FROM unit_positions`;
+    const posSet = new Set(posRows.map(p => p.project + '|' + p.unit));
+    const m = {};
+    trx.forEach(t => {
+      if (!t.project) return;
+      const key = t.project + '|' + t.unit;
+      if (t.jenis === 'Batal') m[key] = null;
+      else m[key] = t.jenis === 'Reserved' ? 'kuning' : 'merah';
+    });
+    manual.forEach(x => {
+      const key = x.project + '|' + x.unit;
+      m[key] = x.status === 'Terjual' ? 'merah' : x.status === 'Reserved' ? 'kuning' : null;
+    });
+    stok = Object.entries(m)
+      .filter(([k, v]) => v && !posSet.has(k))
+      .map(([k, v]) => ({ project: k.split('|')[0], unit: k.split('|')[1], warna: v }));
+  }
+
+  return Response.json({ today, hariIni, terlambat, stok, total: rows.length + stok.length });
 }
