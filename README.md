@@ -65,4 +65,4 @@ npm run dev                  # buka http://localhost:3000
 - `leads` — data konsumen, kode LEAD-0001 otomatis
 - `followups` — histori komunikasi per lead
 - `transactions` — Booking/Closing/Batal (status lead ikut ter-update)
-- `settings` — master dropdown (status, sumber, project, tipe, tujuan, bayar)
+- `settings` — master dropdown (status, sumber, project, tipe, tujuan, bayar) 
