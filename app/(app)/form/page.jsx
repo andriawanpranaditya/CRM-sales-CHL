@@ -14,6 +14,8 @@ export default function FormPage() {
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
+  const [berkas, setBerkas] = useState(null);
+  const [upBusy, setUpBusy] = useState('');
   const [busy, setBusy] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -28,6 +30,54 @@ export default function FormPage() {
     if (u.role === 'sales') setLead(x => ({ ...x, sales: u.name }));
   }
   useEffect(() => { refresh().catch(e => toast(e.message)); }, []);
+
+  useEffect(() => {
+    setBerkas(null);
+    if (trx.lead_code && trx.project && trx.unit) {
+      api('/api/berkas?project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code))
+        .then(setBerkas).catch(() => {});
+    }
+  }, [trx.lead_code, trx.project, trx.unit]);
+
+  function kecilkanFoto(file) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1400;
+        const sc = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = rej;
+      img.src = url;
+    });
+  }
+
+  async function uploadBerkas(jenisB, file) {
+    if (!file) return;
+    if (!trx.lead_code || !trx.project || !trx.unit) return toast('Pilih ID Lead, Project & Blok/Unit dulu');
+    setUpBusy(jenisB);
+    try {
+      let dataUrl;
+      if (file.type.startsWith('image/')) dataUrl = await kecilkanFoto(file);
+      else if (file.type === 'application/pdf') {
+        if (file.size > 2 * 1024 * 1024) throw new Error('PDF maksimal 2 MB');
+        dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+      } else throw new Error('Format harus foto (JPG/PNG) atau PDF');
+      const mime = dataUrl.slice(5, dataUrl.indexOf(';'));
+      const data = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      await api('/api/berkas', {
+        method: 'POST',
+        body: JSON.stringify({ project: trx.project, unit: trx.unit, lead_code: trx.lead_code, jenis: jenisB, filename: file.name, mime, data }),
+      });
+      toast((jenisB === 'ktp' ? 'KTP' : 'Bukti Transfer') + ' terupload ✔');
+      setBerkas(b => ({ ...(b || {}), [jenisB]: true }));
+    } catch (e) { toast(e.message); } finally { setUpBusy(''); }
+  }
 
   const F = (obj, setObj) => (k, extra = {}) => ({
     value: obj[k] ?? '', onChange: e => setObj({ ...obj, [k]: e.target.value }), ...extra,
@@ -85,6 +135,9 @@ export default function FormPage() {
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
     if (!Number(trx.nilai)) return toast('Nilai (Rp) wajib diisi angka');
+    if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.transfer) {
+      return toast('Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.');
+    }
     setBusy(true);
     try {
       await api('/api/trx', { method: 'POST', body: JSON.stringify(trx) });
@@ -187,6 +240,34 @@ export default function FormPage() {
             <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih.</span>
           </div>
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label>Berkas Transaksi (KTP &amp; Bukti Transfer)</label>
+            {!(trx.lead_code && trx.project && trx.unit) ? (
+              <span className="hint">Pilih ID Lead, Project &amp; Blok/Unit dulu untuk mengelola berkas.</span>
+            ) : berkas && berkas.adaTrxSebelumnya ? (
+              <div className="note" style={{ marginBottom: 0 }}>✔ Berkas transaksi pertama unit ini sudah tersimpan — update ke Booking/Closing/Batal <b>tidak perlu upload lagi</b>, langsung Simpan.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  <b style={{ fontSize: 12.5, minWidth: 105 }}>Bukti Transfer <span className="req">*</span></b>
+                  {berkas && berkas.transfer
+                    ? <span className="badge b-close">✔ TERUPLOAD</span>
+                    : <input type="file" accept="image/*,application/pdf" disabled={upBusy !== ''}
+                        onChange={e => uploadBerkas('transfer', e.target.files[0])} />}
+                  {upBusy === 'transfer' && <span className="hint">Mengupload…</span>}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  <b style={{ fontSize: 12.5, minWidth: 105 }}>KTP</b>
+                  {berkas && berkas.ktp
+                    ? <span className="badge b-close">✔ TERUPLOAD</span>
+                    : <input type="file" accept="image/*,application/pdf" disabled={upBusy !== ''}
+                        onChange={e => uploadBerkas('ktp', e.target.files[0])} />}
+                  {upBusy === 'ktp' && <span className="hint">Mengupload…</span>}
+                </div>
+                <span className="hint">Wajib minimal Bukti Transfer untuk transaksi pertama di unit ini. Foto dikompres otomatis; PDF maks 2 MB.</span>
+              </div>
+            )}
+          </div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Closing</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>

@@ -26,7 +26,7 @@ export default function BookingPage() {
       </div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Project</th><th>Blok/Unit</th><th>Jenis</th>
-          <th>Tanggal</th><th className="num">Nilai</th><th>Cara Bayar</th><th>Catatan</th></tr></thead>
+          <th>Tanggal</th><th className="num">Nilai</th><th>Cara Bayar</th><th>Berkas</th><th>Catatan</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(t => (
             <tr key={t.id}>
@@ -39,9 +39,15 @@ export default function BookingPage() {
               <td data-label="Tanggal">{fmtDate(t.tgl)}</td>
               <td className="num" data-label="Nilai">{fmtRp(t.nilai)}</td>
               <td data-label="Cara Bayar">{t.bayar || ''}</td>
+              <td data-label="Berkas">{t.unit ? <>
+                <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
+                  href={'/api/berkas?view=1&jenis=transfer&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 TF</a>{' '}
+                <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
+                  href={'/api/berkas?view=1&jenis=ktp&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 KTP</a>
+              </> : <span className="hint">—</span>}</td>
               <td data-label="Catatan">{t.catatan}</td>
             </tr>
-          )) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi — input dari Form Input → Booking / Closing.</td></tr>}
+          )) : <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi — input dari Form Input → Booking / Closing.</td></tr>}
         </tbody>
       </table></div>
       <Toast />

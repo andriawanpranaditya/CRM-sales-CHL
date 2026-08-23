@@ -24,6 +24,21 @@ export async function POST(req) {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
+  // Wajib bukti transfer pada transaksi PERTAMA lead di unit tsb (transaksi lanjutan bebas)
+  if (b.unit && b.project && b.jenis !== 'Batal') {
+    const prior = await sql`
+      SELECT 1 FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.unit = ${b.unit} AND t.lead_code = ${b.lead_code}
+        AND COALESCE(NULLIF(t.project, ''), l.project, '') = ${b.project} LIMIT 1`;
+    if (!prior.length) {
+      const tf = await sql`SELECT 1 FROM trx_files
+        WHERE project = ${b.project} AND unit = ${b.unit} AND lead_code = ${b.lead_code} AND jenis = 'transfer' LIMIT 1`;
+      if (!tf.length) {
+        return Response.json({ error: 'Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.' }, { status: 400 });
+      }
+    }
+  }
+
   // Pengaman: unit yang sudah Terjual/Reserved tidak bisa diambil lead lain (kecuali transaksi Batal oleh pemiliknya)
   if (b.unit && b.project && b.jenis !== 'Batal') {
     const last = await sql`
