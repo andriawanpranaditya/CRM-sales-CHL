@@ -92,7 +92,7 @@ export default function LeadsPage() {
             return <tr key={l.id}>
               <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
-              <td data-label="Sumber">{l.sumber}</td>
+              <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}</td>
               <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
               <td className="num" data-label="Budget">{fmtRp(l.budget)}</td>
               <td data-label="Sales">{l.sales}</td>

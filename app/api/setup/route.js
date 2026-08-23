@@ -64,6 +64,7 @@ export async function GET(req) {
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS next_fu date`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS walkin_info text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS project text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bayar text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS unit text`;

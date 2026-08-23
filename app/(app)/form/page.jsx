@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
+const WALKIN_INFO = ['Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 export default function FormPage() {
   const [tab, setTab] = useState('lead');
@@ -90,6 +91,7 @@ export default function FormPage() {
   async function simpanLead() {
     if (!lead.nama.trim()) return toast('Nama Konsumen wajib diisi');
     if (!lead.sales) return toast('Sales / PIC wajib dipilih');
+    if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
     setBusy(true);
     try {
       if (editId) {
@@ -166,6 +168,13 @@ export default function FormPage() {
           <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>
           <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
+          {/walk/i.test(lead.sumber || '') && (
+            <div className="field"><label>Walk In — tahu dari mana? <span className="req">*</span></label>
+              <select value={lead.walkin_info || ''} onChange={e => setLead({ ...lead, walkin_info: e.target.value })}>
+                <option value="">— pilih —</option>
+                {WALKIN_INFO.map(w => <option key={w}>{w}</option>)}
+              </select></div>
+          )}
           <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
           <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>
           <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>
