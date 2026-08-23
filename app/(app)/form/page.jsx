@@ -278,7 +278,7 @@ export default function FormPage() {
             )}
           </div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
-            <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Closing</option><option>Batal</option></select></div>
+            <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
           <div className="field"><label>Nilai (Rp) <span className="req">*</span></label><input type="number" min="0" {...ft('nilai')} /></div>
           <div className="field"><label>Catatan</label><input {...ft('catatan')} /></div>

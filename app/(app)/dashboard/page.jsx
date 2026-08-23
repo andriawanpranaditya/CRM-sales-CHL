@@ -94,9 +94,20 @@ export default function Dashboard() {
     // Booking & Closing dihitung dari TRANSAKSI yang benar-benar diinput (lead unik), bukan dari status pipeline
     const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
     const trxLeads = jenis => new Set(pt.filter(t => t.jenis === jenis).map(t => t.lead_code));
-    const bookSet = trxLeads('Booking'), closeSet = trxLeads('Closing');
+    const bookSet = trxLeads('Booking'), resSet = trxLeads('Reserved');
     const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
-    const closeV = pt.filter(t => t.jenis === 'Closing').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    // Site Visit pipeline = status Site Visit + lead Walk In (sudah datang langsung)
+    const svN = pl.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
+    // Sebaran sumber lead
+    const bySumber = {};
+    pl.forEach(l => { const k = l.sumber || 'Tidak diisi'; bySumber[k] = (bySumber[k] || 0) + 1; });
+    const sumberRows = Object.entries(bySumber).sort((a, b) => b[1] - a[1]);
+    const maxS = Math.max(1, ...sumberRows.map(x => x[1]));
+    const bar = n => '<span style="color:#23694A;letter-spacing:1px">' + '▰'.repeat(Math.max(1, Math.round(n / maxS * 16))) + '</span>';
+    const byWalk = {};
+    pl.filter(l => /walk/i.test(l.sumber || '') && l.walkin_info).forEach(l => { byWalk[l.walkin_info] = (byWalk[l.walkin_info] || 0) + 1; });
+    const walkDetail = Object.entries(byWalk).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
     const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
@@ -156,44 +167,70 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 </td></tr></table>
 <p class="muted">Project: <b>${esc(projLabel)}</b> &nbsp;|&nbsp; Periode: <b>${esc(periode)}</b> &nbsp;|&nbsp; Dibuat: ${dd(new Date().toISOString())} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app</p>
 
-<h2>1. RINGKASAN</h2>
-<p>
-<span class="kpi">Lead Masuk<br/><b>${pl.length}</b></span>
-<span class="kpi">Follow Up<br/><b>${pf.length}</b></span>
-<span class="kpi">Booking (transaksi)<br/><b>${bookSet.size}</b></span>
-<span class="kpi">Closing (transaksi)<br/><b>${closeSet.size}</b></span>
-<span class="kpi">Nilai Booking<br/><b>${rp(bookV)}</b></span>
-<span class="kpi">Nilai Closing<br/><b>${rp(closeV)}</b></span>
-</p>
+<h2>1. RINGKASAN EKSEKUTIF</h2>
+<table>
+<tr><th style="text-align:center">LEAD MASUK</th><th style="text-align:center">FOLLOW UP</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th></tr>
+<tr>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${pl.length}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${pf.length}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#C9922E">${resSet.size}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#B3402F">${bookSet.size}</td>
+</tr>
+<tr class="muted">
+<td style="text-align:center">lead baru pada periode</td>
+<td style="text-align:center">aktivitas follow up</td>
+<td style="text-align:center">Nilai: <b>${rp(resV)}</b></td>
+<td style="text-align:center">Nilai: <b>${rp(bookV)}</b></td>
+</tr>
+</table>
 
-<h2>2. STATUS PIPELINE (posisi status lead saat ini; Booking &amp; Closing dilaporkan dari transaksi pada Ringkasan)</h2>
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sebaran Sumber Lead (${pl.length} lead)</h3>
+<table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.test(k) && walkDetail ? '<br/><span class="muted" style="font-size:8.5pt">via: ' + esc(walkDetail) + '</span>' : ''}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / Math.max(1, pl.length) * 100)}%</td><td>${bar(v)}</td></tr>`).join('') : '<tr><td colspan="4">Tidak ada lead pada periode ini.</td></tr>'}
+</table>
+
+<h2>2. STATUS PIPELINE (posisi status lead saat ini; Reserved &amp; Booking dilaporkan dari transaksi pada Ringkasan)</h2>
 <table><tr><th>Status</th><th>Jumlah</th></tr>
-${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}</td><td>${cnt(st)}</td></tr>`).join('')}
+${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
+      const val = st === 'Site Visit' ? svN : cnt(st);
+      const note = st === 'Site Visit' ? ' <span class="muted" style="font-size:8.5pt">(status Site Visit + lead Walk In)</span>' : '';
+      return `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}${note}</td><td>${val}</td></tr>`;
+    }).join('')}
 </table>
 
 <h2>3. KINERJA PER SALES (lead masuk pada periode)</h2>
-<table><tr><th>Sales / PIC</th><th>Total</th><th>Warm</th><th>Hot</th><th>Booking</th><th>Closing</th><th>Closing Rate</th></tr>
+<table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
 ${salesNs.length ? salesNs.map(sn => {
       const mine = pl.filter(l => l.sales === sn);
-      const c = st => mine.filter(l => l.status === st).length;
+      const rs = [...resSet].filter(code => salesOf[code] === sn).length;
       const bk = [...bookSet].filter(code => salesOf[code] === sn).length;
-      const cl = [...closeSet].filter(code => salesOf[code] === sn).length;
-      return `<tr><td><b>${esc(sn)}</b></td><td>${mine.length}</td><td>${c('Warm')}</td><td>${c('Hot')}</td><td>${bk}</td><td>${cl}</td><td>${mine.length ? Math.round(cl / mine.length * 100) + '%' : '0%'}</td></tr>`;
-    }).join('') : '<tr><td colspan="7">Tidak ada data pada periode ini.</td></tr>'}
+      return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${mine.length ? Math.round(bk / mine.length * 100) + '%' : '0%'}</b></td></tr>`;
+    }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}
 </table>
+<p class="muted" style="font-size:8.5pt">Closing Rate = jumlah lead yang mencapai Booking ÷ total lead sales tsb pada periode.</p>
 
 <h2>4. REKOMENDASI FOLLOW UP — PRIORITAS WARM &amp; HOT</h2>
-<p class="muted">Diurutkan dari prioritas tertinggi (Hot &amp; terlambat). Baris disorot sesuai kategori. Status per hari ini.</p>
-<table><tr><th>Prioritas</th><th>Lead</th><th>Sales</th><th>Kontak</th><th>FU Terakhir</th><th>Next FU</th><th>Rekomendasi Tindakan</th></tr>
-${recos.length ? recos.map(l => `<tr class="${l.status === 'Hot' ? 'hot' : 'warm'}">
+<p class="muted">Analisa per lead diarahkan ke Booking. Perilaku konsumen properti saat ini: membandingkan 3–5 proyek sekaligus secara online, memutuskan berdasarkan besaran angsuran (bukan harga total), dan menghargai kecepatan respon — lead yang direspon &lt; 1 jam berpeluang konversi jauh lebih tinggi.</p>
+<table><tr><th style="width:70px">Prioritas</th><th>Lead</th><th>FU Terakhir / Next FU</th><th>Analisa &amp; Rekomendasi Menuju Booking</th></tr>
+${recos.length ? recos.map(l => {
+      const obj = ((l.last && l.last.objection) || '').toLowerCase();
+      const aksi = [];
+      if (l.overdue) aksi.push('<b>Jadwal FU sudah lewat</b> — hubungi hari ini; tiap hari tertunda, lead dibanding-bandingkan dengan proyek kompetitor.');
+      if (!l.last) aksi.push('<b>Belum pernah di-follow up</b> — kontak hari ini juga; respon pertama yang cepat adalah penentu terbesar konversi.');
+      if (l.status === 'Hot') aksi.push('Lead panas: tawarkan <b>Reserved dengan tanda jadi ringan</b> untuk mengunci unit pilihannya — tunjukkan peta stok terkini sebagai bukti unit favorit cepat habis, lalu jadwalkan pelunasan booking fee.');
+      else aksi.push('Bangun urgensi bertahap: kirim materi bernilai (progress pembangunan, foto unit, testimoni) dan tutup setiap kontak dengan ajakan konkret — jadwal visit atau reservasi, bukan sekadar menanyakan kabar.');
+      if (/harga|mahal|budget|dana|dp|cicil/.test(obj)) aksi.push('Objection harga: siapkan <b>2 simulasi angsuran</b> (DP dicicil vs tenor berbeda) dan alternatif tipe yang lebih terjangkau — geser pembicaraan dari harga total ke angsuran bulanan.');
+      if (/pikir|diskusi|keluarga|istri|suami|orang tua/.test(obj)) aksi.push('Menunggu keputusan keluarga: undang <b>site visit bersama pengambil keputusan</b> di akhir pekan + beri tenggat promo agar keputusan tidak menggantung.');
+      if (/lokasi|jauh|akses|banjir/.test(obj)) aksi.push('Keberatan lokasi: kirim peta akses &amp; waktu tempuh riil ke titik penting (tol, sekolah, pasar) dan tonjolkan fasilitas kawasan sebagai kompensasi jarak.');
+      if (/walk/i.test(l.sumber || '')) aksi.push('Sudah pernah datang langsung — jangan ulang presentasi dari awal: <b>sempitkan ke 2–3 unit favorit</b> dan tawarkan hold unit 1×24 jam.');
+      if (Number(l.budget)) aksi.push('Budget diketahui (±' + rp(l.budget) + ') — ajukan langsung tipe &amp; unit yang cocok agar penawaran terasa personal.');
+      return `<tr class="${l.status === 'Hot' ? 'hot' : 'warm'}">
 <td><b>${l.status.toUpperCase()}</b>${l.overdue ? '<br/><span class="badge-over">TERLAMBAT</span>' : ''}</td>
-<td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')}</span></td>
-<td>${esc(l.sales)}</td>
-<td>${esc(l.wa || '-')}</td>
-<td>${l.last ? dd(l.last.tgl) + '<br/><span class="muted">' + esc(l.last.detail) + '</span>' : '<span class="badge-over">Belum pernah di-follow up</span>'}</td>
-<td>${l.nfu ? dd(l.nfu) : '<span class="badge-over">Belum dijadwalkan</span>'}</td>
-<td>${esc((l.last && l.last.next_action) || (l.status === 'Hot' ? 'Segera hubungi — dorong ke booking/site visit' : 'Follow up berkala — kirim info project & jadwalkan pertemuan'))}${l.last && l.last.objection ? '<br/><span class="muted">Objection: ' + esc(l.last.objection) + '</span>' : ''}</td>
-</tr>`).join('') : '<tr><td colspan="7">Tidak ada lead Warm/Hot saat ini.</td></tr>'}
+<td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')} · ${esc(l.sales)}</span></td>
+<td>${l.last ? dd(l.last.tgl) : '<span class="badge-over">Belum ada</span>'}<br/><span class="muted">Next: ${l.nfu ? dd(l.nfu) : 'belum dijadwalkan'}</span>${l.last && l.last.objection ? '<br/><span class="muted">Objection: ' + esc(l.last.objection) + '</span>' : ''}</td>
+<td>${aksi.slice(0, 3).join('<br/>• ')}</td>
+</tr>`;
+    }).join('') : '<tr><td colspan="4">Tidak ada lead Warm/Hot saat ini.</td></tr>'}
 </table>
 
 <h2>5. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
