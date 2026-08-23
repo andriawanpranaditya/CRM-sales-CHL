@@ -38,38 +38,185 @@ export default function Dashboard() {
   const salesNames = [...new Set(fLeads.map(l => l.sales).filter(Boolean))];
 
   async function downloadExcel() {
-    const XLSX = await import('xlsx');
+    const ExcelJS = (await import('exceljs')).default;
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-    const wb = XLSX.utils.book_new();
 
-    const addSheet = (nama, rows, widths) => {
-      const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Info: 'Belum ada data' }]);
-      ws['!autofilter'] = { ref: ws['!ref'] };   // tombol sort & filter di tiap kolom
-      if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
-      XLSX.utils.book_append_sheet(wb, ws, nama);
+    // ===== Palet CHL =====
+    const INK = 'FF1C2B23', GREEN = 'FF23694A', BRASS = 'FFC9922E', LINE = 'FFD8D6CC',
+      ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF', RED = 'FFB3402F',
+      AMBER_BG = 'FFFBF1DC', GREEN_BG = 'FFE4EFE8', RED_BG = 'FFF9E7E3';
+    const STATUS_BG = { New: 'FFE5EEF6', Cold: 'FFE8EAEE', Warm: AMBER_BG, Hot: 'FFF6E3C0', Appointment: 'FFE5EEF6', 'Site Visit': 'FFE5EEF6', Booking: GREEN_BG, Closing: GREEN, Lost: RED_BG, Drop: RED_BG };
+    const JENIS_BG = { Reserved: AMBER_BG, Booking: GREEN_BG, Closing: GREEN_BG, Batal: RED_BG };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'CRM Sales CHL';
+
+    const thin = { style: 'thin', color: { argb: LINE } };
+    const border = { top: thin, left: thin, bottom: thin, right: thin };
+
+    // Sheet berjudul + tabel ber-styling + tombol filter/sort tiap kolom
+    const buatSheet = (nama, judul, cols, rows, opsi = {}) => {
+      const ws = wb.addWorksheet(nama, { views: [{ state: 'frozen', ySplit: 4 }] });
+      ws.columns = cols.map(c => ({ width: c.w }));
+      // Banner judul
+      ws.mergeCells(1, 1, 1, cols.length);
+      const t = ws.getCell(1, 1);
+      t.value = judul;
+      t.font = { name: 'Calibri', size: 15, bold: true, color: { argb: WHITE } };
+      t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
+      t.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      ws.getRow(1).height = 30;
+      ws.mergeCells(2, 1, 2, cols.length);
+      const st = ws.getCell(2, 1);
+      st.value = 'CIPTA HARMONI LESTARI — dibuat ' + dd(new Date().toISOString()) + ' · crm-sales-chl.vercel.app · copyright © 2026 by Andriawanp';
+      st.font = { size: 9, color: { argb: 'FF6B7A70' } };
+      ws.getRow(3).height = 4;
+      // Header tabel
+      const hr = ws.getRow(4);
+      cols.forEach((c, i) => {
+        const cell = hr.getCell(i + 1);
+        cell.value = c.h;
+        cell.font = { bold: true, size: 10, color: { argb: WHITE } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+        cell.alignment = { vertical: 'middle', horizontal: c.num ? 'right' : 'left', wrapText: true };
+        cell.border = { top: thin, left: thin, right: thin, bottom: { style: 'medium', color: { argb: BRASS } } };
+      });
+      hr.height = 22;
+      // Data + zebra + warna khusus
+      rows.forEach((r, ri) => {
+        const row = ws.getRow(5 + ri);
+        cols.forEach((c, ci) => {
+          const cell = row.getCell(ci + 1);
+          cell.value = r[c.k];
+          cell.border = border;
+          cell.font = { size: 10 };
+          cell.alignment = { vertical: 'top', horizontal: c.num ? 'right' : 'left', wrapText: !!c.wrap };
+          if (c.num) cell.numFmt = '#,##0';
+          if (ri % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+          if (opsi.warnaSel) {
+            const bg = opsi.warnaSel(c, r);
+            if (bg) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              if (bg === GREEN) cell.font = { size: 10, bold: true, color: { argb: WHITE } };
+              else cell.font = { size: 10, bold: true };
+            }
+          }
+        });
+      });
+      if (!rows.length) { ws.getCell(5, 1).value = 'Belum ada data.'; ws.getCell(5, 1).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
+      // Tombol sort & filter di tiap kolom
+      ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(rows.length, 1), column: cols.length } };
+      return ws;
     };
 
-    addSheet('Database Lead', leads.map(l => ({
-      'ID Lead': l.lead_code, 'Tanggal': dd(l.tgl), 'Nama': l.nama, 'WhatsApp': l.wa || '',
-      'Email': l.email || '', 'Domisili': l.domisili || '', 'Pekerjaan': l.kerja || '',
-      'Sumber': l.sumber || '', 'Project': l.project || '', 'Tipe': l.tipe || '',
-      'Tujuan': l.tujuan || '', 'Budget (Rp)': Number(l.budget) || 0, 'Bayar': l.bayar || '',
-      'Sales': l.sales || '', 'Status': l.status, 'Next FU': dd(l.next_fu), 'Catatan': l.catatan || '',
-    })), [10, 11, 22, 14, 20, 14, 14, 14, 14, 12, 10, 14, 12, 12, 11, 11, 24]);
+    // ===== Sheet 1: Ringkasan =====
+    const rs = wb.addWorksheet('Ringkasan');
+    rs.columns = [{ width: 3 }, { width: 26 }, { width: 16 }, { width: 22 }, { width: 3 }];
+    rs.mergeCells('A1:E1');
+    rs.getCell('A1').value = 'REPORT CRM SALES — CIPTA HARMONI LESTARI';
+    rs.getCell('A1').font = { size: 16, bold: true, color: { argb: WHITE } };
+    rs.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
+    rs.getCell('A1').alignment = { vertical: 'middle', indent: 1 };
+    rs.getRow(1).height = 34;
+    rs.mergeCells('A2:E2');
+    rs.getCell('A2').value = 'Diunduh: ' + dd(new Date().toISOString()) + '  ·  Seluruh data  ·  copyright © 2026 by Andriawanp';
+    rs.getCell('A2').font = { size: 9, color: { argb: 'FF6B7A70' } };
+    const resL = new Set(trx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)).size;
+    const bokL = new Set(trx.filter(t => t.jenis === 'Booking').map(t => t.lead_code)).size;
+    const bokV = trx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const resV2 = trx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const kpi = [
+      ['Total Lead', leads.length, ''],
+      ['Total Follow Up', fus.length, ''],
+      ['Lead Reserved', resL, 'Nilai Rp ' + resV2.toLocaleString('id-ID')],
+      ['Lead Booking', bokL, 'Nilai Rp ' + bokV.toLocaleString('id-ID')],
+    ];
+    kpi.forEach((k, i) => {
+      const r = rs.getRow(4 + i);
+      r.getCell(2).value = k[0]; r.getCell(2).font = { bold: true, size: 11 };
+      r.getCell(3).value = k[1]; r.getCell(3).font = { bold: true, size: 14, color: { argb: GREEN } }; r.getCell(3).alignment = { horizontal: 'center' };
+      r.getCell(4).value = k[2]; r.getCell(4).font = { size: 10, color: { argb: 'FF6B7A70' } };
+      [2, 3, 4].forEach(ci => { r.getCell(ci).border = border; if (i % 2 === 1) r.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+    });
+    rs.getCell('B9').value = 'Sebaran Sumber Lead'; rs.getCell('B9').font = { bold: true, size: 11, color: { argb: GREEN } };
+    const bySrc = {};
+    leads.forEach(l => { const k = l.sumber || 'Tidak diisi'; bySrc[k] = (bySrc[k] || 0) + 1; });
+    Object.entries(bySrc).sort((a, b) => b[1] - a[1]).forEach(([k, v], i) => {
+      const r = rs.getRow(10 + i);
+      r.getCell(2).value = k;
+      r.getCell(3).value = v; r.getCell(3).alignment = { horizontal: 'center' };
+      r.getCell(4).value = Math.round(v / Math.max(1, leads.length) * 100) + '%'; r.getCell(4).alignment = { horizontal: 'center' };
+      [2, 3, 4].forEach(ci => { r.getCell(ci).border = border; if (i % 2 === 1) r.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+    });
 
-    addSheet('Follow Up', fus.map(f => ({
-      'Tanggal': dd(f.tgl), 'ID Lead': f.lead_code, 'Nama': f.nama || '',
-      'Detail Komunikasi': f.detail, 'Objection': f.objection || '',
-      'Next Action': f.next_action || '', 'Tgl Next FU': dd(f.next_tgl), 'Oleh': f.created_by || '',
-    })), [11, 10, 22, 40, 20, 20, 11, 12]);
+    // ===== Sheet 2: Database Lead =====
+    buatSheet('Database Lead', 'DATABASE LEAD', [
+      { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Nama', k: 'nama', w: 22 },
+      { h: 'WhatsApp', k: 'wa', w: 14 }, { h: 'Email', k: 'email', w: 20 }, { h: 'Domisili', k: 'dom', w: 14 },
+      { h: 'Sumber', k: 'src', w: 14 }, { h: 'Info Walk In', k: 'wi', w: 15 }, { h: 'Project', k: 'proj', w: 15 },
+      { h: 'Tipe', k: 'tipe', w: 10 }, { h: 'Budget (Rp)', k: 'budget', w: 14, num: true }, { h: 'Cara Bayar', k: 'bayar', w: 11 },
+      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Status', k: 'status', w: 11 }, { h: 'Next FU', k: 'nfu', w: 11 },
+      { h: 'Catatan', k: 'cat', w: 26, wrap: true },
+    ], leads.map(l => ({
+      id: l.lead_code, tgl: dd(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '', dom: l.domisili || '',
+      src: l.sumber || '', wi: l.walkin_info || '', proj: l.project || '', tipe: l.tipe || '',
+      budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '', status: l.status,
+      nfu: dd(l.next_fu), cat: l.catatan || '',
+    })), { warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : null });
 
-    addSheet('Booking & Closing', trx.map(t => ({
-      'ID Lead': t.lead_code, 'Nama': t.nama || '', 'Project': t.project || '', 'Tipe': t.tipe || '',
-      'Jenis': t.jenis, 'Tanggal': dd(t.tgl), 'Nilai (Rp)': Number(t.nilai) || 0, 'Catatan': t.catatan || '',
-    })), [10, 22, 14, 12, 10, 11, 16, 24]);
+    // ===== Sheet 3: Follow Up =====
+    buatSheet('Follow Up', 'RIWAYAT FOLLOW UP', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Nama', k: 'nama', w: 20 },
+      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Detail Komunikasi', k: 'det', w: 42, wrap: true },
+      { h: 'Objection', k: 'obj', w: 24, wrap: true }, { h: 'Next Action', k: 'na', w: 16 }, { h: 'Tgl Next FU', k: 'nfu', w: 11 },
+    ], fus.map(f => ({
+      tgl: dd(f.tgl), id: f.lead_code, nama: f.nama || '', sales: f.sales || '', det: f.detail,
+      obj: f.objection || '', na: f.next_action || '', nfu: dd(f.next_tgl),
+    })), { warnaSel: (c, r) => c.k === 'na' && r.na === 'Drop' ? RED_BG : null });
 
-    XLSX.writeFile(wb, `CRM_CHL_Data_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast('File Excel terunduh — tiap kolom ada tombol sort & filter');
+    // ===== Sheet 4: Transaksi =====
+    buatSheet('Transaksi', 'TRANSAKSI (RESERVED · BOOKING · BATAL)', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Nama', k: 'nama', w: 20 },
+      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Project', k: 'proj', w: 15 }, { h: 'Blok/Unit', k: 'unit', w: 16 },
+      { h: 'Jenis', k: 'jenis', w: 11 }, { h: 'Nilai (Rp)', k: 'nilai', w: 16, num: true },
+      { h: 'Cara Bayar', k: 'bayar', w: 11 }, { h: 'Catatan', k: 'cat', w: 24, wrap: true },
+    ], trx.map(t => ({
+      tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '', proj: t.project || '',
+      unit: t.unit || '', jenis: t.jenis, nilai: Number(t.nilai) || 0, bayar: t.bayar || '', cat: t.catatan || '',
+    })), { warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
+
+    // ===== Sheet 5: Stok per Project =====
+    const lastVal2 = {};
+    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
+      if (!t.unit || !t.project) return;
+      const key = t.project + '|' + t.unit;
+      if (t.jenis === 'Batal') delete lastVal2[key]; else lastVal2[key] = Number(t.nilai) || 0;
+    });
+    buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
+      { h: 'Project', k: 'p', w: 18 }, { h: 'Total Stok', k: 'tot', w: 11, num: true },
+      { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
+      { h: 'Tersedia', k: 'sisa', w: 10, num: true }, { h: '% Terjual', k: 'pct', w: 10 },
+      { h: 'Nilai Penjualan (Rp)', k: 'nj', w: 19, num: true }, { h: 'Nilai Reserved (Rp)', k: 'nr', w: 19, num: true },
+    ], (set.project || []).map(p2 => {
+      const total = ((set.units || {})[p2] || []).length;
+      const su = stock.filter(u => u.project === p2);
+      const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
+      return {
+        p: p2, tot: total, jual: mer.length, res: kun.length,
+        sisa: Math.max(0, total - mer.length - kun.length),
+        pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
+        nj: mer.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
+        nr: kun.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
+      };
+    }));
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'CRM_CHL_Data.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   async function downloadWord() {
