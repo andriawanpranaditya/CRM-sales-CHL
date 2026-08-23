@@ -118,6 +118,8 @@ export default function Dashboard() {
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
     const now = new Date(); now.setHours(0, 0, 0, 0);
+    const trxByLead = {};
+    [...fTrx].sort((a, b) => a.id - b.id).forEach(t => { trxByLead[t.lead_code] = { jenis: t.jenis, unit: t.unit || '', tgl: t.tgl }; });
     const recos = fLeads.filter(l => l.status === 'Warm' || l.status === 'Hot')
       .map(l => {
         const myFus = fus.filter(f => f.lead_code === l.lead_code)
@@ -125,7 +127,7 @@ export default function Dashboard() {
         const last = myFus[myFus.length - 1];
         const nfu = l.next_fu || (last && last.next_tgl) || null;
         const overdue = nfu && new Date(nfu) < now;
-        return { ...l, last, myFus, nfu, overdue };
+        return { ...l, last, myFus, nfu, overdue, deal: trxByLead[l.lead_code] || null };
       })
       .sort((a, b) => (b.status === 'Hot') - (a.status === 'Hot') || (b.overdue === true) - (a.overdue === true));
 
@@ -215,19 +217,30 @@ ${salesNs.length ? salesNs.map(sn => {
 <table><tr><th style="width:70px">Prioritas</th><th>Lead</th><th style="width:32%">Summary Hasil Follow Up</th><th>Analisa &amp; Rekomendasi Menuju Booking</th></tr>
 ${recos.length ? recos.map(l => {
       const obj = ((l.last && l.last.objection) || '').toLowerCase();
+      const dsD = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '';
       const aksi = [];
       if (l.overdue) aksi.push('<b>Jadwal FU sudah lewat</b> — hubungi hari ini; tiap hari tertunda, lead dibanding-bandingkan dengan proyek kompetitor.');
       if (!l.last) aksi.push('<b>Belum pernah di-follow up</b> — kontak hari ini juga; respon pertama yang cepat adalah penentu terbesar konversi.');
-      if (l.status === 'Hot') aksi.push('Lead panas: tawarkan <b>Reserved dengan tanda jadi ringan</b> untuk mengunci unit pilihannya — tunjukkan peta stok terkini sebagai bukti unit favorit cepat habis, lalu jadwalkan pelunasan booking fee.');
-      else aksi.push('Bangun urgensi bertahap: kirim materi bernilai (progress pembangunan, foto unit, testimoni) dan tutup setiap kontak dengan ajakan konkret — jadwal visit atau reservasi, bukan sekadar menanyakan kabar.');
+      // Analisa berbasis posisi transaksi lead saat ini
+      if (l.deal && l.deal.jenis === 'Reserved') {
+        aksi.push(`Sudah <b>RESERVED</b>${l.deal.unit ? ' unit <b>' + esc(l.deal.unit) + '</b>' : ''} (${dsD(l.deal.tgl)}) — fase kritis: fokus naikkan ke <b>Booking</b>. Lengkapi berkas, tetapkan tanggal pelunasan booking fee, dan ingatkan masa berlaku reservasi agar unit tidak dilepas.`);
+      } else if (l.deal && l.deal.jenis === 'Booking') {
+        aksi.push(`Sudah <b>BOOKING</b>${l.deal.unit ? ' unit <b>' + esc(l.deal.unit) + '</b>' : ''} (${dsD(l.deal.tgl)}) — kawal administrasi: pelunasan sesuai skema bayar, kelengkapan dokumen KPR bila kredit, dan jaga komunikasi agar tidak berujung pembatalan.`);
+      } else if (l.deal && l.deal.jenis === 'Batal') {
+        aksi.push(`Pernah <b>membatalkan</b> transaksi${l.deal.unit ? ' unit ' + esc(l.deal.unit) : ''} (${dsD(l.deal.tgl)}) — gali alasan pembatalannya terlebih dahulu, lalu tawarkan alternatif unit/skema pembayaran yang menjawab alasan tersebut; lead yang pernah bertransaksi tetap prospek terbaik.`);
+      } else if (l.status === 'Hot') {
+        aksi.push('Belum ada transaksi: tawarkan <b>Reserved dengan tanda jadi ringan</b> untuk mengunci unit pilihannya — tunjukkan peta stok terkini sebagai bukti unit favorit cepat habis, lalu jadwalkan pelunasan booking fee.');
+      } else {
+        aksi.push('Belum ada transaksi: bangun urgensi bertahap — kirim materi bernilai (progress pembangunan, foto unit, testimoni) dan tutup setiap kontak dengan ajakan konkret: jadwal visit atau reservasi, bukan sekadar menanyakan kabar.');
+      }
       if (/harga|mahal|budget|dana|dp|cicil/.test(obj)) aksi.push('Objection harga: siapkan <b>2 simulasi angsuran</b> (DP dicicil vs tenor berbeda) dan alternatif tipe yang lebih terjangkau — geser pembicaraan dari harga total ke angsuran bulanan.');
       if (/pikir|diskusi|keluarga|istri|suami|orang tua/.test(obj)) aksi.push('Menunggu keputusan keluarga: undang <b>site visit bersama pengambil keputusan</b> di akhir pekan + beri tenggat promo agar keputusan tidak menggantung.');
       if (/lokasi|jauh|akses|banjir/.test(obj)) aksi.push('Keberatan lokasi: kirim peta akses &amp; waktu tempuh riil ke titik penting (tol, sekolah, pasar) dan tonjolkan fasilitas kawasan sebagai kompensasi jarak.');
       if (/walk/i.test(l.sumber || '')) aksi.push('Sudah pernah datang langsung — jangan ulang presentasi dari awal: <b>sempitkan ke 2–3 unit favorit</b> dan tawarkan hold unit 1×24 jam.');
       if (Number(l.budget)) aksi.push('Budget diketahui (±' + rp(l.budget) + ') — ajukan langsung tipe &amp; unit yang cocok agar penawaran terasa personal.');
       return `<tr class="${l.status === 'Hot' ? 'hot' : 'warm'}">
-<td><b>${l.status.toUpperCase()}</b>${l.overdue ? '<br/><span class="badge-over">TERLAMBAT</span>' : ''}</td>
-<td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')} · ${esc(l.sales)}</span></td>
+<td><b>${l.status.toUpperCase()}</b>${l.deal && l.deal.jenis === 'Reserved' ? '<br/><span style="color:#8A5F14;font-weight:bold;font-size:8pt">● RESERVED</span>' : ''}${l.deal && l.deal.jenis === 'Booking' ? '<br/><span style="color:#23694A;font-weight:bold;font-size:8pt">● BOOKING</span>' : ''}${l.overdue ? '<br/><span class="badge-over">TERLAMBAT</span>' : ''}</td>
+<td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')} · ${esc(l.sales)}${l.deal && l.deal.unit && l.deal.jenis !== 'Batal' ? '<br/>Unit: <b>' + esc(l.deal.unit) + '</b>' : ''}</span></td>
 <td>${(() => {
         const fs = l.myFus || [];
         if (!fs.length) return '<span class="badge-over">Belum ada aktivitas follow up yang tercatat.</span> Direkomendasikan kontak perdana segera dilakukan.';
