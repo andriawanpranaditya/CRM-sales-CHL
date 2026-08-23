@@ -120,11 +120,12 @@ export default function Dashboard() {
     const now = new Date(); now.setHours(0, 0, 0, 0);
     const recos = fLeads.filter(l => l.status === 'Warm' || l.status === 'Hot')
       .map(l => {
-        const myFus = fus.filter(f => f.lead_code === l.lead_code);
-        const last = myFus[0];
+        const myFus = fus.filter(f => f.lead_code === l.lead_code)
+          .sort((a, b) => String(a.tgl).localeCompare(String(b.tgl)) || a.id - b.id);
+        const last = myFus[myFus.length - 1];
         const nfu = l.next_fu || (last && last.next_tgl) || null;
         const overdue = nfu && new Date(nfu) < now;
-        return { ...l, last, nfu, overdue };
+        return { ...l, last, myFus, nfu, overdue };
       })
       .sort((a, b) => (b.status === 'Hot') - (a.status === 'Hot') || (b.overdue === true) - (a.overdue === true));
 
@@ -211,7 +212,7 @@ ${salesNs.length ? salesNs.map(sn => {
 
 <h2>4. REKOMENDASI FOLLOW UP — PRIORITAS WARM &amp; HOT</h2>
 <p class="muted">Analisa per lead diarahkan ke Booking. Perilaku konsumen properti saat ini: membandingkan 3–5 proyek sekaligus secara online, memutuskan berdasarkan besaran angsuran (bukan harga total), dan menghargai kecepatan respon — lead yang direspon &lt; 1 jam berpeluang konversi jauh lebih tinggi.</p>
-<table><tr><th style="width:70px">Prioritas</th><th>Lead</th><th>FU Terakhir / Next FU</th><th>Analisa &amp; Rekomendasi Menuju Booking</th></tr>
+<table><tr><th style="width:70px">Prioritas</th><th>Lead</th><th style="width:32%">Summary Hasil Follow Up</th><th>Analisa &amp; Rekomendasi Menuju Booking</th></tr>
 ${recos.length ? recos.map(l => {
       const obj = ((l.last && l.last.objection) || '').toLowerCase();
       const aksi = [];
@@ -227,7 +228,19 @@ ${recos.length ? recos.map(l => {
       return `<tr class="${l.status === 'Hot' ? 'hot' : 'warm'}">
 <td><b>${l.status.toUpperCase()}</b>${l.overdue ? '<br/><span class="badge-over">TERLAMBAT</span>' : ''}</td>
 <td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')} · ${esc(l.sales)}</span></td>
-<td>${l.last ? dd(l.last.tgl) : '<span class="badge-over">Belum ada</span>'}<br/><span class="muted">Next: ${l.nfu ? dd(l.nfu) : 'belum dijadwalkan'}</span>${l.last && l.last.objection ? '<br/><span class="muted">Objection: ' + esc(l.last.objection) + '</span>' : ''}</td>
+<td>${(() => {
+        const fs = l.myFus || [];
+        if (!fs.length) return '<span class="badge-over">Belum ada aktivitas follow up yang tercatat.</span> Direkomendasikan kontak perdana segera dilakukan.';
+        const ds = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '';
+        const potong = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+        const objs = [...new Set(fs.map(f => (f.objection || '').trim()).filter(Boolean))];
+        let teks = `Telah dilakukan <b>${fs.length}× follow up</b> (${ds(fs[0].tgl)}${fs.length > 1 ? ' – ' + ds(fs[fs.length - 1].tgl) : ''}). `;
+        const tampil = fs.length <= 3 ? fs : [fs[0], ...fs.slice(-2)];
+        teks += 'Kronologi: ' + tampil.map(f => `<span class="muted">${ds(f.tgl)}</span> ${esc(potong(f.detail, 90))}`).join('; ') + (fs.length > 3 ? ` <span class="muted">(+${fs.length - 3} aktivitas lainnya)</span>` : '') + '. ';
+        if (objs.length) teks += 'Kendala yang mengemuka: <i>' + esc(potong(objs.join('; '), 120)) + '</i>. ';
+        teks += l.nfu ? `Tindak lanjut berikutnya dijadwalkan <b>${dd(l.nfu)}</b>.` : '<span class="badge-over">Tindak lanjut berikutnya belum terjadwal.</span>';
+        return teks;
+      })()}</td>
 <td>${aksi.slice(0, 3).join('<br/>• ')}</td>
 </tr>`;
     }).join('') : '<tr><td colspan="4">Tidak ada lead Warm/Hot saat ini.</td></tr>'}
