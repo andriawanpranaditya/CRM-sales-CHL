@@ -11,7 +11,7 @@ export async function GET() {
   const positions = await sql`SELECT project, unit, x, y FROM unit_positions`;
   const manual = await sql`SELECT project, unit, status FROM unit_manual`;
   const trx = await sql`
-    SELECT t.id, t.jenis, t.unit, l.nama,
+    SELECT t.id, t.jenis, t.unit, t.lead_code, l.nama,
            COALESCE(NULLIF(t.project, ''), l.project, '') AS project
     FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code
     WHERE t.unit IS NOT NULL AND t.unit <> ''
@@ -23,13 +23,13 @@ export async function GET() {
     if (!t.project) return;
     const key = t.project + '|' + t.unit;
     if (t.jenis === 'Batal') m[key] = null;
-    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false };
-    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false };
+    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code };
+    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code };
   });
   manual.forEach(x => {
     const key = x.project + '|' + x.unit;
-    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual (manual)', manual: true };
-    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved (manual)', manual: true };
+    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual (manual)', manual: true, lead_code: null };
+    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved (manual)', manual: true, lead_code: null };
     else m[key] = null;
   });
   const status = Object.entries(m)

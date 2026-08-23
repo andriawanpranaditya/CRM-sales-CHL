@@ -13,6 +13,7 @@ export default function FormPage() {
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
+  const [stok, setStok] = useState([]);
   const [busy, setBusy] = useState(false);
   const [showList, setShowList] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -22,8 +23,8 @@ export default function FormPage() {
   const [editId, setEditId] = useState(null);
 
   async function refresh() {
-    const [s, l, u, f] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me'), api('/api/followups')]);
-    setSet(s); setLeads(l); setMe(u); setFus(f);
+    const [s, l, u, f, st] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me'), api('/api/followups'), api('/api/stock')]);
+    setSet(s); setLeads(l); setMe(u); setFus(f); setStok(st.status || []);
     if (u.role === 'sales') setLead(x => ({ ...x, sales: u.name }));
   }
   useEffect(() => { refresh().catch(e => toast(e.message)); }, []);
@@ -78,7 +79,7 @@ export default function FormPage() {
       await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
       toast('Follow up tersimpan');
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
-      Promise.all([api('/api/leads'), api('/api/followups')]).then(([l, f]) => { setLeads(l); setFus(f); });
+      Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   async function simpanTrx() {
@@ -165,8 +166,25 @@ export default function FormPage() {
           <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
           <div className="field"><label>Blok / Unit</label>
             {(set.units && set.units[trx.project] && set.units[trx.project].length)
-              ? <select {...ft('unit')}>{[''].concat(set.units[trx.project]).map(u => <option key={'u' + u} value={u}>{u || '— pilih —'}</option>)}</select>
+              ? (() => {
+                  const stMap = {};
+                  stok.forEach(u2 => { if (u2.project === trx.project) stMap[u2.unit] = u2; });
+                  return <select {...ft('unit')}>
+                    <option value="">— pilih —</option>
+                    {set.units[trx.project].map(u => {
+                      const st = stMap[u];
+                      // Unit tertutup tetap bisa dipilih oleh LEAD PEMILIKNYA (untuk naik ke Booking/Closing atau Batal)
+                      const milikSendiri = st && st.lead_code && st.lead_code === trx.lead_code;
+                      const kunci = !!st && !milikSendiri;
+                      const label = !st ? u
+                        : (st.warna === 'merah' ? '🔴 ' : '🟡 ') + u +
+                          (milikSendiri ? ' — unit lead ini' : st.warna === 'merah' ? ' — TERJUAL' : ' — RESERVED');
+                      return <option key={'u' + u} value={u} disabled={kunci}>{label}</option>;
+                    })}
+                  </select>;
+                })()
               : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
+            <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih.</span>
           </div>
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>

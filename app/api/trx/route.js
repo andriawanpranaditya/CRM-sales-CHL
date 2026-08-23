@@ -24,6 +24,23 @@ export async function POST(req) {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
+  // Pengaman: unit yang sudah Terjual/Reserved tidak bisa diambil lead lain (kecuali transaksi Batal oleh pemiliknya)
+  if (b.unit && b.project && b.jenis !== 'Batal') {
+    const last = await sql`
+      SELECT t.jenis, t.lead_code FROM transactions t
+      LEFT JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.unit = ${b.unit} AND COALESCE(NULLIF(t.project, ''), l.project, '') = ${b.project}
+      ORDER BY t.id DESC LIMIT 1`;
+    const man = await sql`SELECT status FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
+    const manSt = man.length ? man[0].status : null;
+    const heldByOther =
+      (manSt === 'Terjual' || manSt === 'Reserved') ||
+      (manSt !== 'Kosong' && last.length && last[0].jenis !== 'Batal' && last[0].lead_code !== b.lead_code);
+    if (heldByOther) {
+      return Response.json({ error: 'Unit ' + b.unit + ' sudah Terjual/Reserved. Pilih unit lain atau minta manager membuka stoknya di Master Stock.' }, { status: 400 });
+    }
+  }
+
   await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, catatan, project, bayar, unit, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.catatan || ''},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
