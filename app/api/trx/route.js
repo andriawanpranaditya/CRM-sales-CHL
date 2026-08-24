@@ -69,3 +69,44 @@ export async function POST(req) {
   }
   return Response.json({ ok: true });
 }
+
+// Hitung ulang status pipeline lead dari transaksi tersisa (dipakai PATCH & DELETE)
+async function sinkronStatus(sql, lead_code) {
+  const rows = await sql`SELECT jenis FROM transactions WHERE lead_code = ${lead_code} ORDER BY id DESC`;
+  const t = rows.find(r => r.jenis !== 'Reserved');
+  if (t) {
+    const st = t.jenis === 'Batal' ? 'Drop' : t.jenis;
+    await sql`UPDATE leads SET status = ${st}, updated_at = now() WHERE lead_code = ${lead_code}`;
+  }
+  // Bila hanya tersisa Reserved / tidak ada transaksi: status dibiarkan — manager bisa atur di Database Lead
+}
+
+// Edit transaksi — khusus manager. Status pipeline lead disinkronkan otomatis.
+export async function PATCH(req) {
+  const { err } = await requireUser('manager'); if (err) return err;
+  const b = await req.json();
+  if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
+  if (!['Reserved', 'Booking', 'Closing', 'Batal'].includes(b.jenis)) return Response.json({ error: 'Jenis transaksi tidak valid' }, { status: 400 });
+  const sql = db();
+  const rows = await sql`SELECT lead_code FROM transactions WHERE id = ${b.id}`;
+  if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+  await sql`UPDATE transactions SET
+      tgl = ${b.tgl || null}, jenis = ${b.jenis}, nilai = ${Number(b.nilai) || 0},
+      project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''},
+      catatan = ${b.catatan || ''}
+    WHERE id = ${b.id}`;
+  await sinkronStatus(sql, rows[0].lead_code);
+  return Response.json({ ok: true });
+}
+
+// Hapus transaksi — khusus manager. Status lead & stok otomatis mengikuti transaksi tersisa.
+export async function DELETE(req) {
+  const { err } = await requireUser('manager'); if (err) return err;
+  const b = await req.json();
+  if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
+  const sql = db();
+  const rows = await sql`DELETE FROM transactions WHERE id = ${b.id} RETURNING lead_code`;
+  if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+  await sinkronStatus(sql, rows[0].lead_code);
+  return Response.json({ ok: true });
+}
