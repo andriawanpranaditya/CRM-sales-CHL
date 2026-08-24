@@ -6,6 +6,15 @@ import { api, fmtRp, fmtDate, reminder } from '@/components/util';
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
 
 export default function Dashboard() {
+  const [lastUpd, setLastUpd] = useState(null);
+  function muatSemua() {
+    return Promise.all([api('/api/leads'), api('/api/followups'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
+      .then(([l, f, t, s, st]) => {
+        setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []);
+        setLastUpd(new Date());
+      })
+      .catch(e => toast(e.message));
+  }
   const [leads, setLeads] = useState(null);
   const [fus, setFus] = useState([]);
   const [trx, setTrx] = useState([]);
@@ -16,9 +25,13 @@ export default function Dashboard() {
   const [stock, setStock] = useState([]);
 
   useEffect(() => {
-    Promise.all([api('/api/leads'), api('/api/followups'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
-      .then(([l, f, t, s, st]) => { setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); })
-      .catch(e => toast(e.message));
+    muatSemua();
+    // Dashboard selalu segar: refresh tiap 60 detik + setiap tab/aplikasi kembali dibuka
+    const t = setInterval(muatSemua, 60 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') muatSemua(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
   }, []);
 
   const fLeads = useMemo(() => proj ? (leads || []).filter(l => l.project === proj) : (leads || []), [leads, proj]);
@@ -464,7 +477,7 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
     <>
       <div className="page-head">
         <div><h1>Dashboard</h1>
-          <div className="sub">Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div className="sub">Data real-time dari database bersama — semua input tim langsung terhitung</div></div>
+          <div className="sub">Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div className="sub">Data real-time dari database bersama — auto-refresh tiap menit{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={muatSemua}>↻ Segarkan</button></div></div>
         <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
       </div>
       <div className="fu-toolbar">
