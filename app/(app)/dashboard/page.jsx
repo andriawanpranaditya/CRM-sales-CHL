@@ -48,7 +48,21 @@ export default function Dashboard() {
   const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
   const uniq = jenis => new Set(mTrx.filter(t => t.jenis === jenis).map(t => t.lead_code));
   const mResSet = uniq('Reserved'), mBookSet = uniq('Booking');
-  const max = Math.max(1, ...(set.status || []).map(byStatus));
+  // Baris pipeline: Site Visit = status + Walk In; Reserved & Booking dari TRANSAKSI; tanpa Closing
+  const svNDash = mLeads.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
+  const pipeRows = [];
+  (set.status || []).forEach(st => {
+    if (st === 'Booking' || st === 'Closing') return;
+    if (st === 'Site Visit') pipeRows.push({ label: 'Site Visit', val: svNDash, cls: '', hint: '+ Walk In' });
+    else pipeRows.push({ label: st, val: byStatus(st), cls: st === 'Hot' ? ' hot' : (st === 'Lost' || st === 'Drop') ? ' lost' : '' });
+  });
+  const dropIdx = pipeRows.findIndex(r => r.label === 'Drop' || r.label === 'Lost');
+  const trxRows = [
+    { label: 'Reserved', val: mResSet.size, cls: ' hot', hint: 'transaksi' },
+    { label: 'Booking', val: mBookSet.size, cls: ' lost', hint: 'transaksi' },
+  ];
+  if (dropIdx >= 0) pipeRows.splice(dropIdx, 0, ...trxRows); else pipeRows.push(...trxRows);
+  const max = Math.max(1, ...pipeRows.map(r => r.val));
   const salesNames = [...new Set(mLeads.map(l => l.sales).filter(Boolean))];
   // Grafik sumber lead bulan berjalan
   const srcCount = {};
@@ -477,13 +491,13 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
         <div className="card">
           <h2>Status Pipeline</h2>
           <div className="pipe">
-            {(set.status || []).map(st => {
-              const n = byStatus(st);
-              const cls = st === 'Hot' ? ' hot' : (st === 'Lost' || st === 'Drop') ? ' lost' : '';
-              return <div className={'pipe-row' + cls} key={st}><span>{st}</span>
-                <div className="bar"><div className="fill" style={{ width: (n / max * 100) + '%' }} /></div>
-                <span className="n">{n}</span></div>;
-            })}
+            {pipeRows.map(r => (
+              <div className={'pipe-row' + r.cls} key={r.label}>
+                <span>{r.label}{r.hint ? <span className="hint" style={{ fontWeight: 400 }}> ({r.hint})</span> : null}</span>
+                <div className="bar"><div className="fill" style={{ width: (r.val / max * 100) + '%' }} /></div>
+                <span className="n">{r.val}</span>
+              </div>
+            ))}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
