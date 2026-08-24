@@ -28,8 +28,9 @@ export async function GET() {
   });
   manual.forEach(x => {
     const key = x.project + '|' + x.unit;
-    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual (manual)', manual: true, lead_code: null };
-    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved (manual)', manual: true, lead_code: null };
+    const pemilik = (m[key] && m[key].lead_code) || null; // unit ber-transaksi tetap ingat lead pemiliknya
+    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual (manual)', manual: true, lead_code: pemilik };
+    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved (manual)', manual: true, lead_code: pemilik };
     else m[key] = null;
   });
   const status = Object.entries(m)

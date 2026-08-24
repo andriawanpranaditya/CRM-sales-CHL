@@ -48,9 +48,12 @@ export async function POST(req) {
       ORDER BY t.id DESC LIMIT 1`;
     const man = await sql`SELECT status FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
     const manSt = man.length ? man[0].status : null;
-    const heldByOther =
-      (manSt === 'Terjual' || manSt === 'Reserved') ||
-      (manSt !== 'Kosong' && last.length && last[0].jenis !== 'Batal' && last[0].lead_code !== b.lead_code);
+    // Lead pemilik = lead dgn transaksi terakhir non-Batal di unit ini — selalu boleh lanjut (Reserved -> Booking dst)
+    const ownerOk = last.length && last[0].jenis !== 'Batal' && last[0].lead_code === b.lead_code;
+    let heldByOther;
+    if (manSt === 'Kosong') heldByOther = false;
+    else if (manSt === 'Terjual' || manSt === 'Reserved') heldByOther = !ownerOk;
+    else heldByOther = last.length && last[0].jenis !== 'Batal' && last[0].lead_code !== b.lead_code;
     if (heldByOther) {
       return Response.json({ error: 'Unit ' + b.unit + ' sudah Terjual/Reserved. Pilih unit lain atau minta manager membuka stoknya di Master Stock.' }, { status: 400 });
     }
