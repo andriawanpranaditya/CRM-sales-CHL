@@ -28,14 +28,36 @@ export default function Dashboard() {
 
   if (!leads) return <div className="loading">Memuat data dari database…</div>;
 
-  const byStatus = st => fLeads.filter(l => l.status === st).length;
+  // ===== Dashboard menampilkan BULAN BERJALAN: tanggal 1 s/d hari ini =====
+  const nowD = new Date();
+  const mStart = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-01`;
+  const inMonth = x => String(x || '').slice(0, 10) >= mStart;
+  const mLeads = fLeads.filter(l => inMonth(l.tgl));
+  const mTrx = fTrx.filter(t => inMonth(t.tgl));
+  const bulanLabel = nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+  const byStatus = st => mLeads.filter(l => l.status === st).length;
+  // Reminder dari POSISI TERKINI tiap lead (leads.next_fu) — FU yang sudah di-update otomatis hilang dari overdue
   const rem = { OVERDUE: 0, 'HARI INI': 0, UPCOMING: 0 };
-  fFus.forEach(f => { const r = reminder(f.next_tgl); if (r) rem[r[0]]++; });
-  const pipeVal = fLeads.filter(l => AKTIF.includes(l.status)).reduce((a, l) => a + Number(l.budget || 0), 0);
-  const bookVal = fTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
-  const closeVal = fTrx.filter(t => t.jenis === 'Closing').reduce((a, t) => a + Number(t.nilai || 0), 0);
+  fLeads.filter(l => !['Closing', 'Drop', 'Lost'].includes(l.status)).forEach(l => {
+    const r = reminder(l.next_fu); if (r) rem[r[0]]++;
+  });
+  // Nilai: pipeline aktif = budget lead WARM & HOT bulan berjalan
+  const pipeVal = mLeads.filter(l => l.status === 'Warm' || l.status === 'Hot').reduce((a, l) => a + Number(l.budget || 0), 0);
+  const resVal = mTrx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+  const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
+  const uniq = jenis => new Set(mTrx.filter(t => t.jenis === jenis).map(t => t.lead_code));
+  const mResSet = uniq('Reserved'), mBookSet = uniq('Booking');
   const max = Math.max(1, ...(set.status || []).map(byStatus));
-  const salesNames = [...new Set(fLeads.map(l => l.sales).filter(Boolean))];
+  const salesNames = [...new Set(mLeads.map(l => l.sales).filter(Boolean))];
+  // Grafik sumber lead bulan berjalan
+  const srcCount = {};
+  mLeads.forEach(l => { const k = l.sumber || 'Tidak diisi'; srcCount[k] = (srcCount[k] || 0) + 1; });
+  const srcRows = Object.entries(srcCount).sort((a, b) => b[1] - a[1]);
+  const srcMax = Math.max(1, ...srcRows.map(x => x[1]));
+  const walkD = {};
+  mLeads.filter(l => /walk/i.test(l.sumber || '') && l.walkin_info).forEach(l => { walkD[l.walkin_info] = (walkD[l.walkin_info] || 0) + 1; });
+  const walkDStr = Object.entries(walkD).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
 
   async function downloadExcel() {
     const ExcelJS = (await import('exceljs')).default;
@@ -427,7 +449,8 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
   return (
     <>
       <div className="page-head">
-        <div><h1>Dashboard</h1><div className="sub">Data real-time dari database bersama — semua input tim langsung terhitung</div></div>
+        <div><h1>Dashboard</h1>
+          <div className="sub">Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div className="sub">Data real-time dari database bersama — semua input tim langsung terhitung</div></div>
         <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
       </div>
       <div className="fu-toolbar">
@@ -446,9 +469,8 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
         <span className="hint">Report Word mengikuti <b>filter project di atas</b> (Semua / per project) + berlogo CHL. Kosongkan tanggal utk seluruh periode; Warm &amp; Hot ter-highlight. Excel: 3 sheet lengkap + sort/filter tiap kolom utk arsip offline.</span>
       </div>
       <div className="grid kpis">
-        {[['Total Lead', fLeads.length], ['Hot', byStatus('Hot')],
-          ['Booking', new Set(fTrx.filter(t => t.jenis === 'Booking').map(t => t.lead_code)).size],
-          ['Closing', new Set(fTrx.filter(t => t.jenis === 'Closing').map(t => t.lead_code)).size]]
+        {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],
+          ['Reserved', mResSet.size], ['Booking', mBookSet.size]]
           .map(([l, v]) => <div className="kpi" key={l}><div className="lbl">{l}</div><div className="val">{v}</div></div>)}
       </div>
       <div className="grid two-col">
@@ -472,31 +494,50 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
             <div className="rem-line upcoming"><span>Upcoming</span><span className="n">{rem.UPCOMING}</span></div>
           </div>
           <div className="card">
-            <h2>Nilai (Rp)</h2>
-            <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget, excl. Closing/Lost)</span></span><b>{fmtRp(pipeVal)}</b></div>
+            <h2>Nilai (Rp) — {bulanLabel}</h2>
+            <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget Warm & Hot bulan ini)</span></span><b>{fmtRp(pipeVal)}</b></div>
+            <div className="money-line"><span>Nilai Reserved</span><b>{fmtRp(resVal)}</b></div>
             <div className="money-line"><span>Nilai Booking</span><b>{fmtRp(bookVal)}</b></div>
-            <div className="money-line"><span>Nilai Closing</span><b>{fmtRp(closeVal)}</b></div>
           </div>
         </div>
       </div>
+      <div className="card" style={{ marginTop: 14 }}>
+        <h2>Sumber Lead — {bulanLabel} ({mLeads.length} lead)</h2>
+        {srcRows.length ? (
+          <div className="pipe">
+            {srcRows.map(([k, v]) => (
+              <div className="pipe-row" key={k}>
+                <span>{k}</span>
+                <div className="bar"><div className="fill" style={{ width: (v / srcMax * 100) + '%' }} /></div>
+                <span className="n">{v}</span>
+              </div>
+            ))}
+          </div>
+        ) : <div className="hint">Belum ada lead masuk bulan ini.</div>}
+        {walkDStr && <div className="hint" style={{ marginTop: 8 }}>Walk In via: {walkDStr}</div>}
+      </div>
+
       <div style={{ marginTop: 14 }} className="tbl-wrap">
         <table>
           <thead><tr><th>Sales / PIC</th><th className="num">Total</th><th className="num">Warm</th><th className="num">Hot</th>
-            <th className="num">Booking</th><th className="num">Closing</th><th className="num">Closing Rate</th></tr></thead>
+            <th className="num">Reserved</th><th className="num">Booking</th><th className="num">Closing Rate</th></tr></thead>
           <tbody>
             {salesNames.length ? salesNames.map(s => {
-              const mine = fLeads.filter(l => l.sales === s);
+              const mine = mLeads.filter(l => l.sales === s);
               const c = st => mine.filter(l => l.status === st).length;
+              const mineCodes = new Set(mine.map(l => l.lead_code));
+              const rs = [...mResSet].filter(code => mineCodes.has(code)).length;
+              const bk = [...mBookSet].filter(code => mineCodes.has(code)).length;
               return <tr key={s}>
                 <td data-label="Sales"><b>{s}</b></td>
                 <td className="num" data-label="Total">{mine.length}</td>
                 <td className="num" data-label="Warm">{c('Warm')}</td>
                 <td className="num" data-label="Hot">{c('Hot')}</td>
-                <td className="num" data-label="Booking">{c('Booking')}</td>
-                <td className="num" data-label="Closing">{c('Closing')}</td>
-                <td className="num" data-label="Closing Rate">{mine.length ? Math.round(c('Closing') / mine.length * 100) + '%' : '0%'}</td>
+                <td className="num" data-label="Reserved">{rs}</td>
+                <td className="num" data-label="Booking"><b>{bk}</b></td>
+                <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bk / mine.length * 100) + '%' : '0%'}</b></td>
               </tr>;
-            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada data lead.</td></tr>}
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead bulan ini.</td></tr>}
           </tbody>
         </table>
       </div>
