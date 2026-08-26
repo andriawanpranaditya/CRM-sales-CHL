@@ -89,25 +89,37 @@ export default function Dashboard() {
   async function downloadExcel() {
     const ExcelJS = (await import('exceljs')).default;
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+    const bln = x => String(x || '').slice(0, 7); // YYYY-MM
+    const colL = n => { let s2 = ''; while (n > 0) { const m = (n - 1) % 26; s2 = String.fromCharCode(65 + m) + s2; n = Math.floor((n - 1) / 26); } return s2; };
 
-    // ===== Palet CHL =====
     const INK = 'FF1C2B23', GREEN = 'FF23694A', BRASS = 'FFC9922E', LINE = 'FFD8D6CC',
-      ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF', RED = 'FFB3402F',
+      ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF',
       AMBER_BG = 'FFFBF1DC', GREEN_BG = 'FFE4EFE8', RED_BG = 'FFF9E7E3';
     const STATUS_BG = { New: 'FFE5EEF6', Cold: 'FFE8EAEE', Warm: AMBER_BG, Hot: 'FFF6E3C0', Appointment: 'FFE5EEF6', 'Site Visit': 'FFE5EEF6', Booking: GREEN_BG, Closing: GREEN, Lost: RED_BG, Drop: RED_BG };
     const JENIS_BG = { Reserved: AMBER_BG, Booking: GREEN_BG, Closing: GREEN_BG, Batal: RED_BG };
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'CRM Sales CHL';
-
+    wb.calcProperties = { fullCalcOnLoad: true };
     const thin = { style: 'thin', color: { argb: LINE } };
     const border = { top: thin, left: thin, bottom: thin, right: thin };
+    const MAXR = 5000; // jangkauan rumus
 
-    // Sheet berjudul + tabel ber-styling + tombol filter/sort tiap kolom
+    // ===== Referensi dropdown (sheet tersembunyi) =====
+    const projList = ['Semua', ...(set.project || [])];
+    const bulanSet = [...new Set([...leads.map(l => bln(l.tgl)), ...fus.map(f => bln(f.tgl)), ...trx.map(t => bln(t.tgl))].filter(Boolean))].sort().reverse();
+    const bulanList = ['Semua', ...bulanSet];
+    const ref = wb.addWorksheet('Ref', { state: 'hidden' });
+    projList.forEach((v, i) => ref.getCell(i + 1, 1).value = v);
+    bulanList.forEach((v, i) => ref.getCell(i + 1, 2).value = v);
+
+    const PJ = 'IF(Ringkasan!$C$4="Semua","*",Ringkasan!$C$4)';
+    const BL = 'IF(Ringkasan!$C$5="Semua","*",Ringkasan!$C$5)';
+
+    // ===== Sheet data (dgn kolom ✓ mengikuti pilihan Ringkasan) =====
     const buatSheet = (nama, judul, cols, rows, opsi = {}) => {
       const ws = wb.addWorksheet(nama, { views: [{ state: 'frozen', ySplit: 4 }] });
       ws.columns = cols.map(c => ({ width: c.w }));
-      // Banner judul
       ws.mergeCells(1, 1, 1, cols.length);
       const t = ws.getCell(1, 1);
       t.value = judul;
@@ -117,13 +129,12 @@ export default function Dashboard() {
       ws.getRow(1).height = 30;
       ws.mergeCells(2, 1, 2, cols.length);
       const st = ws.getCell(2, 1);
-      st.value = 'CIPTA HARMONI LESTARI — dibuat ' + dd(new Date().toISOString()) + ' · crm-sales-chl.vercel.app · copyright © 2026 by Andriawanp';
+      st.value = 'Kolom ✓ mengikuti pilihan Project & Periode di sheet Ringkasan — klik filter kolom ✓ lalu centang ✓ untuk menampilkan data terpilih saja. · copyright © 2026 by Andriawanp';
       st.font = { size: 9, color: { argb: 'FF6B7A70' } };
       ws.getRow(3).height = 4;
-      // Header tabel
       const hr = ws.getRow(4);
-      cols.forEach((c, i) => {
-        const cell = hr.getCell(i + 1);
+      cols.forEach((c, i2) => {
+        const cell = hr.getCell(i2 + 1);
         cell.value = c.h;
         cell.font = { bold: true, size: 10, color: { argb: WHITE } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
@@ -131,133 +142,179 @@ export default function Dashboard() {
         cell.border = { top: thin, left: thin, right: thin, bottom: { style: 'medium', color: { argb: BRASS } } };
       });
       hr.height = 22;
-      // Data + zebra + warna khusus
+      const pjCol = colL(cols.findIndex(c => c.k === 'proj') + 1);
+      const blCol = colL(cols.findIndex(c => c.k === 'bulan') + 1);
       rows.forEach((r, ri) => {
         const row = ws.getRow(5 + ri);
         cols.forEach((c, ci) => {
           const cell = row.getCell(ci + 1);
-          cell.value = r[c.k];
+          if (c.k === '_flt') {
+            cell.value = { formula: `IF(AND(OR(Ringkasan!$C$4="Semua",$${pjCol}${5 + ri}=Ringkasan!$C$4),OR(Ringkasan!$C$5="Semua",$${blCol}${5 + ri}=Ringkasan!$C$5)),"✓","")` };
+            cell.alignment = { horizontal: 'center' };
+            cell.font = { size: 10, bold: true, color: { argb: GREEN } };
+          } else {
+            cell.value = r[c.k];
+            cell.font = { size: 10 };
+            cell.alignment = { vertical: 'top', horizontal: c.num ? 'right' : 'left', wrapText: !!c.wrap };
+            if (c.num) cell.numFmt = '#,##0';
+          }
           cell.border = border;
-          cell.font = { size: 10 };
-          cell.alignment = { vertical: 'top', horizontal: c.num ? 'right' : 'left', wrapText: !!c.wrap };
-          if (c.num) cell.numFmt = '#,##0';
-          if (ri % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
-          if (opsi.warnaSel) {
+          if (ri % 2 === 1 && c.k !== '_flt') cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+          if (opsi.warnaSel && c.k !== '_flt') {
             const bg = opsi.warnaSel(c, r);
             if (bg) {
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-              if (bg === GREEN) cell.font = { size: 10, bold: true, color: { argb: WHITE } };
-              else cell.font = { size: 10, bold: true };
+              cell.font = bg === GREEN ? { size: 10, bold: true, color: { argb: WHITE } } : { size: 10, bold: true };
             }
           }
         });
       });
-      if (!rows.length) { ws.getCell(5, 1).value = 'Belum ada data.'; ws.getCell(5, 1).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
-      // Tombol sort & filter di tiap kolom
+      if (!rows.length) { ws.getCell(5, 2).value = 'Belum ada data.'; ws.getCell(5, 2).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
       ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(rows.length, 1), column: cols.length } };
       return ws;
     };
 
-    // ===== Sheet 1: Ringkasan =====
-    const rs = wb.addWorksheet('Ringkasan');
-    rs.columns = [{ width: 3 }, { width: 26 }, { width: 16 }, { width: 22 }, { width: 3 }];
-    rs.mergeCells('A1:E1');
+    const FLT = { h: '✓', k: '_flt', w: 5 };
+    buatSheet('Database Lead', 'DATABASE LEAD', [
+      FLT, { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 },
+      { h: 'Nama', k: 'nama', w: 20 }, { h: 'WhatsApp', k: 'wa', w: 13 }, { h: 'Email', k: 'email', w: 18 },
+      { h: 'Domisili', k: 'dom', w: 13 }, { h: 'Sumber', k: 'src', w: 13 }, { h: 'Info Walk In', k: 'wi', w: 14 },
+      { h: 'Project', k: 'proj', w: 15 }, { h: 'Tipe', k: 'tipe', w: 9 }, { h: 'Budget (Rp)', k: 'budget', w: 13, num: true },
+      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
+      { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Catatan', k: 'cat', w: 24, wrap: true },
+    ], leads.map(l => ({
+      id: l.lead_code, tgl: dd(l.tgl), bulan: bln(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '',
+      dom: l.domisili || '', src: l.sumber || 'Tidak diisi', wi: l.walkin_info || '', proj: l.project || '-',
+      tipe: l.tipe || '', budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '',
+      status: l.status, nfu: dd(l.next_fu), cat: l.catatan || '',
+    })), { warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : null });
+
+    buatSheet('Follow Up', 'RIWAYAT FOLLOW UP', [
+      FLT, { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 }, { h: 'ID Lead', k: 'id', w: 11 },
+      { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
+      { h: 'Detail Komunikasi', k: 'det', w: 40, wrap: true }, { h: 'Objection', k: 'obj', w: 22, wrap: true },
+      { h: 'Next Action', k: 'na', w: 15 }, { h: 'Tgl Next FU', k: 'nfu', w: 11 },
+    ], fus.map(f => ({
+      tgl: dd(f.tgl), bulan: bln(f.tgl), id: f.lead_code, nama: f.nama || '', sales: f.sales || '',
+      proj: f.project || '-', det: f.detail, obj: f.objection || '', na: f.next_action || '', nfu: dd(f.next_tgl),
+    })), { warnaSel: (c, r) => c.k === 'na' && r.na === 'Drop' ? RED_BG : null });
+
+    buatSheet('Transaksi', 'TRANSAKSI (RESERVED · BOOKING · BATAL)', [
+      FLT, { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 }, { h: 'ID Lead', k: 'id', w: 11 },
+      { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
+      { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 }, { h: 'Nilai (Rp)', k: 'nilai', w: 15, num: true },
+      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
+    ], trx.map(t => ({
+      tgl: dd(t.tgl), bulan: bln(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '',
+      proj: t.project || '-', unit: t.unit || '', jenis: t.jenis, nilai: Number(t.nilai) || 0,
+      bayar: t.bayar || '', cat: t.catatan || '',
+    })), { warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
+
+    // ===== RINGKASAN interaktif =====
+    const rs = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
+    wb.worksheets.forEach(w2 => { }); // eslint noop
+    // pindahkan Ringkasan ke urutan pertama
+    wb.views = [{ activeTab: 0 }];
+    rs.orderNo = 0;
+    rs.columns = [{ width: 2 }, { width: 26 }, { width: 12 }, { width: 30 }, { width: 22 }, { width: 8 }, { width: 2 }];
+    rs.mergeCells('A1:G1');
+    Object.assign(rs.getCell('A1'), {});
     rs.getCell('A1').value = 'REPORT CRM SALES — CIPTA HARMONI LESTARI';
     rs.getCell('A1').font = { size: 16, bold: true, color: { argb: WHITE } };
     rs.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
     rs.getCell('A1').alignment = { vertical: 'middle', indent: 1 };
     rs.getRow(1).height = 34;
-    rs.mergeCells('A2:E2');
-    rs.getCell('A2').value = 'Diunduh: ' + dd(new Date().toISOString()) + '  ·  Seluruh data  ·  copyright © 2026 by Andriawanp';
+    rs.mergeCells('A2:G2');
+    rs.getCell('A2').value = 'Diunduh ' + dd(new Date().toISOString()) + ' · Ubah dropdown Project & Periode di bawah — seluruh angka, grafik, dan kolom ✓ di sheet lain otomatis menyesuaikan. · copyright © 2026 by Andriawanp';
     rs.getCell('A2').font = { size: 9, color: { argb: 'FF6B7A70' } };
-    const resL = new Set(trx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)).size;
-    const bokL = new Set(trx.filter(t => t.jenis === 'Booking').map(t => t.lead_code)).size;
-    const bokV = trx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
-    const resV2 = trx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+
+    const dv = (cell, refCol, n) => {
+      rs.getCell(cell).dataValidation = { type: 'list', allowBlank: false, formulae: [`=Ref!$${refCol}$1:$${refCol}$${n}`] };
+      rs.getCell(cell).value = 'Semua';
+      rs.getCell(cell).font = { bold: true, size: 12, color: { argb: GREEN } };
+      rs.getCell(cell).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AMBER_BG } };
+      rs.getCell(cell).border = border;
+      rs.getCell(cell).alignment = { horizontal: 'center' };
+    };
+    rs.getCell('B4').value = 'Project ▾'; rs.getCell('B4').font = { bold: true };
+    dv('C4', 'A', projList.length);
+    rs.getCell('B5').value = 'Periode / Bulan ▾'; rs.getCell('B5').font = { bold: true };
+    dv('C5', 'B', bulanList.length);
+    rs.getCell('D4').value = '← klik sel kuning, pilih dari dropdown'; rs.getCell('D4').font = { italic: true, size: 9, color: { argb: 'FF6B7A70' } };
+
+    const LProj = `'Database Lead'!$K$5:$K$${MAXR}`, LBln = `'Database Lead'!$D$5:$D$${MAXR}`;
+    const LSrc = `'Database Lead'!$I$5:$I$${MAXR}`, LWalk = `'Database Lead'!$J$5:$J$${MAXR}`, LDom = `'Database Lead'!$H$5:$H$${MAXR}`;
+    const FProj = `'Follow Up'!$G$5:$G$${MAXR}`, FBln = `'Follow Up'!$C$5:$C$${MAXR}`;
+    const TProj = `'Transaksi'!$G$5:$G$${MAXR}`, TBln = `'Transaksi'!$C$5:$C$${MAXR}`;
+    const TJns = `'Transaksi'!$I$5:$I$${MAXR}`, TNil = `'Transaksi'!$J$5:$J$${MAXR}`;
+
+    let R = 7;
+    const secHead = txt => {
+      rs.mergeCells(R, 2, R, 6);
+      const c = rs.getCell(R, 2);
+      c.value = txt; c.font = { bold: true, size: 11, color: { argb: WHITE } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+      c.alignment = { indent: 1 }; R++;
+    };
+    const barF = (cntAddr, maxRange) => ({ formula: `IF(MAX(${maxRange})=0,"",REPT("▰",MAX(1,ROUND(${cntAddr}/MAX(${maxRange})*15,0))))` });
+
+    // KPI
+    secHead('RINGKASAN — SESUAI PILIHAN DI ATAS');
     const kpi = [
-      ['Total Lead', leads.length, ''],
-      ['Total Follow Up', fus.length, ''],
-      ['Lead Reserved', resL, 'Nilai Rp ' + resV2.toLocaleString('id-ID')],
-      ['Lead Booking', bokL, 'Nilai Rp ' + bokV.toLocaleString('id-ID')],
+      ['Lead Masuk', `COUNTIFS(${LProj},${PJ},${LBln},${BL})`, ''],
+      ['Follow Up', `COUNTIFS(${FProj},${PJ},${FBln},${BL})`, ''],
+      ['Reserved (transaksi)', `COUNTIFS(${TProj},${PJ},${TBln},${BL},${TJns},"Reserved")`, `"Nilai: Rp "&TEXT(SUMIFS(${TNil},${TProj},${PJ},${TBln},${BL},${TJns},"Reserved"),"#,##0")`],
+      ['Booking (transaksi)', `COUNTIFS(${TProj},${PJ},${TBln},${BL},${TJns},"Booking")`, `"Nilai: Rp "&TEXT(SUMIFS(${TNil},${TProj},${PJ},${TBln},${BL},${TJns},"Booking"),"#,##0")`],
     ];
     kpi.forEach((k, i) => {
-      const r = rs.getRow(4 + i);
-      r.getCell(2).value = k[0]; r.getCell(2).font = { bold: true, size: 11 };
-      r.getCell(3).value = k[1]; r.getCell(3).font = { bold: true, size: 14, color: { argb: GREEN } }; r.getCell(3).alignment = { horizontal: 'center' };
-      r.getCell(4).value = k[2]; r.getCell(4).font = { size: 10, color: { argb: 'FF6B7A70' } };
-      [2, 3, 4].forEach(ci => { r.getCell(ci).border = border; if (i % 2 === 1) r.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+      const row = rs.getRow(R);
+      row.getCell(2).value = k[0]; row.getCell(2).font = { bold: true };
+      row.getCell(3).value = { formula: k[1] }; row.getCell(3).font = { bold: true, size: 13, color: { argb: i >= 2 ? BRASS : GREEN } }; row.getCell(3).alignment = { horizontal: 'center' };
+      if (k[2]) { rs.mergeCells(R, 4, R, 5); row.getCell(4).value = { formula: k[2] }; row.getCell(4).font = { size: 10, color: { argb: 'FF6B7A70' } }; }
+      [2, 3, 4, 5, 6].forEach(ci => { row.getCell(ci).border = border; if (i % 2 === 1) row.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+      R++;
     });
-    rs.getCell('B9').value = 'Sebaran Sumber Lead'; rs.getCell('B9').font = { bold: true, size: 11, color: { argb: GREEN } };
-    const bySrc = {};
-    leads.forEach(l => { const k = l.sumber || 'Tidak diisi'; bySrc[k] = (bySrc[k] || 0) + 1; });
-    Object.entries(bySrc).sort((a, b) => b[1] - a[1]).forEach(([k, v], i) => {
-      const r = rs.getRow(10 + i);
-      r.getCell(2).value = k;
-      r.getCell(3).value = v; r.getCell(3).alignment = { horizontal: 'center' };
-      r.getCell(4).value = Math.round(v / Math.max(1, leads.length) * 100) + '%'; r.getCell(4).alignment = { horizontal: 'center' };
-      [2, 3, 4].forEach(ci => { r.getCell(ci).border = border; if (i % 2 === 1) r.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+    R++;
+
+    // Grafik Reserved & Booking
+    secHead('GRAFIK — RESERVED & BOOKING');
+    const rbStart = R;
+    ['Reserved', 'Booking'].forEach((j, i) => {
+      const row = rs.getRow(R);
+      row.getCell(2).value = j; row.getCell(2).font = { bold: true };
+      row.getCell(3).value = { formula: `COUNTIFS(${TProj},${PJ},${TBln},${BL},${TJns},"${j}")` }; row.getCell(3).alignment = { horizontal: 'center' };
+      row.getCell(4).value = barF(`$C${R}`, `$C$${rbStart}:$C$${rbStart + 1}`);
+      row.getCell(4).font = { color: { argb: j === 'Reserved' ? BRASS : 'FFB3402F' }, bold: true };
+      row.getCell(5).value = { formula: `"Rp "&TEXT(SUMIFS(${TNil},${TProj},${PJ},${TBln},${BL},${TJns},"${j}"),"#,##0")` };
+      [2, 3, 4, 5, 6].forEach(ci => row.getCell(ci).border = border);
+      R++;
     });
+    R++;
 
-    // ===== Sheet 2: Database Lead =====
-    buatSheet('Database Lead', 'DATABASE LEAD', [
-      { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Nama', k: 'nama', w: 22 },
-      { h: 'WhatsApp', k: 'wa', w: 14 }, { h: 'Email', k: 'email', w: 20 }, { h: 'Domisili', k: 'dom', w: 14 },
-      { h: 'Sumber', k: 'src', w: 14 }, { h: 'Info Walk In', k: 'wi', w: 15 }, { h: 'Project', k: 'proj', w: 15 },
-      { h: 'Tipe', k: 'tipe', w: 10 }, { h: 'Budget (Rp)', k: 'budget', w: 14, num: true }, { h: 'Cara Bayar', k: 'bayar', w: 11 },
-      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Status', k: 'status', w: 11 }, { h: 'Next FU', k: 'nfu', w: 11 },
-      { h: 'Catatan', k: 'cat', w: 26, wrap: true },
-    ], leads.map(l => ({
-      id: l.lead_code, tgl: dd(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '', dom: l.domisili || '',
-      src: l.sumber || '', wi: l.walkin_info || '', proj: l.project || '', tipe: l.tipe || '',
-      budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '', status: l.status,
-      nfu: dd(l.next_fu), cat: l.catatan || '',
-    })), { warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : null });
+    // Seksi kategori (grafik batang dinamis)
+    const seksiKategori = (judul, labels, rangeData) => {
+      if (!labels.length) return;
+      secHead(judul);
+      const stR = R, enR = R + labels.length - 1;
+      labels.forEach(lb => {
+        const row = rs.getRow(R);
+        row.getCell(2).value = lb;
+        row.getCell(3).value = { formula: `COUNTIFS(${rangeData},$B${R},${LProj},${PJ},${LBln},${BL})` }; row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(4).value = barF(`$C${R}`, `$C$${stR}:$C$${enR}`); row.getCell(4).font = { color: { argb: GREEN }, bold: true };
+        row.getCell(5).value = { formula: `IF(SUM($C$${stR}:$C$${enR})=0,"",ROUND($C${R}/SUM($C$${stR}:$C$${enR})*100,0)&"%")` }; row.getCell(5).alignment = { horizontal: 'center' };
+        [2, 3, 4, 5, 6].forEach(ci => row.getCell(ci).border = border);
+        R++;
+      });
+      R++;
+    };
+    const topN = (arr, key, n) => Object.entries(arr.reduce((a, x) => { const k = (x[key] || '').trim(); if (k) a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, n).map(x => x[0]);
+    seksiKategori('GRAFIK — SUMBER LEAD', topN(leads.map(l => ({ v: l.sumber || 'Tidak diisi' })), 'v', 12), LSrc);
+    seksiKategori('GRAFIK — SUMBER VISIT (INFO WALK IN)', topN(leads.map(l => ({ v: l.walkin_info })), 'v', 12), LWalk);
+    seksiKategori('GRAFIK — DOMISILI (TOP 12)', topN(leads.map(l => ({ v: l.domisili })), 'v', 12), LDom);
 
-    // ===== Sheet 3: Follow Up =====
-    buatSheet('Follow Up', 'RIWAYAT FOLLOW UP', [
-      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Nama', k: 'nama', w: 20 },
-      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Detail Komunikasi', k: 'det', w: 42, wrap: true },
-      { h: 'Objection', k: 'obj', w: 24, wrap: true }, { h: 'Next Action', k: 'na', w: 16 }, { h: 'Tgl Next FU', k: 'nfu', w: 11 },
-    ], fus.map(f => ({
-      tgl: dd(f.tgl), id: f.lead_code, nama: f.nama || '', sales: f.sales || '', det: f.detail,
-      obj: f.objection || '', na: f.next_action || '', nfu: dd(f.next_tgl),
-    })), { warnaSel: (c, r) => c.k === 'na' && r.na === 'Drop' ? RED_BG : null });
-
-    // ===== Sheet 4: Transaksi =====
-    buatSheet('Transaksi', 'TRANSAKSI (RESERVED · BOOKING · BATAL)', [
-      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Nama', k: 'nama', w: 20 },
-      { h: 'Sales', k: 'sales', w: 12 }, { h: 'Project', k: 'proj', w: 15 }, { h: 'Blok/Unit', k: 'unit', w: 16 },
-      { h: 'Jenis', k: 'jenis', w: 11 }, { h: 'Nilai (Rp)', k: 'nilai', w: 16, num: true },
-      { h: 'Cara Bayar', k: 'bayar', w: 11 }, { h: 'Catatan', k: 'cat', w: 24, wrap: true },
-    ], trx.map(t => ({
-      tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '', proj: t.project || '',
-      unit: t.unit || '', jenis: t.jenis, nilai: Number(t.nilai) || 0, bayar: t.bayar || '', cat: t.catatan || '',
-    })), { warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
-
-    // ===== Sheet 5: Stok per Project =====
-    const lastVal2 = {};
-    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
-      if (!t.unit || !t.project) return;
-      const key = t.project + '|' + t.unit;
-      if (t.jenis === 'Batal') delete lastVal2[key]; else lastVal2[key] = Number(t.nilai) || 0;
-    });
-    buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
-      { h: 'Project', k: 'p', w: 18 }, { h: 'Total Stok', k: 'tot', w: 11, num: true },
-      { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
-      { h: 'Tersedia', k: 'sisa', w: 10, num: true }, { h: '% Terjual', k: 'pct', w: 10 },
-      { h: 'Nilai Penjualan (Rp)', k: 'nj', w: 19, num: true }, { h: 'Nilai Reserved (Rp)', k: 'nr', w: 19, num: true },
-    ], (set.project || []).map(p2 => {
-      const total = ((set.units || {})[p2] || []).length;
-      const su = stock.filter(u => u.project === p2);
-      const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
-      return {
-        p: p2, tot: total, jual: mer.length, res: kun.length,
-        sisa: Math.max(0, total - mer.length - kun.length),
-        pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
-        nj: mer.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
-        nr: kun.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
-      };
-    }));
+    // Ringkasan di depan
+    const idx = wb.worksheets.findIndex(w2 => w2.name === 'Ringkasan');
+    wb.worksheets.splice(0, 0, wb.worksheets.splice(idx, 1)[0]);
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -387,6 +444,40 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 <table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
 ${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.test(k) && walkDetail ? '<br/><span class="muted" style="font-size:8.5pt">via: ' + esc(walkDetail) + '</span>' : ''}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / Math.max(1, pl.length) * 100)}%</td><td>${bar(v)}</td></tr>`).join('') : '<tr><td colspan="4">Tidak ada lead pada periode ini.</td></tr>'}
 </table>
+
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Reserved &amp; Booking</h3>
+<table><tr><th>Jenis</th><th style="width:60px">Jumlah</th><th>Grafik</th><th style="width:150px">Nilai</th></tr>
+${(() => {
+      const rbMax = Math.max(1, resSet.size, bookSet.size);
+      const bar2 = (n, warna) => '<span style="color:' + warna + ';letter-spacing:1px">' + '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / rbMax * 16))) + '</span>';
+      return `<tr><td><b>Reserved</b></td><td style="text-align:center"><b>${resSet.size}</b></td><td>${bar2(resSet.size, '#C9922E')}</td><td>${rp(resV)}</td></tr>
+<tr><td><b>Booking</b></td><td style="text-align:center"><b>${bookSet.size}</b></td><td>${bar2(bookSet.size, '#B3402F')}</td><td>${rp(bookV)}</td></tr>`;
+    })()}
+</table>
+
+${(() => {
+      const walkRows = Object.entries(byWalk).sort((a, b) => b[1] - a[1]);
+      if (!walkRows.length) return '';
+      const wMax = Math.max(1, ...walkRows.map(x => x[1]));
+      const wTot = walkRows.reduce((a, x) => a + x[1], 0);
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Sumber Visit — Info Walk In (${wTot} lead)</h3>
+<table><tr><th>Sumber Info</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${walkRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / wTot * 100)}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / wMax * 16)))}</span></td></tr>`).join('')}
+</table>`;
+    })()}
+
+${(() => {
+      const byDom = {};
+      pl.forEach(l => { const k = (l.domisili || '').trim(); if (k) byDom[k] = (byDom[k] || 0) + 1; });
+      const domRows = Object.entries(byDom).sort((a, b) => b[1] - a[1]).slice(0, 12);
+      if (!domRows.length) return '';
+      const dMax = Math.max(1, ...domRows.map(x => x[1]));
+      const dTot = domRows.reduce((a, x) => a + x[1], 0);
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Domisili Lead (Top ${domRows.length})</h3>
+<table><tr><th>Domisili</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${domRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / dTot * 100)}%</td><td><span style="color:#23694A;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / dMax * 16)))}</span></td></tr>`).join('')}
+</table>`;
+    })()}
 
 <h2>2. STATUS PIPELINE (posisi status lead saat ini; Reserved &amp; Booking dilaporkan dari transaksi pada Ringkasan)</h2>
 <table><tr><th>Status</th><th>Jumlah</th></tr>
