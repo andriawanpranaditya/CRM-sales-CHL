@@ -182,11 +182,13 @@ export default function Dashboard() {
       { h: 'Project', k: 'proj', w: 15 }, { h: 'Tipe', k: 'tipe', w: 9 }, { h: 'Budget (Rp)', k: 'budget', w: 13, num: true },
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
       { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Catatan', k: 'cat', w: 24, wrap: true },
+      { h: 'Sumber Visit', k: 'sv', w: 14 },
     ], leads.map(l => ({
       id: l.lead_code, tgl: dd(l.tgl), bulan: bln(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '',
       dom: l.domisili || '', src: l.sumber || 'Tidak diisi', wi: l.walkin_info || '', proj: l.project || '-',
       tipe: l.tipe || '', budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '',
       status: l.status, nfu: dd(l.next_fu), cat: l.catatan || '',
+      sv: /walk/i.test(l.sumber || '') ? (l.walkin_info || 'Walk In (tanpa info)') : (l.status === 'Site Visit' ? (l.sumber || 'Tidak diisi') : ''),
     })), { warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : null });
 
     buatSheet('Follow Up', 'RIWAYAT FOLLOW UP', [
@@ -243,7 +245,8 @@ export default function Dashboard() {
     rs.getCell('D4').value = '← klik sel kuning, pilih dari dropdown'; rs.getCell('D4').font = { italic: true, size: 9, color: { argb: 'FF6B7A70' } };
 
     const LProj = `'Database Lead'!$K$5:$K$${MAXR}`, LBln = `'Database Lead'!$D$5:$D$${MAXR}`;
-    const LSrc = `'Database Lead'!$I$5:$I$${MAXR}`, LWalk = `'Database Lead'!$J$5:$J$${MAXR}`, LDom = `'Database Lead'!$H$5:$H$${MAXR}`;
+    const LSrc = `'Database Lead'!$I$5:$I$${MAXR}`, LDom = `'Database Lead'!$H$5:$H$${MAXR}`;
+    const LVisit = `'Database Lead'!$S$5:$S$${MAXR}`; // kolom bantu Sumber Visit
     const FProj = `'Follow Up'!$G$5:$G$${MAXR}`, FBln = `'Follow Up'!$C$5:$C$${MAXR}`;
     const TProj = `'Transaksi'!$G$5:$G$${MAXR}`, TBln = `'Transaksi'!$C$5:$C$${MAXR}`;
     const TJns = `'Transaksi'!$I$5:$I$${MAXR}`, TNil = `'Transaksi'!$J$5:$J$${MAXR}`;
@@ -309,7 +312,7 @@ export default function Dashboard() {
     };
     const topN = (arr, key, n) => Object.entries(arr.reduce((a, x) => { const k = (x[key] || '').trim(); if (k) a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, n).map(x => x[0]);
     seksiKategori('SUMBER LEAD', topN(leads.map(l => ({ v: l.sumber || 'Tidak diisi' })), 'v', 12), LSrc);
-    seksiKategori('SUMBER VISIT (INFO WALK IN)', topN(leads.map(l => ({ v: l.walkin_info })), 'v', 12), LWalk);
+    seksiKategori('SUMBER VISIT (LEAD YANG SUDAH DATANG)', topN(leads.map(l => ({ v: /walk/i.test(l.sumber || '') ? (l.walkin_info || 'Walk In (tanpa info)') : (l.status === 'Site Visit' ? (l.sumber || 'Tidak diisi') : '') })), 'v', 12), LVisit);
     seksiKategori('DOMISILI (TOP 12)', topN(leads.map(l => ({ v: l.domisili })), 'v', 12), LDom);
 
     // ===== Sheet Stok per Project (posisi stok terkini — tidak terpengaruh filter) =====
@@ -482,14 +485,23 @@ ${(() => {
 </table>
 
 ${(() => {
-      const walkRows = Object.entries(byWalk).sort((a, b) => b[1] - a[1]);
-      if (!walkRows.length) return '';
-      const wMax = Math.max(1, ...walkRows.map(x => x[1]));
-      const wTot = walkRows.reduce((a, x) => a + x[1], 0);
-      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sumber Visit — Info Walk In (${wTot} lead)</h3>
-<table><tr><th>Sumber Info</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
-${walkRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / wTot * 100)}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / wMax * 16)))}</span></td></tr>`).join('')}
-</table>`;
+      // Sumber Visit = lead yang sudah DATANG: Walk In (label = info tahu dari mana) + status Site Visit dari sumber mana pun (label = sumbernya)
+      const byVisit = {};
+      pl.forEach(l => {
+        let label = null;
+        if (/walk/i.test(l.sumber || '')) label = l.walkin_info || 'Walk In (tanpa info)';
+        else if (l.status === 'Site Visit') label = l.sumber || 'Tidak diisi';
+        if (label) byVisit[label] = (byVisit[label] || 0) + 1;
+      });
+      const vRows = Object.entries(byVisit).sort((a, b) => b[1] - a[1]);
+      if (!vRows.length) return '';
+      const vMax = Math.max(1, ...vRows.map(x => x[1]));
+      const vTot = vRows.reduce((a, x) => a + x[1], 0);
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sumber Visit — asal lead yang sudah datang (${vTot} lead)</h3>
+<table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${vRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / vTot * 100)}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / vMax * 16)))}</span></td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Walk In dihitung dari info "tahu dari mana"; lead sumber lain dihitung bila sudah mencapai Site Visit.</p>`;
     })()}
 
 ${(() => {
