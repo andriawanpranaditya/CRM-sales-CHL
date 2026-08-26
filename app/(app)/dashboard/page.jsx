@@ -277,7 +277,7 @@ export default function Dashboard() {
     R++;
 
     // Grafik Reserved & Booking
-    secHead('GRAFIK — RESERVED & BOOKING');
+    secHead('RESERVED & BOOKING');
     const rbStart = R;
     ['Reserved', 'Booking'].forEach((j, i) => {
       const row = rs.getRow(R);
@@ -308,9 +308,35 @@ export default function Dashboard() {
       R++;
     };
     const topN = (arr, key, n) => Object.entries(arr.reduce((a, x) => { const k = (x[key] || '').trim(); if (k) a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, n).map(x => x[0]);
-    seksiKategori('GRAFIK — SUMBER LEAD', topN(leads.map(l => ({ v: l.sumber || 'Tidak diisi' })), 'v', 12), LSrc);
-    seksiKategori('GRAFIK — SUMBER VISIT (INFO WALK IN)', topN(leads.map(l => ({ v: l.walkin_info })), 'v', 12), LWalk);
-    seksiKategori('GRAFIK — DOMISILI (TOP 12)', topN(leads.map(l => ({ v: l.domisili })), 'v', 12), LDom);
+    seksiKategori('SUMBER LEAD', topN(leads.map(l => ({ v: l.sumber || 'Tidak diisi' })), 'v', 12), LSrc);
+    seksiKategori('SUMBER VISIT (INFO WALK IN)', topN(leads.map(l => ({ v: l.walkin_info })), 'v', 12), LWalk);
+    seksiKategori('DOMISILI (TOP 12)', topN(leads.map(l => ({ v: l.domisili })), 'v', 12), LDom);
+
+    // ===== Sheet Stok per Project (posisi stok terkini — tidak terpengaruh filter) =====
+    const lastVal2 = {};
+    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
+      if (!t.unit || !t.project) return;
+      const key = t.project + '|' + t.unit;
+      if (t.jenis === 'Batal') delete lastVal2[key]; else lastVal2[key] = Number(t.nilai) || 0;
+    });
+    const stokWs = buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
+      { h: 'Project', k: 'p', w: 18 }, { h: 'Total Stok', k: 'tot', w: 11, num: true },
+      { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
+      { h: 'Tersedia', k: 'sisa', w: 10, num: true }, { h: '% Terjual', k: 'pct', w: 10 },
+      { h: 'Nilai Penjualan (Rp)', k: 'nj', w: 19, num: true }, { h: 'Nilai Reserved (Rp)', k: 'nr', w: 19, num: true },
+    ], (set.project || []).map(p2 => {
+      const total = ((set.units || {})[p2] || []).length;
+      const su = stock.filter(u => u.project === p2);
+      const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
+      return {
+        p: p2, tot: total, jual: mer.length, res: kun.length,
+        sisa: Math.max(0, total - mer.length - kun.length),
+        pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
+        nj: mer.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
+        nr: kun.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
+      };
+    }));
+    stokWs.getCell(2, 1).value = 'Posisi stok per hari ini (transaksi + penandaan manual Master Stock) — tidak terpengaruh filter Ringkasan. · copyright © 2026 by Andriawanp';
 
     // Ringkasan di depan
     const idx = wb.worksheets.findIndex(w2 => w2.name === 'Ringkasan');
@@ -445,7 +471,7 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 ${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.test(k) && walkDetail ? '<br/><span class="muted" style="font-size:8.5pt">via: ' + esc(walkDetail) + '</span>' : ''}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / Math.max(1, pl.length) * 100)}%</td><td>${bar(v)}</td></tr>`).join('') : '<tr><td colspan="4">Tidak ada lead pada periode ini.</td></tr>'}
 </table>
 
-<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Reserved &amp; Booking</h3>
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Reserved &amp; Booking</h3>
 <table><tr><th>Jenis</th><th style="width:60px">Jumlah</th><th>Grafik</th><th style="width:150px">Nilai</th></tr>
 ${(() => {
       const rbMax = Math.max(1, resSet.size, bookSet.size);
@@ -460,7 +486,7 @@ ${(() => {
       if (!walkRows.length) return '';
       const wMax = Math.max(1, ...walkRows.map(x => x[1]));
       const wTot = walkRows.reduce((a, x) => a + x[1], 0);
-      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Sumber Visit — Info Walk In (${wTot} lead)</h3>
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sumber Visit — Info Walk In (${wTot} lead)</h3>
 <table><tr><th>Sumber Info</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
 ${walkRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / wTot * 100)}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / wMax * 16)))}</span></td></tr>`).join('')}
 </table>`;
@@ -473,7 +499,7 @@ ${(() => {
       if (!domRows.length) return '';
       const dMax = Math.max(1, ...domRows.map(x => x[1]));
       const dTot = domRows.reduce((a, x) => a + x[1], 0);
-      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Grafik Domisili Lead (Top ${domRows.length})</h3>
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Domisili Lead (Top ${domRows.length})</h3>
 <table><tr><th>Domisili</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
 ${domRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / dTot * 100)}%</td><td><span style="color:#23694A;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / dMax * 16)))}</span></td></tr>`).join('')}
 </table>`;
