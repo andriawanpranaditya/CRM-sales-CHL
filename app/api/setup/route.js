@@ -69,6 +69,12 @@ export async function GET(req) {
   // Role baru: admin (akses lihat Dashboard, Booking, Master Stock)
   await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
   await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','sales'))`;
+  // Index performa — mempercepat kueri saat data ribuan baris
+  await sql`CREATE INDEX IF NOT EXISTS idx_leads_tgl ON leads (tgl)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_leads_sales ON leads (sales)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_fu_lead ON followups (lead_code)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trx_lead ON transactions (lead_code)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trx_unit ON transactions (project, unit)`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS project text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bayar text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS unit text`;

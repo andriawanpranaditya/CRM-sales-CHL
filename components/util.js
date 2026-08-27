@@ -50,7 +50,8 @@ export function bukaWA(nomor, teks, winSiap) {
 export async function api(url, opts) {
   let res;
   try {
-    res = await fetch(url, opts ? { headers: { 'Content-Type': 'application/json' }, ...opts } : undefined);
+    // cache: 'no-store' — data CRM selalu segar, browser/PWA dilarang menyajikan respons lama
+    res = await fetch(url, { cache: 'no-store', ...(opts ? { headers: { 'Content-Type': 'application/json' }, ...opts } : {}) });
   } catch {
     throw new Error('Tidak bisa terhubung ke server — cek koneksi internet lalu coba lagi.');
   }
