@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
-  const rows = user.role === 'manager'
+  const rows = user.role !== 'sales'
     ? await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
         FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.id DESC`
     : await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar

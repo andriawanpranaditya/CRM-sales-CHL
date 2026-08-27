@@ -5,13 +5,13 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
-  { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager'] },
+  { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'admin'] },
   { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'sales'] },
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager'] },
   { href: '/followup', ico: '↻', label: 'Follow Up', roles: ['manager'] },
-  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager'] },
+  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
-  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'sales'] },
+  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'sales'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
 ];
@@ -23,6 +23,7 @@ export default function Shell({ user, children }) {
 
   useEffect(() => {
     if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock')) router.replace('/form');
+    if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock')) router.replace('/dashboard');
   }, [path, user.role, router]);
 
   async function logout() {

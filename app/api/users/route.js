@@ -15,13 +15,13 @@ export async function POST(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.username || !b.name || !b.password) return Response.json({ error: 'Username, nama, dan password wajib diisi' }, { status: 400 });
-  const role = b.role === 'manager' ? 'manager' : 'sales';
+  const role = ['manager', 'admin', 'sales'].includes(b.role) ? b.role : 'sales';
   const sql = db();
   const dupe = await sql`SELECT 1 FROM users WHERE lower(username) = ${String(b.username).toLowerCase()}`;
   if (dupe.length) return Response.json({ error: 'Username sudah dipakai' }, { status: 400 });
   const hash = await bcrypt.hash(b.password, 10);
   await sql`INSERT INTO users (username, name, role, password_hash, password_plain, email)
-    VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role === 'sales' ? b.password : null}, ${b.email || ''})`;
+    VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role !== 'manager' ? b.password : null}, ${b.email || ''})`;
   return Response.json({ ok: true });
 }
 
@@ -40,7 +40,7 @@ export async function PATCH(req) {
   if (b.password) {
     const hash = await bcrypt.hash(b.password, 10);
     const t = await sql`SELECT role FROM users WHERE id = ${b.id}`;
-    const plain = t[0] && t[0].role === 'sales' ? b.password : null;
+    const plain = t[0] && t[0].role !== 'manager' ? b.password : null;
     await sql`UPDATE users SET password_hash = ${hash}, password_plain = ${plain} WHERE id = ${b.id}`;
   }
   return Response.json({ ok: true });

@@ -14,7 +14,7 @@ export async function GET(req) {
     id serial PRIMARY KEY,
     username text UNIQUE NOT NULL,
     name text NOT NULL,
-    role text NOT NULL CHECK (role IN ('manager','sales')),
+    role text NOT NULL CHECK (role IN ('manager','admin','sales')),
     password_hash text NOT NULL,
     active boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now()
@@ -66,6 +66,9 @@ export async function GET(req) {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`;
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS walkin_info text`;
   await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS wa_pesan text`;
+  // Role baru: admin (akses lihat Dashboard, Booking, Master Stock)
+  await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
+  await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','sales'))`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS project text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bayar text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS unit text`;

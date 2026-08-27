@@ -50,6 +50,7 @@ export default function UsersPage() {
           <div className="field"><label>Peran</label>
             <select value={f.role} onChange={e => setF({ ...f, role: e.target.value })}>
               <option value="sales">Sales — Form Input saja</option>
+              <option value="admin">Admin — Dashboard, Booking, Master Stock</option>
               <option value="manager">Manager — akses penuh</option>
             </select></div>
           <div className="field"><label>Password</label><input value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div>
@@ -66,7 +67,7 @@ export default function UsersPage() {
               <td data-label="Nama">{u.name}</td>
               <td data-label="Email">{u.email || <span style={{ color: 'var(--red)' }}>belum diisi</span>}</td>
               <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
-              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : 'b-book')}>{u.role}</span></td>
+              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')}>{u.role}</span></td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">

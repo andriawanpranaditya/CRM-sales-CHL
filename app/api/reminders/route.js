@@ -10,7 +10,7 @@ export async function GET() {
   const sql = db();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
-  const rows = user.role === 'manager'
+  const rows = user.role !== 'sales'
     ? await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
         FROM leads
         WHERE next_fu IS NOT NULL AND next_fu::date <= ${today}
@@ -28,7 +28,7 @@ export async function GET() {
 
   // Khusus manager: unit bertransaksi/berstatus yang BELUM ditandai di peta Master Stock
   let stok = [];
-  if (user.role === 'manager') {
+  if (user.role !== 'sales') {
     const trx = await sql`
       SELECT t.id, t.jenis, t.unit,
              COALESCE(NULLIF(t.project, ''), l.project, '') AS project

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
-  const rows = user.role === 'manager'
+  const rows = user.role !== 'sales'
     ? await sql`SELECT * FROM leads ORDER BY id`
     : await sql`SELECT * FROM leads WHERE sales = ${user.name} ORDER BY id`;
   return Response.json(rows);
