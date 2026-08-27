@@ -110,10 +110,12 @@ export default function Dashboard() {
     const cocokFU = f => cocokProj(f.project) && dlmPeriode(f.tgl) && cocokSumber(leadSrcMap[f.lead_code]);
     const cocokTrx = t => cocokProj(t.project) && dlmPeriode(t.tgl) && cocokSumber(leadSrcMap[t.lead_code]);
 
-    // Urut kronologis: data pertama di baris atas, terbaru di bawah
-    const leadsX = [...leads].sort((a, b) => (a.id || 0) - (b.id || 0));
-    const fusX = [...fus].sort((a, b) => (a.id || 0) - (b.id || 0));
-    const trxX = [...trx].sort((a, b) => (a.id || 0) - (b.id || 0));
+    // Urut kronologis berdasarkan TANGGAL (masuk/kejadian); tanggal sama -> urut nomor
+    const t10 = x => String(x || '9999-12-31').slice(0, 10);
+    const noUrut = c => Number(String(c || '').replace(/[^0-9]/g, '')) || 0;
+    const leadsX = [...leads].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || noUrut(a.lead_code) - noUrut(b.lead_code));
+    const fusX = [...fus].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || (a.id || 0) - (b.id || 0));
+    const trxX = [...trx].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || (a.id || 0) - (b.id || 0));
 
     const labelSrc = !srcSel.length ? 'Semua Sumber' : srcSel.join(' + ');
     const labelPer = (d1 || d2) ? `${d1 ? dd(d1) : '…'} s/d ${d2 ? dd(d2) : '…'}` : 'Seluruh periode';
