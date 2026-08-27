@@ -23,7 +23,7 @@ export default function Dashboard() {
   const [d1, setD1] = useState('');
   const [d2, setD2] = useState('');
   const [stock, setStock] = useState([]);
-  const [srcPilih, setSrcPilih] = useState(''); // '' = semua, 'DM' = digital marketing, atau nama sumber
+  const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
 
   useEffect(() => {
     muatSemua();
@@ -92,13 +92,11 @@ export default function Dashboard() {
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
     const potong = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
 
-    // ===== Pilihan aktif: project (filter atas) + periode (d1/d2) + sumber (dropdown) =====
-    const DM = ['website', 'instagram', 'facebook ads', 'google ads', 'tiktok'];
+    // ===== Pilihan aktif: project (filter atas) + periode (d1/d2) + sumber (multi-pilih) =====
+    const srcLow = srcSel.map(x => x.toLowerCase());
     const cocokSumber = sm => {
-      if (!srcPilih) return true;
-      const v = String(sm || '').toLowerCase().trim();
-      if (srcPilih === 'DM') return DM.includes(v);
-      return v === srcPilih.toLowerCase();
+      if (!srcSel.length) return true;
+      return srcLow.includes(String(sm || '').toLowerCase().trim());
     };
     const dlmPeriode = x => {
       const d = String(x || '').slice(0, 10);
@@ -112,7 +110,12 @@ export default function Dashboard() {
     const cocokFU = f => cocokProj(f.project) && dlmPeriode(f.tgl) && cocokSumber(leadSrcMap[f.lead_code]);
     const cocokTrx = t => cocokProj(t.project) && dlmPeriode(t.tgl) && cocokSumber(leadSrcMap[t.lead_code]);
 
-    const labelSrc = !srcPilih ? 'Semua Sumber' : srcPilih === 'DM' ? 'Digital Marketing (Website, Instagram, Facebook Ads, Google Ads, Tiktok)' : srcPilih;
+    // Urut kronologis: data pertama di baris atas, terbaru di bawah
+    const leadsX = [...leads].sort((a, b) => (a.id || 0) - (b.id || 0));
+    const fusX = [...fus].sort((a, b) => (a.id || 0) - (b.id || 0));
+    const trxX = [...trx].sort((a, b) => (a.id || 0) - (b.id || 0));
+
+    const labelSrc = !srcSel.length ? 'Semua Sumber' : srcSel.join(' + ');
     const labelPer = (d1 || d2) ? `${d1 ? dd(d1) : '…'} s/d ${d2 ? dd(d2) : '…'}` : 'Seluruh periode';
     const labelProj = proj || 'Semua Project';
     const subInfo = `Project: ${labelProj} · Periode: ${labelPer} · Sumber: ${labelSrc} — baris di luar pilihan tersembunyi (Data ▸ Clear Filter / Unhide utk menampilkan semua). · copyright © 2026 by Andriawanp`;
@@ -199,7 +202,7 @@ export default function Dashboard() {
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
       { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Tgl FU Terakhir', k: 'futgl', w: 12 },
       { h: 'Update FU Terakhir', k: 'fuupd', w: 34, wrap: true }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
-    ], leads.map(l => {
+    ], leadsX.map(l => {
       const lf = lastFU[l.lead_code];
       return {
         _raw: l,
@@ -218,7 +221,7 @@ export default function Dashboard() {
       { h: 'Sumber', k: 'src', w: 13 },
       { h: 'Detail Komunikasi', k: 'det', w: 40, wrap: true }, { h: 'Objection', k: 'obj', w: 22, wrap: true },
       { h: 'Next Action', k: 'na', w: 15 }, { h: 'Tgl Next FU', k: 'nfu', w: 11 },
-    ], fus.map(f => ({
+    ], fusX.map(f => ({
       _raw: f,
       tgl: dd(f.tgl), id: f.lead_code, nama: f.nama || '', sales: f.sales || '',
       proj: f.project || '-', src: leadSrcMap[f.lead_code] || '', det: f.detail, obj: f.objection || '',
@@ -231,7 +234,7 @@ export default function Dashboard() {
       { h: 'Sumber', k: 'src', w: 13 },
       { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 }, { h: 'Nilai (Rp)', k: 'nilai', w: 15, num: true },
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
-    ], trx.map(t => ({
+    ], trxX.map(t => ({
       _raw: t,
       tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '',
       proj: t.project || '-', src: leadSrcMap[t.lead_code] || '', unit: t.unit || '', jenis: t.jenis,
@@ -618,14 +621,18 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
           <input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>
         <div className="field" style={{ minWidth: 150 }}><label>Sampai Tanggal</label>
           <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
-        <select className="sort-filter" style={{ marginLeft: 0 }} value={srcPilih} onChange={e => setSrcPilih(e.target.value)} title="Filter sumber untuk Excel">
-          <option value="">Semua Sumber</option>
-          <option value="DM">📣 Digital Marketing (Website, IG, FB Ads, Google Ads, Tiktok)</option>
-          {(set.sumber || []).map(sm => <option key={sm} value={sm}>{sm}</option>)}
-        </select>
+        <div style={{ flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          <span className="hint" style={{ fontWeight: 700 }}>Sumber:</span>
+          <button className={'sort-btn' + (!srcSel.length ? ' active' : '')} onClick={() => setSrcSel([])}>Semua</button>
+          {(set.sumber || []).map(sm => (
+            <button key={sm} className={'sort-btn' + (srcSel.includes(sm) ? ' active' : '')}
+              onClick={() => setSrcSel(srcSel.includes(sm) ? srcSel.filter(x => x !== sm) : [...srcSel, sm])}>
+              {srcSel.includes(sm) ? '✓ ' : ''}{sm}
+            </button>))}
+        </div>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadWord}>⬇ Report Word</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
-        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b>: baris yang tidak terpilih otomatis tersembunyi — buka Excel langsung bersih berisi data terpilih saja.</span>
+        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang): baris yang tidak terpilih otomatis tersembunyi, buka Excel langsung bersih berisi data terpilih saja.</span>
       </div>
       <div className="grid kpis">
         {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],

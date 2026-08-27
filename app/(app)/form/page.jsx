@@ -123,6 +123,54 @@ export default function FormPage() {
     setEditId(null);
     setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
   }
+  // 💡 Pelatih penjualan: rekomendasi follow up berdasarkan analisa FU terakhir lead
+  function rekomendasiFU(l, riwayat) {
+    if (!l) return [];
+    const rec = [];
+    const last = riwayat[0] || null;
+    const hari = last && last.tgl ? Math.floor((Date.now() - new Date(last.tgl).getTime()) / 86400000) : null;
+    const ob = ((last && (last.objection || '')) + ' ' + (last && (last.detail || ''))).toLowerCase();
+    const st = l.status;
+
+    if (!last) {
+      rec.push(['Respon kilat ⚡', 'Lead belum pernah di-follow up — hubungi HARI INI. Lead yang disentuh <24 jam jauh lebih besar peluang closing-nya. Perkenalan singkat, lalu gali kebutuhan: tipe yang dicari, budget, dan rencana pakai (huni/investasi). Tutup dengan janji konkret: kirim pricelist + ajakan pilih jadwal survey.']);
+    }
+    if (/harga|mahal|budget|dp|uang muka|angsuran|cicil|kpr/.test(ob)) {
+      rec.push(['Jinakkan objection harga 💰', 'Jangan berdebat soal mahal — pindahkan ke angka bulanan: kirim simulasi angsuran paling ringan & bandingkan dengan biaya sewa/kontrakan. Tanyakan angka nyaman per bulannya, lalu carikan tipe/skema yang masuk. Kalau tetap berat, tawarkan unit alternatif tanpa menurunkan gengsi pilihannya.']);
+    }
+    if (/istri|suami|keluarga|orang tua|diskusi|pikir|rembuk/.test(ob)) {
+      rec.push(['Libatkan pengambil keputusan 👨‍👩‍👧', 'Keputusan properti jarang diambil sendirian. Ajak pasangan/keluarga ikut site visit — beri 2 pilihan waktu konkret (Sabtu pagi / Minggu sore). Kirim materi ringkas (foto unit + harga + akses) yang gampang di-forward ke keluarganya, biar dia yang "jualan" di rumah.']);
+    }
+    if (/jauh|lokasi|akses|angkot|transport|stasiun|macet|jalan/.test(ob)) {
+      rec.push(['Jual akses, bukan jarak 🛣', 'Objection lokasi dilawan dengan bukti: kirim video rute dari titik transport terdekat, share loc, dan rencana pengembangan area. Tawarkan jemput/antar survey — begitu merasakan sendiri rutenya, keberatan biasanya cair.']);
+    }
+    if (last && hari !== null && hari >= 7 && rec.length < 3) {
+      rec.push(['Bangunkan kembali 🔄', `Sudah ${hari} hari tanpa kabar. Jangan buka dengan "bagaimana kabarnya, jadi ambil?" — kirim VALUE baru: unit favoritnya mulai menipis, promo bulan ini, atau progres pembangunan. Lead lama merespon info baru, bukan tagihan keputusan.`]);
+    }
+    if (st === 'Hot' && rec.length < 3) {
+      rec.push(['Kunci komitmen 🔒', 'Lead sudah panas — jangan biarkan dingin oleh waktu. Tawarkan reserved / tanda jadi ringan untuk MENGUNCI unit & harga hari ini, plus deadline halus: "harga menyesuaikan bulan depan" atau "unit ini sedang ditanyakan orang lain". Hot yang tidak diberi alasan memutuskan hari ini akan jadi Warm minggu depan.']);
+    }
+    if (st === 'Site Visit' && rec.length < 3) {
+      rec.push(['Panaskan selagi hangat 🔥', 'Dia sudah datang — itu sinyal serius. Follow up maksimal H+1: tanya unit mana yang paling berkesan, jawab keraguannya, lalu langsung tawarkan reserved unit favoritnya sebelum dilihat orang lain.']);
+    }
+    if (st === 'Appointment' && rec.length < 3) {
+      rec.push(['Amankan janji 📅', 'Konfirmasi H-1 + kirim share location & nama Anda. Siapkan data unit + simulasi sesuai profilnya supaya saat bertemu langsung ke inti. Janji yang tidak dikonfirmasi = kursi kosong.']);
+    }
+    if (st === 'Booking' && rec.length < 3) {
+      rec.push(['Kawal & panen referral 🤝', 'Kawal kelengkapan berkas & jadwal pembayaran biar tidak batal di tengah jalan. Dan ini momen emas: pembeli yang baru deal sedang senang-senangnya — minta referral: "siapa teman/saudara yang juga lagi cari rumah?"']);
+    }
+    if (st === 'Warm' && rec.length < 3) {
+      rec.push(['Naikkan suhu 🌡', 'Kirim satu info bernilai (tipe terlaris / sisa unit / promo) + satu pertanyaan terbuka tentang pertimbangan utamanya. Lalu ajak site visit dengan 2 pilihan waktu — pertanyaan "mau Sabtu atau Minggu?" lebih ampuh daripada "kapan ada waktu?"']);
+    }
+    if ((st === 'New' || st === 'Cold') && last && rec.length < 3) {
+      rec.push(['Gali kebutuhan dulu 🎯', 'Jangan buru-buru jualan — bertanyalah: tipe yang dicari, budget, kapan rencana beli, untuk siapa. Lead yang merasa didengar jauh lebih mudah diajak survey. Baru setelah itu tembakkan unit yang paling pas.']);
+    }
+    if (last && !last.next_tgl && rec.length < 3) {
+      rec.push(['Selalu tinggalkan jejak 📌', 'FU terakhir tidak punya jadwal lanjutan. Akhiri setiap chat dengan janji konkret ("saya info promonya Jumat ya") dan isi Tgl Next Follow Up — lead tanpa jadwal = lead yang menguap.']);
+    }
+    return rec.slice(0, 3);
+  }
+
   // Template pesan WA — otomatis terisi saat lead dipilih, bebas diedit sales
   function templateWA(l) {
     const h = new Date().getHours();
@@ -232,6 +280,20 @@ export default function FormPage() {
               const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
               setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateWA(l) : fu.wa_pesan });
             }}>{leadOpt}</select></div>
+          {fu.lead_code ? (() => {
+            const lSel = leads.find(x => x.lead_code === fu.lead_code);
+            const riw = fus.filter(f => f.lead_code === fu.lead_code).sort((a, b) => (b.id || 0) - (a.id || 0));
+            const rec = rekomendasiFU(lSel, riw);
+            if (!rec.length) return null;
+            return (
+              <div style={{ gridColumn: '1/-1', background: '#FBF1DC', border: '1px solid #C9922E', borderRadius: 10, padding: '10px 14px' }}>
+                <b style={{ color: '#8a5f14' }}>💡 Rekomendasi Follow Up{riw[0] ? ' — analisa FU terakhir ' + fmtDate(riw[0].tgl) : ' — lead belum pernah di-FU'}</b>
+                <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                  {rec.map((r, i) => <li key={i} style={{ marginBottom: 5, fontSize: 13.5 }}><b>{r[0]}:</b> {r[1]}</li>)}
+                </ul>
+              </div>
+            );
+          })() : null}
           <div className="field"><label>Tanggal Follow Up</label><input type="date" {...ff('tgl')} /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
             <textarea rows={2} {...ff('detail')} /></div>
