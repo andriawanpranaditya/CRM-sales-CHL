@@ -10,13 +10,41 @@ export function reminder(nextTgl) {
   if (t.getTime() === now.getTime()) return ['HARI INI', 'b-today'];
   return ['UPCOMING', 'b-upcoming'];
 }
-// Link WhatsApp click-to-chat: nomor dinormalkan ke format 62, teks opsional terisi otomatis
-export function waLink(nomor, teks) {
+// Normalisasi nomor WA ke format 62xxx
+export function normWA(nomor) {
   let n = String(nomor || '').replace(/[^0-9]/g, '');
   if (!n) return null;
   if (n.startsWith('0')) n = '62' + n.slice(1);
   else if (n.startsWith('8')) n = '62' + n;
+  return n;
+}
+
+// Link web (desktop / WhatsApp Web)
+export function waLink(nomor, teks) {
+  const n = normWA(nomor);
+  if (!n) return null;
   return 'https://wa.me/' + n + (teks ? '?text=' + encodeURIComponent(teks) : '');
+}
+
+// Pembuka WA universal: mendukung WhatsApp BIASA maupun WA BUSINESS.
+// Di HP: pakai skema whatsapp:// (dikenali kedua aplikasi; Android memunculkan pilihan aplikasi).
+// Bila 1,5 detik tidak berpindah aplikasi (WA tidak terpasang), otomatis fallback ke wa.me.
+// Di desktop: buka wa.me (WhatsApp Web) di tab baru / tab yang sudah disiapkan.
+export function bukaWA(nomor, teks, winSiap) {
+  const n = normWA(nomor);
+  if (!n) return false;
+  const q = 'phone=' + n + (teks ? '&text=' + encodeURIComponent(teks) : '');
+  const web = 'https://wa.me/' + n + (teks ? '?text=' + encodeURIComponent(teks) : '');
+  const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (diHP) {
+    window.location.href = 'whatsapp://send?' + q;
+    setTimeout(() => { if (!document.hidden) window.location.href = web; }, 1500);
+  } else if (winSiap) {
+    winSiap.location.href = web;
+  } else {
+    window.open(web, '_blank');
+  }
+  return true;
 }
 
 export async function api(url, opts) {

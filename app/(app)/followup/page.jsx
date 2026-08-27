@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, fmtDate, reminder, waLink } from '@/components/util';
+import { api, fmtDate, reminder, bukaWA } from '@/components/util';
 
 export default function FollowUpPage() {
   const [fus, setFus] = useState(null);
@@ -66,8 +66,8 @@ export default function FollowUpPage() {
               <td data-label="Tanggal">{fmtDate(f.tgl)}</td>
               <td data-label="ID Lead"><span className="id-tag">{f.lead_code}</span></td>
               <td data-label="Nama"><b>{f.nama || ''}</b>{f.project ? <span className="hint"> · {f.project}</span> : null}
-                {f.wa ? <> <a className="sort-btn" style={{ textDecoration: 'none', padding: '2px 8px' }} target="_blank" rel="noreferrer"
-                  href={waLink(f.wa, f.wa_pesan || '')}>📲 WA</a></> : null}</td>
+                {f.wa ? <> <button className="sort-btn" style={{ padding: '2px 8px' }}
+                  onClick={() => bukaWA(f.wa, f.wa_pesan || '')}>📲 WA</button></> : null}</td>
               {isMgr && <td data-label="Sales">{f.sales || ''}</td>}
               <td data-label="Detail">{f.detail}</td>
               <td data-label="Objection">{f.objection}</td>

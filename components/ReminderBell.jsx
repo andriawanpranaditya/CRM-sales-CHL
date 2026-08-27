@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { api, fmtDate, waLink } from '@/components/util';
+import { api, fmtDate, bukaWA } from '@/components/util';
 
 // Suara "ding" dua nada dibuat langsung oleh browser (tanpa file audio)
 function playChime() {
@@ -95,7 +95,7 @@ export default function ReminderBell({ user }) {
       <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
         <span className={'badge ' + (late ? 'b-overdue' : 'b-today')}>{late ? 'TERLAMBAT' : 'HARI INI'}</span>
         {r.wa ? <span className="badge b-close" style={{ cursor: 'pointer' }}
-          onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(waLink(r.wa, ''), '_blank'); }}>📲 WA</span> : null}
+          onClick={e => { e.preventDefault(); e.stopPropagation(); bukaWA(r.wa, ''); }}>📲 WA</span> : null}
       </span>
     </a>
   );

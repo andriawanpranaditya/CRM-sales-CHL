@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, waLink, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
+import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
@@ -150,12 +150,10 @@ export default function FormPage() {
       if (urlWA) {
         toast(pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲');
         if (diHP) {
-          // iPhone/Android: navigasi langsung — cara yang diizinkan iOS utk membuka aplikasi WA
-          setTimeout(() => { window.location.href = urlWA; }, 350);
-        } else if (winWA) {
-          winWA.location.href = urlWA;
+          // HP: skema whatsapp:// — terbuka di WhatsApp biasa MAUPUN WA Business
+          setTimeout(() => { bukaWA(leadFu.wa, pesan); }, 350);
         } else {
-          window.open(urlWA, '_blank');
+          bukaWA(leadFu.wa, pesan, winWA);
         }
       } else {
         toast('Follow up tersimpan (lead belum punya nomor WA)');
