@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
+import { api, waLink, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
@@ -12,7 +12,7 @@ export default function FormPage() {
   const [me, setMe] = useState(null);
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
-  const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
+  const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
   const [berkas, setBerkas] = useState(null);
@@ -129,8 +129,17 @@ export default function FormPage() {
     setBusy(true);
     try {
       await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
-      toast('Follow up tersimpan');
-      setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '' });
+      // Setelah tersimpan: buka WhatsApp lead dengan pesan siap kirim
+      const leadFu = leads.find(x => x.lead_code === fu.lead_code);
+      const pesan = (fu.wa_pesan || '').trim();
+      if (leadFu && leadFu.wa) {
+        const url = waLink(leadFu.wa, pesan);
+        if (url) window.open(url, '_blank');
+        toast(pesan ? 'Follow up tersimpan — WhatsApp terbuka, tinggal klik kirim 📲' : 'Follow up tersimpan — WhatsApp lead terbuka 📲');
+      } else {
+        toast('Follow up tersimpan (lead belum punya nomor WA)');
+      }
+      setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
@@ -202,6 +211,10 @@ export default function FormPage() {
           <div className="field"><label>Tanggal Follow Up</label><input type="date" {...ff('tgl')} /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
             <textarea rows={2} {...ff('detail')} /></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}>
+            <label>Pesan WhatsApp <span className="hint">(opsional — setelah Simpan, WA lead terbuka berisi pesan ini, tinggal klik kirim)</span></label>
+            <textarea rows={2} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
+              placeholder="Tulis pesan untuk konsumen. Kosongkan bila hanya catatan internal — WA tetap terbuka tanpa teks." /></div>
           <div className="field"><label>Objection</label><input {...ff('objection')} /></div>
           <div className="field"><label>Next Action</label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl })}>

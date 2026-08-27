@@ -10,9 +10,26 @@ export function reminder(nextTgl) {
   if (t.getTime() === now.getTime()) return ['HARI INI', 'b-today'];
   return ['UPCOMING', 'b-upcoming'];
 }
+// Link WhatsApp click-to-chat: nomor dinormalkan ke format 62, teks opsional terisi otomatis
+export function waLink(nomor, teks) {
+  let n = String(nomor || '').replace(/[^0-9]/g, '');
+  if (!n) return null;
+  if (n.startsWith('0')) n = '62' + n.slice(1);
+  else if (n.startsWith('8')) n = '62' + n;
+  return 'https://wa.me/' + n + (teks ? '?text=' + encodeURIComponent(teks) : '');
+}
+
 export async function api(url, opts) {
-  const res = await fetch(url, opts ? { headers: { 'Content-Type': 'application/json' }, ...opts } : undefined);
+  let res;
+  try {
+    res = await fetch(url, opts ? { headers: { 'Content-Type': 'application/json' }, ...opts } : undefined);
+  } catch {
+    throw new Error('Tidak bisa terhubung ke server — cek koneksi internet lalu coba lagi.');
+  }
   const d = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(d.error || 'Terjadi kesalahan');
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('Sesi login berakhir — silakan login ulang.');
+    throw new Error(d.error || ('Terjadi kesalahan di server (kode ' + res.status + '). Bila baru ada update aplikasi, jalankan /api/setup lalu coba lagi.'));
+  }
   return d;
 }
