@@ -136,22 +136,33 @@ export default function FormPage() {
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
     if (!fu.detail.trim()) return toast('Detail Komunikasi wajib diisi');
+    // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
+    const leadFu = leads.find(x => x.lead_code === fu.lead_code);
+    const pesan = (fu.wa_pesan || '').trim();
+    const urlWA = (leadFu && leadFu.wa) ? waLink(leadFu.wa, pesan) : null;
+    const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // Desktop: buka tab kosong secara sinkron dulu (lolos popup blocker), lalu diarahkan setelah tersimpan
+    let winWA = null;
+    if (urlWA && !diHP) { try { winWA = window.open('', '_blank'); } catch {} }
     setBusy(true);
     try {
       await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
-      // Setelah tersimpan: buka WhatsApp lead dengan pesan siap kirim
-      const leadFu = leads.find(x => x.lead_code === fu.lead_code);
-      const pesan = (fu.wa_pesan || '').trim();
-      if (leadFu && leadFu.wa) {
-        const url = waLink(leadFu.wa, pesan);
-        if (url) window.open(url, '_blank');
-        toast(pesan ? 'Follow up tersimpan — WhatsApp terbuka, tinggal klik kirim 📲' : 'Follow up tersimpan — WhatsApp lead terbuka 📲');
+      if (urlWA) {
+        toast(pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲');
+        if (diHP) {
+          // iPhone/Android: navigasi langsung — cara yang diizinkan iOS utk membuka aplikasi WA
+          setTimeout(() => { window.location.href = urlWA; }, 350);
+        } else if (winWA) {
+          winWA.location.href = urlWA;
+        } else {
+          window.open(urlWA, '_blank');
+        }
       } else {
         toast('Follow up tersimpan (lead belum punya nomor WA)');
       }
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
+    } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
   }
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
