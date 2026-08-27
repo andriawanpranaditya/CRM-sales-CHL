@@ -123,6 +123,16 @@ export default function FormPage() {
     setEditId(null);
     setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
   }
+  // Template pesan WA — otomatis terisi saat lead dipilih, bebas diedit sales
+  function templateWA(l) {
+    const h = new Date().getHours();
+    const salam = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam';
+    const nama = (l && l.nama) ? l.nama : 'Bapak/Ibu';
+    const proj = (l && l.project) ? ` terkait project ${l.project}` : '';
+    const sales = (me && me.name) ? me.name : 'tim Sales';
+    return `Selamat ${salam} Bapak/Ibu ${nama} 🙏\n\nSaya ${sales} dari Cipta Harmoni Lestari,${proj ? proj + '.' : ' menindaklanjuti komunikasi kita sebelumnya.'} Apakah ada yang bisa kami bantu — info harga terbaru, simulasi pembayaran, atau jadwal survey lokasi?\n\nDitunggu kabar baiknya, terima kasih 🙏`;
+  }
+
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
     if (!fu.detail.trim()) return toast('Detail Komunikasi wajib diisi');
@@ -207,14 +217,24 @@ export default function FormPage() {
 
       {tab === 'fu' && <div className="card">
         <div className="form-grid">
-          <div className="field"><label>ID Lead <span className="req">*</span></label><select {...ff('lead_code')}>{leadOpt}</select></div>
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={fu.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
+              setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateWA(l) : fu.wa_pesan });
+            }}>{leadOpt}</select></div>
           <div className="field"><label>Tanggal Follow Up</label><input type="date" {...ff('tgl')} /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
             <textarea rows={2} {...ff('detail')} /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}>
-            <label>Pesan WhatsApp <span className="hint">(opsional — setelah Simpan, WA lead terbuka berisi pesan ini, tinggal klik kirim)</span></label>
-            <textarea rows={2} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
-              placeholder="Tulis pesan untuk konsumen. Kosongkan bila hanya catatan internal — WA tetap terbuka tanpa teks." /></div>
+            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
+              <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
+                onClick={() => setFu({ ...fu, wa_pesan: templateWA(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
+              {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
+                onClick={() => setFu({ ...fu, wa_pesan: '' })}>✕ Kosongkan</button> : null}
+            </label>
+            <textarea rows={5} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
+              placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." /></div>
           <div className="field"><label>Objection</label><input {...ff('objection')} /></div>
           <div className="field"><label>Next Action</label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl })}>
