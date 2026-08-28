@@ -167,7 +167,7 @@ export default function FormPage() {
 
   async function simpanLead() {
     if (!lead.nama.trim()) return toast('Nama Konsumen wajib diisi');
-    if (!lead.sales) return toast('Sales / PIC wajib dipilih');
+    if (!isMarkom && !lead.sales) return toast('Sales / PIC wajib dipilih');
     if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
     setBusy(true);
     try {
@@ -382,11 +382,11 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
           {!isMarkom && <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...fl('budget')} placeholder="contoh: 500000000" /></div>}
           {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
-          <div className="field"><label>Sales / PIC <span className="req">*</span></label>
+          {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{opsi('sales')}</select>}
-          </div>
+          </div>}
           {!isMarkom && <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>}
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
