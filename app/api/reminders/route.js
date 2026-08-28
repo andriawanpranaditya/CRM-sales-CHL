@@ -10,7 +10,13 @@ export async function GET() {
   const sql = db();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
-  const rows = user.role !== 'sales'
+  const rows = user.role === 'markom'
+    ? await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
+        FROM leads
+        WHERE created_by = ${user.username} AND next_fu IS NOT NULL AND next_fu::date <= ${today}
+          AND status NOT IN ('Closing', 'Drop', 'Lost')
+        ORDER BY next_fu`
+    : user.role !== 'sales'
     ? await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
         FROM leads
         WHERE next_fu IS NOT NULL AND next_fu::date <= ${today}

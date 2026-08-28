@@ -33,6 +33,24 @@ export async function POST(req) {
   return Response.json({ ok: true });
 }
 
+export async function DELETE(req) {
+  const { user, err } = await requireUser('manager'); if (err) return err;
+  const { searchParams } = new URL(req.url);
+  const id = Number(searchParams.get('id'));
+  if (!id) return Response.json({ error: 'id wajib' }, { status: 400 });
+  if (id === Number(user.id)) return Response.json({ error: 'Tidak bisa menghapus akun sendiri' }, { status: 400 });
+  const sql = db();
+  const t = await sql`SELECT * FROM users WHERE id = ${id}`;
+  if (!t.length) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
+  if (t[0].role === 'manager') {
+    const mgr = await sql`SELECT count(*)::int AS n FROM users WHERE role = 'manager' AND active = true AND id <> ${id}`;
+    if (!mgr[0].n) return Response.json({ error: 'Tidak bisa menghapus manager terakhir' }, { status: 400 });
+  }
+  await sql`DELETE FROM users WHERE id = ${id}`;
+  // Catatan: riwayat lead/FU/transaksi atas nama user ini TETAP tersimpan (nama tersimpan sbg teks)
+  return Response.json({ ok: true });
+}
+
 export async function PATCH(req) {
   const { user, err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
@@ -47,6 +65,11 @@ export async function PATCH(req) {
   }
   if (typeof b.wa === 'string') {
     await sql`UPDATE users SET wa = ${b.wa.trim()} WHERE id = ${b.id}`;
+  }
+  if (b.role && ['manager', 'admin', 'markom', 'sales'].includes(b.role)) {
+    if (Number(b.id) === Number(user.id)) return Response.json({ error: 'Tidak bisa mengubah peran akun sendiri' }, { status: 400 });
+    if (b.role === 'manager') await sql`UPDATE users SET role = 'manager', password_plain = null WHERE id = ${b.id}`;
+    else await sql`UPDATE users SET role = ${b.role} WHERE id = ${b.id}`;
   }
   if (b.password) {
     const hash = await bcrypt.hash(b.password, 10);

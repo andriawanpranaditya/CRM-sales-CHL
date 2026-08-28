@@ -85,6 +85,19 @@ export default function UsersPage() {
                   <button className="sort-btn" onClick={() => setEmail(u)}>Set Email</button>
                   <button className="sort-btn" onClick={() => resetPw(u)}>Reset Password</button>
                   <button className={'sort-btn'} onClick={() => toggle(u)}>{u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                  <button className="sort-btn" onClick={async () => {
+                    const r = prompt('Peran baru untuk ' + u.name + ' — ketik salah satu: sales / admin / markom / manager', u.role);
+                    if (!r) return;
+                    const role = r.trim().toLowerCase();
+                    if (!['sales', 'admin', 'markom', 'manager'].includes(role)) return toast('Peran tidak dikenal: ' + r);
+                    try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, role }) }); toast('Peran ' + u.name + ' → ' + role); load(); }
+                    catch (er) { toast(er.message); }
+                  }}>⇄ Peran</button>
+                  <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red)' }} onClick={async () => {
+                    if (!confirm('Hapus akun ' + u.name + ' (' + u.username + ')?\n\nAkun tidak bisa login lagi. Riwayat lead, follow up, dan transaksi atas nama ini TETAP tersimpan.')) return;
+                    try { await api('/api/users?id=' + u.id, { method: 'DELETE' }); toast('Akun ' + u.name + ' dihapus'); load(); }
+                    catch (er) { toast(er.message); }
+                  }}>🗑 Hapus</button>
                 </span>
               </td>
             </tr>

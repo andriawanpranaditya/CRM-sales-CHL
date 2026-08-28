@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
-  const rows = user.role !== 'sales'
-    ? await sql`SELECT * FROM leads ORDER BY id`
-    : await sql`SELECT * FROM leads WHERE sales = ${user.name} ORDER BY id`;
+  let rows;
+  if (user.role === 'sales') rows = await sql`SELECT * FROM leads WHERE sales = ${user.name} ORDER BY id`;
+  else if (user.role === 'markom') rows = await sql`SELECT * FROM leads WHERE created_by = ${user.username} ORDER BY id`;
+  else rows = await sql`SELECT * FROM leads ORDER BY id`;
   return Response.json(rows);
 }
 
