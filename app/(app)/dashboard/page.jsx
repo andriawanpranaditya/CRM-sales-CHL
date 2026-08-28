@@ -130,6 +130,8 @@ export default function Dashboard() {
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'CRM Sales CHL';
+    // Ringkasan dibuat PALING AWAL agar menjadi sheet pertama saat file dibuka
+    const rs = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
     const thin = { style: 'thin', color: { argb: LINE } };
     const border = { top: thin, left: thin, bottom: thin, right: thin };
 
@@ -244,7 +246,6 @@ export default function Dashboard() {
     })), { cocok: cocokTrx, warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
 
     // ===== RINGKASAN (angka & grafik dari data terpilih) =====
-    const rs = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
     rs.columns = [{ width: 2 }, { width: 26 }, { width: 11 }, { width: 30 }, { width: 22 }, { width: 8 }, { width: 2 }];
     rs.mergeCells('A1:G1');
     rs.getCell('A1').value = 'REPORT CRM SALES — CIPTA HARMONI LESTARI';
@@ -344,9 +345,6 @@ export default function Dashboard() {
       };
     }), { sub: 'Posisi stok per hari ini (transaksi + penandaan manual Master Stock) — tidak terpengaruh filter. · copyright © 2026 by Andriawanp' });
 
-    // Ringkasan di urutan pertama
-    const idx = wb.worksheets.findIndex(w2 => w2.name === 'Ringkasan');
-    wb.worksheets.splice(0, 0, wb.worksheets.splice(idx, 1)[0]);
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

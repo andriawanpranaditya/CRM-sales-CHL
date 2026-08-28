@@ -19,7 +19,8 @@ export async function POST(req) {
   const b = await req.json();
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
   const sales = user.role === 'sales' ? user.name : (b.sales || '');
-  if (!sales) return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
+  // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
+  if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
   const wInfo = /walk/i.test(b.sumber || '') ? (b.walkin_info || '') : '';
   const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, created_by)
