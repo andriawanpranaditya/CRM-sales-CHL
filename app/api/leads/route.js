@@ -3,12 +3,13 @@ import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
+  const semua = new URL(req.url).searchParams.get('all') === '1'; // dipakai dashboard markom
   let rows;
   if (user.role === 'sales') rows = await sql`SELECT * FROM leads WHERE sales = ${user.name} ORDER BY id`;
-  else if (user.role === 'markom') rows = await sql`SELECT * FROM leads WHERE created_by = ${user.username} ORDER BY id`;
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT * FROM leads WHERE created_by = ${user.username} ORDER BY id`;
   else rows = await sql`SELECT * FROM leads ORDER BY id`;
   return Response.json(rows);
 }

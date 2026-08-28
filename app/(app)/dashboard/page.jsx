@@ -8,7 +8,7 @@ const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booki
 export default function Dashboard() {
   const [lastUpd, setLastUpd] = useState(null);
   function muatSemua() {
-    return Promise.all([api('/api/leads'), api('/api/followups'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
+    return Promise.all([api('/api/leads?all=1'), api('/api/followups?all=1'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
       .then(([l, f, t, s, st]) => {
         setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []);
         setLastUpd(new Date());
