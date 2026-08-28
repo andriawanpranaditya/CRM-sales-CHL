@@ -5,23 +5,31 @@ import bcrypt from 'bcryptjs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
-  const rows = await sql`SELECT id, username, name, role, email, password_plain, active, created_at FROM users ORDER BY role, name`;
-  return Response.json(rows);
+  if (user.role === 'manager') {
+    const rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at FROM users ORDER BY role, name`;
+    return Response.json(rows);
+  }
+  if (user.role === 'markom') {
+    // Markom hanya butuh daftar sales + nomor WA (utk Leads to Sales) — tanpa data sensitif
+    const rows = await sql`SELECT id, name, role, wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`;
+    return Response.json(rows);
+  }
+  return Response.json({ error: 'Hanya manager' }, { status: 403 });
 }
 
 export async function POST(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.username || !b.name || !b.password) return Response.json({ error: 'Username, nama, dan password wajib diisi' }, { status: 400 });
-  const role = ['manager', 'admin', 'sales'].includes(b.role) ? b.role : 'sales';
+  const role = ['manager', 'admin', 'markom', 'sales'].includes(b.role) ? b.role : 'sales';
   const sql = db();
   const dupe = await sql`SELECT 1 FROM users WHERE lower(username) = ${String(b.username).toLowerCase()}`;
   if (dupe.length) return Response.json({ error: 'Username sudah dipakai' }, { status: 400 });
   const hash = await bcrypt.hash(b.password, 10);
-  await sql`INSERT INTO users (username, name, role, password_hash, password_plain, email)
-    VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role !== 'manager' ? b.password : null}, ${b.email || ''})`;
+  await sql`INSERT INTO users (username, name, role, password_hash, password_plain, email, wa)
+    VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role !== 'manager' ? b.password : null}, ${b.email || ''}, ${b.wa || ''})`;
   return Response.json({ ok: true });
 }
 
@@ -36,6 +44,9 @@ export async function PATCH(req) {
   }
   if (typeof b.email === 'string') {
     await sql`UPDATE users SET email = ${b.email.trim()} WHERE id = ${b.id}`;
+  }
+  if (typeof b.wa === 'string') {
+    await sql`UPDATE users SET wa = ${b.wa.trim()} WHERE id = ${b.id}`;
   }
   if (b.password) {
     const hash = await bcrypt.hash(b.password, 10);

@@ -45,7 +45,7 @@ export async function PATCH(req) {
   const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
-  if (user.role === 'manager' && 'sales' in b && b.sales) m.sales = b.sales;
+  if ((user.role === 'manager' || user.role === 'markom') && 'sales' in b && b.sales) m.sales = b.sales;
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
   await sql`UPDATE leads SET
     tgl = ${m.tgl || null}, nama = ${m.nama}, wa = ${m.wa || ''}, email = ${m.email || ''},

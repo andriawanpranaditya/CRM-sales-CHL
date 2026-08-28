@@ -6,6 +6,81 @@ import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/compo
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
+// ===== Template Follow Up Markom (sumber: template_FU.docx) =====
+const DAY_FU = ['Follow Up day-1', 'Follow Up day-3', 'Follow Up day-7', 'Follow Up day-21', 'Follow Up day-60', 'Reply'];
+const TFU_BIO = {
+  'Follow Up day-1': `Terima kasih sudah menghubungi BIO District 🌿
+
+Hunian modern READY TO MOVE IN dengan konsep BIOphilic di Central Serpong yang mengutamakan ruang hijau, kenyamanan, dan akses strategis ke pusat kota, dirancang untuk kualitas hidup & nilai jangka panjang.
+
+Our Concept,
+https://youtu.be/YF9TM-EKebA?si=IwqrmGbKXumP9OGZ
+
+Untuk info premium offers atau jadwal kunjungan, ketik: ✨INFO✨ dan kami akan bantu untuk mendapatkan hunian terbaik.
+
+Don't miss the Golden Chance!`,
+  'Follow Up day-3': `Halo Bapak/Ibu 😊
+Kami ingin menyapa kembali terkait ketertarikan Anda dengan hunian BIO District 🌿
+
+Kami dengan senang hati memberikan informasi lebih lanjut sesuai kebutuhan & preferensi Anda 🙌
+
+Kunjungi Website kami untuk update premium offers terbaru https://biodistrictofficial.com/
+
+Balas: INFO✨ dan kami akan bantu kirimkan informasi lebih lanjut 📲`,
+  'Follow Up day-7': `Halo Bapak/Ibu, semoga kabar baik selalu untuk Anda 😊
+
+Banyak dari calon penghuni kami awalnya hanya mencari rumah, namun akhirnya memilih tempat yang benar-benar bisa mendukung kualitas hidup, lebih tenang, lebih hijau, dan tetap dekat dengan pusat aktivitas.
+https://youtu.be/ylxNy7EVryE?si=UXmDFPLkKJryDlJ5
+
+Balas: INFO✨ dan kami akan bantu kirimkan informasi lebih lanjut 📲`,
+  'Follow Up day-21': `*attach e-brosur*
+
+Halo Bapak/Ibu 😊
+Kami menyapa kembali dari BIO District 🌿
+
+Kami ingin menginformasikan bahwa saat ini terdapat pembaruan terkait premium offers yang mungkin dapat menjadi pertimbangan Anda.
+Agar tidak terlewat, kami mengundang Bapak/Ibu untuk datang langsung melihat show unit dan merasakan konsep BIOphilic Living yang kami hadirkan 🌿
+Dengan kunjungan langsung, kami juga bisa bantu arahkan pilihan unit terbaik yang masih tersedia sesuai preferensi Bapak/Ibu.
+
+📅 Apakah Bapak/Ibu berkenan untuk kami jadwalkan kunjungan dalam waktu dekat?😊
+
+Terima kasih atas waktu dan perhatian Anda 🌿`,
+  'Follow Up day-60': `Halo Bapak/Ibu 😊
+Kami kembali menghubungi terkait hunian di BIO District 🌿
+
+Kami kirimkan video virtual tour Type B untuk membantu Bapak/Ibu melihat langsung konsep ruang dan kenyamanan unit kami dari rumah.
+
+Virtual tour Type B URL Link:
+https://www.youtube.com/watch?si=1MoK1LuT-xKJE2sQ&v=zQEJXY9AHRo&feature=youtu.be
+
+Video ini dapat membantu memberikan gambaran lebih jelas mengenai konsep BIOphilic Living yang kami hadirkan. Hunian yang dirancang untuk kenyamanan, ruang hijau, dan kualitas hidup yang lebih baik.
+
+Jika setelah melihat videonya Bapak/Ibu tertarik untuk survey langsung ke show unit, kami dengan senang hati siap bantu jadwalkan kunjungan sesuai waktu yang fleksibel 😊
+
+Balas VISIT✨ untuk detail unit tersedia atau penjadwalan visit.`,
+  'Reply': `Halo Kak {nama}, hope you doing well👋
+Terima kasih telah menghubungi BIO District Serpong🏡
+
+Perkenalkan, saya {officer}, Relation Officer BIO District.
+mohon lengkapi data berikut untuk kami kirimkan detail mengenai BIO District:
+Nama lengkap :
+Domisili :
+tujuan pembelian (hunian / investasi):
+
+Salam Hangat,
+BIO District Serpong`,
+};
+const TFU_PERMAI = `Halo Bapak/Ibu, terima kasih atas minat Anda terhadap rumah di Permai Indah🏡
+Sebagai bentuk apresiasi terhadap calon pemilik, berikut informasi terkait benefit & promo eksklusif yang sedang berlaku:
+✅ Biaya KPR GRATIS
+✅ Biaya Notaris GRATIS
+✅ AJB GRATIS
+✅ TANPA DP
+Mohon bantuan untuk mengisi data berikut agar tim konsultasi rumah kami dapat segera menghubungi dan memberikan Anda informasi yang Anda inginkan:
+Nama:
+Domisili:
+Tujuan Pembelian (Tempat Tinggal / Investasi):`;
+
 export default function FormPage() {
   const [tab, setTab] = useState('lead');
   const [set, setSet] = useState(null);
@@ -13,6 +88,8 @@ export default function FormPage() {
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
+  const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
+  const [salesWA, setSalesWA] = useState([]);
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
   const [berkas, setBerkas] = useState(null);
@@ -123,6 +200,53 @@ export default function FormPage() {
     setEditId(null);
     setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
   }
+  const isMarkom = me && me.role === 'markom';
+  useEffect(() => { if (isMarkom) api('/api/users').then(setSalesWA).catch(() => {}); }, [isMarkom]);
+  useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
+
+  // Template FU markom sesuai project & day
+  function templateDayFU(day, l) {
+    if (!day) return '';
+    const proj = (l && l.project) || '';
+    if (/permai/i.test(proj)) return TFU_PERMAI;
+    const t = TFU_BIO[day] || '';
+    return t.replace('{nama}', (l && l.nama) || 'Kak').replace('{officer}', (me && me.name) || 'tim BIO District');
+  }
+  // Template pesan oper lead ke sales (Leads to Sales)
+  function templateL2S(l, salesName) {
+    if (!l) return '';
+    return `Halo ${salesName || '[Sales]'} 👋
+Ada lead baru untuk segera di-follow up:
+
+🧑 Nama: ${l.nama || '-'}
+📱 No. WA: ${l.wa || '-'}
+🏠 Project: ${l.project || '-'}
+🔎 Sumber: ${l.sumber || '-'}
+📝 Keterangan: ${l.catatan || '-'}
+
+Mohon langsung disapa ya, semangat closing! 💪`;
+  }
+  async function kirimL2S() {
+    if (!l2s.lead_code) return toast('Pilih ID Lead dulu');
+    if (!l2s.sales) return toast('Pilih Sales tujuan dulu');
+    const lObj = leads.find(x => x.lead_code === l2s.lead_code);
+    const sObj = salesWA.find(x => x.name === l2s.sales);
+    if (!sObj || !sObj.wa) return toast('Sales ini belum punya No. WA — minta manager mengisinya di menu Pengguna');
+    const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let winWA = null;
+    if (!diHP) { try { winWA = window.open('', '_blank'); } catch {} }
+    setBusy(true);
+    try {
+      await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: lObj.id, sales: l2s.sales }) });
+      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: 'Leads to Sales → ' + l2s.sales, wa_pesan: l2s.pesan }) });
+      toast('Lead dioper ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲');
+      if (diHP) setTimeout(() => { bukaWA(sObj.wa, l2s.pesan); }, 350);
+      else bukaWA(sObj.wa, l2s.pesan, winWA);
+      setL2s({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
+      refresh().catch(() => {});
+    } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
+  }
+
   // 💡 Pelatih penjualan: rekomendasi follow up berdasarkan analisa FU terakhir lead
   function rekomendasiFU(l, riwayat) {
     if (!l) return [];
@@ -183,7 +307,7 @@ export default function FormPage() {
 
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
-    if (!fu.detail.trim()) return toast('Detail Komunikasi wajib diisi');
+    if (!fu.detail.trim()) return toast(isMarkom ? 'Pilih Day Follow Up dulu' : 'Detail Komunikasi wajib diisi');
     // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
     const leadFu = leads.find(x => x.lead_code === fu.lead_code);
     const pesan = (fu.wa_pesan || '').trim();
@@ -230,7 +354,9 @@ export default function FormPage() {
       <div className="page-head"><div><h1>Form Input</h1>
         <div className="sub">Data langsung tersimpan ke database bersama. Tanda <span style={{ color: 'var(--red)' }}>*</span> wajib diisi.</div></div></div>
       <div className="form-tabs">
-        {[['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['trx', '3 · Booking / Closing']].map(([k, t]) => (
+        {(isMarkom
+          ? [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['l2s', '3 · Leads to Sales']]
+          : [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['trx', '3 · Booking / Closing']]).map(([k, t]) => (
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{t}</button>))}
       </div>
 
@@ -241,10 +367,10 @@ export default function FormPage() {
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
           <div className="field"><label>WhatsApp</label><input {...fl('wa')} placeholder="08xxxxxxxxxx" /></div>
           <div className="field"><label>Email</label><input type="email" {...fl('email')} /></div>
-          <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>
-          <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>
+          {!isMarkom && <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>}
+          {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
-          {/walk/i.test(lead.sumber || '') && (
+          {!isMarkom && /walk/i.test(lead.sumber || '') && (
             <div className="field"><label>Walk In — tahu dari mana? <span className="req">*</span></label>
               <select value={lead.walkin_info || ''} onChange={e => setLead({ ...lead, walkin_info: e.target.value })}>
                 <option value="">— pilih —</option>
@@ -252,16 +378,16 @@ export default function FormPage() {
               </select></div>
           )}
           <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
-          <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>
-          <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>
-          <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...fl('budget')} placeholder="contoh: 500000000" /></div>
-          <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>
+          {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
+          {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
+          {!isMarkom && <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...fl('budget')} placeholder="contoh: 500000000" /></div>}
+          {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
           <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{opsi('sales')}</select>}
           </div>
-          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>
+          {!isMarkom && <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>}
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>
@@ -277,10 +403,11 @@ export default function FormPage() {
           <div className="field"><label>ID Lead <span className="req">*</span></label>
             <select value={fu.lead_code} onChange={e => {
               const l = leads.find(x => x.lead_code === e.target.value);
+              if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
               const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
               setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateWA(l) : fu.wa_pesan });
             }}>{leadOpt}</select></div>
-          {fu.lead_code ? (() => {
+          {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
             const riw = fus.filter(f => f.lead_code === fu.lead_code).sort((a, b) => (b.id || 0) - (a.id || 0));
             const rec = rekomendasiFU(lSel, riw);
@@ -295,30 +422,72 @@ export default function FormPage() {
             );
           })() : null}
           <div className="field"><label>Tanggal Follow Up</label><input type="date" {...ff('tgl')} /></div>
-          <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
-            <textarea rows={2} {...ff('detail')} /></div>
+          {isMarkom
+            ? <div className="field"><label>Day Follow Up <span className="req">*</span></label>
+              <select value={fu.detail} onChange={e => {
+                const l = leads.find(x => x.lead_code === fu.lead_code);
+                setFu({ ...fu, detail: e.target.value, wa_pesan: templateDayFU(e.target.value, l) });
+              }}>
+                <option value="">— pilih day —</option>
+                {DAY_FU.map(d => <option key={d}>{d}</option>)}
+              </select></div>
+            : <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
+              <textarea rows={2} {...ff('detail')} /></div>}
           <div className="field" style={{ gridColumn: '1/-1' }}>
             <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
               <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
-                onClick={() => setFu({ ...fu, wa_pesan: templateWA(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
+                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateWA(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
               {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
                 onClick={() => setFu({ ...fu, wa_pesan: '' })}>✕ Kosongkan</button> : null}
             </label>
             <textarea rows={5} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
               placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." /></div>
-          <div className="field"><label>Objection</label><input {...ff('objection')} /></div>
-          <div className="field"><label>Next Action</label>
+          {!isMarkom && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
+          {!isMarkom && <div className="field"><label>Next Action</label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl })}>
               <option value="">— pilih —</option>
               <option value="Lanjut Follow Up">Lanjut Follow Up</option>
               <option value="Drop">Drop</option>
-            </select></div>
+            </select></div>}
           <div className="field"><label>Tgl Next Follow Up{fu.next_action === 'Drop' ? ' (nonaktif — Drop)' : ''}</label>
             <input type="date" {...ff('next_tgl')} disabled={fu.next_action === 'Drop'} /></div>
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanFU} disabled={busy}>Simpan Follow Up</button>
           <span className="hint">Reminder MERAH = overdue, KUNING = hari ini, HIJAU = upcoming.</span>
+        </div>
+      </div>}
+
+      {isMarkom && tab === 'l2s' && <div className="card">
+        <div className="note" style={{ marginBottom: 10 }}>📮 <b>Leads to Sales</b> — oper lead ke sales: pilih lead & sales tujuan, pesan berisi data konsumen tersusun otomatis, klik <b>Kirim</b> → lead resmi berpindah ke sales tsb & WhatsApp sales terbuka berisi pesannya.</div>
+        <div className="form-grid">
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={l2s.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales) : l2s.pesan });
+            }}>{leadOpt}</select></div>
+          <div className="field"><label>Tanggal</label><input type="date" value={l2s.tgl} onChange={e => setL2s({ ...l2s, tgl: e.target.value })} /></div>
+          <div className="field"><label>Sales Tujuan <span className="req">*</span></label>
+            <select value={l2s.sales} onChange={e => {
+              const l = leads.find(x => x.lead_code === l2s.lead_code);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, sales: e.target.value, pesan: (oto && l) ? templateL2S(l, e.target.value) : l2s.pesan });
+            }}>
+              <option value="">— pilih sales —</option>
+              {salesWA.map(u2 => <option key={u2.id} value={u2.name}>{u2.name}{u2.wa ? '' : ' (belum ada No. WA)'}</option>)}
+            </select></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}>
+            <label>Pesan WhatsApp ke Sales <span className="hint">(otomatis berisi nama, nomor WA & keterangan konsumen — bebas diedit)</span>
+              <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
+                onClick={() => setL2s({ ...l2s, pesan: templateL2S(leads.find(x => x.lead_code === l2s.lead_code), l2s.sales) })}>↺ Isi Template</button>
+            </label>
+            <textarea rows={7} value={l2s.pesan} onChange={e => setL2s({ ...l2s, pesan: e.target.value })}
+              placeholder="Pilih lead & sales — pesan akan tersusun otomatis di sini." /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" onClick={kirimL2S} disabled={busy}>📲 Kirim</button>
+          <span className="hint">Lead otomatis berpindah menjadi milik sales terpilih & tercatat di riwayat follow up.</span>
         </div>
       </div>}
 

@@ -5,7 +5,8 @@ import { api, fmtDate } from '@/components/util';
 
 export default function UsersPage() {
   const [users, setUsers] = useState(null);
-  const [f, setF] = useState({ username: '', name: '', role: 'sales', password: '', email: '' });
+  const [f, setF] = useState({ username: '', name: '', role: 'sales', password: '', email: '', wa: '' });
+  const [waEdit, setWaEdit] = useState({});
   const [busy, setBusy] = useState(false);
 
   const load = () => api('/api/users').then(setUsers).catch(e => toast(e.message));
@@ -17,7 +18,7 @@ export default function UsersPage() {
     try {
       await api('/api/users', { method: 'POST', body: JSON.stringify(f) });
       toast('Akun ' + f.username + ' dibuat');
-      setF({ username: '', name: '', role: 'sales', password: '', email: '' }); load();
+      setF({ username: '', name: '', role: 'sales', password: '', email: '', wa: '' }); load();
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   async function toggle(u) {
@@ -51,23 +52,32 @@ export default function UsersPage() {
             <select value={f.role} onChange={e => setF({ ...f, role: e.target.value })}>
               <option value="sales">Sales — Form Input saja</option>
               <option value="admin">Admin — Dashboard, Booking, Master Stock</option>
+              <option value="markom">Markom — Lead digital, Follow Up, Leads to Sales</option>
               <option value="manager">Manager — akses penuh</option>
             </select></div>
           <div className="field"><label>Password</label><input value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div>
           <div className="field"><label>Email (utk pengingat FU)</label><input type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="nama@gmail.com" /></div>
+          <div className="field"><label>No. WhatsApp <span className="hint">(utk Leads to Sales)</span></label><input value={f.wa} onChange={e => setF({ ...f, wa: e.target.value })} placeholder="08xxxxxxxxxx" /></div>
         </div>
         <div className="form-foot"><button className="btn btn-primary" onClick={tambah} disabled={busy}>Tambah Akun</button></div>
       </div>
       <div className="tbl-wrap"><table>
-        <thead><tr><th>Username</th><th>Nama</th><th>Email</th><th>Password</th><th>Peran</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Username</th><th>Nama</th><th>Email</th><th>No. WA</th><th>Password</th><th>Peran</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead>
         <tbody>
           {users.map(u => (
             <tr key={u.id}>
               <td data-label="Username"><b>{u.username}</b></td>
               <td data-label="Nama">{u.name}</td>
               <td data-label="Email">{u.email || <span style={{ color: 'var(--red)' }}>belum diisi</span>}</td>
+              <td data-label="No. WA">{u.wa || <span style={{ color: 'var(--red)' }}>—</span>}
+                <button className="sort-btn" style={{ marginLeft: 6, padding: '1px 7px' }} onClick={async () => {
+                  const w = prompt('Nomor WhatsApp untuk ' + u.name + ' (dipakai fitur Leads to Sales):', u.wa || '');
+                  if (w === null) return;
+                  try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, wa: w }) }); toast('No. WA ' + u.name + ' tersimpan'); load(); }
+                  catch (er) { toast(er.message); }
+                }}>✎</button></td>
               <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
-              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')}>{u.role}</span></td>
+              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: '#E5EEF6', color: '#28527A' } : undefined}>{u.role}</span></td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">
