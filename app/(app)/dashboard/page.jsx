@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [d2, setD2] = useState('');
   const [stock, setStock] = useState([]);
   const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
+  const [srcOpen, setSrcOpen] = useState(false);
 
   useEffect(() => {
     muatSemua();
@@ -621,14 +622,27 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
           <input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>
         <div className="field" style={{ minWidth: 150 }}><label>Sampai Tanggal</label>
           <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
-        <div style={{ flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-          <span className="hint" style={{ fontWeight: 700 }}>Sumber:</span>
-          <button className={'sort-btn' + (!srcSel.length ? ' active' : '')} onClick={() => setSrcSel([])}>Semua</button>
-          {(set.sumber || []).map(sm => (
-            <button key={sm} className={'sort-btn' + (srcSel.includes(sm) ? ' active' : '')}
-              onClick={() => setSrcSel(srcSel.includes(sm) ? srcSel.filter(x => x !== sm) : [...srcSel, sm])}>
-              {srcSel.includes(sm) ? '✓ ' : ''}{sm}
-            </button>))}
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <button className="sort-btn" style={{ fontWeight: 700 }} onClick={() => setSrcOpen(o => !o)}>
+            Sumber: {srcSel.length === 0 ? 'Semua' : srcSel.length <= 2 ? srcSel.join(', ') : srcSel.length + ' dipilih'} ▾
+          </button>
+          {srcOpen && (<>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setSrcOpen(false)} />
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50, background: '#fff', border: '1px solid #D8D6CC', borderRadius: 10, boxShadow: '0 10px 28px rgba(28,43,35,.16)', padding: '10px 12px', minWidth: 240, maxHeight: 300, overflowY: 'auto' }}>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer', fontWeight: 700 }}>
+                <input type="checkbox" checked={!srcSel.length} onChange={() => setSrcSel([])} /> Semua Sumber
+              </label>
+              <div style={{ borderTop: '1px solid #EDEBE3', margin: '4px 0' }} />
+              {(set.sumber || []).map(sm => (
+                <label key={sm} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={srcSel.includes(sm)}
+                    onChange={() => setSrcSel(srcSel.includes(sm) ? srcSel.filter(x => x !== sm) : [...srcSel, sm])} /> {sm}
+                </label>))}
+              <div style={{ textAlign: 'right', marginTop: 6 }}>
+                <button className="sort-btn active" onClick={() => setSrcOpen(false)}>Selesai</button>
+              </div>
+            </div>
+          </>)}
         </div>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadWord}>⬇ Report Word</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
