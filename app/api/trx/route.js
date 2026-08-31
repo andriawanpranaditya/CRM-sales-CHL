@@ -67,6 +67,10 @@ export async function POST(req) {
     const newStatus = b.jenis === 'Batal' ? 'Drop' : b.jenis;
     await sql`UPDATE leads SET status = ${newStatus}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   }
+  // Reserved/Booking/Closing: jadwal FU otomatis dihentikan (tidak perlu diingatkan lagi)
+  if (b.jenis !== 'Batal') {
+    await sql`UPDATE leads SET next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;
+  }
   return Response.json({ ok: true });
 }
 

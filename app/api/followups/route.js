@@ -29,6 +29,9 @@ export async function POST(req) {
   if (b.next_action === 'Drop') {
     // Drop: status lead jadi Drop & jadwal FU dihapus -> tidak muncul lagi di lonceng/reminder
     await sql`UPDATE leads SET status = 'Drop', next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;
+  } else if (b.next_action === 'Reserved' || b.next_action === 'Booking') {
+    // Konsumen sudah reserved/booking: jadwal FU dihentikan (status & angka mengikuti transaksi di menu Booking)
+    await sql`UPDATE leads SET next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   } else if (b.next_tgl) {
     await sql`UPDATE leads SET next_fu = ${b.next_tgl}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   }

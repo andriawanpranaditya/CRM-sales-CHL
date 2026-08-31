@@ -7,6 +7,8 @@ const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', s
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
+// Next Action yang menghentikan jadwal FU (Tgl Next FU dimatikan)
+const TANPA_NEXT = ['Drop', 'Reserved', 'Booking'];
 const DAY_FU = ['Follow Up day-1', 'Follow Up day-3', 'Follow Up day-7', 'Follow Up day-21', 'Follow Up day-60', 'Reply'];
 const TFU_BIO = {
   'Follow Up day-1': `Terima kasih sudah menghubungi BIO District 🌿
@@ -329,7 +331,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           bukaWA(leadFu.wa, pesan, winWA);
         }
       } else {
-        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : 'Follow up tersimpan (lead belum punya nomor WA)');
+        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : (fu.next_action === 'Reserved' || fu.next_action === 'Booking') ? 'Follow up tersimpan — jadwal FU dihentikan (' + fu.next_action + ')' : 'Follow up tersimpan (lead belum punya nomor WA)');
       }
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
@@ -445,13 +447,15 @@ Mohon langsung disapa ya, semangat closing! 💪`;
               placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." /></div>
           {!isMarkom && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
           {!isMarkom && <div className="field"><label>Next Action</label>
-            <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl })}>
+            <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: TANPA_NEXT.includes(e.target.value) ? '' : fu.next_tgl })}>
               <option value="">— pilih —</option>
               <option value="Lanjut Follow Up">Lanjut Follow Up</option>
+              <option value="Reserved">Reserved — konsumen sudah reserved</option>
+              <option value="Booking">Booking — konsumen sudah booking</option>
               <option value="Drop">Drop</option>
             </select></div>}
-          <div className="field"><label>Tgl Next Follow Up{fu.next_action === 'Drop' ? ' (nonaktif — Drop)' : ''}</label>
-            <input type="date" {...ff('next_tgl')} disabled={fu.next_action === 'Drop'} /></div>
+          <div className="field"><label>Tgl Next Follow Up{TANPA_NEXT.includes(fu.next_action) ? ' (nonaktif — ' + fu.next_action + ')' : ''}</label>
+            <input type="date" {...ff('next_tgl')} disabled={TANPA_NEXT.includes(fu.next_action)} /></div>
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanFU} disabled={busy}>Simpan Follow Up</button>
