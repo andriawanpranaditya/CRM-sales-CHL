@@ -311,7 +311,8 @@ Mohon langsung disapa ya, semangat closing! 💪`;
     // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
     const leadFu = leads.find(x => x.lead_code === fu.lead_code);
     const pesan = (fu.wa_pesan || '').trim();
-    const urlWA = (leadFu && leadFu.wa) ? waLink(leadFu.wa, pesan) : null;
+    const dropFU = fu.next_action === 'Drop';
+    const urlWA = (leadFu && leadFu.wa && !dropFU) ? waLink(leadFu.wa, pesan) : null; // Drop: tidak perlu buka WA
     const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     // Desktop: buka tab kosong secara sinkron dulu (lolos popup blocker), lalu diarahkan setelah tersimpan
     let winWA = null;
@@ -328,7 +329,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           bukaWA(leadFu.wa, pesan, winWA);
         }
       } else {
-        toast('Follow up tersimpan (lead belum punya nomor WA)');
+        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : 'Follow up tersimpan (lead belum punya nomor WA)');
       }
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });

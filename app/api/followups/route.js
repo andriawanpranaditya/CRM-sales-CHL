@@ -25,8 +25,11 @@ export async function POST(req) {
   }
   await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by)
     VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username})`;
-  // Sinkron: jadwal FU berikutnya tampil di Database Lead
-  if (b.next_tgl) {
+  // Sinkron ke lead
+  if (b.next_action === 'Drop') {
+    // Drop: status lead jadi Drop & jadwal FU dihapus -> tidak muncul lagi di lonceng/reminder
+    await sql`UPDATE leads SET status = 'Drop', next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;
+  } else if (b.next_tgl) {
     await sql`UPDATE leads SET next_fu = ${b.next_tgl}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   }
   return Response.json({ ok: true });
