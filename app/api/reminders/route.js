@@ -17,11 +17,12 @@ export async function GET() {
           AND status NOT IN ('Closing', 'Drop', 'Lost')
         ORDER BY next_fu`
     : user.role !== 'sales'
-    ? await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
-        FROM leads
-        WHERE next_fu IS NOT NULL AND next_fu::date <= ${today}
-          AND status NOT IN ('Closing', 'Drop', 'Lost')
-        ORDER BY next_fu`
+    ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
+          CASE WHEN u.role = 'markom' THEN u.name ELSE NULL END AS markom
+        FROM leads l LEFT JOIN users u ON u.username = l.created_by
+        WHERE l.next_fu IS NOT NULL AND l.next_fu::date <= ${today}
+          AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+        ORDER BY l.next_fu`
     : await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
         FROM leads
         WHERE sales = ${user.name}

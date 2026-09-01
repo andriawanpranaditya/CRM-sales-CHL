@@ -89,7 +89,9 @@ export default function ReminderBell({ user }) {
     <a href="/form" className="rem-item" style={late ? { borderLeftColor: 'var(--red)' } : {}}>
       <span>
         <b>{r.nama}</b> <span className="hint">({r.lead_code}{r.project ? ' · ' + r.project : ''})</span>
-        {user.role === 'manager' && r.sales ? <span className="hint"> — {r.sales}</span> : null}
+        {user.role !== 'sales' && (r.sales || r.markom)
+          ? <span className="hint"> — {r.sales ? r.sales : null}{r.markom ? <span style={{ color: '#28527A' }}>{r.sales ? ' · ' : ''}Markom: {r.markom}</span> : null}</span>
+          : null}
         <br /><span className="hint">WA: {r.wa || '-'} · Jadwal: {fmtDate(r.next_fu)}</span>
       </span>
       <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
