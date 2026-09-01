@@ -9,7 +9,7 @@ const MENUS = [
   { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'sales', 'markom'] },
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'markom'] },
   { href: '/followup', ico: '↻', label: 'Follow Up', roles: ['manager', 'markom'] },
-  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin'] },
+  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin', 'markom'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
@@ -24,7 +24,7 @@ export default function Shell({ user, children }) {
   useEffect(() => {
     if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock')) router.replace('/form');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock')) router.replace('/dashboard');
-    if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/stock')) router.replace('/form');
+    if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock')) router.replace('/form');
   }, [path, user.role, router]);
 
   async function logout() {
