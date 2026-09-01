@@ -314,7 +314,8 @@ Mohon langsung disapa ya, semangat closing! 💪`;
     const leadFu = leads.find(x => x.lead_code === fu.lead_code);
     const pesan = (fu.wa_pesan || '').trim();
     const dropFU = fu.next_action === 'Drop';
-    const urlWA = (leadFu && leadFu.wa && !dropFU) ? waLink(leadFu.wa, pesan) : null; // Drop: tidak perlu buka WA
+    const stopFU = TANPA_NEXT.includes(fu.next_action); // Drop / Reserved / Booking: tidak perlu buka WA
+    const urlWA = (leadFu && leadFu.wa && !stopFU) ? waLink(leadFu.wa, pesan) : null;
     const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     // Desktop: buka tab kosong secara sinkron dulu (lolos popup blocker), lalu diarahkan setelah tersimpan
     let winWA = null;
@@ -331,7 +332,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           bukaWA(leadFu.wa, pesan, winWA);
         }
       } else {
-        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : (fu.next_action === 'Reserved' || fu.next_action === 'Booking') ? 'Follow up tersimpan — jadwal FU dihentikan (' + fu.next_action + ')' : 'Follow up tersimpan (lead belum punya nomor WA)');
+        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : stopFU ? 'Follow up tersimpan — konsumen ' + fu.next_action + ', jadwal FU dihentikan' : 'Follow up tersimpan (lead belum punya nomor WA)');
       }
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
@@ -359,7 +360,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
       <div className="form-tabs">
         {(isMarkom
           ? [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['l2s', '3 · Leads to Sales']]
-          : [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['trx', '3 · Booking / Closing']]).map(([k, t]) => (
+          : [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['trx', '3 · Reserved / Booking']]).map(([k, t]) => (
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{t}</button>))}
       </div>
 
@@ -532,7 +533,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
             {!(trx.lead_code && trx.project && trx.unit) ? (
               <span className="hint">Pilih ID Lead, Project &amp; Blok/Unit dulu untuk mengelola berkas.</span>
             ) : berkas && berkas.adaTrxSebelumnya ? (
-              <div className="note" style={{ marginBottom: 0 }}>✔ Berkas transaksi pertama unit ini sudah tersimpan — update ke Booking/Closing/Batal <b>tidak perlu upload lagi</b>, langsung Simpan.</div>
+              <div className="note" style={{ marginBottom: 0 }}>✔ Berkas transaksi pertama unit ini sudah tersimpan — update ke Booking/Batal <b>tidak perlu upload lagi</b>, langsung Simpan.</div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -563,7 +564,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanTrx} disabled={busy}>Simpan Transaksi</button>
-          <span className="hint">Booking/Closing/Batal meng-update status pipeline otomatis (Batal → Drop). Reserved tidak mengubah status.</span>
+          <span className="hint">Booking/Batal meng-update status pipeline otomatis (Batal → Drop). Reserved tidak mengubah status.</span>
         </div>
       </div>}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
