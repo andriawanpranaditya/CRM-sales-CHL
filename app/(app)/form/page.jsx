@@ -7,6 +7,54 @@ const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', s
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
+// ===== Template FU Sales untuk lead baru tanpa respon: Day-1 / Day-3 / Day-7 =====
+const TSALES = {
+  bio: {
+    nama: 'BIO District Serpong', harga: 'Rp1,55 Miliar, unit ready stock',
+    unggul: [
+      'Hanya *63 private residences* dengan konsep resort living — clubhouse, jogging track & BBQ area di tengah lingkungan hijau 🌿',
+      'Lokasi di jantung Serpong: *3 menit ke Stasiun Rawa Buntu*, dekat AEON Mall, The Breeze, QBIG & ICE BSD, serta sekolah ternama (Sinarmas World Academy, BINUS, Prasetiya Mulya)',
+      '*Booking fee hanya Rp5 juta, DP 0%* (subsidi DP 10%), ilustrasi KPR bunga 2,75% mulai ±Rp7,2 juta/bulan',
+    ],
+  },
+  permai: {
+    nama: 'Permai Indah Cilejit', harga: 'Rp185 juta',
+    unggul: [
+      '*TANPA DP*, biaya KPR, Notaris & AJB *GRATIS* — angsuran seringan biaya kontrakan ✅',
+      'Hanya *4 menit ke Stasiun KRL Cilejit*, 45 menit ke Tanah Abang, 15 menit ke Serpong — pasar & SD hanya selangkah dari rumah',
+      'Konsep *rumah tumbuh* LT 60 m² dengan 2 kamar tidur, lingkungan asri berpagar sawah lindung, hanya *164 unit* dengan legalitas jelas & akses satu pintu',
+    ],
+  },
+};
+function salamJam() { const h = new Date().getHours(); return h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam'; }
+function templateSalesDay(day, l) {
+  const key = /bio/i.test(l.project || '') ? 'bio' : /permai/i.test(l.project || '') ? 'permai' : null;
+  const P = key ? TSALES[key] : { nama: l.project || 'project kami', harga: null, unggul: [] };
+  const nama = l.nama || 'Kak';
+  if (day === 1) {
+    return `Selamat ${salamJam()} Kak ${nama}, semoga hari ini menyenangkan 😊
+
+Menindaklanjuti ketertarikan Kakak terhadap *${P.nama}*${P.harga ? ' (harga mulai *' + P.harga + '*)' : ''}, izinkan kami merangkum keunggulan utamanya:
+${P.unggul.map(u => '• ' + u).join('\n')}
+
+Apabila berkenan, kami dapat mengaturkan jadwal survey lokasi gratis atau simulasi KPR tanpa biaya di waktu yang Kakak tentukan. Cukup balas pesan ini, saya siap membantu. Terima kasih 🙏`;
+  }
+  if (day === 3) {
+    return `Selamat ${salamJam()} Kak ${nama} 🙏
+
+Ada informasi yang sayang untuk dilewatkan: saat ini *${P.nama}* memiliki program penawaran khusus yang berlaku terbatas untuk pembelian periode ini.
+
+Apakah Kakak berkenan kami kirimkan detail penawarannya? Cukup balas *"YA"* pada pesan ini, dan saya akan menghubungi Kakak secara langsung.`;
+  }
+  return `Selamat ${salamJam()} Kak ${nama},
+
+Kami memahami bahwa memilih hunian adalah keputusan penting yang memerlukan waktu dan pertimbangan matang. Karena itu, ini menjadi pesan terakhir dari kami agar tidak mengganggu kenyamanan Kakak 🙏
+
+Kapan pun Kakak kembali mempertimbangkan *${P.nama}*, kami selalu siap melayani melalui nomor ini.
+
+Terima kasih atas waktu dan kepercayaannya. Semoga senantiasa diberikan kesehatan dan kelancaran 🌿`;
+}
+
 // Next Action yang menghentikan jadwal FU (Tgl Next FU dimatikan)
 const TANPA_NEXT = ['Drop', 'Reserved', 'Booking'];
 const DAY_FU = ['Follow Up day-1', 'Follow Up day-3', 'Follow Up day-7', 'Follow Up day-21', 'Follow Up day-60', 'Reply'];
@@ -310,7 +358,18 @@ Mohon langsung disapa ya, semangat closing! 💪`;
     return rec.slice(0, 3);
   }
 
-  // Template pesan WA — otomatis terisi saat lead dipilih, bebas diedit sales
+  // Pilih template sales otomatis: lead belum merespon (New/Cold) -> Day-1 / Day-3 / Day-7 sesuai jumlah FU sebelumnya
+  function templateSales(l) {
+    if (!l) return '';
+    const n = fus.filter(f => f.lead_code === l.lead_code).length;
+    const belumRespon = !l.status || l.status === 'New' || l.status === 'Cold';
+    if (belumRespon && n === 0) return templateSalesDay(1, l);
+    if (belumRespon && n === 1) return templateSalesDay(3, l);
+    if (belumRespon && n === 2) return templateSalesDay(7, l);
+    return templateWA(l);
+  }
+
+  // Template pesan WA percakapan biasa — bebas diedit sales
   function templateWA(l) {
     const h = new Date().getHours();
     const salam = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam';
@@ -417,7 +476,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
               <b style={{ color: '#B3402F' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
               <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {leads.find(x => x.lead_code === dup.lead_code)
-                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { setTab('fu'); setFu({ ...fu, lead_code: dup.lead_code }); setDup(null); }}>↻ Buka di Follow Up</button>
+                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu({ ...fu, lead_code: dup.lead_code, wa_pesan: l ? templateSales(l) : '' }); setDup(null); }}>↻ Buka di Follow Up</button>
                   : <span className="hint">Lead ini belum ada di daftar Anda — minta {dup.pembuat_role === 'markom' ? 'Marcom mengopernya lewat Leads to Sales' : 'manager memindahkan PIC-nya'}.</span>}
                 <button className="sort-btn" onClick={() => setDup(null)}>Tutup</button>
               </div>
@@ -432,7 +491,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
               const l = leads.find(x => x.lead_code === e.target.value);
               if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
               const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
-              setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateWA(l) : fu.wa_pesan });
+              setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateSales(l) : fu.wa_pesan });
             }}>{leadOpt}</select></div>
           {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
@@ -461,9 +520,9 @@ Mohon langsung disapa ya, semangat closing! 💪`;
             : <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
               <textarea rows={2} {...ff('detail')} /></div>}
           <div className="field" style={{ gridColumn: '1/-1' }}>
-            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
+            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih{!isMarkom && fu.lead_code ? (() => { const l = leads.find(x => x.lead_code === fu.lead_code); const n = fus.filter(f => f.lead_code === fu.lead_code).length; const br = l && (!l.status || l.status === 'New' || l.status === 'Cold'); return br && n <= 2 ? ' — Day-' + [1, 3, 7][n] + ' lead belum respon' : ''; })() : ''} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
               <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
-                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateWA(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
+                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateSales(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
               {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
                 onClick={() => setFu({ ...fu, wa_pesan: '' })}>✕ Kosongkan</button> : null}
             </label>
