@@ -35,8 +35,15 @@ export function bukaWA(nomor, teks, winSiap) {
   if (!n) return false;
   const q = 'phone=' + n + (teks ? '&text=' + encodeURIComponent(teks) : '');
   const web = 'https://wa.me/' + n + (teks ? '?text=' + encodeURIComponent(teks) : '');
-  const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (diHP) {
+  const iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const android = /Android/i.test(navigator.userAgent);
+  // Jaring pengaman: salin pesan ke clipboard — bila emoji/teks tidak terbawa, sales tinggal tempel
+  if (teks && navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(teks).catch(() => {}); }
+  if (iOS) {
+    // iPhone: skema whatsapp:// merusak emoji -> pakai wa.me (universal link, langsung membuka aplikasi WA / WA Business)
+    window.location.href = web;
+  } else if (android) {
+    // Android: skema whatsapp:// memunculkan pilihan WA / WA Business; fallback wa.me bila tidak ada aplikasi
     window.location.href = 'whatsapp://send?' + q;
     setTimeout(() => { if (!document.hidden) window.location.href = web; }, 1500);
   } else if (winSiap) {
