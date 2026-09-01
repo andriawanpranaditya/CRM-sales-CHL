@@ -90,7 +90,7 @@ export default function ReminderBell({ user }) {
       <span>
         <b>{r.nama}</b> <span className="hint">({r.lead_code}{r.project ? ' · ' + r.project : ''})</span>
         {user.role !== 'sales' && (r.sales || r.markom)
-          ? <span className="hint"> — {r.sales ? r.sales : null}{r.markom ? <span style={{ color: '#28527A' }}>{r.sales ? ' · ' : ''}Markom: {r.markom}</span> : null}</span>
+          ? <span className="hint"> — {r.sales ? r.sales : null}{r.markom ? <span style={{ color: '#28527A' }}>{r.sales ? ' · ' : ''}Marcom: {r.markom}</span> : null}</span>
           : null}
         <br /><span className="hint">WA: {r.wa || '-'} · Jadwal: {fmtDate(r.next_fu)}</span>
       </span>

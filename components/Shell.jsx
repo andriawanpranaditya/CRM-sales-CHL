@@ -71,7 +71,7 @@ export default function Shell({ user, children }) {
         </nav>
         <div className="side-foot">
           <span><span className="u-name">{user.name}</span>
-            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : 'Sales — Form Input'}</span></span>
+            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
           <span style={{ display: 'flex', gap: 4 }}>
             <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
             <button className="btn-logout" onClick={logout}>Keluar</button>
