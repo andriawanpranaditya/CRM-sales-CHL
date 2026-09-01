@@ -58,7 +58,9 @@ export async function api(url, opts) {
   const d = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) throw new Error('Sesi login berakhir — silakan login ulang.');
-    throw new Error(d.error || ('Terjadi kesalahan di server (kode ' + res.status + '). Bila baru ada update aplikasi, jalankan /api/setup lalu coba lagi.'));
+    const e = new Error(d.error || ('Terjadi kesalahan di server (kode ' + res.status + '). Bila baru ada update aplikasi, jalankan /api/setup lalu coba lagi.'));
+    e.status = res.status; e.data = d;
+    throw e;
   }
   return d;
 }

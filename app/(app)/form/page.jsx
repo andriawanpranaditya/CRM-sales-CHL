@@ -91,6 +91,7 @@ export default function FormPage() {
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
   const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
+  const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
@@ -180,10 +181,21 @@ export default function FormPage() {
         const d = await api('/api/leads', { method: 'POST', body: JSON.stringify(lead) });
         toast('Lead tersimpan — ' + d.lead_code);
       }
-      setEditId(null);
+      setEditId(null); setDup(null);
       setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
       setLeads(await api('/api/leads'));
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
+    } catch (e) {
+      if (e.status === 409 && e.data && e.data.dup) {
+        setDup(e.data.dup);
+        if (me?.role === 'manager' && confirm(e.message + '\n\nTetap simpan sebagai lead TERPISAH? (khusus manager)')) {
+          try {
+            const d2 = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, force: true }) });
+            toast('Lead tersimpan (dipaksa) — ' + d2.lead_code); setDup(null);
+            setLead({ ...EMPTY, tgl: todayISO(), sales: '' }); setLeads(await api('/api/leads'));
+          } catch (e2) { toast(e2.message); }
+        } else toast(e.message);
+      } else toast(e.message);
+    } finally { setBusy(false); }
   }
 
   function mulaiEdit(l) {
@@ -220,6 +232,7 @@ export default function FormPage() {
     return `Halo ${salesName || '[Sales]'} 👋
 Ada lead baru untuk segera di-follow up:
 
+🆔 ID Lead: ${l.lead_code} (sudah ada di CRM Anda — langsung follow up di tab Follow Up, JANGAN input ulang)
 🧑 Nama: ${l.nama || '-'}
 📱 No. WA: ${l.wa || '-'}
 🏠 Project: ${l.project || '-'}
@@ -399,6 +412,16 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>{editId ? 'Update Lead' : 'Simpan Lead'}</button>
           {editId && <button className="btn btn-ghost" onClick={batalEdit}>Batal</button>}
           <span className="hint">{editId ? 'Perubahan langsung tersimpan ke database.' : 'ID Lead dibuat otomatis oleh sistem.'}</span>
+          {dup && (
+            <div style={{ flexBasis: '100%', background: '#F9E7E3', border: '1px solid #B3402F', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+              <b style={{ color: '#B3402F' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {leads.find(x => x.lead_code === dup.lead_code)
+                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { setTab('fu'); setFu({ ...fu, lead_code: dup.lead_code }); setDup(null); }}>↻ Buka di Follow Up</button>
+                  : <span className="hint">Lead ini belum ada di daftar Anda — minta {dup.pembuat_role === 'markom' ? 'Marcom mengopernya lewat Leads to Sales' : 'manager memindahkan PIC-nya'}.</span>}
+                <button className="sort-btn" onClick={() => setDup(null)}>Tutup</button>
+              </div>
+            </div>)}
         </div>
       </div>}
 

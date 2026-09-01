@@ -22,6 +22,23 @@ export async function POST(req) {
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
+  // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
+  let waN = String(b.wa || '').replace(/[^0-9]/g, '');
+  if (waN.startsWith('0')) waN = '62' + waN.slice(1); else if (waN.startsWith('8')) waN = '62' + waN;
+  if (waN.length >= 9 && !(user.role === 'manager' && b.force)) {
+    const dup = await sql`SELECT l.lead_code, l.nama, l.sales, l.project, l.status, u.name AS pembuat, u.role AS pembuat_role
+      FROM leads l LEFT JOIN users u ON u.username = l.created_by
+      WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(l.wa,''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${waN}
+      ORDER BY l.id LIMIT 1`;
+    if (dup.length) {
+      const d = dup[0];
+      const asal = d.pembuat_role === 'markom' ? ' (dari Marcom ' + d.pembuat + ')' : '';
+      return Response.json({
+        error: `Nomor WA ini sudah terdaftar sebagai ${d.lead_code} — ${d.nama}, PIC: ${d.sales || 'belum ada'}${asal}. Gunakan lead tersebut, jangan input ulang.`,
+        dup: d,
+      }, { status: 409 });
+    }
+  }
   const wInfo = /walk/i.test(b.sumber || '') ? (b.walkin_info || '') : '';
   const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, created_by)
     VALUES (${b.tgl || null}, ${b.nama}, ${b.wa || ''}, ${b.email || ''}, ${b.domisili || ''}, ${b.kerja || ''},
