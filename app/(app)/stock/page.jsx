@@ -58,18 +58,12 @@ export default function StockPage() {
       const ctx = cv.getContext('2d');
       ctx.drawImage(img, 0, 0, W, H);
       const R = Math.max(9, Math.round(W * 0.007));
-      ctx.font = 'bold ' + Math.round(R * 1.25) + 'px Arial';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       markers.forEach(m => {
         const cx = (m.x / 100) * W, cy = (m.y / 100) * H;
         ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
         ctx.fillStyle = COLOR[m.warna]; ctx.fill();
         ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
         if (m.manual) { ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
-        // label unit di bawah marker
-        const t = String(m.unit);
-        ctx.lineWidth = Math.max(3, R * 0.5); ctx.strokeStyle = 'rgba(255,255,255,.9)';
-        ctx.strokeText(t, cx, cy + R * 2.1); ctx.fillStyle = '#1C2B23'; ctx.fillText(t, cx, cy + R * 2.1);
       });
       const dataURL = cv.toDataURL('image/jpeg', 0.9);
 
