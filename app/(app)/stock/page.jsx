@@ -16,6 +16,7 @@ export default function StockPage() {
   const [placing, setPlacing] = useState(null);
   const [selUnit, setSelUnit] = useState('');
   const [zoom, setZoom] = useState(1);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const inner = useRef(null);
 
   const loadStock = async () => {
@@ -42,7 +43,6 @@ export default function StockPage() {
   const markers = active.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
 
   // ===== Unduh Master Stock sebagai PDF (peta bertanda + rekap unit) =====
-  const [pdfBusy, setPdfBusy] = useState(false);
   async function downloadPDF() {
     setPdfBusy(true);
     try {
