@@ -41,6 +41,132 @@ export default function StockPage() {
   const unmapped = active.filter(u => !posMap[proj + '|' + u.unit]);
   const markers = active.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
 
+  // ===== Unduh Master Stock sebagai PDF (peta bertanda + rekap unit) =====
+  const [pdfBusy, setPdfBusy] = useState(false);
+  async function downloadPDF() {
+    setPdfBusy(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      // 1) Gambar siteplan + marker ke kanvas
+      const img = new Image();
+      img.src = IMG(proj);
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Siteplan tidak bisa dimuat')); });
+      const W = Math.min(img.naturalWidth || 1600, 2400);
+      const H = Math.round((img.naturalHeight || 1000) * (W / (img.naturalWidth || 1600)));
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, W, H);
+      const R = Math.max(9, Math.round(W * 0.007));
+      ctx.font = 'bold ' + Math.round(R * 1.25) + 'px Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      markers.forEach(m => {
+        const cx = (m.x / 100) * W, cy = (m.y / 100) * H;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+        ctx.fillStyle = COLOR[m.warna]; ctx.fill();
+        ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+        if (m.manual) { ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
+        // label unit di bawah marker
+        const t = String(m.unit);
+        ctx.lineWidth = Math.max(3, R * 0.5); ctx.strokeStyle = 'rgba(255,255,255,.9)';
+        ctx.strokeText(t, cx, cy + R * 2.1); ctx.fillStyle = '#1C2B23'; ctx.fillText(t, cx, cy + R * 2.1);
+      });
+      const dataURL = cv.toDataURL('image/jpeg', 0.9);
+
+      // 2) Susun PDF
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const PW = 297, PH = 210, M = 10;
+      const tglStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+      const total = unitList.length;
+      const terjual = active.filter(u => u.warna === 'merah').length;
+      const reserved = active.filter(u => u.warna === 'kuning').length;
+      const tersedia = Math.max(0, total - terjual - reserved);
+      const kop = (sub) => {
+        doc.setFillColor(28, 43, 35); doc.rect(0, 0, PW, 17, 'F');
+        doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+        doc.text('MASTER STOCK — ' + (proj || '-'), M, 11);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+        doc.text(sub + ' · ' + tglStr, PW - M, 11, { align: 'right' });
+        doc.setTextColor(28, 43, 35);
+      };
+      const footer = () => {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 128, 120);
+        doc.text('PT Cipta Harmoni Lestari · CRM Sales · copyright © 2026 by Andriawanp', PW / 2, PH - 5, { align: 'center' });
+        doc.setTextColor(28, 43, 35);
+      };
+
+      // Halaman 1: peta
+      kop('Peta Siteplan');
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      let x = M;
+      const chip = (label, val, warna) => {
+        doc.setFillColor(warna[0], warna[1], warna[2]); doc.circle(x + 1.6, 22.4, 1.6, 'F');
+        doc.text(label + ': ' + val, x + 4.6, 23.2); x += doc.getTextWidth(label + ': ' + val) + 13;
+      };
+      chip('Terjual', terjual, [179, 64, 47]);
+      chip('Reserved', reserved, [201, 146, 46]);
+      chip('Tersedia', tersedia, [235, 233, 226]);
+      chip('Total Unit', total, [35, 105, 74]);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110, 118, 110);
+      doc.text('Titik putih di tengah lingkaran = status ditandai manual oleh manager.', M, 28.5);
+      doc.setTextColor(28, 43, 35);
+      const areaY = 31, areaH = PH - areaY - 10, areaW = PW - M * 2;
+      const sc = Math.min(areaW / W, areaH / H);
+      const iw = W * sc, ih = H * sc;
+      doc.addImage(dataURL, 'JPEG', (PW - iw) / 2, areaY, iw, ih);
+      footer();
+
+      // Halaman 2+: rekap unit bertanda
+      const bertanda = [...active].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
+      doc.addPage(); kop('Rekap Unit');
+      let y = 26;
+      const headRow = () => {
+        doc.setFillColor(35, 105, 74); doc.rect(M, y, PW - M * 2, 8, 'F');
+        doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+        doc.text('Blok / Unit', M + 3, y + 5.5);
+        doc.text('Status', M + 62, y + 5.5);
+        doc.text('Keterangan', M + 110, y + 5.5);
+        doc.text('ID Lead', PW - M - 32, y + 5.5);
+        doc.setTextColor(28, 43, 35); y += 8;
+      };
+      headRow();
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      if (!bertanda.length) { doc.text('Belum ada unit bertanda pada project ini.', M + 3, y + 6); y += 10; }
+      bertanda.forEach((u, i) => {
+        if (y > PH - 18) { footer(); doc.addPage(); kop('Rekap Unit (lanjutan)'); y = 26; headRow(); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); }
+        if (i % 2 === 1) { doc.setFillColor(245, 244, 239); doc.rect(M, y, PW - M * 2, 7, 'F'); }
+        const c = u.warna === 'merah' ? [179, 64, 47] : [201, 146, 46];
+        doc.setFillColor(c[0], c[1], c[2]); doc.circle(M + 3.5, y + 3.6, 1.5, 'F');
+        doc.text(String(u.unit), M + 7, y + 4.8);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(c[0], c[1], c[2]);
+        doc.text(u.warna === 'merah' ? 'TERJUAL' : 'RESERVED', M + 62, y + 4.8);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(28, 43, 35);
+        doc.text(doc.splitTextToSize(String(u.info || '-'), 95)[0], M + 110, y + 4.8);
+        doc.text(String(u.lead_code || '-'), PW - M - 32, y + 4.8);
+        y += 7;
+      });
+      // Unit tersedia (ringkas, banyak kolom)
+      const sisa = unitList.filter(u => !stMap[proj + '|' + u]);
+      if (sisa.length) {
+        if (y > PH - 40) { footer(); doc.addPage(); kop('Unit Tersedia'); y = 26; }
+        y += 6;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+        doc.text('Unit Tersedia (' + sisa.length + ')', M, y); y += 5;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        const kol = 6, lebar = (PW - M * 2) / kol;
+        sisa.forEach((u, i) => {
+          if (i % kol === 0 && y > PH - 14) { footer(); doc.addPage(); kop('Unit Tersedia (lanjutan)'); y = 26; doc.setFont('helvetica', 'normal'); doc.setFontSize(8); }
+          doc.text(String(u), M + (i % kol) * lebar, y);
+          if (i % kol === kol - 1) y += 5;
+        });
+        if (sisa.length % kol !== 0) y += 5;
+      }
+      footer();
+      doc.save('Master_Stock_' + String(proj || 'project').replace(/[^A-Za-z0-9]+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.pdf');
+      toast('PDF Master Stock terunduh 📄');
+    } catch (e) { toast(e.message || 'Gagal membuat PDF'); } finally { setPdfBusy(false); }
+  }
+
   async function klikPeta(e) {
     if (!isMgr || !placing) return;
     const r = inner.current.getBoundingClientRect();
@@ -86,6 +212,8 @@ export default function StockPage() {
           <b style={{ minWidth: 46, textAlign: 'center' }}>{Math.round(zoom * 100)}%</b>
           <button className="sort-btn" onClick={() => zoomTo(zoom + 0.5)}>🔍+</button>
           {zoom > 1 && <button className="sort-btn" onClick={() => setZoom(1)}>Reset</button>}
+          <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
+            onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
         </span>
       </div>
 
