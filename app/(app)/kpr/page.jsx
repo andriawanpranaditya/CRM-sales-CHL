@@ -3,162 +3,220 @@ import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
 
-// Angsuran anuitas: A = P · i / (1 - (1+i)^-n)
-function angsuran(pokok, bungaTahun, bulan) {
-  if (!pokok || !bulan) return 0;
+// Angsuran anuitas: A = P · i / (1 − (1+i)^−n)
+function anuitas(plafon, bungaTahun, bulan) {
+  if (!plafon || !bulan) return 0;
   const i = bungaTahun / 100 / 12;
-  if (i === 0) return pokok / bulan;
-  return (pokok * i) / (1 - Math.pow(1 + i, -bulan));
+  return i === 0 ? plafon / bulan : (plafon * i) / (1 - Math.pow(1 + i, -bulan));
 }
 
+// Plafon KPR sesuai price list (angka price list = plafon, bukan harga rumah)
+const PAKET = [
+  { grup: 'BIO DISTRICT', label: 'Tipe A · Standar', plafon: 1553778000, bunga: 2.75 },
+  { grup: 'BIO DISTRICT', label: 'Tipe A · All In', plafon: 1670000000, bunga: 2.75 },
+  { grup: 'BIO DISTRICT', label: 'Tipe B · Standar', plafon: 2097000000, bunga: 2.75 },
+  { grup: 'BIO DISTRICT', label: 'Tipe B · All In', plafon: 2271000000, bunga: 2.75 },
+  { grup: 'BIO DISTRICT', label: 'Tipe C · Standar', plafon: 2595417445, bunga: 2.75 },
+  { grup: 'BIO DISTRICT', label: 'Tipe C · All In', plafon: 2806527243, bunga: 2.75 },
+  { grup: 'PERMAI INDAH', label: 'Subsidi · tanpa DP', plafon: 185000000, bunga: 5 },
+];
+const TENOR = [25, 20, 15, 10];
+
 export default function KprPage() {
-  const [set, setSet] = useState({ project: [] });
+  const [me, setMe] = useState(null);
   const [f, setF] = useState({
-    harga: '', dpPersen: 10, plafon: '', bungaFix: 2.75, tahunFix: 3, bungaFloat: 11, tenor: 15,
+    plafon: '', bunga: 2.75, tenor: 25, dbr: 40,
+    penghasilan: '', cicilanLain: '', bungaLanjut: 11, tahunFix: 3,
   });
-  const [detail, setDetail] = useState(false);
+  const [pilih, setPilih] = useState('');
+  const [lanjut, setLanjut] = useState(false); // proyeksi setelah masa fix (opsional)
+  const [tabel, setTabel] = useState(false);
 
-  useEffect(() => { api('/api/settings').then(setSet).catch(e => toast(e.message)); }, []);
+  useEffect(() => { api('/api/auth/me').then(setMe).catch(() => {}); }, []);
 
-  const h = Number(f.harga) || 0;
-  const dp = Math.round(h * (Number(f.dpPersen) || 0) / 100);
-  const plafonOtomatis = Math.max(0, h - dp);
-  // Plafon kredit: bisa diisi manual (sesuai persetujuan bank); kosong = otomatis harga - DP
-  const pokok = Number(f.plafon) > 0 ? Number(f.plafon) : plafonOtomatis;
-  const danaAwal = Math.max(0, h - pokok);
+  const P = Number(f.plafon) || 0;
+  const bunga = Number(f.bunga) || 0;
   const nBulan = (Number(f.tenor) || 0) * 12;
-  const nFix = Math.min(nBulan, (Number(f.tahunFix) || 0) * 12);
+  const angsuran = useMemo(() => anuitas(P, bunga, nBulan), [P, bunga, nBulan]);
 
-  const hitung = useMemo(() => {
-    if (!pokok || !nBulan) return null;
-    const aFix = angsuran(pokok, Number(f.bungaFix) || 0, nBulan);
-    // Sisa pokok setelah masa fix, lalu dihitung ulang dengan bunga floating
-    let sisa = pokok;
-    const iFix = (Number(f.bungaFix) || 0) / 100 / 12;
-    const baris = [];
-    for (let b = 1; b <= nFix; b++) {
-      const bunga = sisa * iFix;
-      const pokokBln = aFix - bunga;
-      sisa = Math.max(0, sisa - pokokBln);
-      baris.push({ b, angsur: aFix, bunga, pokokBln, sisa, masa: 'Fix' });
-    }
+  // Kebutuhan penghasilan berbasis DBR (Debt Burden Ratio) — angsuran tidak diubah, hanya cara menilai
+  const dbr = Number(f.dbr) || 40;
+  const lain = Number(f.cicilanLain) || 0;
+  const butuh = angsuran ? (angsuran + lain) / (dbr / 100) : 0;
+  const penghasilan = Number(f.penghasilan) || 0;
+  const dbrAktual = penghasilan ? ((angsuran + lain) / penghasilan) * 100 : null;
+
+  // Proyeksi setelah masa fix (opsional, hanya perkiraan)
+  const proyeksi = useMemo(() => {
+    if (!lanjut || !P || !nBulan) return null;
+    const nFix = Math.min(nBulan, (Number(f.tahunFix) || 0) * 12);
+    const i = bunga / 100 / 12;
+    let sisa = P;
+    for (let b = 0; b < nFix; b++) sisa = Math.max(0, sisa - (angsuran - sisa * i));
     const sisaTenor = nBulan - nFix;
-    const aFloat = sisaTenor > 0 ? angsuran(sisa, Number(f.bungaFloat) || 0, sisaTenor) : 0;
-    const iFloat = (Number(f.bungaFloat) || 0) / 100 / 12;
-    let s2 = sisa;
-    for (let b = nFix + 1; b <= nBulan; b++) {
-      const bunga = s2 * iFloat;
-      const pokokBln = aFloat - bunga;
-      s2 = Math.max(0, s2 - pokokBln);
-      baris.push({ b, angsur: aFloat, bunga, pokokBln, sisa: s2, masa: 'Floating' });
-    }
-    const totalBayar = baris.reduce((a, x) => a + x.angsur, 0);
-    return { aFix, aFloat, sisaSetelahFix: sisa, baris, totalBayar, totalBunga: totalBayar - pokok };
-  }, [pokok, nBulan, nFix, f.bungaFix, f.bungaFloat]);
+    return { sisa, angsuran: sisaTenor > 0 ? anuitas(sisa, Number(f.bungaLanjut) || 0, sisaTenor) : 0, nFix };
+  }, [lanjut, P, nBulan, bunga, angsuran, f.tahunFix, f.bungaLanjut]);
 
   const ff = k => ({ value: f[k], onChange: e => setF({ ...f, [k]: e.target.value }) });
-  // Penghasilan minimal: angsuran maksimal ±1/3 penghasilan
-  const minPenghasilan = hitung ? Math.max(hitung.aFix, hitung.aFloat) * 3 : 0;
+  const pilihPaket = p => {
+    setPilih(p.label + p.grup);
+    setF({ ...f, plafon: p.plafon, bunga: p.bunga, tenor: p.grup === 'PERMAI INDAH' ? 20 : 25 });
+  };
+
+  // Amortisasi untuk tabel angsuran
+  const baris = useMemo(() => {
+    if (!tabel || !P || !nBulan) return [];
+    const i = bunga / 100 / 12; let sisa = P; const out = [];
+    for (let b = 1; b <= nBulan; b++) {
+      const bg = sisa * i, pk = angsuran - bg;
+      sisa = Math.max(0, sisa - pk);
+      out.push({ b, bunga: bg, pokok: pk, sisa });
+    }
+    return out;
+  }, [tabel, P, nBulan, bunga, angsuran]);
+
+  const statusKelayakan = () => {
+    if (!dbrAktual) return null;
+    if (dbrAktual <= 40) return { warna: 'var(--green)', teks: `Aman — DBR ${Math.round(dbrAktual)}%`, saran: 'Rasio cicilan sehat, peluang disetujui besar.' };
+    if (dbrAktual <= 50) return { warna: '#C9922E', teks: `Masih mungkin — DBR ${Math.round(dbrAktual)}%`, saran: 'Di atas 40% bank menilai lebih ketat: butuh penghasilan tetap, SLIK bersih, dan cicilan lain minim. Bisa juga gabungkan penghasilan pasangan (joint income).' };
+    return { warna: 'var(--red)', teks: `Perlu penyesuaian — DBR ${Math.round(dbrAktual)}%`, saran: 'Opsi: perpanjang tenor, tambah uang muka agar plafon turun, atau ajukan dengan penghasilan gabungan pasangan.' };
+  };
+  const kel = statusKelayakan();
 
   return (
     <>
       <div className="page-head"><div><h1>Simulasi KPR</h1>
-        <div className="sub">Hitung angsuran, kebutuhan dana awal, dan penghasilan minimal konsumen — anuitas dengan bunga fix lalu floating</div></div></div>
+        <div className="sub">Angka price list adalah <b>plafon KPR</b> — angsuran dihitung apa adanya (anuitas), kebutuhan penghasilan memakai rasio DBR</div></div></div>
 
       <div className="card">
-        <div className="form-grid">
-          <div className="field"><label>Harga Unit (Rp)</label>
-            <input type="number" min="0" {...ff('harga')} placeholder="contoh: 1550000000" /></div>
-          <div className="field"><label>DP (%)</label>
-            <input type="number" min="0" max="100" step="0.5" {...ff('dpPersen')} />
-            <span className="hint">DP = {fmtRp(dp)}</span></div>
-          <div className="field"><label>Plafon Kredit (Rp)</label>
-            <input type="number" min="0" {...ff('plafon')} placeholder={plafonOtomatis ? String(plafonOtomatis) : 'otomatis harga − DP'} />
-            <span className="hint">{Number(f.plafon) > 0
-              ? 'Plafon disetujui bank: ' + fmtRp(pokok) + ' · dana awal konsumen ' + fmtRp(danaAwal)
-              : 'Kosongkan untuk otomatis (harga − DP) = ' + fmtRp(plafonOtomatis)}</span></div>
-          <div className="field"><label>Tenor (tahun)</label>
-            <select {...ff('tenor')}>{[5, 8, 10, 12, 15, 20, 25, 30].map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
-          <div className="field"><label>Bunga Fix (% / tahun)</label>
-            <input type="number" min="0" step="0.05" {...ff('bungaFix')} /></div>
-          <div className="field"><label>Masa Fix (tahun)</label>
-            <select {...ff('tahunFix')}>{[1, 2, 3, 5, 8, 10].map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
-          <div className="field"><label>Bunga Floating (% / tahun)</label>
-            <input type="number" min="0" step="0.05" {...ff('bungaFloat')} />
-            <span className="hint">Perkiraan bunga setelah masa fix berakhir.</span></div>
+        <div className="fu-toolbar" style={{ marginBottom: 10 }}>
+          <span className="hint" style={{ fontWeight: 700 }}>Pilih unit:</span>
+          {PAKET.map(p => (
+            <button key={p.grup + p.label} className={'sort-btn' + (pilih === p.label + p.grup ? ' active' : '')}
+              onClick={() => pilihPaket(p)} title={'Plafon ' + fmtRp(p.plafon)}>
+              {p.grup === 'BIO DISTRICT' ? '🏡 ' : '🏠 '}{p.label}
+            </button>))}
+          {P > 0 && <button className="sort-btn" onClick={() => { setPilih(''); setF({ ...f, plafon: '' }); }}>✕ Kosongkan</button>}
         </div>
-        {(set.project || []).length > 0 && (
-          <div className="fu-toolbar" style={{ marginTop: 4 }}>
-            <span className="hint" style={{ fontWeight: 700 }}>Isi cepat:</span>
-            <button className="sort-btn" onClick={() => setF({ ...f, plafon: '', harga: 1553778000, dpPersen: 10, bungaFix: 2.75, tahunFix: 3, bungaFloat: 11, tenor: 15 })}>BIO Tipe A</button>
-            <button className="sort-btn" onClick={() => setF({ ...f, plafon: '', harga: 2097000000, dpPersen: 10, bungaFix: 2.75, tahunFix: 3, bungaFloat: 11, tenor: 15 })}>BIO Tipe B</button>
-            <button className="sort-btn" onClick={() => setF({ ...f, plafon: '', harga: 2595417445, dpPersen: 10, bungaFix: 2.75, tahunFix: 3, bungaFloat: 11, tenor: 15 })}>BIO Tipe C</button>
-            <button className="sort-btn" onClick={() => setF({ ...f, plafon: '', harga: 185000000, dpPersen: 0, bungaFix: 5, tahunFix: 20, bungaFloat: 5, tenor: 20 })}>Permai Subsidi</button>
-          </div>
-        )}
+
+        <div className="form-grid">
+          <div className="field"><label>Plafon KPR (Rp)</label>
+            <input type="number" min="0" {...ff('plafon')} placeholder="isi manual atau pilih unit di atas" />
+            <span className="hint">Jumlah yang dibiayai bank — sesuai angka price list.</span></div>
+          <div className="field"><label>Bunga (% / tahun)</label>
+            <input type="number" min="0" step="0.05" {...ff('bunga')} /></div>
+          <div className="field"><label>Tenor</label>
+            <select {...ff('tenor')}>{TENOR.map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
+          <div className="field"><label>Batas DBR</label>
+            <select {...ff('dbr')}>
+              <option value={30}>30% — sangat aman</option>
+              <option value={40}>40% — umum dipakai bank</option>
+              <option value={50}>50% — maksimal, dengan syarat tertentu</option>
+            </select>
+            <span className="hint">DBR = total cicilan ÷ penghasilan. Ketentuan membolehkan hingga 50% bila penghasilan tetap &amp; SLIK bersih.</span></div>
+          <div className="field"><label>Cicilan Lain per Bulan (Rp)</label>
+            <input type="number" min="0" {...ff('cicilanLain')} placeholder="kendaraan, kartu kredit, dll — opsional" /></div>
+          <div className="field"><label>Penghasilan Konsumen (Rp)</label>
+            <input type="number" min="0" {...ff('penghasilan')} placeholder="boleh gabungan suami-istri — opsional" />
+            <span className="hint">Diisi bila ingin langsung melihat kelayakannya.</span></div>
+        </div>
       </div>
 
-      {hitung ? (<>
+      {P > 0 ? (<>
         <div className="kpi-grid" style={{ marginTop: 14 }}>
-          <div className="kpi"><div className="kpi-label">Angsuran Masa Fix</div>
-            <div className="kpi-val" style={{ color: 'var(--green)' }}>{fmtRp(Math.round(hitung.aFix))}</div>
-            <div className="hint">per bulan · {f.tahunFix} tahun pertama</div></div>
-          <div className="kpi"><div className="kpi-label">Angsuran Setelah Fix</div>
-            <div className="kpi-val" style={{ color: 'var(--brass)' }}>{fmtRp(Math.round(hitung.aFloat))}</div>
-            <div className="hint">perkiraan · bunga {f.bungaFloat}%</div></div>
-          <div className="kpi"><div className="kpi-label">Dana Awal Konsumen</div>
-            <div className="kpi-val">{fmtRp(danaAwal)}</div>
-            <div className="hint">belum termasuk biaya KPR &amp; notaris</div></div>
+          <div className="kpi"><div className="kpi-label">Angsuran per Bulan</div>
+            <div className="kpi-val" style={{ color: 'var(--green)' }}>{fmtRp(Math.round(angsuran))}</div>
+            <div className="hint">plafon {fmtRp(P)} · {f.tenor} tahun · bunga {f.bunga}%</div></div>
           <div className="kpi"><div className="kpi-label">Penghasilan Minimal</div>
-            <div className="kpi-val">{fmtRp(Math.round(minPenghasilan))}</div>
-            <div className="hint">asumsi angsuran maks ⅓ penghasilan</div></div>
+            <div className="kpi-val" style={{ color: 'var(--brass)' }}>{fmtRp(Math.round(butuh))}</div>
+            <div className="hint">pada batas DBR {dbr}%{lain ? ' · termasuk cicilan lain ' + fmtRp(lain) : ''}</div></div>
+          <div className="kpi"><div className="kpi-label">Penghasilan Min. (DBR 50%)</div>
+            <div className="kpi-val">{fmtRp(Math.round((angsuran + lain) / 0.5))}</div>
+            <div className="hint">batas maksimal, syarat tertentu</div></div>
+          {kel ? (
+            <div className="kpi"><div className="kpi-label">Kelayakan Konsumen</div>
+              <div className="kpi-val" style={{ color: kel.warna, fontSize: 20 }}>{kel.teks}</div>
+              <div className="hint">{kel.saran}</div></div>
+          ) : (
+            <div className="kpi"><div className="kpi-label">Total Bayar s/d Lunas</div>
+              <div className="kpi-val">{fmtRp(Math.round(angsuran * nBulan))}</div>
+              <div className="hint">bunga {fmtRp(Math.round(angsuran * nBulan - P))}</div></div>
+          )}
         </div>
 
         <div className="card" style={{ marginTop: 14 }}>
-          <h2>Ringkasan Pembiayaan</h2>
-          <div className="tbl-wrap"><table className="tbl-compact"><tbody>
-            <tr><td>Harga unit</td><td className="num"><b>{fmtRp(h)}</b></td></tr>
-            <tr><td>DP {f.dpPersen}%</td><td className="num">{fmtRp(dp)}</td></tr>
-            <tr><td>Plafon kredit{Number(f.plafon) > 0 ? ' (disetujui bank)' : ' (otomatis)'}</td><td className="num"><b>{fmtRp(pokok)}</b></td></tr>
-            <tr><td>Dana awal konsumen (harga − plafon)</td><td className="num">{fmtRp(danaAwal)}</td></tr>
-            <tr><td>Tenor</td><td className="num">{f.tenor} tahun ({nBulan} bulan)</td></tr>
-            <tr><td>Sisa pokok setelah masa fix</td><td className="num">{fmtRp(Math.round(hitung.sisaSetelahFix))}</td></tr>
-            <tr><td>Total bunga (perkiraan)</td><td className="num">{fmtRp(Math.round(hitung.totalBunga))}</td></tr>
-            <tr><td>Total pembayaran s/d lunas</td><td className="num"><b>{fmtRp(Math.round(hitung.totalBayar + danaAwal))}</b></td></tr>
-          </tbody></table></div>
-          <p className="hint">Perhitungan anuitas — hasil resmi tetap mengikuti persetujuan bank. Belum termasuk biaya provisi, administrasi, asuransi jiwa &amp; kebakaran, notaris/AJB, dan BPHTB.</p>
-          <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="sort-btn" onClick={() => setDetail(d => !d)}>{detail ? '▲ Sembunyikan tabel angsuran' : '▼ Lihat tabel angsuran per bulan'}</button>
+          <h2>Pilihan Tenor — plafon {fmtRp(P)}</h2>
+          <div className="tbl-wrap"><table className="tbl-compact">
+            <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th><th className="num">DBR 50%</th><th className="num">Total Bayar</th></tr></thead>
+            <tbody>
+              {TENOR.map(t => {
+                const a = anuitas(P, bunga, t * 12);
+                const aktif = Number(f.tenor) === t;
+                return <tr key={t} style={aktif ? { background: '#E4EFE8' } : undefined}>
+                  <td data-label="Tenor"><b>{t} tahun</b>{aktif ? <span className="hint"> · dipilih</span> : null}</td>
+                  <td className="num" data-label="Angsuran"><b>{fmtRp(Math.round(a))}</b></td>
+                  <td className="num" data-label={'DBR ' + dbr + '%'}>{fmtRp(Math.round((a + lain) / (dbr / 100)))}</td>
+                  <td className="num" data-label="DBR 50%">{fmtRp(Math.round((a + lain) / 0.5))}</td>
+                  <td className="num" data-label="Total Bayar">{fmtRp(Math.round(a * t * 12))}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table></div>
+          <p className="hint">Angsuran dihitung anuitas atas plafon &amp; bunga di atas — sama dengan ilustrasi price list. Belum termasuk biaya provisi, administrasi, asuransi jiwa &amp; kebakaran, notaris/AJB, dan BPHTB. Persetujuan akhir tetap mengikuti penilaian bank.</p>
+
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="sort-btn" onClick={() => setTabel(t => !t)}>{tabel ? '▲ Sembunyikan tabel angsuran' : '▼ Tabel angsuran per bulan'}</button>
+            <button className={'sort-btn' + (lanjut ? ' active' : '')} onClick={() => setLanjut(l => !l)}>
+              {lanjut ? '✓ Proyeksi setelah masa fix' : '📈 Proyeksi setelah masa fix'}
+            </button>
             <button className="sort-btn" onClick={() => {
-              const teks = `*SIMULASI KPR — ${fmtRp(h)}*\n\nDP ${f.dpPersen}% : ${fmtRp(dp)}\nPlafon kredit : ${fmtRp(pokok)}\nDana awal : ${fmtRp(danaAwal)}\nTenor : ${f.tenor} tahun\n\n*Angsuran ${f.tahunFix} th pertama (fix ${f.bungaFix}%) : ${fmtRp(Math.round(hitung.aFix))}/bln*\nAngsuran setelahnya (perkiraan ${f.bungaFloat}%) : ${fmtRp(Math.round(hitung.aFloat))}/bln\n\nPenghasilan minimal ± ${fmtRp(Math.round(minPenghasilan))}/bln.\n\n_Simulasi, hasil akhir mengikuti persetujuan bank._`;
+              const teks = `*SIMULASI KPR*\n${pilih ? pilih.replace('BIO DISTRICT', ' — BIO District').replace('PERMAI INDAH', ' — Permai Indah') + '\n' : ''}\nPlafon KPR : ${fmtRp(P)}\nBunga : ${f.bunga}% per tahun\n\n${TENOR.map(t => `${t} tahun : ${fmtRp(Math.round(anuitas(P, bunga, t * 12)))}/bln`).join('\n')}\n\nPilihan ${f.tenor} tahun → *${fmtRp(Math.round(angsuran))}/bulan*\nPenghasilan minimal ± ${fmtRp(Math.round(butuh))}/bln (DBR ${dbr}%).\n\n_Simulasi; belum termasuk biaya KPR, notaris & pajak. Persetujuan akhir oleh bank._`;
               navigator.clipboard.writeText(teks).then(() => toast('Simulasi disalin — tinggal tempel di WhatsApp 📋')).catch(() => toast('Gagal menyalin'));
             }}>📋 Salin untuk WhatsApp</button>
           </div>
         </div>
 
-        {detail && (
+        {lanjut && proyeksi && (
+          <div className="card" style={{ marginTop: 14 }}>
+            <h2>Proyeksi Setelah Masa Fix <span className="hint">(perkiraan, bukan angka resmi bank)</span></h2>
+            <div className="form-grid">
+              <div className="field"><label>Masa Fix (tahun)</label>
+                <select {...ff('tahunFix')}>{[1, 2, 3, 5, 8, 10].map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
+              <div className="field"><label>Perkiraan Bunga Setelahnya (%)</label>
+                <input type="number" min="0" step="0.25" {...ff('bungaLanjut')} /></div>
+            </div>
+            <div className="tbl-wrap"><table className="tbl-compact"><tbody>
+              <tr><td>Angsuran selama {f.tahunFix} tahun pertama</td><td className="num"><b>{fmtRp(Math.round(angsuran))}</b></td></tr>
+              <tr><td>Sisa pokok saat masa fix berakhir</td><td className="num">{fmtRp(Math.round(proyeksi.sisa))}</td></tr>
+              <tr><td>Perkiraan angsuran setelahnya (bunga {f.bungaLanjut}%)</td><td className="num"><b>{fmtRp(Math.round(proyeksi.angsuran))}</b></td></tr>
+            </tbody></table></div>
+            <p className="hint">Angka ini hanya proyeksi bila bunga berubah setelah masa fix — bukan dasar penilaian bank saat pengajuan, dan bisa disiasati dengan take over atau pelunasan sebagian.</p>
+          </div>
+        )}
+
+        {tabel && (
           <div className="card" style={{ marginTop: 14 }}>
             <h2>Tabel Angsuran ({nBulan} bulan)</h2>
             <div className="tbl-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
               <table className="tbl-compact">
-                <thead><tr><th>Bulan</th><th>Masa</th><th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
-                <tbody>
-                  {hitung.baris.map(r => (
-                    <tr key={r.b}>
-                      <td data-label="Bulan">{r.b}</td>
-                      <td data-label="Masa">{r.masa === 'Fix' ? <span className="badge b-close">Fix</span> : <span className="badge b-warm">Floating</span>}</td>
-                      <td className="num" data-label="Angsuran">{fmtRp(Math.round(r.angsur))}</td>
-                      <td className="num" data-label="Pokok">{fmtRp(Math.round(r.pokokBln))}</td>
-                      <td className="num" data-label="Bunga">{fmtRp(Math.round(r.bunga))}</td>
-                      <td className="num" data-label="Sisa">{fmtRp(Math.round(r.sisa))}</td>
-                    </tr>))}
+                <thead><tr><th>Bulan</th><th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
+                <tbody>{baris.map(r => (
+                  <tr key={r.b}>
+                    <td data-label="Bulan">{r.b}</td>
+                    <td className="num" data-label="Angsuran">{fmtRp(Math.round(angsuran))}</td>
+                    <td className="num" data-label="Pokok">{fmtRp(Math.round(r.pokok))}</td>
+                    <td className="num" data-label="Bunga">{fmtRp(Math.round(r.bunga))}</td>
+                    <td className="num" data-label="Sisa">{fmtRp(Math.round(r.sisa))}</td>
+                  </tr>))}
                 </tbody>
               </table>
             </div>
           </div>
         )}
       </>) : (
-        <div className="card" style={{ marginTop: 14 }}><span className="hint">Isi harga unit dulu untuk melihat hasil simulasi.</span></div>
+        <div className="card" style={{ marginTop: 14 }}>
+          <span className="hint">Pilih unit di atas atau isi plafon KPR untuk melihat simulasi.</span>
+        </div>
       )}
       <Toast />
     </>
