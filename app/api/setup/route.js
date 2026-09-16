@@ -128,6 +128,7 @@ export async function GET(req) {
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nama text`;
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sales text`;
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sumber text`;
+  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nilai numeric`;
   await coba(() => sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`);
 
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {

@@ -238,13 +238,15 @@ export default function Dashboard() {
       { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 },
       { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
       { h: 'Sumber', k: 'src', w: 13 },
-      { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 }, { h: 'Nilai (Rp)', k: 'nilai', w: 15, num: true },
+      { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 },
+      { h: 'Nilai Reserved / Booking (Rp)', k: 'nilai', w: 19, num: true },
+      { h: 'Nilai Transaksi (Rp)', k: 'njual', w: 18, num: true },
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
     ], trxX.map(t => ({
       _raw: t,
       tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '',
       proj: t.project || '-', src: leadSrcMap[t.lead_code] || '', unit: t.unit || '', jenis: t.jenis,
-      nilai: Number(t.nilai) || 0, bayar: t.bayar || '', cat: t.catatan || '',
+      nilai: Number(t.nilai) || 0, njual: Number(t.nilai_jual) || 0, bayar: t.bayar || '', cat: t.catatan || '',
     })), { cocok: cocokTrx, warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
 
     // ===== RINGKASAN (angka & grafik dari data terpilih) =====
@@ -323,21 +325,18 @@ export default function Dashboard() {
     seksi('DOMISILI (TOP 12)', hitung(pl, l => l.domisili));
 
     // ===== Sheet Stok (posisi terkini) =====
-    const lastVal2 = {};
-    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
-      if (!t.unit || !t.project) return;
-      const key = t.project + '|' + t.unit;
-      if (t.jenis === 'Batal') delete lastVal2[key]; else lastVal2[key] = Number(t.nilai) || 0;
-    });
+    // Nilai unit = nilai terkini pada Master Stock (transaksi: nilai transaksi/booking · manual: nilai kontrak impor)
+    const nilaiUnit = u => Number(u.nilai) || 0;
     // Daftar unit bertanda + sales/agent (mengikuti pemilik lead bila dari transaksi)
     buatSheet('Unit Terjual', 'DAFTAR UNIT TERJUAL & RESERVED', [
       { h: 'Project', k: 'p', w: 16 }, { h: 'Blok / Unit', k: 'u', w: 16 },
       { h: 'Status', k: 'st', w: 11 }, { h: 'Nama Pembeli', k: 'n', w: 26 },
-      { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'ID Lead', k: 'id', w: 11 },
+      { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'Nilai (Rp)', k: 'v', w: 17, num: true },
+      { h: 'ID Lead', k: 'id', w: 11 },
     ], [...(stock || [])].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
       p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : 'Reserved',
-      n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '') || '-',
-      sa: u.sales || '-', id: u.lead_code || '-',
+      n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '').replace(/\(manual\)/i, '').trim() || '-',
+      sa: u.sales || '-', v: Number(u.nilai) || 0, id: u.lead_code || '-',
     })), { sub: 'Posisi unit per hari ini — sales/agent otomatis mengikuti pemilik lead untuk unit bertransaksi. · copyright © 2026 by Andriawanp' });
 
     buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
@@ -353,8 +352,8 @@ export default function Dashboard() {
         p: p2, tot: total, jual: mer.length, res: kun.length,
         sisa: Math.max(0, total - mer.length - kun.length),
         pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
-        nj: mer.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
-        nr: kun.reduce((a, u) => a + (lastVal2[p2 + '|' + u.unit] || 0), 0),
+        nj: mer.reduce((a, u) => a + nilaiUnit(u), 0),
+        nr: kun.reduce((a, u) => a + nilaiUnit(u), 0),
       };
     }), { sub: 'Posisi stok per hari ini (transaksi + penandaan manual Master Stock) — tidak terpengaruh filter. · copyright © 2026 by Andriawanp' });
 

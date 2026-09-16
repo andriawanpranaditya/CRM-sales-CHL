@@ -9,9 +9,9 @@ export async function GET() {
   const { err } = await requireUser(); if (err) return err;
   const sql = db();
   const positions = await sql`SELECT project, unit, x, y FROM unit_positions`;
-  const manual = await sql`SELECT project, unit, status, nama, sales FROM unit_manual`;
+  const manual = await sql`SELECT project, unit, status, nama, sales, nilai FROM unit_manual`;
   const trx = await sql`
-    SELECT t.id, t.jenis, t.unit, t.lead_code, l.nama, l.sales,
+    SELECT t.id, t.jenis, t.unit, t.lead_code, t.nilai, t.nilai_jual, l.nama, l.sales,
            COALESCE(NULLIF(t.project, ''), l.project, '') AS project
     FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code
     WHERE t.unit IS NOT NULL AND t.unit <> ''
@@ -23,8 +23,8 @@ export async function GET() {
     if (!t.project) return;
     const key = t.project + '|' + t.unit;
     if (t.jenis === 'Batal') m[key] = null;
-    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '' };
-    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '' };
+    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '', nilai: Number(t.nilai_jual) || Number(t.nilai) || 0 };
+    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '', nilai: Number(t.nilai_jual) || Number(t.nilai) || 0 };
   });
   manual.forEach(x => {
     const key = x.project + '|' + x.unit;
@@ -37,8 +37,8 @@ export async function GET() {
       m[key] = { ...m[key], nama: m[key].nama || namaM, sales: m[key].sales || salesM };
       return;
     }
-    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
-    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
+    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM, nilai: Number(x.nilai) || 0 };
+    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM, nilai: Number(x.nilai) || 0 };
     else m[key] = null;
   });
   const status = Object.entries(m)
