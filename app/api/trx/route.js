@@ -31,10 +31,14 @@ export async function POST(req) {
       WHERE t.unit = ${b.unit} AND t.lead_code = ${b.lead_code}
         AND COALESCE(NULLIF(t.project, ''), l.project, '') = ${b.project} LIMIT 1`;
     if (!prior.length) {
-      const tf = await sql`SELECT 1 FROM trx_files
-        WHERE project = ${b.project} AND unit = ${b.unit} AND lead_code = ${b.lead_code} AND jenis = 'transfer' LIMIT 1`;
-      if (!tf.length) {
+      const tf = await sql`SELECT jenis FROM trx_files
+        WHERE project = ${b.project} AND unit = ${b.unit} AND lead_code = ${b.lead_code}`;
+      const ada = tf.map(x => x.jenis);
+      if (!ada.includes('transfer')) {
         return Response.json({ error: 'Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.' }, { status: 400 });
+      }
+      if (!ada.includes('ktp')) {
+        return Response.json({ error: 'Upload KTP dulu untuk transaksi pertama di unit ini.' }, { status: 400 });
       }
     }
   }
@@ -75,8 +79,8 @@ export async function POST(req) {
       for (const r of res) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
     }
   }
-  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, catatan, project, bayar, unit, created_by)
-    VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${catatan},
+  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, created_by)
+    VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
   // Booking/Closing: tanda manual (mis. kuning Reserved) dilepas supaya peta mengikuti transaksi -> merah
   if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
@@ -134,6 +138,7 @@ export async function PATCH(req) {
   }
   await sql`UPDATE transactions SET
       tgl = ${b.tgl || null}, jenis = ${b.jenis}, nilai = ${Number(b.nilai) || 0},
+      nilai_jual = ${b.nilai_jual ? Number(b.nilai_jual) : null},
       project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''},
       catatan = ${catatan}
     WHERE id = ${b.id}`;

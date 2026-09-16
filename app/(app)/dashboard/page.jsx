@@ -539,52 +539,22 @@ ${salesNs.length ? salesNs.map(sn => {
 </table>
 <p class="muted" style="font-size:8.5pt">Closing Rate = jumlah lead yang mencapai Booking ÷ total lead sales tsb pada periode.</p>
 
-<h2>4. REKOMENDASI FOLLOW UP — PRIORITAS WARM &amp; HOT</h2>
-<p class="muted">Analisa per lead diarahkan ke Booking. Perilaku konsumen properti saat ini: membandingkan 3–5 proyek sekaligus secara online, memutuskan berdasarkan besaran angsuran (bukan harga total), dan menghargai kecepatan respon — lead yang direspon &lt; 1 jam berpeluang konversi jauh lebih tinggi.</p>
-<table><tr><th style="width:70px">Prioritas</th><th>Lead</th><th style="width:32%">Summary Hasil Follow Up</th><th>Analisa &amp; Rekomendasi Menuju Booking</th></tr>
-${recos.length ? recos.map(l => {
-      const obj = ((l.last && l.last.objection) || '').toLowerCase();
-      const dsD = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '';
-      const aksi = [];
-      if (l.overdue) aksi.push('<b>Jadwal FU sudah lewat</b> — hubungi hari ini; tiap hari tertunda, lead dibanding-bandingkan dengan proyek kompetitor.');
-      if (!l.last) aksi.push('<b>Belum pernah di-follow up</b> — kontak hari ini juga; respon pertama yang cepat adalah penentu terbesar konversi.');
-      // Analisa berbasis posisi transaksi lead saat ini
-      if (l.deal && l.deal.jenis === 'Reserved') {
-        aksi.push(`Sudah <b>RESERVED</b>${l.deal.unit ? ' unit <b>' + esc(l.deal.unit) + '</b>' : ''} (${dsD(l.deal.tgl)}) — fase kritis: fokus naikkan ke <b>Booking</b>. Lengkapi berkas, tetapkan tanggal pelunasan booking fee, dan ingatkan masa berlaku reservasi agar unit tidak dilepas.`);
-      } else if (l.deal && l.deal.jenis === 'Booking') {
-        aksi.push(`Sudah <b>BOOKING</b>${l.deal.unit ? ' unit <b>' + esc(l.deal.unit) + '</b>' : ''} (${dsD(l.deal.tgl)}) — kawal administrasi: pelunasan sesuai skema bayar, kelengkapan dokumen KPR bila kredit, dan jaga komunikasi agar tidak berujung pembatalan.`);
-      } else if (l.deal && l.deal.jenis === 'Batal') {
-        aksi.push(`Pernah <b>membatalkan</b> transaksi${l.deal.unit ? ' unit ' + esc(l.deal.unit) : ''} (${dsD(l.deal.tgl)}) — gali alasan pembatalannya terlebih dahulu, lalu tawarkan alternatif unit/skema pembayaran yang menjawab alasan tersebut; lead yang pernah bertransaksi tetap prospek terbaik.`);
-      } else if (l.status === 'Hot') {
-        aksi.push('Belum ada transaksi: tawarkan <b>Reserved dengan tanda jadi ringan</b> untuk mengunci unit pilihannya — tunjukkan peta stok terkini sebagai bukti unit favorit cepat habis, lalu jadwalkan pelunasan booking fee.');
-      } else {
-        aksi.push('Belum ada transaksi: bangun urgensi bertahap — kirim materi bernilai (progress pembangunan, foto unit, testimoni) dan tutup setiap kontak dengan ajakan konkret: jadwal visit atau reservasi, bukan sekadar menanyakan kabar.');
-      }
-      if (/harga|mahal|budget|dana|dp|cicil/.test(obj)) aksi.push('Objection harga: siapkan <b>2 simulasi angsuran</b> (DP dicicil vs tenor berbeda) dan alternatif tipe yang lebih terjangkau — geser pembicaraan dari harga total ke angsuran bulanan.');
-      if (/pikir|diskusi|keluarga|istri|suami|orang tua/.test(obj)) aksi.push('Menunggu keputusan keluarga: undang <b>site visit bersama pengambil keputusan</b> di akhir pekan + beri tenggat promo agar keputusan tidak menggantung.');
-      if (/lokasi|jauh|akses|banjir/.test(obj)) aksi.push('Keberatan lokasi: kirim peta akses &amp; waktu tempuh riil ke titik penting (tol, sekolah, pasar) dan tonjolkan fasilitas kawasan sebagai kompensasi jarak.');
-      if (/walk/i.test(l.sumber || '')) aksi.push('Sudah pernah datang langsung — jangan ulang presentasi dari awal: <b>sempitkan ke 2–3 unit favorit</b> dan tawarkan hold unit 1×24 jam.');
-      if (Number(l.budget)) aksi.push('Budget diketahui (±' + rp(l.budget) + ') — ajukan langsung tipe &amp; unit yang cocok agar penawaran terasa personal.');
-      return `<tr class="${l.status === 'Hot' ? 'hot' : 'warm'}">
-<td><b>${l.status.toUpperCase()}</b>${l.deal && l.deal.jenis === 'Reserved' ? '<br/><span style="color:#8A5F14;font-weight:bold;font-size:8pt">● RESERVED</span>' : ''}${l.deal && l.deal.jenis === 'Booking' ? '<br/><span style="color:#23694A;font-weight:bold;font-size:8pt">● BOOKING</span>' : ''}${l.overdue ? '<br/><span class="badge-over">TERLAMBAT</span>' : ''}</td>
-<td><b>${esc(l.nama)}</b><br/><span class="muted">${esc(l.lead_code)} · ${esc(l.project || '')} ${esc(l.tipe || '')} · ${esc(l.sales)}${l.deal && l.deal.unit && l.deal.jenis !== 'Batal' ? '<br/>Unit: <b>' + esc(l.deal.unit) + '</b>' : ''}</span></td>
-<td>${(() => {
-        const fs = l.myFus || [];
-        if (!fs.length) return '<span class="badge-over">Belum ada aktivitas follow up yang tercatat.</span> Direkomendasikan kontak perdana segera dilakukan.';
-        const ds = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '';
-        const potong = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
-        const objs = [...new Set(fs.map(f => (f.objection || '').trim()).filter(Boolean))];
-        let teks = `Telah dilakukan <b>${fs.length}× follow up</b> (${ds(fs[0].tgl)}${fs.length > 1 ? ' – ' + ds(fs[fs.length - 1].tgl) : ''}). `;
-        const tampil = fs.length <= 3 ? fs : [fs[0], ...fs.slice(-2)];
-        teks += 'Kronologi: ' + tampil.map(f => `<span class="muted">${ds(f.tgl)}</span> ${esc(potong(f.detail, 90))}`).join('; ') + (fs.length > 3 ? ` <span class="muted">(+${fs.length - 3} aktivitas lainnya)</span>` : '') + '. ';
-        if (objs.length) teks += 'Kendala yang mengemuka: <i>' + esc(potong(objs.join('; '), 120)) + '</i>. ';
-        teks += l.nfu ? `Tindak lanjut berikutnya dijadwalkan <b>${dd(l.nfu)}</b>.` : '<span class="badge-over">Tindak lanjut berikutnya belum terjadwal.</span>';
-        return teks;
-      })()}</td>
-<td>${aksi.slice(0, 3).join('<br/>• ')}</td>
-</tr>`;
-    }).join('') : '<tr><td colspan="4">Tidak ada lead Warm/Hot saat ini.</td></tr>'}
-</table>
+<h2>4. MASTER STOCK — DAFTAR UNIT TERJUAL &amp; RESERVED</h2>
+<p class="muted">Posisi unit per hari ini beserta pembeli dan sales/agent penanggung jawab.</p>
+${(() => {
+      const byProj = {};
+      (stock || []).forEach(u => { if (!proj || u.project === proj) { (byProj[u.project] = byProj[u.project] || []).push(u); } });
+      const keys = Object.keys(byProj).sort();
+      if (!keys.length) return '<p class="muted">Belum ada unit bertanda pada Master Stock.</p>';
+      return keys.map(pk => {
+        const list = [...byProj[pk]].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
+        const nJ = list.filter(u => u.warna === 'merah').length, nR = list.length - nJ;
+        return `<h3 style="color:#23694A;margin:12px 0 4px">${esc(pk)} — ${nJ} terjual, ${nR} reserved</h3>
+<table><tr><th style="width:130px">Blok / Unit</th><th style="width:90px">Status</th><th>Nama Pembeli</th><th>Sales / Agent</th><th style="width:90px">ID Lead</th></tr>
+${list.map(u => `<tr><td><b>${esc(u.unit)}</b></td><td class="${u.warna === 'merah' ? 'lost' : 'warm'}"><b>${u.warna === 'merah' ? 'TERJUAL' : 'RESERVED'}</b></td><td>${esc(u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '') || '-')}</td><td>${esc(u.sales || '-')}</td><td>${esc(u.lead_code || '-')}</td></tr>`).join('')}
+</table>`;
+      }).join('');
+    })()}
 
 <h2>5. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
 <table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>

@@ -141,7 +141,7 @@ export default function FormPage() {
   const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
   const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
-  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
   const [berkas, setBerkas] = useState(null);
   const [upBusy, setUpBusy] = useState('');
@@ -186,6 +186,11 @@ export default function FormPage() {
     });
   }
 
+  function muatBerkas() {
+    if (!(trx.lead_code && trx.project && trx.unit)) return;
+    api('/api/berkas?project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code))
+      .then(setBerkas).catch(() => {});
+  }
   async function uploadBerkas(jenisB, file) {
     if (!file) return;
     if (!trx.lead_code || !trx.project || !trx.unit) return toast('Pilih ID Lead, Project & Blok/Unit dulu');
@@ -413,6 +418,9 @@ Mohon langsung disapa ya, semangat closing! 💪`;
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
     if (!Number(trx.nilai)) return toast('Nilai (Rp) wajib diisi angka');
+    if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.ktp && berkas.transfer) {
+      return toast('Upload KTP dulu untuk transaksi pertama di unit ini.');
+    }
     if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.transfer) {
       return toast('Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.');
     }
@@ -420,7 +428,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
     try {
       await api('/api/trx', { method: 'POST', body: JSON.stringify(trx) });
       toast('Transaksi tersimpan — status pipeline ter-update');
-      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', catatan: '', project: '', bayar: '', unit: '' });
+      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
 
@@ -611,37 +619,48 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           </div>
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
-            <label>Berkas Transaksi (KTP &amp; Bukti Transfer)</label>
+            <label>Berkas Transaksi — Bukti Transfer &amp; KTP Wajib</label>
             {!(trx.lead_code && trx.project && trx.unit) ? (
               <span className="hint">Pilih ID Lead, Project &amp; Blok/Unit dulu untuk mengelola berkas.</span>
-            ) : berkas && berkas.adaTrxSebelumnya ? (
-              <div className="note" style={{ marginBottom: 0 }}>✔ Berkas transaksi pertama unit ini sudah tersimpan — update ke Booking/Batal <b>tidak perlu upload lagi</b>, langsung Simpan.</div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <b style={{ fontSize: 12.5, minWidth: 105 }}>Bukti Transfer <span className="req">*</span></b>
-                  {berkas && berkas.transfer
-                    ? <span className="badge b-close">✔ TERUPLOAD</span>
-                    : <input type="file" accept="image/*,application/pdf" disabled={upBusy !== ''}
-                        onChange={e => uploadBerkas('transfer', e.target.files[0])} />}
-                  {upBusy === 'transfer' && <span className="hint">Mengupload…</span>}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <b style={{ fontSize: 12.5, minWidth: 105 }}>KTP</b>
-                  {berkas && berkas.ktp
-                    ? <span className="badge b-close">✔ TERUPLOAD</span>
-                    : <input type="file" accept="image/*,application/pdf" disabled={upBusy !== ''}
-                        onChange={e => uploadBerkas('ktp', e.target.files[0])} />}
-                  {upBusy === 'ktp' && <span className="hint">Mengupload…</span>}
-                </div>
-                <span className="hint">Wajib minimal Bukti Transfer untuk transaksi pertama di unit ini. Foto dikompres otomatis; PDF maks 2 MB.</span>
+                {[['transfer', 'Bukti Transfer', true], ['ktp', 'KTP', true], ['lain', 'Dokumen Lain', false]].map(([kd, judul, wajib]) => (
+                  <div key={kd} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <b style={{ fontSize: 12.5, minWidth: 115 }}>{judul}{wajib ? <span className="req"> *</span> : null}</b>
+                    {berkas && berkas[kd] ? (<>
+                      <span className="badge b-close">✔ TERUNGGAH</span>
+                      <a className="sort-btn" style={{ textDecoration: 'none', padding: '2px 10px' }} target="_blank" rel="noreferrer"
+                        href={'/api/berkas?view=1&project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code) + '&jenis=' + kd}>Lihat</a>
+                      <label className="sort-btn" style={{ padding: '2px 10px', cursor: 'pointer' }}>GANTI
+                        <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={upBusy !== ''}
+                          onChange={e => uploadBerkas(kd, e.target.files[0])} /></label>
+                      <button className="sort-btn" style={{ padding: '2px 10px', color: 'var(--red)', borderColor: 'var(--red)' }}
+                        onClick={async () => {
+                          if (!confirm('Hapus ' + judul + '?')) return;
+                          try {
+                            await api('/api/berkas?project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code) + '&jenis=' + kd, { method: 'DELETE' });
+                            toast(judul + ' dihapus'); muatBerkas();
+                          } catch (er) { toast(er.message); }
+                        }}>Hapus</button>
+                    </>) : (
+                      <input type="file" accept="image/*,application/pdf" disabled={upBusy !== ''}
+                        onChange={e => uploadBerkas(kd, e.target.files[0])} />
+                    )}
+                    {upBusy === kd && <span className="hint">Mengunggah…</span>}
+                  </div>
+                ))}
+                <span className="hint">Bukti Transfer dan KTP wajib diunggah pada transaksi pertama unit ini. Slot Dokumen Lain untuk NPWP, kartu keluarga, surat nikah, atau berkas pendukung lain. Foto dikompres otomatis; PDF maks 2 MB.</span>
               </div>
             )}
           </div>
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
-          <div className="field"><label>Nilai (Rp) <span className="req">*</span></label><input type="number" min="0" {...ft('nilai')} /></div>
+          <div className="field"><label>Nilai Reserved / Booking (Rp) <span className="req">*</span></label>
+            <input type="number" min="0" {...ft('nilai')} placeholder="uang yang dibayarkan saat ini" /></div>
+          <div className="field"><label>Nilai Transaksi (Rp)</label>
+            <input type="number" min="0" {...ft('nilai_jual')} placeholder="harga jual unit" />
+            <span className="hint">Harga jual unit — dipakai untuk Surat Pesanan &amp; PPJB serta perhitungan nilai penjualan.</span></div>
           <div className="field"><label>Catatan</label><input {...ft('catatan')} /></div>
         </div>
         <div className="form-foot">

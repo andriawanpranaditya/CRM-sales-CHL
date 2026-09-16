@@ -35,6 +35,7 @@ export async function GET(req) {
   return Response.json({
     ktp: rows.some(r => r.jenis === 'ktp'),
     transfer: rows.some(r => r.jenis === 'transfer'),
+    lain: rows.some(r => r.jenis === 'lain'),
     adaTrxSebelumnya: trxAda.length > 0,
   });
 }
@@ -44,7 +45,7 @@ export async function POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || !b.lead_code) return Response.json({ error: 'Pilih lead, project & unit dulu' }, { status: 400 });
-  if (!['ktp', 'transfer'].includes(b.jenis)) return Response.json({ error: 'Jenis berkas tidak valid' }, { status: 400 });
+  if (!['ktp', 'transfer', 'lain'].includes(b.jenis)) return Response.json({ error: 'Jenis berkas tidak valid' }, { status: 400 });
   if (!b.data) return Response.json({ error: 'File kosong' }, { status: 400 });
   if (b.data.length > 3_500_000) return Response.json({ error: 'File terlalu besar (maks ± 2,5 MB). Gunakan foto/PDF yang lebih kecil.' }, { status: 400 });
   const sql = db();
@@ -52,5 +53,19 @@ export async function POST(req) {
     VALUES (${b.project}, ${b.unit}, ${b.lead_code}, ${b.jenis}, ${b.filename || ''}, ${b.mime || ''}, ${b.data}, ${user.username})
     ON CONFLICT (project, unit, lead_code, jenis)
     DO UPDATE SET filename = ${b.filename || ''}, mime = ${b.mime || ''}, data = ${b.data}, uploaded_by = ${user.username}, created_at = now()`;
+  return Response.json({ ok: true });
+}
+
+// DELETE: hapus berkas yang salah unggah (selama transaksi belum terkunci)
+export async function DELETE(req) {
+  const { err } = await requireUser(); if (err) return err;
+  const { searchParams } = new URL(req.url);
+  const project = searchParams.get('project'), unit = searchParams.get('unit');
+  const lead = searchParams.get('lead_code'), jenis = searchParams.get('jenis');
+  if (!project || !unit || !lead || !['ktp', 'transfer', 'lain'].includes(jenis)) {
+    return Response.json({ error: 'Parameter tidak lengkap' }, { status: 400 });
+  }
+  const sql = db();
+  await sql`DELETE FROM trx_files WHERE project = ${project} AND unit = ${unit} AND lead_code = ${lead} AND jenis = ${jenis}`;
   return Response.json({ ok: true });
 }

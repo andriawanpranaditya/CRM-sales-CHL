@@ -5,39 +5,39 @@ export const dynamic = 'force-dynamic';
 
 // Data Weekly Report BIO DISTRICT s.d September 2026 (32 terjual + 1 reserved)
 const DATA = [
-  { u: 'Bio Ave 1 no.02', s: 'T', n: "Yuliono" },
-  { u: 'Bio Ave 1 no.03', s: 'T', n: "Steven" },
-  { u: 'Bio Ave 1 no.05', s: 'T', n: "Elisusana" },
-  { u: 'Bio Ave 1 no.07', s: 'T', n: "Badai Indragiri" },
-  { u: 'Bio Ave 2 no.05', s: 'T', n: "Dewi Mirawati" },
-  { u: 'Bio Ave 2 no.06', s: 'T', n: "Johann Dandy Hartono" },
-  { u: 'Bio Ave 2 no.07', s: 'T', n: "Shalita Selene Supian" },
-  { u: 'Bio Ave 2 no.08', s: 'T', n: "Ivan Putra Wijaya" },
-  { u: 'Bio Ave 2 no.09', s: 'T', n: "David Chrisnanto Wijaya Kusuma" },
-  { u: 'Bio Ave 3 no.03', s: 'T', n: "D'Albertgati Ranapoja Soe" },
-  { u: 'Bio Ave 3 no.05', s: 'T', n: "Maryanti Hutabarat" },
-  { u: 'Bio Ave 3 no.06', s: 'T', n: "Muh. Yusril Nashrun Khairun Suweleh" },
-  { u: 'Bio Ave 3 no.07', s: 'T', n: "Ayu Aditya" },
-  { u: 'Bio Ave 3 no.09', s: 'T', n: "Sunu Arditya Sokya" },
-  { u: 'Bio Ave 3 no.10', s: 'T', n: "Naura Luthfia" },
-  { u: 'Bio Ave 3 no.11', s: 'T', n: "Frangky Septian" },
-  { u: 'Bio Ave 3 no.12', s: 'T', n: "Andy Wijaya" },
-  { u: 'Bio Ave 3 no.15', s: 'T', n: "Yos Prabowo" },
-  { u: 'Bio Ave 5 no.03', s: 'T', n: "Hikmah, S.Si,APT" },
-  { u: 'Bio Ave 5 no.08', s: 'T', n: "Paulus Benny Siagian" },
-  { u: 'Bio Ave 5 no.09', s: 'T', n: "Akhmad Rianto Nugrohojati, SE" },
-  { u: 'Bio Ave 5 no.10', s: 'T', n: "Owen Orlando Sumakul" },
-  { u: 'Bio Ave 5 no.11', s: 'T', n: "Haryono" },
-  { u: 'Bio Ave 5 no.15', s: 'T', n: "Taufik Safroni" },
-  { u: 'Bio Ave 6 no.07', s: 'T', n: "Muhammad Subhan" },
-  { u: 'Bio Blv no.03', s: 'T', n: "Wartono" },
-  { u: 'Bio Blv no.05', s: 'T', n: "Naomi Michelle" },
-  { u: 'Bio Blv no.06', s: 'T', n: "Andita Frida Aisha" },
-  { u: 'Bio Blv no.10', s: 'T', n: "Pricillia Agyanatasya" },
-  { u: 'Bio Blv no.16', s: 'T', n: "Ayu Wulan Sari" },
-  { u: 'Bio Blv no.18', s: 'T', n: "Siti Nurhaliza" },
-  { u: 'Bio Blv no.19', s: 'T', n: "Dian Moris, S.Si.T" },
-  { u: 'Bio Blv no.12', s: 'R', n: "Mega Difary" }
+  { u: "Bio Ave 1 no.02", s: "T", n: "Yuliono", a: "Andy Boy / Sunli Realty" },
+  { u: "Bio Ave 1 no.03", s: "T", n: "Steven", a: "William Tan Jaya / Linktown" },
+  { u: "Bio Ave 1 no.05", s: "T", n: "Elisusana", a: "Fahmi / Fam Estate" },
+  { u: "Bio Ave 1 no.07", s: "T", n: "Badai Indragiri", a: "Kevin Sean Keefe Louhenapessy / Inhouse" },
+  { u: "Bio Ave 2 no.05", s: "T", n: "Dewi Mirawati", a: "Sri Yamtini / Indopro" },
+  { u: "Bio Ave 2 no.06", s: "T", n: "Johann Dandy Hartono", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Ave 2 no.07", s: "T", n: "Shalita Selene Supian", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Ave 2 no.08", s: "T", n: "Ivan Putra Wijaya", a: "Anggreani Anzany / Social Maison" },
+  { u: "Bio Ave 2 no.09", s: "T", n: "David Chrisnanto Wijaya Kusuma", a: "Sri Yamtini / Indopro" },
+  { u: "Bio Ave 3 no.03", s: "T", n: "D'Albertgati Ranapoja Soe", a: "Anggreani Anzany / Social Maison" },
+  { u: "Bio Ave 3 no.05", s: "T", n: "Maryanti Hutabarat", a: "Sri Yamtini / Indopro" },
+  { u: "Bio Ave 3 no.06", s: "T", n: "Muh. Yusril Nashrun Khairun Suweleh", a: "Risky Cardo / Carirumah88" },
+  { u: "Bio Ave 3 no.07", s: "T", n: "Ayu Aditya", a: "Andy Boy / Sunli Realty" },
+  { u: "Bio Ave 3 no.09", s: "T", n: "Sunu Arditya Sokya", a: "Chintya Amelia / Atlantis Realty" },
+  { u: "Bio Ave 3 no.10", s: "T", n: "Naura Luthfia", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Ave 3 no.11", s: "T", n: "Frangky Septian", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Ave 3 no.12", s: "T", n: "Andy Wijaya", a: "Moh Thobie Prathama / Linktown" },
+  { u: "Bio Ave 3 no.15", s: "T", n: "Yos Prabowo", a: "Ade Gunawan Lubis / Inhouse" },
+  { u: "Bio Ave 5 no.03", s: "T", n: "Hikmah, S.Si,APT", a: "M. Rizky Maulana Nst / Linktown" },
+  { u: "Bio Ave 5 no.08", s: "T", n: "Paulus Benny Siagian", a: "Hendri / Find Your Property" },
+  { u: "Bio Ave 5 no.09", s: "T", n: "Akhmad Rianto Nugrohojati, SE", a: "Paulina / Fam Estate" },
+  { u: "Bio Ave 5 no.10", s: "T", n: "Owen Orlando Sumakul", a: "Deanry Irsan / Linktown" },
+  { u: "Bio Ave 5 no.11", s: "T", n: "Haryono", a: "Muhamad Subhi Djunari / Inhouse" },
+  { u: "Bio Ave 5 no.15", s: "T", n: "Taufik Safroni", a: "Fahmi / Fam Estate" },
+  { u: "Bio Ave 6 no.07", s: "T", n: "Muhammad Subhan", a: "Moh Thobie Prathama / Linktown" },
+  { u: "Bio Blv no.03", s: "T", n: "Wartono", a: "Andy Boy / Sunli Realty" },
+  { u: "Bio Blv no.05", s: "T", n: "Naomi Michelle", a: "Jourdeane Maximilllian Palekahelu / MS Property" },
+  { u: "Bio Blv no.06", s: "T", n: "Andita Frida Aisha", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Blv no.10", s: "T", n: "Pricillia Agyanatasya", a: "Sri Yamtini / Sunli Realty" },
+  { u: "Bio Blv no.16", s: "T", n: "Ayu Wulan Sari", a: "Muhamad Subhi Djunari / Inhouse" },
+  { u: "Bio Blv no.18", s: "T", n: "Siti Nurhaliza", a: "Kevin Sean Keefe Louhenapessy / Inhouse" },
+  { u: "Bio Blv no.19", s: "T", n: "Dian Moris, S.Si.T", a: "Raeno Lingga Wisesa / Inhouse" },
+  { u: "Bio Blv no.12", s: "R", n: "Mega Difary", a: "Putri Rejeki Triwijayanti / Inhouse" }
 ];
 // Master unit BIO DISTRICT sesuai SITEPLAN RESMI — 63 unit
 // (penomoran melewati 01, 04, 13, 14)
@@ -131,16 +131,27 @@ export async function POST() {
   let terjual = 0, reserved = 0;
   for (const d of DATA) {
     const status = d.s === 'T' ? 'Terjual' : 'Reserved';
-    await sql`INSERT INTO unit_manual (project, unit, status, nama)
-              VALUES (${PROJ}, ${d.u}, ${status}, ${d.n})
-              ON CONFLICT (project, unit) DO UPDATE SET status = ${status}, nama = ${d.n}, updated_at = now()`;
+    await sql`INSERT INTO unit_manual (project, unit, status, nama, sales)
+              VALUES (${PROJ}, ${d.u}, ${status}, ${d.n}, ${d.a || ''})
+              ON CONFLICT (project, unit) DO UPDATE SET status = ${status}, nama = ${d.n}, sales = ${d.a || ''}, updated_at = now()`;
     if (d.s === 'T') terjual++; else reserved++;
   }
+  // 3) Bersihkan tanda manual lama di unit yang TIDAK ada dalam report (mis. bekas batal)
+  const pakai = DATA.map(d => d.u);
+  const bersih = [];
+  for (const t of semuaTanda) {
+    if (!pakai.includes(t.unit)) {
+      await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`;
+      bersih.push(t.unit);
+    }
+  }
+
   return Response.json({
     ok: true, terjual, reserved, takDikenal,
     totalUnit: MASTER63.length,
     unitBaru: baru.length,
     unitDibuang: hilang.length,
     tandaMenggantung: sisaTanda.map(x => x.unit + ' (' + x.status + ')'),
+    tandaDibersihkan: bersih,
   });
 }

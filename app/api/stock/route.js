@@ -9,7 +9,7 @@ export async function GET() {
   const { err } = await requireUser(); if (err) return err;
   const sql = db();
   const positions = await sql`SELECT project, unit, x, y FROM unit_positions`;
-  const manual = await sql`SELECT project, unit, status, nama FROM unit_manual`;
+  const manual = await sql`SELECT project, unit, status, nama, sales FROM unit_manual`;
   const trx = await sql`
     SELECT t.id, t.jenis, t.unit, t.lead_code, l.nama,
            COALESCE(NULLIF(t.project, ''), l.project, '') AS project
@@ -30,8 +30,9 @@ export async function GET() {
     const key = x.project + '|' + x.unit;
     const pemilik = (m[key] && m[key].lead_code) || null; // unit ber-transaksi tetap ingat lead pemiliknya
     const namaM = (x.nama || '').trim();
-    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM };
-    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM };
+    const salesM = (x.sales || '').trim();
+    if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
+    else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
     else m[key] = null;
   });
   const status = Object.entries(m)
@@ -69,9 +70,10 @@ export async function PUT(req) {
     return Response.json({ error: 'Status tidak valid' }, { status: 400 });
   }
   const nama = typeof b.nama === 'string' ? b.nama.trim() : '';
-  await sql`INSERT INTO unit_manual (project, unit, status, nama)
-            VALUES (${b.project}, ${b.unit}, ${b.status}, ${nama})
-            ON CONFLICT (project, unit) DO UPDATE SET status = ${b.status}, nama = ${nama}, updated_at = now()`;
+  const salesM = typeof b.sales === 'string' ? b.sales.trim() : '';
+  await sql`INSERT INTO unit_manual (project, unit, status, nama, sales)
+            VALUES (${b.project}, ${b.unit}, ${b.status}, ${nama}, ${salesM})
+            ON CONFLICT (project, unit) DO UPDATE SET status = ${b.status}, nama = ${nama}, sales = ${salesM}, updated_at = now()`;
   return Response.json({ ok: true });
 }
 
