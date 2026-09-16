@@ -8,6 +8,7 @@ export default function BookingPage() {
   const [me, setMe] = useState(null);
   const [proj, setProj] = useState('');
   const [per, setPer] = useState(''); // '' | 'bulan-ini' | 'tahun-ini' | 'YYYY-MM'
+  const [ringkas, setRingkas] = useState(true); // tampilkan status terakhir per unit saja
   const [set, setSet] = useState({ project: [], units: {} });
   const [edit, setEdit] = useState(null); // transaksi yang sedang diedit (manager)
   const [busy, setBusy] = useState(false);
@@ -32,7 +33,20 @@ export default function BookingPage() {
     if (per === 'tahun-ini') return tgl.slice(0, 4) === String(kini.getFullYear());
     return tgl.slice(0, 7) === per;
   };
-  const rows = trx.filter(t => (!proj || t.project === proj) && dlmPeriode(t));
+  const rowsAll = trx.filter(t => (!proj || t.project === proj) && dlmPeriode(t));
+  // Ringkas: satu baris per lead+unit (status TERAKHIR), tahapan sebelumnya jadi riwayat
+  const urutTgl = (a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0);
+  const grup = {};
+  [...rowsAll].sort(urutTgl).forEach(t => {
+    const k = (t.lead_code || '') + '|' + (t.project || '') + '|' + (t.unit || 'x' + t.id);
+    (grup[k] = grup[k] || []).push(t);
+  });
+  const rowsRingkas = Object.values(grup).map(g => {
+    const akhir = g[g.length - 1];
+    const riwayat = g.slice(0, -1).map(x => x.jenis + ' ' + fmtDate(x.tgl)).join(' → ');
+    return { ...akhir, _riwayat: riwayat, _jumlah: g.length };
+  });
+  const rows = ringkas ? [...rowsRingkas].sort((a, b) => urutTgl(b, a)) : rowsAll;
 
   async function simpanEdit() {
     setBusy(true);
@@ -60,6 +74,10 @@ export default function BookingPage() {
         <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
         {(set.project || []).map(p => (
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+        <button className={'sort-btn' + (ringkas ? ' active' : '')} onClick={() => setRingkas(r => !r)}
+          title="Ringkas: satu baris per unit dengan status terakhir">
+          {ringkas ? '✓ Status Terakhir' : 'Semua Riwayat'}
+        </button>
         <select className="sort-filter" value={per} onChange={e => setPer(e.target.value)} title="Periode transaksi">
           <option value="">Semua Periode</option>
           <option value="bulan-ini">Bulan Ini</option>
@@ -84,6 +102,9 @@ export default function BookingPage() {
             </tr>;
           })}
         </tbody></table>
+        <div className="hint" style={{ marginTop: 6 }}>
+          Penjualan diakui pada <b>tanggal Booking</b> — status Reserved belum dihitung sebagai penjualan.
+        </div>
       </div>
 
       {isMgr && edit && (
@@ -91,7 +112,12 @@ export default function BookingPage() {
           <h2>✏️ Edit Transaksi — {edit.lead_code} {edit.nama ? '· ' + edit.nama : ''}</h2>
           <div className="form-grid">
             <div className="field"><label>Jenis</label>
-              <select value={edit.jenis} onChange={e => setEdit({ ...edit, jenis: e.target.value })}>
+              <select value={edit.jenis} onChange={e => {
+                const j = e.target.value;
+                const naik = j === 'Booking' && edit.jenis === 'Reserved';
+                setEdit({ ...edit, jenis: j, tgl: naik ? new Date().toISOString().slice(0, 10) : edit.tgl });
+                if (naik) toast('Tanggal diisi hari ini — penjualan diakui pada tanggal Booking. Ubah bila tanggal booking-nya berbeda.');
+              }}>
                 <option>Reserved</option><option>Booking</option><option>Closing</option><option>Batal</option>
               </select></div>
             <div className="field"><label>Tanggal</label>
@@ -146,7 +172,7 @@ export default function BookingPage() {
                 <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
                   href={'/api/berkas?view=1&jenis=ktp&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 KTP</a>
               </> : <span className="hint">—</span>}</td>
-              <td data-label="Catatan">{t.catatan}</td>
+              <td data-label="Catatan">{t._riwayat ? <span className="hint" style={{ display: 'block' }}>{t._riwayat} → {t.jenis}</span> : null}{t.catatan}</td>
               {isMgr && <td data-label="Aksi" style={{ whiteSpace: 'nowrap' }}>
                 <button className="sort-btn" style={{ padding: '4px 9px' }} onClick={() => setEdit({ ...t, tgl: (t.tgl || '').slice(0, 10) })}>Edit</button>{' '}
                 <button className="sort-btn" style={{ padding: '4px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(t)}>Hapus</button>

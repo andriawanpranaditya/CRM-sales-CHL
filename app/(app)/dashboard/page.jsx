@@ -86,7 +86,9 @@ export default function Dashboard() {
   ];
   if (dropIdx >= 0) pipeRows.splice(dropIdx, 0, ...trxRows); else pipeRows.push(...trxRows);
   const max = Math.max(1, ...pipeRows.map(r => r.val));
-  const salesNames = [...new Set(mLeads.map(l => l.sales).filter(Boolean))];
+  // Sertakan juga sales yang punya transaksi bulan ini walau lead-nya masuk bulan sebelumnya
+  const salesNames = [...new Set([...mLeads.map(l => l.sales), ...mTrx.map(t => t.sales)].filter(Boolean))];
+  const perSales = (jenis, sName) => new Set(mTrx.filter(t => t.jenis === jenis && t.sales === sName).map(t => t.lead_code)).size;
   // Grafik sumber lead bulan berjalan
   const srcCount = {};
   mLeads.forEach(l => { const k = l.sumber || 'Tidak diisi'; srcCount[k] = (srcCount[k] || 0) + 1; });
@@ -305,7 +307,7 @@ export default function Dashboard() {
 
     secHead('RINGKASAN');
     [['Lead Masuk', pl.length, ''], ['Follow Up', pf.length, ''],
-     ['Reserved (lead)', resSet.size, 'Nilai: ' + rp2(resV)], ['Booking (lead)', bookSet.size, 'Nilai: ' + rp2(bookV)]]
+     ['Reserved (lead) — belum diakui penjualan', resSet.size, 'Nilai: ' + rp2(resV)], ['Booking (lead) — penjualan diakui', bookSet.size, 'Nilai: ' + rp2(bookV)]]
       .forEach((k, i2) => {
         const row = rs.getRow(R);
         row.getCell(2).value = k[0]; row.getCell(2).font = { bold: true };
@@ -316,7 +318,7 @@ export default function Dashboard() {
       });
     R++;
 
-    secHead('RESERVED & BOOKING');
+    secHead('RESERVED & BOOKING — penjualan diakui pada tanggal Booking');
     const rbMax = Math.max(resSet.size, bookSet.size);
     [['Reserved', resSet.size, resV, BRASS], ['Booking', bookSet.size, bookV, 'FFB3402F']].forEach(([j, n, v, w]) => {
       const row = rs.getRow(R);
@@ -600,6 +602,7 @@ ${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.tes
 </table>
 
 <h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Reserved &amp; Booking</h3>
+<p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking — unit berstatus Reserved belum dihitung sebagai penjualan.</p>
 <table><tr><th>Jenis</th><th style="width:60px">Jumlah</th><th>Grafik</th><th style="width:150px">Nilai</th></tr>
 ${(() => {
       const rbMax = Math.max(1, resSet.size, bookSet.size);
@@ -769,8 +772,8 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
           <div className="card">
             <h2>Nilai (Rp) — {bulanLabel}</h2>
             <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget Warm & Hot bulan ini)</span></span><b>{fmtRp(pipeVal)}</b></div>
-            <div className="money-line"><span>Nilai Reserved</span><b>{fmtRp(resVal)}</b></div>
-            <div className="money-line"><span>Nilai Booking</span><b>{fmtRp(bookVal)}</b></div>
+            <div className="money-line"><span>Nilai Reserved <span className="hint">(belum diakui penjualan)</span></span><b>{fmtRp(resVal)}</b></div>
+            <div className="money-line"><span>Nilai Booking <span className="hint">(penjualan diakui)</span></span><b>{fmtRp(bookVal)}</b></div>
           </div>
         </div>
       </div>
@@ -798,9 +801,8 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
             {salesNames.length ? salesNames.map(s => {
               const mine = mLeads.filter(l => l.sales === s);
               const c = st => mine.filter(l => l.status === st).length;
-              const mineCodes = new Set(mine.map(l => l.lead_code));
-              const rs = [...mResSet].filter(code => mineCodes.has(code)).length;
-              const bk = [...mBookSet].filter(code => mineCodes.has(code)).length;
+              const rs = perSales('Reserved', s);
+              const bk = perSales('Booking', s);
               return <tr key={s}>
                 <td data-label="Sales"><b>{s}</b></td>
                 <td className="num" data-label="Total">{mine.length}</td>
@@ -808,9 +810,12 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
                 <td className="num" data-label="Hot">{c('Hot')}</td>
                 <td className="num" data-label="Reserved">{rs}</td>
                 <td className="num" data-label="Booking"><b>{bk}</b></td>
-                <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bk / mine.length * 100) + '%' : '0%'}</b></td>
+                <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%')}</b></td>
               </tr>;
             }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead bulan ini.</td></tr>}
+            {salesNames.length ? <tr><td colSpan={7} className="hint" style={{ padding: '6px 10px' }}>
+              Total/Warm/Hot dihitung dari lead yang MASUK bulan ini; Reserved &amp; Booking dari transaksi bulan ini (termasuk lead lama). Closing Rate = Booking ÷ total lead bulan ini, bertanda — bila sales belum punya lead baru bulan ini.
+            </td></tr> : null}
           </tbody>
         </table>
       </div>
