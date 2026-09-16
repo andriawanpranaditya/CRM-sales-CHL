@@ -324,6 +324,45 @@ export default function Dashboard() {
     seksi('SUMBER VISIT (LEAD YANG SUDAH DATANG)', hitung(pl, l => /walk/i.test(l.sumber || '') ? (l.walkin_info || 'Walk In (tanpa info)') : (l.status === 'Site Visit' ? (l.sumber || 'Tidak diisi') : '')));
     seksi('DOMISILI (TOP 12)', hitung(pl, l => l.domisili));
 
+    // ===== MASTER STOCK — posisi unit & nilai (sumber kebenaran stok, bukan hanya transaksi aplikasi) =====
+    const projStok = (set.project || []).filter(p2 => !proj || p2 === proj);
+    if (projStok.length) {
+      secHead('MASTER STOCK — POSISI UNIT' + (proj ? ' · ' + proj : ''));
+      const hr2 = rs.getRow(R);
+      ['Project', 'Total', 'Terjual', 'Reserved', 'Tersedia', 'Nilai Terjual (Rp)'].forEach((t2, i2) => {
+        const c2 = hr2.getCell(2 + i2);
+        c2.value = t2; c2.font = { bold: true, size: 9.5, color: { argb: WHITE } };
+        c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4C7A63' } };
+        c2.alignment = { horizontal: i2 === 0 ? 'left' : 'right' }; c2.border = border;
+      });
+      R++;
+      projStok.forEach((p2, i2) => {
+        const su = (stock || []).filter(u => u.project === p2);
+        const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
+        const total = ((set.units || {})[p2] || []).length;
+        const row = rs.getRow(R);
+        const isi = [p2, total, mer.length, kun.length, Math.max(0, total - mer.length - kun.length),
+          mer.reduce((a, u) => a + (Number(u.nilai) || 0), 0)];
+        isi.forEach((v2, k2) => {
+          const c2 = row.getCell(2 + k2);
+          c2.value = v2;
+          c2.font = { size: 10, bold: k2 === 0 };
+          c2.alignment = { horizontal: k2 === 0 ? 'left' : 'right' };
+          if (k2 === 5) c2.numFmt = '#,##0';
+          if (k2 === 2) c2.font = { size: 10, bold: true, color: { argb: 'FFB3402F' } };
+          if (k2 === 3) c2.font = { size: 10, bold: true, color: { argb: BRASS } };
+          c2.border = border;
+          if (i2 % 2 === 1) c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+        });
+        R++;
+      });
+      const ket = rs.getRow(R);
+      rs.mergeCells(R, 2, R, 7);
+      ket.getCell(2).value = 'Sumber: Master Stock (transaksi aplikasi + data weekly report). KPI Reserved/Booking di atas hanya menghitung transaksi yang diinput lewat aplikasi.';
+      ket.getCell(2).font = { italic: true, size: 8.5, color: { argb: 'FF6B7A70' } };
+      R += 2;
+    }
+
     // ===== Sheet Stok (posisi terkini) =====
     // Nilai unit = nilai terkini pada Master Stock (transaksi: nilai transaksi/booking · manual: nilai kontrak impor)
     const nilaiUnit = u => Number(u.nilai) || 0;
@@ -333,7 +372,7 @@ export default function Dashboard() {
       { h: 'Status', k: 'st', w: 11 }, { h: 'Nama Pembeli', k: 'n', w: 26 },
       { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'Nilai (Rp)', k: 'v', w: 17, num: true },
       { h: 'ID Lead', k: 'id', w: 11 },
-    ], [...(stock || [])].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
+    ], [...(stock || []).filter(u => !proj || u.project === proj)].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
       p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : 'Reserved',
       n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '').replace(/\(manual\)/i, '').trim() || '-',
       sa: u.sales || '-', v: Number(u.nilai) || 0, id: u.lead_code || '-',
@@ -344,7 +383,7 @@ export default function Dashboard() {
       { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
       { h: 'Tersedia', k: 'sisa', w: 10, num: true }, { h: '% Terjual', k: 'pct', w: 10 },
       { h: 'Nilai Penjualan (Rp)', k: 'nj', w: 19, num: true }, { h: 'Nilai Reserved (Rp)', k: 'nr', w: 19, num: true },
-    ], (set.project || []).map(p2 => {
+    ], (set.project || []).filter(p2 => !proj || p2 === proj).map(p2 => {
       const total = ((set.units || {})[p2] || []).length;
       const su = stock.filter(u => u.project === p2);
       const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
@@ -355,7 +394,7 @@ export default function Dashboard() {
         nj: mer.reduce((a, u) => a + nilaiUnit(u), 0),
         nr: kun.reduce((a, u) => a + nilaiUnit(u), 0),
       };
-    }), { sub: 'Posisi stok per hari ini (transaksi + penandaan manual Master Stock) — tidak terpengaruh filter. · copyright © 2026 by Andriawanp' });
+    }), { sub: 'Posisi stok per hari ini (transaksi + penandaan Master Stock)' + (proj ? ' — project: ' + proj : '') + '. Tidak terpengaruh filter periode & sumber. · copyright © 2026 by Andriawanp' });
 
 
     const buf = await wb.xlsx.writeBuffer();
