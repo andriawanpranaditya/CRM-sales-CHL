@@ -396,7 +396,7 @@ export default function Dashboard() {
       ctx.fillStyle = m.u.warna === 'merah' ? '#B3402F' : '#C9922E'; ctx.fill();
       ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
     });
-    return cv.toDataURL('image/jpeg', 0.85);
+    return { url: cv.toDataURL('image/jpeg', 0.85), w: W, h: H };
   }
 
   async function downloadWord(mode = 'word') {
@@ -482,11 +482,15 @@ export default function Dashboard() {
     let petaHtml = '';
     for (const pj of (proj ? [proj] : (set.project || []))) {
       try {
-        const du = await gambarSiteplan(pj);
+        const g = await gambarSiteplan(pj);
         const adaTanda = stock.filter(u => u.project === pj);
         const nJ = adaTanda.filter(u => u.warna === 'merah').length, nR = adaTanda.length - nJ;
+        // Word memakai atribut width/height (px) — dipatok agar utuh dalam satu halaman A4 potret
+        const LEBAR = 620, TINGGI_MAKS = 620;
+        let wImg = LEBAR, hImg = Math.round(LEBAR * g.h / g.w);
+        if (hImg > TINGGI_MAKS) { hImg = TINGGI_MAKS; wImg = Math.round(TINGGI_MAKS * g.w / g.h); }
         petaHtml += `<h3 style="color:#23694A;margin:10px 0 4px">${esc(pj)} — ${nJ} terjual, ${nR} reserved</h3>
-<p><img src="${du}" style="width:100%;max-width:680px" /></p>`;
+<p><img src="${g.url}" width="${wImg}" height="${hImg}" style="width:${wImg}px;height:${hImg}px" /></p>`;
       } catch { petaHtml += `<p class="muted">Siteplan ${esc(pj)} tidak dapat dimuat.</p>`; }
     }
 

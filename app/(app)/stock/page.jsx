@@ -39,9 +39,13 @@ export default function StockPage() {
 
   const posMap = {}; pos.forEach(p => { posMap[p.project + '|' + p.unit] = p; });
   const manMap = {}; manual.forEach(x => { manMap[x.project + '|' + x.unit] = x.status; });
+  const unitList = (set.units && set.units[proj]) || [];
   const stMap = {}; status.forEach(u => { stMap[u.project + '|' + u.unit] = u; });
 
-  const active = status.filter(u => u.project === proj);
+  // Hanya unit yang ada di daftar master project ini yang ditampilkan —
+  // menghindari tanda "hantu" dari penamaan unit lama yang sudah tidak berlaku
+  const asing = status.filter(u => u.project === proj && unitList.length && !unitList.includes(u.unit));
+  const active = status.filter(u => u.project === proj && (!unitList.length || unitList.includes(u.unit)));
   const unmapped = active.filter(u => !posMap[proj + '|' + u.unit]);
   const markers = active.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
 
@@ -205,7 +209,6 @@ export default function StockPage() {
   }
 
   const jml = w => active.filter(u => u.warna === w).length;
-  const unitList = (set.units && set.units[proj]) || [];
   const zoomTo = z => setZoom(Math.min(4, Math.max(1, Math.round(z * 4) / 4)));
 
   return (
@@ -216,6 +219,12 @@ export default function StockPage() {
         <div className="stamp">🔴 <b>{jml('merah')}</b> terjual &nbsp; 🟡 <b>{jml('kuning')}</b> reserved</div>
       </div>
 
+      {asing.length > 0 && (
+        <div className="note" style={{ background: '#F9E7E3', borderColor: '#B3402F', marginBottom: 10 }}>
+          ⚠ <b>{asing.length} unit bertanda tidak ada di daftar unit {proj}</b> — kemungkinan penamaan lama: {asing.slice(0, 6).map(u => u.unit).join(', ')}{asing.length > 6 ? ', …' : ''}.
+          Tanda ini tidak ditampilkan di peta &amp; PDF. Manager dapat merapikannya lewat panel Update Stok Manual atau menu Booking.
+        </div>
+      )}
       <div className="fu-toolbar">
         {(set.project || []).map(p => (
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')}
