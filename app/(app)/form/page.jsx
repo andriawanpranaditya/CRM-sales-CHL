@@ -617,6 +617,12 @@ Mohon langsung disapa ya, semangat closing! 💪`;
               : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
             <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih.</span>
           </div>
+          {trx.lead_code && (() => {
+            const lS = leads.find(x => x.lead_code === trx.lead_code);
+            return <div className="field"><label>Sales / Agent</label>
+              <input value={(lS && lS.sales) || '— lead belum punya PIC —'} disabled />
+              <span className="hint">Otomatis mengikuti pemilik lead; tercatat di Master Stock, report Word, PDF &amp; Excel.</span></div>;
+          })()}
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label>Berkas Transaksi — Bukti Transfer &amp; KTP Wajib</label>

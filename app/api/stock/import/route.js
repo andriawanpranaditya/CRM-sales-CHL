@@ -128,8 +128,22 @@ export async function POST() {
 
   // 2) Tandai status unit + nama pembeli
   const takDikenal = DATA.filter(d => !MASTER63.includes(d.u)).map(d => d.u);
+  // Unit yang sudah punya transaksi aktif (non-Batal) dibiarkan mengikuti transaksi, bukan tanda manual
+  const trxAktif = await sql`
+    SELECT DISTINCT ON (t.unit) t.unit, t.jenis FROM transactions t
+    LEFT JOIN leads l ON l.lead_code = t.lead_code
+    WHERE COALESCE(NULLIF(t.project, ''), l.project, '') = ${PROJ} AND t.unit <> ''
+    ORDER BY t.unit, t.id DESC`;
+  const adaTrx = trxAktif.filter(t => t.jenis !== 'Batal').map(t => t.unit);
+  const lewatTrx = [];
+
   let terjual = 0, reserved = 0;
   for (const d of DATA) {
+    if (adaTrx.includes(d.u)) {
+      await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${d.u}`;
+      lewatTrx.push(d.u);
+      continue;
+    }
     const status = d.s === 'T' ? 'Terjual' : 'Reserved';
     await sql`INSERT INTO unit_manual (project, unit, status, nama, sales)
               VALUES (${PROJ}, ${d.u}, ${status}, ${d.n}, ${d.a || ''})
@@ -153,5 +167,6 @@ export async function POST() {
     unitDibuang: hilang.length,
     tandaMenggantung: sisaTanda.map(x => x.unit + ' (' + x.status + ')'),
     tandaDibersihkan: bersih,
+    ikutTransaksi: lewatTrx,
   });
 }

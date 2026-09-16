@@ -10,7 +10,7 @@ export default function Dashboard() {
   function muatSemua() {
     return Promise.all([api('/api/leads?all=1'), api('/api/followups?all=1'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
       .then(([l, f, t, s, st]) => {
-        setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []);
+        setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); setPosisi(st.positions || []);
         setLastUpd(new Date());
       })
       .catch(e => toast(e.message));
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [d1, setD1] = useState('');
   const [d2, setD2] = useState('');
   const [stock, setStock] = useState([]);
+  const [posisi, setPosisi] = useState([]);
   const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
   const [srcOpen, setSrcOpen] = useState(false);
 
@@ -328,6 +329,17 @@ export default function Dashboard() {
       const key = t.project + '|' + t.unit;
       if (t.jenis === 'Batal') delete lastVal2[key]; else lastVal2[key] = Number(t.nilai) || 0;
     });
+    // Daftar unit bertanda + sales/agent (mengikuti pemilik lead bila dari transaksi)
+    buatSheet('Unit Terjual', 'DAFTAR UNIT TERJUAL & RESERVED', [
+      { h: 'Project', k: 'p', w: 16 }, { h: 'Blok / Unit', k: 'u', w: 16 },
+      { h: 'Status', k: 'st', w: 11 }, { h: 'Nama Pembeli', k: 'n', w: 26 },
+      { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'ID Lead', k: 'id', w: 11 },
+    ], [...(stock || [])].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
+      p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : 'Reserved',
+      n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '') || '-',
+      sa: u.sales || '-', id: u.lead_code || '-',
+    })), { sub: 'Posisi unit per hari ini — sales/agent otomatis mengikuti pemilik lead untuk unit bertransaksi. · copyright © 2026 by Andriawanp' });
+
     buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
       { h: 'Project', k: 'p', w: 18 }, { h: 'Total Stok', k: 'tot', w: 11, num: true },
       { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
@@ -356,7 +368,38 @@ export default function Dashboard() {
     URL.revokeObjectURL(a.href);
   }
 
-  async function downloadWord() {
+  // Render siteplan + marker jadi gambar (untuk disisipkan ke report Word)
+  async function gambarSiteplan(pj) {
+    const src = /BIO/i.test(pj) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
+    const posP = posisi.filter(p => p.project === pj);
+    const stP = {}; stock.filter(u => u.project === pj).forEach(u => { stP[u.unit] = u; });
+    const mk = posP.map(p => ({ x: Number(p.x), y: Number(p.y), u: stP[p.unit] })).filter(m => m.u);
+    const img = new Image(); img.src = src;
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+    const W = Math.min(img.naturalWidth || 1600, 1800);
+    const H = Math.round((img.naturalHeight || 1000) * (W / (img.naturalWidth || 1600)));
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+    let R = Math.max(7, Math.round(W * 0.006));
+    if (mk.length > 1) {
+      let minJ = Infinity;
+      for (let i = 0; i < mk.length; i++) for (let j = i + 1; j < mk.length; j++) {
+        const dx = (mk[i].x - mk[j].x) / 100 * W, dy = (mk[i].y - mk[j].y) / 100 * H;
+        const d2 = Math.sqrt(dx * dx + dy * dy);
+        if (d2 > 0 && d2 < minJ) minJ = d2;
+      }
+      if (isFinite(minJ)) R = Math.max(4, Math.min(R, Math.round(minJ * 0.42)));
+    }
+    mk.forEach(m => {
+      const cx = m.x / 100 * W, cy = m.y / 100 * H;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fillStyle = m.u.warna === 'merah' ? '#B3402F' : '#C9922E'; ctx.fill();
+      ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+    });
+    return cv.toDataURL('image/jpeg', 0.85);
+  }
+
+  async function downloadWord(mode = 'word') {
     // Ambil logo sebagai base64 agar tertanam di dokumen Word
     let logoTag = '';
     try {
@@ -434,6 +477,18 @@ export default function Dashboard() {
       const nRes = kuningU.reduce((a, u) => a + (lastVal[p2 + '|' + u.unit] || 0), 0);
       return { p: p2, total, merah: merahU.length, kuning: kuningU.length, nJual, nRes };
     });
+
+    // Peta siteplan tiap project (gambar dengan marker)
+    let petaHtml = '';
+    for (const pj of (proj ? [proj] : (set.project || []))) {
+      try {
+        const du = await gambarSiteplan(pj);
+        const adaTanda = stock.filter(u => u.project === pj);
+        const nJ = adaTanda.filter(u => u.warna === 'merah').length, nR = adaTanda.length - nJ;
+        petaHtml += `<h3 style="color:#23694A;margin:10px 0 4px">${esc(pj)} — ${nJ} terjual, ${nR} reserved</h3>
+<p><img src="${du}" style="width:100%;max-width:680px" /></p>`;
+      } catch { petaHtml += `<p class="muted">Siteplan ${esc(pj)} tidak dapat dimuat.</p>`; }
+    }
 
     const html = `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Report CRM</title>
 <style>
@@ -539,22 +594,9 @@ ${salesNs.length ? salesNs.map(sn => {
 </table>
 <p class="muted" style="font-size:8.5pt">Closing Rate = jumlah lead yang mencapai Booking ÷ total lead sales tsb pada periode.</p>
 
-<h2>4. MASTER STOCK — DAFTAR UNIT TERJUAL &amp; RESERVED</h2>
-<p class="muted">Posisi unit per hari ini beserta pembeli dan sales/agent penanggung jawab.</p>
-${(() => {
-      const byProj = {};
-      (stock || []).forEach(u => { if (!proj || u.project === proj) { (byProj[u.project] = byProj[u.project] || []).push(u); } });
-      const keys = Object.keys(byProj).sort();
-      if (!keys.length) return '<p class="muted">Belum ada unit bertanda pada Master Stock.</p>';
-      return keys.map(pk => {
-        const list = [...byProj[pk]].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
-        const nJ = list.filter(u => u.warna === 'merah').length, nR = list.length - nJ;
-        return `<h3 style="color:#23694A;margin:12px 0 4px">${esc(pk)} — ${nJ} terjual, ${nR} reserved</h3>
-<table><tr><th style="width:130px">Blok / Unit</th><th style="width:90px">Status</th><th>Nama Pembeli</th><th>Sales / Agent</th><th style="width:90px">ID Lead</th></tr>
-${list.map(u => `<tr><td><b>${esc(u.unit)}</b></td><td class="${u.warna === 'merah' ? 'lost' : 'warm'}"><b>${u.warna === 'merah' ? 'TERJUAL' : 'RESERVED'}</b></td><td>${esc(u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '') || '-')}</td><td>${esc(u.sales || '-')}</td><td>${esc(u.lead_code || '-')}</td></tr>`).join('')}
-</table>`;
-      }).join('');
-    })()}
+<h2>4. MASTER STOCK — PETA SITEPLAN</h2>
+<p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
+${petaHtml}
 
 <h2>5. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
 <table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>
@@ -566,6 +608,18 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
 <p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
 
+    if (mode === 'pdf') {
+      // Report PDF: buka jendela cetak berisi report yang sama -> pilih "Save as PDF"
+      const w = window.open('', '_blank');
+      if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
+      w.document.open();
+      w.document.write(html.replace('</head>', '<style>@page{size:A4 portrait;margin:14mm} body{background:#fff} table{page-break-inside:auto} tr{page-break-inside:avoid} h2{page-break-after:avoid}</style></head>'));
+      w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
+      toast('Jendela cetak terbuka — pilih "Save as PDF" sebagai printer 📄');
+      return;
+    }
     const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -614,7 +668,8 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
             </div>
           </>)}
         </div>
-        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadWord}>⬇ Report Word</button>
+        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>
+        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
         <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang): baris yang tidak terpilih otomatis tersembunyi, buka Excel langsung bersih berisi data terpilih saja.</span>
       </div>

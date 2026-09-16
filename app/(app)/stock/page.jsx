@@ -243,7 +243,7 @@ export default function StockPage() {
           </select>
           <input value={namaBeli} onChange={e => setNamaBeli(e.target.value)} placeholder="Nama pembeli (opsional)"
             style={{ minWidth: 170, padding: '7px 12px', borderRadius: 20, border: '1px solid var(--line)', fontSize: 13 }} />
-          <input value={salesBeli} onChange={e => setSalesBeli(e.target.value)} placeholder="Sales / Agent (opsional)"
+          <input value={salesBeli} onChange={e => setSalesBeli(e.target.value)} placeholder="Sales / Agent (otomatis bila ada transaksi)"
             style={{ minWidth: 170, padding: '7px 12px', borderRadius: 20, border: '1px solid var(--line)', fontSize: 13 }} />
           <button className="sort-btn" style={{ borderColor: COLOR.merah, color: COLOR.merah, fontWeight: 700 }}
             onClick={() => setStatusManual(selUnit, 'Terjual')}>🔴 Tutup — Terjual</button>

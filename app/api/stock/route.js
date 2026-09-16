@@ -11,7 +11,7 @@ export async function GET() {
   const positions = await sql`SELECT project, unit, x, y FROM unit_positions`;
   const manual = await sql`SELECT project, unit, status, nama, sales FROM unit_manual`;
   const trx = await sql`
-    SELECT t.id, t.jenis, t.unit, t.lead_code, l.nama,
+    SELECT t.id, t.jenis, t.unit, t.lead_code, l.nama, l.sales,
            COALESCE(NULLIF(t.project, ''), l.project, '') AS project
     FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code
     WHERE t.unit IS NOT NULL AND t.unit <> ''
@@ -23,14 +23,20 @@ export async function GET() {
     if (!t.project) return;
     const key = t.project + '|' + t.unit;
     if (t.jenis === 'Batal') m[key] = null;
-    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code };
-    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code };
+    else if (t.jenis === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '' };
+    else m[key] = { warna: 'merah', info: t.jenis + (t.nama ? ' — ' + t.nama : ''), manual: false, lead_code: t.lead_code, nama: t.nama || '', sales: t.sales || '' };
   });
   manual.forEach(x => {
     const key = x.project + '|' + x.unit;
     const pemilik = (m[key] && m[key].lead_code) || null; // unit ber-transaksi tetap ingat lead pemiliknya
     const namaM = (x.nama || '').trim();
     const salesM = (x.sales || '').trim();
+    const adaBooking = m[key] && m[key].warna === 'merah' && !m[key].manual; // sudah ada transaksi Booking/Closing
+    if (x.status === 'Reserved' && adaBooking) {
+      // Unit sudah Booking lewat transaksi -> transaksi menang, tanda Reserved manual diabaikan
+      m[key] = { ...m[key], nama: m[key].nama || namaM, sales: m[key].sales || salesM };
+      return;
+    }
     if (x.status === 'Terjual') m[key] = { warna: 'merah', info: 'Terjual' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
     else if (x.status === 'Reserved') m[key] = { warna: 'kuning', info: 'Reserved' + (namaM ? ' — ' + namaM : ' (manual)'), manual: true, lead_code: pemilik, nama: namaM, sales: salesM };
     else m[key] = null;
