@@ -77,9 +77,9 @@ export async function PUT(req) {
   }
   const nama = typeof b.nama === 'string' ? b.nama.trim() : '';
   const salesM = typeof b.sales === 'string' ? b.sales.trim() : '';
-  await sql`INSERT INTO unit_manual (project, unit, status, nama, sales)
-            VALUES (${b.project}, ${b.unit}, ${b.status}, ${nama}, ${salesM})
-            ON CONFLICT (project, unit) DO UPDATE SET status = ${b.status}, nama = ${nama}, sales = ${salesM}, updated_at = now()`;
+  await sql`INSERT INTO unit_manual (project, unit, status, nama, sales, sumber)
+            VALUES (${b.project}, ${b.unit}, ${b.status}, ${nama}, ${salesM}, 'manual')
+            ON CONFLICT (project, unit) DO UPDATE SET status = ${b.status}, nama = ${nama}, sales = ${salesM}, sumber = 'manual', updated_at = now()`;
   return Response.json({ ok: true });
 }
 
