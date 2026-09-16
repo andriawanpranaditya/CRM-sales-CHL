@@ -9,6 +9,7 @@ export async function GET(req) {
     return Response.json({ error: 'Kunci setup salah. Buka /api/setup?key=SETUP_KEY sesuai environment variable.' }, { status: 403 });
   }
   const sql = db();
+  try {
 
   await sql`CREATE TABLE IF NOT EXISTS users (
     id serial PRIMARY KEY,
@@ -70,20 +71,16 @@ export async function GET(req) {
   await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
   await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','markom','sales'))`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wa text`;
-  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nama text`;
-  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sales text`;
-  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sumber text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS nilai_jual numeric`;
-  await sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`;
   // Index performa — mempercepat kueri saat data ribuan baris
   await sql`CREATE INDEX IF NOT EXISTS idx_leads_tgl ON leads (tgl)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_leads_sales ON leads (sales)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_fu_lead ON followups (lead_code)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_trx_lead ON transactions (lead_code)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_trx_unit ON transactions (project, unit)`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS project text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bayar text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS unit text`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trx_unit ON transactions (project, unit)`;
   // Jenis transaksi baru: Reserved
   await sql`ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_jenis_check`;
   await sql`ALTER TABLE transactions ADD CONSTRAINT transactions_jenis_check CHECK (jenis IN ('Reserved','Booking','Closing','Batal'))`;
@@ -125,6 +122,12 @@ export async function GET(req) {
     UNIQUE (project, unit)
   )`;
 
+  // Kolom tambahan untuk tabel yang dibuat di atas (aman dijalankan berulang)
+  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nama text`;
+  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sales text`;
+  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sumber text`;
+  await sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`;
+
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})
               ON CONFLICT (key) DO NOTHING`;
@@ -146,4 +149,7 @@ export async function GET(req) {
       ? 'Akun manager dibuat — username: manager, password: manager123 (SEGERA ganti setelah login).'
       : 'Akun sudah ada, tidak dibuat ulang.',
   });
+  } catch (e) {
+    return Response.json({ error: 'Setup gagal: ' + (e && e.message ? e.message : String(e)) }, { status: 500 });
+  }
 }
