@@ -59,9 +59,29 @@ export async function POST(req) {
     }
   }
 
+  // Reserved -> Booking/Closing: baris Reserved dilebur, tanggalnya masuk ke keterangan Booking
+  let catatan = b.catatan || '';
+  if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
+    const res = await sql`
+      SELECT t.id, t.tgl::text AS tgl FROM transactions t
+      LEFT JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis = 'Reserved' AND t.unit = ${b.unit} AND t.lead_code = ${b.lead_code}
+        AND COALESCE(NULLIF(t.project, ''), l.project, '') = ${b.project}
+      ORDER BY t.id`;
+    if (res.length) {
+      const tglRes = res[0].tgl ? res[0].tgl.slice(0, 10).split('-').reverse().join('/') : '';
+      const jejak = 'Reserved tgl ' + (tglRes || '-');
+      if (!catatan.includes('Reserved tgl')) catatan = catatan ? jejak + ' · ' + catatan : jejak;
+      for (const r of res) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
+    }
+  }
   await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, catatan, project, bayar, unit, created_by)
-    VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.catatan || ''},
+    VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${catatan},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
+  // Booking/Closing: tanda manual (mis. kuning Reserved) dilepas supaya peta mengikuti transaksi -> merah
+  if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
+    await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
+  }
   // Reserved tidak mengubah status pipeline; Batal -> Drop; Booking/Closing sesuai jenisnya
   if (b.jenis !== 'Reserved') {
     const newStatus = b.jenis === 'Batal' ? 'Drop' : b.jenis;
@@ -92,12 +112,30 @@ export async function PATCH(req) {
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   if (!['Reserved', 'Booking', 'Closing', 'Batal'].includes(b.jenis)) return Response.json({ error: 'Jenis transaksi tidak valid' }, { status: 400 });
   const sql = db();
-  const rows = await sql`SELECT lead_code FROM transactions WHERE id = ${b.id}`;
+  const rows = await sql`SELECT lead_code, jenis, tgl::text AS tgl FROM transactions WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+  let catatan = b.catatan || '';
+  if (b.jenis === 'Booking' || b.jenis === 'Closing') {
+    // Baris Reserved lain di unit yang sama dilebur; bila baris ini sendiri yang naik dari Reserved, tanggalnya dicatat
+    const lain = b.unit && b.project
+      ? await sql`SELECT t.id, t.tgl::text AS tgl FROM transactions t
+          LEFT JOIN leads l ON l.lead_code = t.lead_code
+          WHERE t.jenis = 'Reserved' AND t.unit = ${b.unit} AND t.lead_code = ${rows[0].lead_code}
+            AND COALESCE(NULLIF(t.project, ''), l.project, '') = ${b.project} AND t.id <> ${b.id}
+          ORDER BY t.id`
+      : [];
+    const tglRes = lain.length ? lain[0].tgl : (rows[0].jenis === 'Reserved' ? rows[0].tgl : null);
+    if (tglRes && !catatan.includes('Reserved tgl')) {
+      const d = tglRes.slice(0, 10).split('-').reverse().join('/');
+      catatan = catatan ? 'Reserved tgl ' + d + ' · ' + catatan : 'Reserved tgl ' + d;
+    }
+    for (const r of lain) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
+    if (b.unit && b.project) await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
+  }
   await sql`UPDATE transactions SET
       tgl = ${b.tgl || null}, jenis = ${b.jenis}, nilai = ${Number(b.nilai) || 0},
       project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''},
-      catatan = ${b.catatan || ''}
+      catatan = ${catatan}
     WHERE id = ${b.id}`;
   await sinkronStatus(sql, rows[0].lead_code);
   return Response.json({ ok: true });

@@ -123,9 +123,8 @@ export async function POST() {
             ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(units)}::jsonb`;
 
   // Tanda/posisi pada unit yang sudah tidak ada di daftar resmi — dilaporkan, TIDAK dihapus
-  const sisaTanda = hilang.length
-    ? await sql`SELECT unit, status FROM unit_manual WHERE project = ${PROJ} AND unit = ANY(${hilang})`
-    : [];
+  const semuaTanda = await sql`SELECT unit, status FROM unit_manual WHERE project = ${PROJ}`;
+  const sisaTanda = semuaTanda.filter(x => hilang.includes(x.unit));
 
   // 2) Tandai status unit + nama pembeli
   const takDikenal = DATA.filter(d => !MASTER63.includes(d.u)).map(d => d.u);
