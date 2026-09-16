@@ -49,7 +49,14 @@ export default function Dashboard() {
   const mStart = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-01`;
   const inMonth = x => String(x || '').slice(0, 10) >= mStart;
   const mLeads = fLeads.filter(l => inMonth(l.tgl));
-  const mTrx = fTrx.filter(t => inMonth(t.tgl));
+  // Status transaksi per unit = yang TERAKHIR (Reserved yang sudah naik Booking tidak dihitung dua kali)
+  const statusAkhir = arr => {
+    const g = {};
+    [...arr].sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0))
+      .forEach(t => { g[(t.lead_code || '') + '|' + (t.project || '') + '|' + (t.unit || 'x' + t.id)] = t; });
+    return Object.values(g);
+  };
+  const mTrx = statusAkhir(fTrx.filter(t => inMonth(t.tgl)));
   const bulanLabel = nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
   const byStatus = st => mLeads.filter(l => l.status === st).length;
@@ -61,7 +68,7 @@ export default function Dashboard() {
   // Nilai: pipeline aktif = budget lead WARM & HOT bulan berjalan
   const pipeVal = mLeads.filter(l => l.status === 'Warm' || l.status === 'Hot').reduce((a, l) => a + Number(l.budget || 0), 0);
   const resVal = mTrx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
-  const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
+  const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
   const uniq = jenis => new Set(mTrx.filter(t => t.jenis === jenis).map(t => t.lead_code));
   const mResSet = uniq('Reserved'), mBookSet = uniq('Booking');
   // Baris pipeline: Site Visit = status + Walk In; Reserved & Booking dari TRANSAKSI; tanpa Closing
@@ -191,7 +198,7 @@ export default function Dashboard() {
     // ===== Data terpilih utk Ringkasan =====
     const pl = leads.filter(cocokLead);
     const pf = fus.filter(cocokFU);
-    const pt = trx.filter(cocokTrx);
+    const pt = statusAkhir(trx.filter(cocokTrx));
     const lastFU = {};
     fus.forEach(f => {
       const key = f.lead_code, cur = lastFU[key];
@@ -208,6 +215,7 @@ export default function Dashboard() {
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
       { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Tgl FU Terakhir', k: 'futgl', w: 12 },
       { h: 'Update FU Terakhir', k: 'fuupd', w: 34, wrap: true }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
+      { h: 'Riwayat Transaksi', k: 'riw', w: 34, wrap: true },
     ], leadsX.map(l => {
       const lf = lastFU[l.lead_code];
       return {
@@ -218,6 +226,9 @@ export default function Dashboard() {
         status: l.status, nfu: dd(l.next_fu),
         futgl: lf ? dd(lf.tgl) : '', fuupd: lf ? potong(lf.detail, 180) : 'Belum ada follow up',
         cat: l.catatan || '',
+        riw: [...trx].filter(t => t.lead_code === l.lead_code)
+          .sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0))
+          .map(t => t.jenis + ' ' + dd(t.tgl) + (t.unit ? ' (' + t.unit + ')' : '')).join(' → '),
       };
     }), { cocok: cocokLead, warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : (c.k === 'fuupd' && r.fuupd === 'Belum ada follow up' ? RED_BG : null) });
 
@@ -234,6 +245,21 @@ export default function Dashboard() {
       na: f.next_action || '', nfu: dd(f.next_tgl),
     })), { cocok: cocokFU, warnaSel: (c, r) => c.k === 'na' && r.na === 'Drop' ? RED_BG : null });
 
+    // Status transaksi per unit diambil yang TERAKHIR; tahapan sebelumnya jadi riwayat di kolom Catatan
+    const urutTgl = (a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0);
+    const grupTrx = {};
+    [...trx].sort(urutTgl).forEach(t => {
+      const key = (t.lead_code || '') + '|' + (t.project || '') + '|' + (t.unit || 'x' + t.id);
+      (grupTrx[key] = grupTrx[key] || []).push(t);
+    });
+    const trxRingkas = Object.values(grupTrx).map(g => {
+      const akhir = g[g.length - 1];
+      const riwayat = g.slice(0, -1).map(x => x.jenis + ' ' + dd(x.tgl)).join(' → ');
+      const catAsli = (akhir.catatan || '').trim();
+      return { ...akhir, catatan: riwayat && !catAsli.includes('Reserved tgl')
+        ? riwayat + ' → ' + akhir.jenis + (catAsli ? ' · ' + catAsli : '') : catAsli };
+    }).sort(urutTgl);
+
     buatSheet('Transaksi', 'TRANSAKSI (RESERVED · BOOKING · BATAL)', [
       { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 },
       { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
@@ -241,8 +267,8 @@ export default function Dashboard() {
       { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 },
       { h: 'Nilai Reserved / Booking (Rp)', k: 'nilai', w: 19, num: true },
       { h: 'Nilai Transaksi (Rp)', k: 'njual', w: 18, num: true },
-      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
-    ], trxX.map(t => ({
+      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan / Riwayat Status', k: 'cat', w: 30, wrap: true },
+    ], trxRingkas.map(t => ({
       _raw: t,
       tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '',
       proj: t.project || '-', src: leadSrcMap[t.lead_code] || '', unit: t.unit || '', jenis: t.jenis,
@@ -275,7 +301,7 @@ export default function Dashboard() {
     const resSet = new Set(pt.filter(t => t.jenis === 'Reserved').map(t => t.lead_code));
     const bookSet = new Set(pt.filter(t => t.jenis === 'Booking').map(t => t.lead_code));
     const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
-    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
 
     secHead('RINGKASAN');
     [['Lead Masuk', pl.length, ''], ['Follow Up', pf.length, ''],
@@ -452,7 +478,7 @@ export default function Dashboard() {
     };
     const pl = fLeads.filter(l => inPeriod(l.tgl));
     const pf = fFus.filter(f => inPeriod(f.tgl));
-    const pt = fTrx.filter(t => inPeriod(t.tgl));
+    const pt = statusAkhir(fTrx.filter(t => inPeriod(t.tgl)));
     const projLabel = proj || 'Semua Project';
     const ST = set.status || [];
     const cnt = st => pl.filter(l => l.status === st).length;
@@ -460,7 +486,7 @@ export default function Dashboard() {
     const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
     const trxLeads = jenis => new Set(pt.filter(t => t.jenis === jenis).map(t => t.lead_code));
     const bookSet = trxLeads('Booking'), resSet = trxLeads('Reserved');
-    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
     const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
     // Site Visit pipeline = status Site Visit + lead Walk In (sudah datang langsung)
     const svN = pl.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
