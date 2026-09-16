@@ -48,6 +48,14 @@ export default function StockPage() {
   const active = status.filter(u => u.project === proj && (!unitList.length || unitList.includes(u.unit)));
   const unmapped = active.filter(u => !posMap[proj + '|' + u.unit]);
   const markers = active.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
+  // Titik yang saling menumpuk (jarak < 1,2% lebar peta) — biasanya marker salah tempel di plot yang sama
+  const tumpuk = [];
+  for (let i = 0; i < markers.length; i++) {
+    for (let j = i + 1; j < markers.length; j++) {
+      const dx = Number(markers[i].x) - Number(markers[j].x), dy = Number(markers[i].y) - Number(markers[j].y);
+      if (Math.sqrt(dx * dx + dy * dy) < 1.2) tumpuk.push([markers[i].unit, markers[j].unit]);
+    }
+  }
 
   // ===== Unduh Master Stock sebagai PDF (peta bertanda + rekap unit) =====
   async function downloadPDF() {
@@ -219,6 +227,19 @@ export default function StockPage() {
         <div className="stamp">🔴 <b>{jml('merah')}</b> terjual &nbsp; 🟡 <b>{jml('kuning')}</b> reserved</div>
       </div>
 
+      {tumpuk.length > 0 && (
+        <div className="note" style={{ background: '#FBF1DC', borderColor: '#C9922E', marginBottom: 10 }}>
+          ⚠ <b>{tumpuk.length} titik menumpuk di peta</b> — dua unit tertempel di posisi hampir sama, sehingga di PDF terlihat seperti tanda ganda:
+          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {tumpuk.slice(0, 6).map((pair, i) => (
+              <span key={i} style={{ background: '#fff', border: '1px solid #C9922E', borderRadius: 8, padding: '3px 8px', fontSize: 12.5 }}>
+                <b>{pair[0]}</b> ↔ <b>{pair[1]}</b>
+                {isMgr && <> <button className="sort-btn" style={{ padding: '1px 7px', marginLeft: 6 }}
+                  onClick={() => { setPlacing(pair[1]); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Klik posisi yang benar untuk ' + pair[1]); }}>Pindahkan</button></>}
+              </span>))}
+          </div>
+        </div>
+      )}
       {asing.length > 0 && (
         <div className="note" style={{ background: '#F9E7E3', borderColor: '#B3402F', marginBottom: 10 }}>
           ⚠ <b>{asing.length} unit bertanda tidak ada di daftar unit {proj}</b> — kemungkinan penamaan lama: {asing.slice(0, 6).map(u => u.unit).join(', ')}{asing.length > 6 ? ', …' : ''}.

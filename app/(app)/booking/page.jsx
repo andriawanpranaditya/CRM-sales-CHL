@@ -71,7 +71,7 @@ export default function BookingPage() {
       <div className="tbl-wrap" style={{ marginBottom: 12 }}>
         <table className="tbl-compact"><thead><tr>
           <th>Ringkasan{per ? ' — ' + labelPeriode(per) : ''}{proj ? ' · ' + proj : ''}</th>
-          <th className="num">Transaksi</th><th className="num">Unit</th><th className="num">Nilai</th>
+          <th className="num">Transaksi</th><th className="num">Unit</th><th className="num">Nilai Reserved / Booking</th><th className="num">Nilai Transaksi</th>
         </tr></thead><tbody>
           {[['Reserved', '#C9922E'], ['Booking', '#B3402F'], ['Batal', '#8a8f8a']].map(([j, warna]) => {
             const r2 = rows.filter(t => t.jenis === j);
@@ -79,7 +79,8 @@ export default function BookingPage() {
               <td data-label="Jenis"><b style={{ color: warna }}>{j}</b></td>
               <td className="num" data-label="Transaksi">{r2.length}</td>
               <td className="num" data-label="Unit">{new Set(r2.map(t => (t.project || '') + '|' + (t.unit || t.lead_code))).size}</td>
-              <td className="num" data-label="Nilai"><b>{fmtRp(r2.reduce((a, t) => a + (Number(t.nilai) || 0), 0))}</b></td>
+              <td className="num" data-label="Nilai Reserved / Booking"><b>{fmtRp(r2.reduce((a, t) => a + (Number(t.nilai) || 0), 0))}</b></td>
+              <td className="num" data-label="Nilai Transaksi"><b>{fmtRp(r2.reduce((a, t) => a + (Number(t.nilai_jual) || 0), 0))}</b></td>
             </tr>;
           })}
         </tbody></table>
@@ -95,8 +96,10 @@ export default function BookingPage() {
               </select></div>
             <div className="field"><label>Tanggal</label>
               <input type="date" value={(edit.tgl || '').slice(0, 10)} onChange={e => setEdit({ ...edit, tgl: e.target.value })} /></div>
-            <div className="field"><label>Nilai (Rp)</label>
+            <div className="field"><label>Nilai Reserved / Booking (Rp)</label>
               <input type="number" value={edit.nilai || ''} onChange={e => setEdit({ ...edit, nilai: e.target.value })} /></div>
+            <div className="field"><label>Nilai Transaksi (Rp)</label>
+              <input type="number" value={edit.nilai_jual || ''} onChange={e => setEdit({ ...edit, nilai_jual: e.target.value })} placeholder="harga jual unit" /></div>
             <div className="field"><label>Project</label>
               <select value={edit.project || ''} onChange={e => setEdit({ ...edit, project: e.target.value })}>
                 <option value=""></option>{(set.project || []).map(p => <option key={p}>{p}</option>)}
@@ -123,7 +126,7 @@ export default function BookingPage() {
 
       <div className="tbl-wrap"><table>
         <thead><tr><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Project</th><th>Blok/Unit</th><th>Jenis</th>
-          <th>Tanggal</th><th className="num">Nilai</th><th>Cara Bayar</th><th>Berkas</th><th>Catatan</th>{isMgr && <th>Aksi</th>}</tr></thead>
+          <th>Tanggal</th><th className="num">Nilai Reserved / Booking</th><th className="num">Nilai Transaksi</th><th>Cara Bayar</th><th>Berkas</th><th>Catatan</th>{isMgr && <th>Aksi</th>}</tr></thead>
         <tbody>
           {rows.length ? rows.map(t => (
             <tr key={t.id}>
@@ -134,7 +137,8 @@ export default function BookingPage() {
               <td data-label="Blok/Unit">{t.unit || '—'}</td>
               <td data-label="Jenis"><span className={'badge ' + (BADGE[t.jenis === 'Batal' ? 'Lost' : t.jenis] || 'b-cold')}>{t.jenis}</span></td>
               <td data-label="Tanggal">{fmtDate(t.tgl)}</td>
-              <td className="num" data-label="Nilai">{fmtRp(t.nilai)}</td>
+              <td className="num" data-label="Nilai Reserved / Booking">{fmtRp(t.nilai)}</td>
+              <td className="num" data-label="Nilai Transaksi">{t.nilai_jual ? <b>{fmtRp(t.nilai_jual)}</b> : <span className="hint">—</span>}</td>
               <td data-label="Cara Bayar">{t.bayar || ''}</td>
               <td data-label="Berkas">{t.unit ? <>
                 <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
