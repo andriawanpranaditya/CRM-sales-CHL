@@ -70,6 +70,7 @@ export async function GET(req) {
   await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
   await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','markom','sales'))`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wa text`;
+  await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nama text`;
   // Index performa — mempercepat kueri saat data ribuan baris
   await sql`CREATE INDEX IF NOT EXISTS idx_leads_tgl ON leads (tgl)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_leads_sales ON leads (sales)`;

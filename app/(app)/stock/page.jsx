@@ -17,6 +17,8 @@ export default function StockPage() {
   const [selUnit, setSelUnit] = useState('');
   const [zoom, setZoom] = useState(1);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [namaBeli, setNamaBeli] = useState('');
+  const [imp, setImp] = useState(false);
   const inner = useRef(null);
 
   const loadStock = async () => {
@@ -135,7 +137,7 @@ export default function StockPage() {
         doc.setFont('helvetica', 'bold'); doc.setTextColor(c[0], c[1], c[2]);
         doc.text(u.warna === 'merah' ? 'TERJUAL' : 'RESERVED', M + 62, y + 4.8);
         doc.setFont('helvetica', 'normal'); doc.setTextColor(28, 43, 35);
-        doc.text(doc.splitTextToSize(String(u.info || '-'), 95)[0], M + 110, y + 4.8);
+        doc.text(doc.splitTextToSize(String(u.nama || u.info || '-'), 95)[0], M + 110, y + 4.8);
         doc.text(String(u.lead_code || '-'), PW - M - 32, y + 4.8);
         y += 7;
       });
@@ -176,9 +178,10 @@ export default function StockPage() {
   async function setStatusManual(unit, st) {
     if (!unit) return toast('Pilih unit dulu');
     try {
-      await api('/api/stock', { method: 'PUT', body: JSON.stringify({ project: proj, unit, status: st }) });
+      await api('/api/stock', { method: 'PUT', body: JSON.stringify({ project: proj, unit, status: st, nama: st === 'Kosong' ? '' : namaBeli }) });
       await loadStock();
-      toast(st === null ? unit + ' kembali mengikuti transaksi' : unit + ' → ' + st);
+      toast(st === null ? unit + ' kembali mengikuti transaksi' : unit + ' → ' + st + (namaBeli && st !== 'Kosong' ? ' (' + namaBeli + ')' : ''));
+      if (st === null || st === 'Kosong') setNamaBeli('');
       if (st && st !== 'Kosong' && !posMap[proj + '|' + unit]) {
         setPlacing(unit); window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -214,13 +217,16 @@ export default function StockPage() {
       {isMgr && <div className="card" style={{ marginBottom: 12 }}>
         <h2>Update Stok Manual (tanpa lewat Form Input)</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <select className="sort-filter" style={{ marginLeft: 0, minWidth: 190 }} value={selUnit} onChange={e => setSelUnit(e.target.value)}>
+          <select className="sort-filter" style={{ marginLeft: 0, minWidth: 190 }} value={selUnit}
+            onChange={e => { setSelUnit(e.target.value); const st0 = stMap[proj + '|' + e.target.value]; setNamaBeli((st0 && st0.nama) || ''); }}>
             <option value="">— pilih Blok/Unit —</option>
             {unitList.map(u => {
               const st = stMap[proj + '|' + u];
               return <option key={u} value={u}>{u}{st ? (st.warna === 'merah' ? ' 🔴' : ' 🟡') : ''}</option>;
             })}
           </select>
+          <input value={namaBeli} onChange={e => setNamaBeli(e.target.value)} placeholder="Nama pembeli (opsional)"
+            style={{ minWidth: 190, padding: '7px 12px', borderRadius: 20, border: '1px solid var(--line)', fontSize: 13 }} />
           <button className="sort-btn" style={{ borderColor: COLOR.merah, color: COLOR.merah, fontWeight: 700 }}
             onClick={() => setStatusManual(selUnit, 'Terjual')}>🔴 Tutup — Terjual</button>
           <button className="sort-btn" style={{ borderColor: COLOR.kuning, color: COLOR.kuning, fontWeight: 700 }}
@@ -228,6 +234,22 @@ export default function StockPage() {
           <button className="sort-btn" onClick={() => setStatusManual(selUnit, 'Kosong')}>⚪ Buka Stok (hapus tanda)</button>
           {manMap[proj + '|' + selUnit] && (
             <button className="sort-btn" onClick={() => setStatusManual(selUnit, null)}>↩ Kembali Ikut Transaksi</button>
+          )}
+          {/BIO/i.test(proj) && (
+            <button className="sort-btn" style={{ marginLeft: 'auto', borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
+              disabled={imp}
+              onClick={async () => {
+                if (!confirm('Impor data Weekly Report BIO DISTRICT (s.d September 2026)?\n\n1) Master unit disetel ke daftar SITEPLAN RESMI = 63 unit (penomoran melewati 01, 04, 13, 14).\n2) 32 unit ditandai TERJUAL + 1 RESERVED (Bio Blv no.12), lengkap NAMA PEMBELI.\n\nTanda pada unit lama di luar daftar resmi tidak dihapus, hanya dilaporkan.')) return;
+                setImp(true);
+                try {
+                  const r = await api('/api/stock/import', { method: 'POST', body: JSON.stringify({}) });
+                  await loadStock();
+                  toast(`Impor selesai — master ${r.totalUnit} unit · ${r.terjual} terjual · ${r.reserved} reserved · ${r.totalUnit - r.terjual - r.reserved} tersedia ✅`);
+                  if (r.tandaMenggantung && r.tandaMenggantung.length) {
+                    toast('Perlu dicek: ' + r.tandaMenggantung.length + ' tanda lama di unit yang tidak ada di siteplan → ' + r.tandaMenggantung.slice(0, 4).join(', '));
+                  }
+                } catch (err) { toast(err.message); } finally { setImp(false); }
+              }}>{imp ? '⏳ Mengimpor…' : '⬆ Impor Weekly Report'}</button>
           )}
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
