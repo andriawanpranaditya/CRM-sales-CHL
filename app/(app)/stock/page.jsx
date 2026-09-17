@@ -118,7 +118,7 @@ export default function StockPage() {
       };
 
       // Halaman 1: peta
-      kop('Peta Siteplan');
+      kop(isMgr ? 'Peta Siteplan' : 'Peta Siteplan — ' + ((me && me.name) || 'Sales'));
       doc.setFontSize(9); doc.setFont('helvetica', 'bold');
       let x = M;
       const chip = (label, val, warna) => {
@@ -137,6 +137,13 @@ export default function StockPage() {
       const iw = W * sc, ih = H * sc;
       doc.addImage(dataURL, 'JPEG', (PW - iw) / 2, areaY, iw, ih);
       footer();
+
+      // Peran selain manager: hanya peta siteplan, tanpa daftar unit & nama pembeli
+      if (!isMgr) {
+        doc.save('Master_Stock_Peta_' + String(proj || 'project').replace(/[^A-Za-z0-9]+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.pdf');
+        toast('PDF peta Master Stock terunduh 📄');
+        return;
+      }
 
       // Halaman 2+: rekap unit bertanda
       const bertanda = [...active].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
@@ -256,7 +263,9 @@ export default function StockPage() {
           <button className="sort-btn" onClick={() => zoomTo(zoom + 0.5)}>🔍+</button>
           {zoom > 1 && <button className="sort-btn" onClick={() => setZoom(1)}>Reset</button>}
           <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
-            onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
+            onClick={downloadPDF} disabled={pdfBusy}
+            title={isMgr ? 'Peta siteplan + rekap unit & pembeli' : 'Peta siteplan (tanpa daftar unit & nama pembeli)'}>
+            {pdfBusy ? '⏳ Menyiapkan…' : (isMgr ? '📄 Download PDF' : '📄 Download PDF Peta')}</button>
         </span>
       </div>
 
