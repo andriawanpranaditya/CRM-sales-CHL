@@ -215,3 +215,8 @@ th.num{text-align:right}
 }
 @media(max-width:380px){.kpis{grid-template-columns:1fr 1fr}.nav a{min-width:68px}}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+
+/* Baris riwayat lead di Database Lead — tampil utuh, tidak dipecah jadi kartu di mobile */
+.row-detail td{display:block;width:100%;padding:0 10px}
+.row-detail td::before{content:none !important}

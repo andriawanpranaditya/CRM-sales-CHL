@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
@@ -76,78 +76,9 @@ export default function LeadsPage() {
     return r;
   }, [leads, proj, fSales, fStatus, fDate, sortBy, set.status]);
 
-  if (!leads) return <div className="loading">Memuat…</div>;
-
-  return (
-    <>
-      <div className="page-head">
-        <div><h1>Database Lead</h1><div className="sub">Klik baris lead untuk melihat riwayat follow up &amp; jadwal berikutnya</div></div>
-        <div className="stamp"><b>{rows.length}</b> lead</div>
-      </div>
-      <div className="form-tabs" style={{ marginBottom: 12 }}>
-        <button className={tab === 'lead' ? 'active' : ''} onClick={() => setTab('lead')}>1 · Lead</button>
-        <button className={tab === 'fu' ? 'active' : ''} onClick={() => setTab('fu')}>2 · Riwayat Follow Up</button>
-      </div>
-      {tab === 'lead' && <>
-      <div className="fu-toolbar">
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
-        {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
-      </div>
-      <div className="fu-toolbar">
-        <input type="date" className="sort-filter" style={{ marginLeft: 0 }} value={fDate} onChange={e => setFDate(e.target.value)} title="Filter tanggal lead masuk" />
-        {fDate && <button className="sort-btn" onClick={() => setFDate('')}>✕ Tanggal</button>}
-        <select className="sort-filter" style={{ marginLeft: 0 }} value={fSales} onChange={e => setFSales(e.target.value)}>
-          <option value="">Semua Sales</option>
-          {salesList.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="sort-filter" style={{ marginLeft: 0 }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
-          <option value="">Semua Status</option>
-          {(set.status || []).map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="sort-filter" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-          <option value="terbaru">Urut: Terbaru</option>
-          <option value="terlama">Urut: Terlama</option>
-          <option value="sales">Urut: Nama Sales</option>
-          <option value="status">Urut: Status</option>
-        </select>
-      </div>
-      <div className="tbl-wrap tbl-compact"><table>
-        <thead><tr><th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
-          <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
-        <tbody>
-          {rows.length ? rows.map(l => {
-            const c = SEL[l.status] || ['#EFEEE8', '#1C2B23'];
-            const r = reminder(l.next_fu);
-            return <tr key={l.id} onClick={() => bukaLead(l.lead_code)}
-              style={{ cursor: 'pointer', background: sel === l.lead_code ? '#E4EFE8' : undefined }}>
-              <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
-                <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
-              <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
-              <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}</td>
-              <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
-              <td className="num" data-label="Budget">{fmtRp(l.budget)}</td>
-              <td data-label="Sales">{l.sales}</td>
-              <td data-label="Status">
-                <select className="status-sel" style={{ background: c[0], color: c[1] }} value={l.status}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => ubahStatus(l.id, e.target.value)}>
-                  {(set.status || []).map(s => <option key={s}>{s}</option>)}
-                </select>
-              </td>
-              <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
-              <td data-label="Catatan">{l.catatan}</td>
-              <td data-label="Aksi">{me && me.role === 'manager'
-                ? <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>
-                : <span className="hint">—</span>}</td>
-            </tr>;
-          }) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Tidak ada lead pada filter ini.</td></tr>}
-        </tbody>
-      </table></div>
-      </>}
-
-      {tab === 'lead' && sel && (
-        <div className="card" style={{ marginTop: 12 }}>
+  function panelRiwayat() {
+    return (
+      <div style={{ padding: '4px 2px 10px' }}>
           {loadDet ? <span className="hint">Memuat riwayat…</span> : !detail ? null : (() => {
             const L = detail.lead;
             const fuList = detail.fus || [], asg = detail.assigns || [], tr = detail.trx || [];
@@ -200,8 +131,85 @@ export default function LeadsPage() {
               <button className="sort-btn" style={{ marginTop: 6 }} onClick={() => { setSel(null); setDetail(null); }}>Tutup riwayat</button>
             </>);
           })()}
-        </div>
-      )}
+      </div>
+    );
+  }
+
+  if (!leads) return <div className="loading">Memuat…</div>;
+
+  return (
+    <>
+      <div className="page-head">
+        <div><h1>Database Lead</h1><div className="sub">Klik baris lead untuk melihat riwayat follow up &amp; jadwal berikutnya</div></div>
+        <div className="stamp"><b>{rows.length}</b> lead</div>
+      </div>
+      <div className="form-tabs" style={{ marginBottom: 12 }}>
+        <button className={tab === 'lead' ? 'active' : ''} onClick={() => setTab('lead')}>1 · Lead</button>
+        <button className={tab === 'fu' ? 'active' : ''} onClick={() => setTab('fu')}>2 · Riwayat Follow Up</button>
+      </div>
+      {tab === 'lead' && <>
+      <div className="fu-toolbar">
+        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
+        {(set.project || []).map(p => (
+          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+      </div>
+      <div className="fu-toolbar">
+        <input type="date" className="sort-filter" style={{ marginLeft: 0 }} value={fDate} onChange={e => setFDate(e.target.value)} title="Filter tanggal lead masuk" />
+        {fDate && <button className="sort-btn" onClick={() => setFDate('')}>✕ Tanggal</button>}
+        <select className="sort-filter" style={{ marginLeft: 0 }} value={fSales} onChange={e => setFSales(e.target.value)}>
+          <option value="">Semua Sales</option>
+          {salesList.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select className="sort-filter" style={{ marginLeft: 0 }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
+          <option value="">Semua Status</option>
+          {(set.status || []).map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select className="sort-filter" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <option value="terbaru">Urut: Terbaru</option>
+          <option value="terlama">Urut: Terlama</option>
+          <option value="sales">Urut: Nama Sales</option>
+          <option value="status">Urut: Status</option>
+        </select>
+      </div>
+      <div className="tbl-wrap tbl-compact"><table>
+        <thead><tr><th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
+          <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
+        <tbody>
+          {rows.length ? rows.map(l => {
+            const c = SEL[l.status] || ['#EFEEE8', '#1C2B23'];
+            const r = reminder(l.next_fu);
+            return <React.Fragment key={l.id}>
+              <tr onClick={() => bukaLead(l.lead_code)}
+              style={{ cursor: 'pointer', background: sel === l.lead_code ? '#E4EFE8' : undefined }}>
+              <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
+                <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
+              <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
+              <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}</td>
+              <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
+              <td className="num" data-label="Budget">{fmtRp(l.budget)}</td>
+              <td data-label="Sales">{l.sales}</td>
+              <td data-label="Status">
+                <select className="status-sel" style={{ background: c[0], color: c[1] }} value={l.status}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => ubahStatus(l.id, e.target.value)}>
+                  {(set.status || []).map(s => <option key={s}>{s}</option>)}
+                </select>
+              </td>
+              <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+              <td data-label="Catatan">{l.catatan}</td>
+              <td data-label="Aksi">{me && me.role === 'manager'
+                ? <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>
+                : <span className="hint">—</span>}</td>
+              </tr>
+              {sel === l.lead_code && (
+                <tr className="row-detail"><td colSpan={10} style={{ background: '#FAF9F5', borderTop: '2px solid var(--green)' }}>
+                  {panelRiwayat()}
+                </td></tr>)}
+            </React.Fragment>;
+          }) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Tidak ada lead pada filter ini.</td></tr>}
+        </tbody>
+      </table></div>
+      </>}
 
       {tab === 'fu' && (
         <div className="tbl-wrap tbl-compact"><table>
