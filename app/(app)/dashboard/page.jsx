@@ -539,8 +539,10 @@ export default function Dashboard() {
       const su = stock.filter(u => u.project === p2);
       const merahU = su.filter(u => u.warna === 'merah');
       const kuningU = su.filter(u => u.warna === 'kuning');
-      const nJual = merahU.reduce((a, u) => a + (lastVal[p2 + '|' + u.unit] || 0), 0);
-      const nRes = kuningU.reduce((a, u) => a + (lastVal[p2 + '|' + u.unit] || 0), 0);
+      // Nilai = NILAI TRANSAKSI (harga jual) unit terkini; unit tanda manual memakai nilai kontrak dari impor
+      const nilaiU = u => Number(u.nilai) || lastVal[p2 + '|' + u.unit] || 0;
+      const nJual = merahU.reduce((a, u) => a + nilaiU(u), 0);
+      const nRes = kuningU.reduce((a, u) => a + nilaiU(u), 0);
       return { p: p2, total, merah: merahU.length, kuning: kuningU.length, nJual, nRes };
     });
 
@@ -674,7 +676,7 @@ ${petaHtml}
 ${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning)}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
 ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
 </table>
-<p class="muted">Unit hasil penandaan manual (tanpa transaksi) terhitung pada jumlah namun bernilai Rp 0. Nilai diambil dari transaksi terakhir tiap unit.</p>
+<p class="muted">Nilai Penjualan memakai <b>Nilai Transaksi</b> (harga jual unit) dari transaksi terakhir tiap unit; unit hasil penandaan manual memakai nilai kontrak yang tercatat di Master Stock. Unit tanpa nilai tercatat terhitung pada jumlah namun bernilai Rp 0.</p>
 
 <p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
