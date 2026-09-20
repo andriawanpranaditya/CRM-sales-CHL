@@ -45,6 +45,10 @@ export async function POST(req) {
             ${b.sumber || ''}, ${wInfo}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
             ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${user.username})
     RETURNING id`;
+  // Catat serah terima awal bila lead langsung punya PIC
+  if (sales) {
+    await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${ins[0].lead_code}, ${''}, ${sales}, ${user.username})`;
+  }
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${id}`;
@@ -57,6 +61,9 @@ export async function PATCH(req) {
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
+  if (operKe) {
+    await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
+  }
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   if (user.role === 'sales' && cur.sales !== user.name) {
@@ -65,7 +72,11 @@ export async function PATCH(req) {
   const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
-  if ((user.role === 'manager' || user.role === 'markom') && 'sales' in b && b.sales) m.sales = b.sales;
+  let operKe = null;
+  if ((user.role === 'manager' || user.role === 'markom') && 'sales' in b && b.sales) {
+    if ((cur.sales || '') !== b.sales) operKe = b.sales;
+    m.sales = b.sales;
+  }
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
   await sql`UPDATE leads SET
     tgl = ${m.tgl || null}, nama = ${m.nama}, wa = ${m.wa || ''}, email = ${m.email || ''},

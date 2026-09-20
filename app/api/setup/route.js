@@ -129,6 +129,16 @@ export async function GET(req) {
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sales text`;
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS sumber text`;
   await sql`ALTER TABLE unit_manual ADD COLUMN IF NOT EXISTS nilai numeric`;
+  // Riwayat serah terima lead (siapa → siapa, kapan)
+  await sql`CREATE TABLE IF NOT EXISTS lead_assign (
+    id serial PRIMARY KEY,
+    lead_code text NOT NULL,
+    dari text,
+    ke text,
+    oleh text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_assign_lead ON lead_assign (lead_code)`);
   await coba(() => sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`);
 
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
