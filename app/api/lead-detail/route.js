@@ -23,7 +23,7 @@ export async function GET(req) {
   }
 
   const [assigns, fus, trx] = await Promise.all([
-    sql`SELECT dari, ke, oleh, created_at FROM lead_assign WHERE lead_code = ${kode} ORDER BY created_at`,
+    sql`SELECT dari, ke, oleh, created_at FROM lead_assign WHERE lead_code = ${kode} ORDER BY created_at`.catch(() => []),
     sql`SELECT id, tgl::text AS tgl, detail, objection, next_action, next_tgl::text AS next_tgl, wa_pesan, created_by, created_at
         FROM followups WHERE lead_code = ${kode} ORDER BY created_at`,
     sql`SELECT id, tgl::text AS tgl, jenis, nilai, nilai_jual, unit, project, catatan, created_by, created_at

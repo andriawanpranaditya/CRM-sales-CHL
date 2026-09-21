@@ -47,7 +47,10 @@ export async function POST(req) {
     RETURNING id`;
   // Catat serah terima awal bila lead langsung punya PIC
   if (sales) {
-    await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${ins[0].lead_code}, ${''}, ${sales}, ${user.username})`;
+    // Pencatatan riwayat tidak boleh menggagalkan penyimpanan lead
+    try {
+      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${ins[0].lead_code}, ${''}, ${sales}, ${user.username})`;
+    } catch (e) { /* tabel riwayat belum dibuat — lewati */ }
   }
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
@@ -62,7 +65,9 @@ export async function PATCH(req) {
   const sql = db();
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
   if (operKe) {
-    await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
+    try {
+      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
+    } catch (e) { /* tabel riwayat belum dibuat — lewati */ }
   }
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
