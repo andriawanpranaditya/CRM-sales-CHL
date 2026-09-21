@@ -45,16 +45,15 @@ export async function POST(req) {
             ${b.sumber || ''}, ${wInfo}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
             ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${user.username})
     RETURNING id`;
-  // Catat serah terima awal bila lead langsung punya PIC
-  if (sales) {
-    // Pencatatan riwayat tidak boleh menggagalkan penyimpanan lead
-    try {
-      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${ins[0].lead_code}, ${''}, ${sales}, ${user.username})`;
-    } catch (e) { /* tabel riwayat belum dibuat — lewati */ }
-  }
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${id}`;
+  // Catat serah terima awal bila lead langsung punya PIC (tidak boleh menggagalkan penyimpanan)
+  if (sales) {
+    try {
+      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${code}, ${''}, ${sales}, ${user.username})`;
+    } catch (e) { /* tabel riwayat belum ada — lewati */ }
+  }
   return Response.json({ ok: true, id, lead_code: code });
 }
 
@@ -64,11 +63,6 @@ export async function PATCH(req) {
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
-  if (operKe) {
-    try {
-      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
-    } catch (e) { /* tabel riwayat belum dibuat — lewati */ }
-  }
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   if (user.role === 'sales' && cur.sales !== user.name) {
@@ -92,6 +86,12 @@ export async function PATCH(req) {
     status = ${m.status || 'New'}, catatan = ${m.catatan || ''}, next_fu = ${m.next_fu || null},
     updated_at = now()
     WHERE id = ${b.id}`;
+  // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
+  if (operKe) {
+    try {
+      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
+    } catch (e) { /* tabel riwayat belum ada — lewati */ }
+  }
   return Response.json({ ok: true });
 }
 
