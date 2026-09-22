@@ -39,7 +39,7 @@ function tipeBio(unit) {
   return null;
 }
 function hargaUnit(proj, blok, tipePilih) {
-  if (/permai/i.test(proj)) return { standar: 185000000, allin: 185000000, bunga: 5, tenor: 20, tipe: 'Subsidi', irreg: false, ket: '' };
+  if (/permai/i.test(proj)) return { standar: PERMAI.harga, allin: PERMAI.harga, bunga: PERMAI.bunga, tenor: 20, tipe: 'Subsidi', irreg: false, ket: '' };
   if (blok && BIO_IRREG[blok]) { const x = BIO_IRREG[blok]; return { ...x, bunga: 2.75, tenor: 25, irreg: true }; }
   const t = (blok && tipeBio(blok)) || tipePilih || 'A';
   return { ...BIO_TIPE[t], tipe: t, bunga: 2.75, tenor: 25, irreg: false, ket: '' };
@@ -52,6 +52,17 @@ const CARA = [
 ];
 const BF_DEFAULT = 5000000;
 const TENOR_KPR = [25, 20, 15, 10];
+// Price list Permai Indah — KPR BTN Subsidi (SBUM Rp4 jt dari pemerintah tidak disimulasikan)
+const PERMAI = { harga: 185000000, bf: 500000, um: 1350000, plafon: 179150000, bunga: 5, lb: '22,5 m²', lt: '60 m²', tenor: [20, 15, 10] };
+function susunPermai(tglBF, bf, um, plafon) {
+  if (!tglBF) return [];
+  const tUM = plusHari(tglBF, 14);                         // pola BIO: hari ke-14 dari BF
+  return [
+    { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
+    { ket: 'Uang Muka', tgl: tUM, nominal: um },
+    { ket: 'Akad KPR BTN Subsidi (plafon)', tgl: plusBulan(tUM, 1), nominal: plafon }, // sebulan setelah uang muka
+  ];
+}
 
 // ===== Utilitas tanggal =====
 const iso = d => d.toISOString().slice(0, 10);
@@ -141,44 +152,53 @@ export default function SimulasiCaraBayar() {
   }, [cara]);
   useEffect(() => { setBunga(U.bunga); setTenor(U.tenor); }, [proj]); // eslint-disable-line
 
-  const harga = hargaMode === 'manual' ? (Number(hargaManual) || 0) : (hargaMode === 'allin' ? U.allin : U.standar);
+  const isPermai = /permai/i.test(proj);
+  const harga = isPermai ? PERMAI.harga : (hargaMode === 'manual' ? (Number(hargaManual) || 0) : (hargaMode === 'allin' ? U.allin : U.standar));
+  // Total yang dijadwalkan: Permai = BF + uang muka + plafon (SBUM tidak disimulasikan)
+  const targetTotal = isPermai ? (Number(bf) || 0) + PERMAI.um + PERMAI.plafon : harga;
+  useEffect(() => { if (isPermai) { setCara('kpr'); setBf(PERMAI.bf); setTenor(20); setBunga(PERMAI.bunga); setDbr(30); } else { setBf(BF_DEFAULT); } }, [isPermai]); // eslint-disable-line
 
   // Susun ulang jadwal setiap kali dasar perhitungan berubah
   useEffect(() => {
-    setRows(susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Math.max(1, Number(nCicil) || 12))));
-  }, [cara, harga, tglBF, bf, nCicil]);
+    setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon)
+      : susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Math.max(1, Number(nCicil) || 12))));
+  }, [cara, harga, tglBF, bf, nCicil, isPermai]);
 
   // Edit manual: termin terakhir menyeimbangkan otomatis
   const ubahBaris = (i, k, v) => {
     const r = rows.map((x, j) => j === i ? { ...x, [k]: k === 'nominal' ? Number(v) || 0 : v } : x);
     if (k === 'nominal' && r.length > 1) {
       const tanpaAkhir = r.slice(0, -1).reduce((a, x) => a + x.nominal, 0);
-      r[r.length - 1] = { ...r[r.length - 1], nominal: harga - tanpaAkhir };
+      r[r.length - 1] = { ...r[r.length - 1], nominal: targetTotal - tanpaAkhir };
     }
     setRows(r);
   };
   const total = rows.reduce((a, x) => a + (Number(x.nominal) || 0), 0);
-  const cocok = Math.round(total) === Math.round(harga);
+  const cocok = Math.round(total) === Math.round(targetTotal);
 
   // ===== KPR =====
-  const plafon = harga;
+  const plafon = isPermai ? PERMAI.plafon : harga;
+  const TENOR = isPermai ? PERMAI.tenor : TENOR_KPR;
   const angs = useMemo(() => anuitas(plafon, Number(bunga) || 0, (Number(tenor) || 0) * 12), [plafon, bunga, tenor]);
   const lain = Number(cicilanLain) || 0;
   const butuh = angs ? (angs + lain) / (dbr / 100) : 0;
   const dbrAkt = Number(penghasilan) ? ((angs + lain) / Number(penghasilan)) * 100 : null;
   const kel = dbrAkt == null ? null
+    : isPermai ? (dbrAkt <= 30
+      ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Di bawah batas 30%, sesuai ketentuan KPR subsidi.' }
+      : { w: 'var(--red)', t: `Melebihi batas — DBR ${Math.round(dbrAkt)}%`, s: 'Di atas 30%: perpanjang tenor atau ajukan dengan penghasilan gabungan.' })
     : dbrAkt <= 40 ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Rasio cicilan sehat, peluang disetujui besar.' }
     : dbrAkt <= 50 ? { w: '#C9922E', t: `Masih mungkin — DBR ${Math.round(dbrAkt)}%`, s: 'Butuh penghasilan tetap, SLIK bersih, cicilan lain minim; bisa joint income pasangan.' }
     : { w: 'var(--red)', t: `Perlu penyesuaian — DBR ${Math.round(dbrAkt)}%`, s: 'Perpanjang tenor, tambah uang muka, atau ajukan dengan penghasilan gabungan.' };
 
-  const labelHarga = hargaMode === 'manual' ? 'Harga manual' : hargaMode === 'allin' ? 'Harga All In' : 'Harga Standar';
+  const labelHarga = isPermai ? 'Harga' : hargaMode === 'manual' ? 'Harga manual' : hargaMode === 'allin' ? 'Harga All In' : 'Harga Standar';
   const namaCara = CARA.find(c => c[0] === cara)[1] + (cara === 'bertahap' ? ` ${Math.min(12, Number(nCicil) || 12)} bulan` : '');
 
   function teksWA() {
     let t = `*SIMULASI CARA BAYAR — ${unit}*\n${namaCara} · ${labelHarga}: *${fmtRp(harga)}*\n\n`;
     rows.forEach(r => { t += `${tglID(r.tgl)} — ${r.ket}: ${fmtRp(r.nominal) === '—' ? 'Rp0' : fmtRp(r.nominal)}\n`; });
     if (cara === 'kpr') {
-      t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR_KPR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
+      t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
       t += `\nPenghasilan minimal ± ${fmtRp(Math.round(butuh))}/bln (DBR ${dbr}%).`;
     }
     t += `\n\nPembayaran ke: PT Serpong Bangun Lestari · BCA 205-005-3604 (KCK Menara BCA).\n_Simulasi; mengikuti ketentuan price list yang berlaku._`;
@@ -220,7 +240,7 @@ export default function SimulasiCaraBayar() {
         doc.text(r.nominal ? fmtRp(r.nominal) : 'Rp 0', PW - M - 3, y + 4.8, { align: 'right' });
         y += 7;
       });
-      doc.setFont('helvetica', 'bold'); doc.text('Total', M + 38, y + 5); doc.text(fmtRp(total), PW - M - 3, y + 5, { align: 'right' }); y += 12;
+      if (!isPermai) { doc.setFont('helvetica', 'bold'); doc.text('Total', M + 38, y + 5); doc.text(fmtRp(total), PW - M - 3, y + 5, { align: 'right' }); y += 12; } else { y += 6; }
       if (cara === 'kpr') {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text('Ilustrasi Angsuran KPR — bunga ' + bunga + '%', M, y); y += 6;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
@@ -273,7 +293,13 @@ export default function SimulasiCaraBayar() {
               {['A', 'B', 'C'].map(t => <option key={t} value={t}>Tipe {t} — standar {fmtRp(BIO_TIPE[t].standar)}</option>)}
             </select></div>}
           <div className="field"><label>Cara Bayar</label>
-            <select value={cara} onChange={e => setCara(e.target.value)}>{CARA.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+            <select value={cara} onChange={e => setCara(e.target.value)} disabled={isPermai}>
+              {(isPermai ? [['kpr', 'KPR BTN Subsidi']] : CARA).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+            {isPermai && <span className="hint">Permai Indah hanya melalui KPR subsidi.</span>}</div>
+          {isPermai ? <div className="field"><label>Harga</label>
+            <input value={fmtRp(PERMAI.harga)} disabled />
+            <span className="hint">LB {PERMAI.lb} · LT {PERMAI.lt} · plafon KPR {fmtRp(PERMAI.plafon)}</span></div> :
           <div className="field"><label>Harga</label>
             <select value={hargaMode} onChange={e => setHargaMode(e.target.value)}>
               <option value="standar">Harga Standar — {fmtRp(U.standar)}</option>
@@ -282,7 +308,7 @@ export default function SimulasiCaraBayar() {
             </select>
             {hargaMode === 'manual' && <input type="number" min="0" style={{ marginTop: 6 }} value={hargaManual}
               onChange={e => setHargaManual(e.target.value)} placeholder="ketik harga" />}
-            <span className="hint">{cara === 'kpr' ? 'Untuk KPR, harga ini adalah plafon (sesuai price list).' : cara === 'keras' ? 'Default Cash Keras: Harga Standar.' : 'Default Cash Bertahap: Harga All In.'}</span></div>
+            <span className="hint">{cara === 'kpr' ? 'Untuk KPR, harga ini adalah plafon (sesuai price list).' : cara === 'keras' ? 'Default Cash Keras: Harga Standar.' : 'Default Cash Bertahap: Harga All In.'}</span></div>}
           <div className="field"><label>Tanggal Booking Fee</label>
             <input type="date" value={tglBF} onChange={e => setTglBF(e.target.value)} /></div>
           <div className="field"><label>Booking Fee (Rp)</label>
@@ -309,7 +335,7 @@ export default function SimulasiCaraBayar() {
           <h2>Jadwal Pembayaran — {namaCara}</h2>
           <div className="hint" style={{ marginBottom: 8 }}>{unit} · {labelHarga}: <b>{fmtRp(harga)}</b> · tanggal &amp; nominal bisa diubah langsung; termin terakhir menyesuaikan otomatis.</div>
           <div className="tbl-wrap"><table className="tbl-compact">
-            <thead><tr><th style={{ width: 40 }}>#</th><th>Tanggal</th><th>Termin</th><th className="num">Nominal</th><th className="num">Kumulatif</th></tr></thead>
+            <thead><tr><th style={{ width: 40 }}>#</th><th>Tanggal</th><th>Termin</th><th className="num">Nominal</th>{!isPermai && <th className="num">Kumulatif</th>}</tr></thead>
             <tbody>
               {rows.map((r, i) => {
                 const kum = rows.slice(0, i + 1).reduce((a, x) => a + x.nominal, 0);
@@ -321,16 +347,16 @@ export default function SimulasiCaraBayar() {
                   <td className="num" data-label="Nominal">{akhir
                     ? <b title="Menyesuaikan otomatis">{fmtRp(r.nominal) === '—' ? 'Rp 0' : fmtRp(r.nominal)}</b>
                     : <input type="number" min="0" value={r.nominal} onChange={e => ubahBaris(i, 'nominal', e.target.value)} style={{ maxWidth: 160, textAlign: 'right' }} />}</td>
-                  <td className="num" data-label="Kumulatif">{fmtRp(kum) === '—' ? 'Rp 0' : fmtRp(kum)}</td>
+                  {!isPermai && <td className="num" data-label="Kumulatif">{fmtRp(kum) === '—' ? 'Rp 0' : fmtRp(kum)}</td>}
                 </tr>;
               })}
-              <tr><td></td><td></td><td><b>Total</b></td>
+              {!isPermai && <tr><td></td><td></td><td><b>Total</b></td>
                 <td className="num"><b>{fmtRp(total)}</b></td>
-                <td className="num">{cocok ? <b style={{ color: 'var(--green)' }}>Total cocok ✓</b> : <b style={{ color: 'var(--red)' }}>Selisih {fmtRp(harga - total)}</b>}</td></tr>
+                <td className="num">{cocok ? <b style={{ color: 'var(--green)' }}>Total cocok ✓</b> : <b style={{ color: 'var(--red)' }}>Selisih {fmtRp(targetTotal - total)}</b>}</td></tr>}
             </tbody>
           </table></div>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="sort-btn" onClick={() => setRows(susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Number(nCicil) || 12)))}>↺ Kembalikan jadwal standar</button>
+            <button className="sort-btn" onClick={() => setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon) : susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Number(nCicil) || 12)))}>↺ Kembalikan jadwal standar</button>
             <button className="sort-btn" onClick={() => navigator.clipboard.writeText(teksWA()).then(() => toast('Disalin — tinggal tempel di WhatsApp 📋')).catch(() => toast('Gagal menyalin'))}>📋 Salin untuk WhatsApp</button>
             <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
           </div>
@@ -342,14 +368,15 @@ export default function SimulasiCaraBayar() {
             <h2>Simulasi Angsuran KPR — plafon {fmtRp(plafon)}</h2>
             <div className="form-grid">
               <div className="field"><label>Bunga (% / tahun)</label>
-                <input type="number" step="0.05" min="0" value={bunga} onChange={e => setBunga(e.target.value)} /></div>
+                <input type="number" step="0.05" min="0" value={bunga} onChange={e => setBunga(e.target.value)} disabled={isPermai} />
+                {isPermai && <span className="hint">KPR BTN subsidi — bunga tetap 5%.</span>}</div>
               <div className="field"><label>Tenor</label>
-                <select value={tenor} onChange={e => setTenor(Number(e.target.value))}>{TENOR_KPR.map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
+                <select value={tenor} onChange={e => setTenor(Number(e.target.value))}>{TENOR.map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
               <div className="field"><label>Batas DBR</label>
-                <select value={dbr} onChange={e => setDbr(Number(e.target.value))}>
+                <select value={dbr} onChange={e => setDbr(Number(e.target.value))} disabled={isPermai}>
                   <option value={30}>30% — sangat aman</option>
-                  <option value={40}>40% — umum dipakai bank</option>
-                  <option value={50}>50% — maksimal, syarat tertentu</option>
+                  {!isPermai && <option value={40}>40% — umum dipakai bank</option>}
+                  {!isPermai && <option value={50}>50% — maksimal, syarat tertentu</option>}
                 </select></div>
               <div className="field"><label>Cicilan Lain / Bulan (Rp)</label>
                 <input type="number" min="0" value={cicilanLain} onChange={e => setCicilanLain(e.target.value)} placeholder="opsional" /></div>
@@ -363,22 +390,22 @@ export default function SimulasiCaraBayar() {
               <div className="kpi"><div className="kpi-label">Penghasilan Minimal</div>
                 <div className="kpi-val" style={{ color: 'var(--brass)' }}>{fmtRp(Math.round(butuh))}</div>
                 <div className="hint">pada DBR {dbr}%</div></div>
-              <div className="kpi"><div className="kpi-label">Penghasilan Min. (DBR 50%)</div>
+              {!isPermai && <div className="kpi"><div className="kpi-label">Penghasilan Min. (DBR 50%)</div>
                 <div className="kpi-val">{fmtRp(Math.round((angs + lain) / 0.5))}</div>
-                <div className="hint">batas maksimal, syarat tertentu</div></div>
+                <div className="hint">batas maksimal, syarat tertentu</div></div>}
               <div className="kpi"><div className="kpi-label">Kelayakan Konsumen</div>
                 {kel ? <><div className="kpi-val" style={{ color: kel.w, fontSize: 18 }}>{kel.t}</div><div className="hint">{kel.s}</div></>
                   : <div className="hint">Isi penghasilan untuk melihat kelayakan.</div>}</div>
             </div>
             <div className="tbl-wrap" style={{ marginTop: 10 }}><table className="tbl-compact">
-              <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th><th className="num">DBR 50%</th></tr></thead>
-              <tbody>{TENOR_KPR.map(t => {
+              <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th>{!isPermai && <th className="num">DBR 50%</th>}</tr></thead>
+              <tbody>{TENOR.map(t => {
                 const a = anuitas(plafon, Number(bunga), t * 12);
                 return <tr key={t} style={Number(tenor) === t ? { background: '#E4EFE8' } : undefined}>
                   <td data-label="Tenor"><b>{t} tahun</b></td>
                   <td className="num" data-label="Angsuran"><b>{fmtRp(Math.round(a))}</b></td>
                   <td className="num" data-label="DBR">{fmtRp(Math.round((a + lain) / (dbr / 100)))}</td>
-                  <td className="num" data-label="DBR 50%">{fmtRp(Math.round((a + lain) / 0.5))}</td>
+                  {!isPermai && <td className="num" data-label="DBR 50%">{fmtRp(Math.round((a + lain) / 0.5))}</td>}
                 </tr>;
               })}</tbody>
             </table></div>
