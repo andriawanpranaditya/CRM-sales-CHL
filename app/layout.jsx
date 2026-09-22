@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
       <body>
         {children}
         <Script id="register-sw" strategy="afterInteractive">
-          {`if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }`}
+          {`if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js?v=${process.env.NEXT_PUBLIC_APP_VER || 'dev'}').catch(() => {}); }`}
         </Script>
       </body>
     </html>

@@ -29,6 +29,30 @@ export default function Shell({ user, children }) {
     if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr')) router.replace('/form');
   }, [path, user.role, router]);
 
+  // Bersih otomatis: penanda notifikasi/suara harian yang berumur > 7 hari
+  useEffect(() => {
+    try {
+      const batas = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+      Object.keys(localStorage).forEach(k => {
+        const m = k.match(/^crm_(notif|chime)_(\d{4}-\d{2}-\d{2})/);
+        if (m && m[2] < batas) localStorage.removeItem(k);
+      });
+    } catch {}
+  }, []);
+
+  // Tombol darurat: hapus cache aplikasi di perangkat lalu muat versi terbaru (login & data CRM tetap aman)
+  async function segarkanAplikasi() {
+    if (!confirm('Segarkan aplikasi?\n\nCache aplikasi di perangkat ini dihapus lalu versi terbaru dimuat ulang. Login dan data CRM tidak terpengaruh.')) return;
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        regs.forEach(r => { try { r.active && r.active.postMessage('bersihkan'); r.update(); } catch {} });
+      }
+      if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); }
+    } catch {}
+    window.location.reload();
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login'); router.refresh();
@@ -54,6 +78,7 @@ export default function Shell({ user, children }) {
         <img src="/logo.png" alt="" />
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <ReminderBell user={user} />
+          <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
           <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
           <button className="btn-logout" onClick={logout}>{user.name} · Keluar</button>
         </span>
@@ -75,6 +100,7 @@ export default function Shell({ user, children }) {
           <span><span className="u-name">{user.name}</span>
             <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
           <span style={{ display: 'flex', gap: 4 }}>
+            <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
             <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
             <button className="btn-logout" onClick={logout}>Keluar</button>
           </span>

@@ -58,6 +58,8 @@ export default function SettingsPage() {
         <button className="btn btn-primary" onClick={simpan} disabled={busy}>Simpan Settings</button>
       </div>
 
+      <UkuranDatabase />
+
       <div className="card" style={{ marginTop: 18, borderColor: 'var(--red-soft)' }}>
         <h2 style={{ color: 'var(--red)' }}>Zona Berbahaya</h2>
         <div className="note" style={{ background: 'var(--red-soft)', borderColor: '#EAC2BA', color: 'var(--red)' }}>
@@ -74,5 +76,48 @@ export default function SettingsPage() {
       </div>
       <Toast />
     </>
+  );
+}
+
+
+// ===== Pantauan ukuran database (hanya baca) =====
+const NAMA_TABEL = {
+  leads: 'Lead', followups: 'Follow up', transactions: 'Transaksi', trx_files: 'Berkas KTP / Bukti Transfer',
+  unit_manual: 'Tanda stok manual', unit_positions: 'Posisi titik peta', users: 'Pengguna', settings: 'Pengaturan',
+  lead_assign: 'Riwayat serah terima lead',
+};
+function ukuran(b) {
+  if (b >= 1073741824) return (b / 1073741824).toFixed(2).replace('.', ',') + ' GB';
+  if (b >= 1048576) return (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+  return Math.max(1, Math.round(b / 1024)) + ' KB';
+}
+function UkuranDatabase() {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState('');
+  const muat = () => { setErr(''); fetch('/api/db-size', { cache: 'no-store' }).then(r => r.json()).then(x => x.error ? setErr(x.error) : setD(x)).catch(() => setErr('Gagal memuat')); };
+  useEffect(() => { muat(); }, []);
+  const maks = d ? Math.max(1, ...d.tabel.map(t => t.bytes)) : 1;
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <h2>Ukuran Database</h2>
+      {err ? <span className="hint">{err}</span> : !d ? <span className="hint">Memuat…</span> : (<>
+        <div className="hint" style={{ marginBottom: 10 }}>
+          Total terpakai: <b style={{ fontSize: 16, color: 'var(--ink)' }}>{ukuran(d.total)}</b>
+          {d.berkas ? <> · berkas lampiran <b>{d.berkas.jumlah}</b> file ({ukuran(d.berkas.bytes)})</> : null}
+          {' '}— bandingkan dengan batas penyimpanan paket Neon Anda (lihat dashboard Neon → Usage).
+        </div>
+        {d.tabel.map(t => (
+          <div key={t.nama} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,220px) 1fr 90px', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 13 }}>{NAMA_TABEL[t.nama] || t.nama}<span className="hint"> · ±{t.perkiraan_baris > 0 ? t.perkiraan_baris.toLocaleString('id-ID') : '0'} baris</span></span>
+            <div style={{ background: '#EDEBE3', borderRadius: 6, height: 10, overflow: 'hidden' }}>
+              <div style={{ width: Math.max(2, t.bytes / maks * 100) + '%', height: '100%', background: t.nama === 'trx_files' ? '#C9922E' : '#23694A', borderRadius: 6 }} /></div>
+            <b style={{ fontSize: 13, textAlign: 'right' }}>{ukuran(t.bytes)}</b>
+          </div>))}
+        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="sort-btn" onClick={muat}>↻ Perbarui</button>
+          <span className="hint">Hanya pemantauan — tidak ada data yang dihapus otomatis. Berkas lampiran biasanya penyumbang terbesar.</span>
+        </div>
+      </>)}
+    </div>
   );
 }
