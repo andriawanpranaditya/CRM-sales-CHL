@@ -44,21 +44,26 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil) {
     ];
   }
   const dp = Math.round(harga * 0.10); // DP 10% sudah termasuk Booking Fee
-  const rows = [
-    { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
-    { ket: `Sisa DP (DP 10% = ${fmtRp(dp)}, termasuk BF)`, tgl: plusHari(tglBF, 14), nominal: dp - bf },
-  ];
+  const tDP = plusHari(tglBF, 14);
   if (cara === 'keras') {
-    rows.push({ ket: 'Pelunasan', tgl: plusHari(tglBF, 30), nominal: harga - dp });
-    return rows;
+    return [
+      { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
+      { ket: `Sisa DP (DP 10% = ${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+      { ket: 'Pelunasan', tgl: plusHari(tglBF, 30), nominal: harga - dp },
+    ];
   }
-  // Cash bertahap: sisa 90% dibagi rata, cicilan 1 hari ke-30 lalu tiap bulan
+  // Cash bertahap: DP 10% = cicilan ke-1 (hari ke-14 dari BF);
+  // cicilan ke-2 jatuh 30 hari setelah cicilan ke-1, lalu tiap bulan sampai lunas
+  const n = Math.max(2, nCicil);                 // jumlah cicilan TERMASUK DP
   const sisa = harga - dp;
-  const n = Math.max(1, nCicil);
-  const cic = Math.round(sisa / n / 1000) * 1000;
-  const t1 = plusHari(tglBF, 30);
-  for (let i = 0; i < n; i++) {
-    rows.push({ ket: `Cicilan ${i + 1} dari ${n}`, tgl: plusBulan(t1, i), nominal: i === n - 1 ? sisa - cic * (n - 1) : cic });
+  const cic = Math.round(sisa / (n - 1) / 1000) * 1000;
+  const t2 = plusHari(tDP, 30);
+  const rows = [
+    { ket: `Booking Fee (bagian dari Cicilan 1)`, tgl: tglBF, nominal: bf },
+    { ket: `Cicilan 1 dari ${n} — DP 10% (${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+  ];
+  for (let k = 2; k <= n; k++) {
+    rows.push({ ket: `Cicilan ${k} dari ${n}${k === n ? ' (terakhir)' : ''}`, tgl: plusBulan(t2, k - 2), nominal: k === n ? sisa - cic * (n - 2) : cic });
   }
   return rows;
 }
@@ -213,9 +218,9 @@ export default function SimulasiCaraBayar() {
             <span className="hint">{cara === 'kpr' ? 'Pelunasan via KPR = 100% − BF.' : 'Sudah termasuk dalam DP 10%.'}</span></div>
           {cara === 'bertahap' && <div className="field"><label>Jumlah Cicilan (bulan)</label>
             <select value={nCicil} onChange={e => setNCicil(Number(e.target.value))}>
-              {[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2].map(n => <option key={n} value={n}>{n} bulan{n === 12 ? ' (standar)' : ''}</option>)}
+              {[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2].map(n => <option key={n} value={n}>{n}× cicilan{n === 12 ? ' (standar)' : ''}</option>)}
             </select>
-            <span className="hint">Maksimal 12 bulan, dibagi rata sampai lunas.</span></div>}
+            <span className="hint">Termasuk DP 10% sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
         </div>
       </div>
 
