@@ -177,7 +177,7 @@ export default function SimulasiCaraBayar() {
       doc.setFontSize(8.5); doc.setTextColor(90, 100, 92);
       [
         'Pembayaran dianggap sah apabila sudah masuk ke rekening PT Serpong Bangun Lestari — BCA 205-005-3604, KCK Menara BCA.',
-        'Keterlambatan pembayaran dikenakan denda 1‰ (satu per mil) per hari. Nama blok & nomor yang tercantum saat tanda jadi tidak dapat diganti.',
+        'Nama blok & nomor yang tercantum saat tanda jadi tidak dapat diganti.',
         'Simulasi ini mengikuti ketentuan price list yang berlaku dan dapat berubah sewaktu-waktu tanpa pemberitahuan terlebih dahulu.',
       ].forEach(t => { const l = doc.splitTextToSize(t, PW - M * 2); doc.text(l, M, y); y += l.length * 4.2 + 1; });
       doc.text('copyright © 2026 by Andriawanp', PW / 2, 290, { align: 'center' });
