@@ -190,6 +190,11 @@ export default function SimulasiCaraBayar() {
     try {
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      // Font bawaan PDF tidak mengenal sebagian simbol Unicode — ganti dengan padanan aman
+      const aman = t => String(t == null ? '' : t)
+        .replace(/[\u2212\u2013]/g, '-')   // tanda minus / en dash
+        .replace(/\u2192/g, '->')            // panah
+        .replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
       const PW = 210, M = 14;
       doc.setFillColor(28, 43, 35); doc.rect(0, 0, PW, 20, 'F');
       doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
@@ -199,9 +204,9 @@ export default function SimulasiCaraBayar() {
       doc.setTextColor(28, 43, 35);
       let y = 30;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-      doc.text(unit + ' — ' + namaCara, M, y); y += 6;
+      doc.text(aman(unit + ' — ' + namaCara), M, y); y += 6;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      doc.text(labelHarga + ': ' + fmtRp(harga), M, y); y += 8;
+      doc.text(aman(labelHarga + ': ' + fmtRp(harga)), M, y); y += 8;
       // tabel jadwal
       doc.setFillColor(35, 105, 74); doc.rect(M, y, PW - M * 2, 8, 'F');
       doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
@@ -211,7 +216,7 @@ export default function SimulasiCaraBayar() {
         if (y > 270) { doc.addPage(); y = 20; }
         if (i % 2) { doc.setFillColor(245, 244, 239); doc.rect(M, y, PW - M * 2, 7, 'F'); }
         doc.text(tglID(r.tgl), M + 3, y + 4.8);
-        doc.text(doc.splitTextToSize(r.ket, 95)[0], M + 38, y + 4.8);
+        doc.text(doc.splitTextToSize(aman(r.ket), 95)[0], M + 38, y + 4.8);
         doc.text(r.nominal ? fmtRp(r.nominal) : 'Rp 0', PW - M - 3, y + 4.8, { align: 'right' });
         y += 7;
       });
