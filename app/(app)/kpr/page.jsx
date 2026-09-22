@@ -143,6 +143,10 @@ export default function SimulasiCaraBayar() {
   const U = hargaUnit(proj, blok, tipePilih);
   const isBio = /bio/i.test(proj);
   const namaProyek = /bio/i.test(proj) ? 'BIO DISTRICT - Serpong' : /permai/i.test(proj) ? 'PERMAI INDAH - Cilejit' : proj;
+  // Rekening pembayaran berbeda per proyek
+  const REK = /permai/i.test(proj)
+    ? { pt: 'PT Bumi Mahardika Makmur', no: '497-6006-887', cab: 'KCU BSD' }
+    : { pt: 'PT Serpong Bangun Lestari', no: '205-005-3604', cab: 'KCK Menara BCA' };
   const unit = blok ? `${blok} (Tipe ${U.tipe}${U.irreg ? ' · Irreguler' : ''})` : (isBio ? `BIO District Tipe ${U.tipe}` : proj);
   const stMap = {}; stok.forEach(x => { stMap[x.project + '|' + x.unit] = x; });
   const daftarUnit = (set.units && set.units[proj]) || [];
@@ -202,7 +206,7 @@ export default function SimulasiCaraBayar() {
       t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
       t += `\nPenghasilan minimal ± ${fmtRp(Math.round(butuh))}/bln (DBR ${dbr}%).`;
     }
-    t += `\n\nPembayaran ke: PT Serpong Bangun Lestari · BCA 205-005-3604 (KCK Menara BCA).\n_Simulasi; mengikuti ketentuan price list yang berlaku._`;
+    t += `\n\nPembayaran ke: ${REK.pt} · BCA ${REK.no} (${REK.cab}).\n_Simulasi; mengikuti ketentuan price list yang berlaku._`;
     return t;
   }
 
@@ -255,7 +259,7 @@ export default function SimulasiCaraBayar() {
       }
       doc.setFontSize(8.5); doc.setTextColor(90, 100, 92);
       [
-        'Pembayaran dianggap sah apabila sudah masuk ke rekening PT Serpong Bangun Lestari — BCA 205-005-3604, KCK Menara BCA.',
+        'Pembayaran dianggap sah apabila sudah masuk ke rekening ' + REK.pt + ' - BCA ' + REK.no + ', ' + REK.cab + '.',
         'Nama blok & nomor yang tercantum saat tanda jadi tidak dapat diganti.',
         'Simulasi ini mengikuti ketentuan price list yang berlaku dan dapat berubah sewaktu-waktu tanpa pemberitahuan terlebih dahulu.',
       ].forEach(t => { const l = doc.splitTextToSize(t, PW - M * 2); doc.text(l, M, y); y += l.length * 4.2 + 1; });
@@ -361,7 +365,7 @@ export default function SimulasiCaraBayar() {
             <button className="sort-btn" onClick={() => navigator.clipboard.writeText(teksWA()).then(() => toast('Disalin — tinggal tempel di WhatsApp 📋')).catch(() => toast('Gagal menyalin'))}>📋 Salin untuk WhatsApp</button>
             <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
           </div>
-          <p className="hint" style={{ marginTop: 8 }}>Pembayaran ke PT Serpong Bangun Lestari · BCA 205-005-3604 (KCK Menara BCA). Keterlambatan dikenakan denda 1‰ per hari.</p>
+          <p className="hint" style={{ marginTop: 8 }}>Pembayaran ke {REK.pt} · BCA {REK.no} ({REK.cab}).</p>
         </div>
 
         {cara === 'kpr' && (
