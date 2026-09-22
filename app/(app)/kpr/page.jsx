@@ -1,15 +1,50 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { fmtRp } from '@/components/util';
+import { api, fmtRp } from '@/components/util';
 
 // ===== Data price list (angka price list = plafon KPR / harga jual) =====
-const UNIT = {
-  'BIO Tipe A': { standar: 1553778000, allin: 1670000000, bunga: 2.75, tenor: 25 },
-  'BIO Tipe B': { standar: 2097000000, allin: 2271000000, bunga: 2.75, tenor: 25 },
-  'BIO Tipe C': { standar: 2595417445, allin: 2806527243, bunga: 2.75, tenor: 25 },
-  'Permai Indah Subsidi': { standar: 185000000, allin: 185000000, bunga: 5, tenor: 20 },
+// Harga standar per tipe BIO (price list STANDART)
+const BIO_TIPE = {
+  A: { standar: 1553778000, allin: 1670000000 },
+  B: { standar: 2097000000, allin: 2271000000 },
+  C: { standar: 2595417445, allin: 2806527243 },
 };
+// Unit IRREGULER — harga khusus per kavling (price list IRREGULER)
+const BIO_IRREG = {
+  'Bio Ave 1 no.06': { tipe: 'C', standar: 3280421823, allin: 3543756850, ket: 'Hoek · 9×12 · Utara' },
+  'Bio Ave 1 no.08': { tipe: 'C', standar: 3422708235, allin: 3695942183, ket: 'Hoek (IRR) · 9,9×12 · Selatan' },
+  'Bio Ave 2 no.02': { tipe: 'B', standar: 2870357023, allin: 3102099378, ket: 'Hoek (IRR) · 8,9×12 · Utara' },
+  'Bio Ave 2 no.03': { tipe: 'B', standar: 3528323578, allin: 3810009189, ket: 'Hoek (IRR) · 11,4×12 · Utara' },
+  'Bio Blv no.07': { tipe: 'B', standar: 3445808649, allin: 3720794422, ket: 'Hoek (IRR) · 11,5×12 · Barat' },
+  'Bio Blv no.08': { tipe: 'B', standar: 3573474308, allin: 3858972641, ket: 'Hoek (IRR) · 8,4×17 · Barat' },
+  'Bio Blv no.09': { tipe: 'B', standar: 3219159189, allin: 3477143546, ket: 'Hoek (IRR) · 7,4×17 · Barat' },
+  'Bio Blv no.17': { tipe: 'B', standar: 4363629575, allin: 4707732405, ket: 'Hoek (IRR) · 8,6×16 · Barat' },
+  'Bio Ave 3 no.02': { tipe: 'B', standar: 3515189279, allin: 3795887387, ket: 'Hoek (IRR) · 12×12 · Utara' },
+  'Bio Ave 3 no.08': { tipe: 'B', standar: 2946051829, allin: 3183172351, ket: 'Hoek (IRR) · 8,7×12 · Utara' },
+  'Bio Ave 5 no.11': { tipe: 'C', standar: 3126825431, allin: 3377726589, ket: 'Hoek (IRR) · 8,7×12 · Utara' },
+  'Bio Ave 5 no.16': { tipe: 'C', standar: 4096731600, allin: 4420737921, ket: 'Hoek (IRR) · 8,9×12 · Selatan' },
+};
+// Tipe unit BIO sesuai warna siteplan (A ungu · B oranye · C hijau tosca)
+function tipeBio(unit) {
+  const m = String(unit).match(/^Bio (Ave (\d)|Blv) no\.(\d+)/i);
+  if (!m) return null;
+  const ave = m[2] ? Number(m[2]) : null, no = Number(m[3]);
+  if (ave === 1) return 'C';
+  if (ave === 2 || ave === 7) return 'B';
+  if (ave === 6) return 'A';
+  if (ave === 3) return no <= 12 ? 'B' : 'C';
+  if (ave === 5) return no === 12 ? 'A' : no === 15 ? 'B' : 'C';
+  if (!ave) return no >= 18 ? 'A' : no >= 7 ? 'B' : 'C'; // Bio Blv
+  return null;
+}
+function hargaUnit(proj, blok, tipePilih) {
+  if (/permai/i.test(proj)) return { standar: 185000000, allin: 185000000, bunga: 5, tenor: 20, tipe: 'Subsidi', irreg: false, ket: '' };
+  if (blok && BIO_IRREG[blok]) { const x = BIO_IRREG[blok]; return { ...x, bunga: 2.75, tenor: 25, irreg: true }; }
+  const t = (blok && tipeBio(blok)) || tipePilih || 'A';
+  return { ...BIO_TIPE[t], tipe: t, bunga: 2.75, tenor: 25, irreg: false, ket: '' };
+}
+
 const CARA = [
   ['kpr', 'KPR'],
   ['keras', 'Cash Keras'],
@@ -69,7 +104,16 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil) {
 }
 
 export default function SimulasiCaraBayar() {
-  const [unit, setUnit] = useState('BIO Tipe A');
+  const [set, setSet] = useState({ project: [], units: {} });
+  const [stok, setStok] = useState([]);
+  const [proj, setProj] = useState('BIO DISTRICT');
+  const [blok, setBlok] = useState('');
+  const [tipePilih, setTipePilih] = useState('A');
+  useEffect(() => {
+    Promise.all([api('/api/settings'), api('/api/stock')])
+      .then(([st, sk]) => { setSet(st); setStok(sk.status || []); if (st.project && st.project.length && !st.project.includes(proj)) setProj(st.project[0]); })
+      .catch(e => toast(e.message));
+  }, []); // eslint-disable-line
   const [cara, setCara] = useState('kpr');
   const [hargaMode, setHargaMode] = useState('standar'); // standar | allin | manual
   const [hargaManual, setHargaManual] = useState('');
@@ -85,13 +129,17 @@ export default function SimulasiCaraBayar() {
   const [cicilanLain, setCicilanLain] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  const U = UNIT[unit];
+  const U = hargaUnit(proj, blok, tipePilih);
+  const isBio = /bio/i.test(proj);
+  const unit = blok ? `${blok} (Tipe ${U.tipe}${U.irreg ? ' · Irreguler' : ''})` : (isBio ? `BIO District Tipe ${U.tipe}` : proj);
+  const stMap = {}; stok.forEach(x => { stMap[x.project + '|' + x.unit] = x; });
+  const daftarUnit = (set.units && set.units[proj]) || [];
   // Harga default mengikuti cara bayar: Cash Keras = Standar, Cash Bertahap = All In
   useEffect(() => {
     if (cara === 'keras') setHargaMode('standar');
     if (cara === 'bertahap') setHargaMode('allin');
   }, [cara]);
-  useEffect(() => { setBunga(U.bunga); setTenor(U.tenor); }, [unit]); // eslint-disable-line
+  useEffect(() => { setBunga(U.bunga); setTenor(U.tenor); }, [proj]); // eslint-disable-line
 
   const harga = hargaMode === 'manual' ? (Number(hargaManual) || 0) : (hargaMode === 'allin' ? U.allin : U.standar);
 
@@ -198,8 +246,27 @@ export default function SimulasiCaraBayar() {
 
       <div className="card">
         <div className="form-grid">
-          <div className="field"><label>Unit</label>
-            <select value={unit} onChange={e => setUnit(e.target.value)}>{Object.keys(UNIT).map(u => <option key={u}>{u}</option>)}</select></div>
+          <div className="field"><label>Project</label>
+            <select value={proj} onChange={e => { setProj(e.target.value); setBlok(''); }}>
+              {(set.project && set.project.length ? set.project : ['BIO DISTRICT', 'PERMAI INDAH']).map(p => <option key={p}>{p}</option>)}
+            </select></div>
+          <div className="field"><label>Blok / Unit</label>
+            <select value={blok} onChange={e => setBlok(e.target.value)}>
+              <option value="">— simulasi per tipe (tanpa unit) —</option>
+              {daftarUnit.map(u => {
+                const st = stMap[proj + '|' + u];
+                const terjual = st && st.warna === 'merah';
+                const irr = isBio && BIO_IRREG[u];
+                return <option key={u} value={u} disabled={terjual}>
+                  {terjual ? '🔴 ' : st && st.warna === 'kuning' ? '🟡 ' : ''}{u}{isBio && tipeBio(u) ? ' · Tipe ' + (irr ? irr.tipe : tipeBio(u)) : ''}{irr ? ' · Irreguler' : ''}{terjual ? ' — terjual' : ''}
+                </option>;
+              })}
+            </select>
+            <span className="hint">🔴 terjual (tidak bisa dipilih) · 🟡 reserved · unit Irreguler memakai harga khusus price list.</span></div>
+          {isBio && !blok && <div className="field"><label>Tipe</label>
+            <select value={tipePilih} onChange={e => setTipePilih(e.target.value)}>
+              {['A', 'B', 'C'].map(t => <option key={t} value={t}>Tipe {t} — standar {fmtRp(BIO_TIPE[t].standar)}</option>)}
+            </select></div>}
           <div className="field"><label>Cara Bayar</label>
             <select value={cara} onChange={e => setCara(e.target.value)}>{CARA.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
           <div className="field"><label>Harga</label>
@@ -223,6 +290,14 @@ export default function SimulasiCaraBayar() {
             <span className="hint">Termasuk DP 10% sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
         </div>
       </div>
+
+      {isBio && (
+        <div className="note" style={{ marginTop: 10, background: U.irreg ? '#FBF1DC' : undefined, borderColor: U.irreg ? '#C9922E' : undefined }}>
+          <b>{blok || 'Simulasi per tipe'}</b> · Tipe {U.tipe}
+          {U.irreg ? <> · <b style={{ color: '#8a5f14' }}>IRREGULER</b> ({U.ket})</> : ' · Standar'}
+          {' '}— Harga Jual <b>{fmtRp(U.standar)}</b> · Harga All In <b>{fmtRp(U.allin)}</b>
+        </div>
+      )}
 
       {harga > 0 && (<>
         <div className="card" style={{ marginTop: 14 }}>
