@@ -12,7 +12,7 @@ const MENUS = [
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin', 'markom'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'markom', 'sales'] },
-  { href: '/kpr', ico: '🧮', label: 'Simulasi KPR', roles: ['manager', 'admin', 'markom', 'sales'] },
+  { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
 ];
