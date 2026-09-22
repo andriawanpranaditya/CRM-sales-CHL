@@ -142,6 +142,7 @@ export default function SimulasiCaraBayar() {
 
   const U = hargaUnit(proj, blok, tipePilih);
   const isBio = /bio/i.test(proj);
+  const namaProyek = /bio/i.test(proj) ? 'BIO DISTRICT - Serpong' : /permai/i.test(proj) ? 'PERMAI INDAH - Cilejit' : proj;
   const unit = blok ? `${blok} (Tipe ${U.tipe}${U.irreg ? ' · Irreguler' : ''})` : (isBio ? `BIO District Tipe ${U.tipe}` : proj);
   const stMap = {}; stok.forEach(x => { stMap[x.project + '|' + x.unit] = x; });
   const daftarUnit = (set.units && set.units[proj]) || [];
@@ -195,7 +196,7 @@ export default function SimulasiCaraBayar() {
   const namaCara = CARA.find(c => c[0] === cara)[1] + (cara === 'bertahap' ? ` ${Math.min(12, Number(nCicil) || 12)} bulan` : '');
 
   function teksWA() {
-    let t = `*SIMULASI CARA BAYAR — ${unit}*\n${namaCara} · ${labelHarga}: *${fmtRp(harga)}*\n\n`;
+    let t = `*SIMULASI CARA BAYAR*\n*${namaProyek}* — ${unit}\n${namaCara} · ${labelHarga}: *${fmtRp(harga)}*\n\n`;
     rows.forEach(r => { t += `${tglID(r.tgl)} — ${r.ket}: ${fmtRp(r.nominal) === '—' ? 'Rp0' : fmtRp(r.nominal)}\n`; });
     if (cara === 'kpr') {
       t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
@@ -220,7 +221,7 @@ export default function SimulasiCaraBayar() {
       doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
       doc.text('SIMULASI CARA BAYAR', M, 9);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-      doc.text('PT Cipta Harmoni Lestari · ' + new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }), M, 15);
+      doc.text(namaProyek + ' · ' + new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }), M, 15);
       doc.setTextColor(28, 43, 35);
       let y = 30;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
