@@ -135,7 +135,7 @@ export default function Dashboard() {
     const labelSrc = !srcSel.length ? 'Semua Sumber' : srcSel.join(' + ');
     const labelPer = (d1 || d2) ? `${d1 ? dd(d1) : '…'} s/d ${d2 ? dd(d2) : '…'}` : 'Seluruh periode';
     const labelProj = proj || 'Semua Project';
-    const subInfo = `Project: ${labelProj} · Periode: ${labelPer} · Sumber: ${labelSrc} — baris di luar pilihan tersembunyi (Data ▸ Clear Filter / Unhide utk menampilkan semua). · copyright © 2026 by Andriawanp`;
+    const subInfo = `Project: ${labelProj} · Periode: ${labelPer} · Sumber: ${labelSrc} — hanya data pada pilihan ini yang diunduh. · copyright © 2026 by Andriawanp`;
 
     const INK = 'FF1C2B23', GREEN = 'FF23694A', BRASS = 'FFC9922E', LINE = 'FFD8D6CC',
       ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF',
@@ -174,11 +174,11 @@ export default function Dashboard() {
         cell.border = { top: thin, left: thin, right: thin, bottom: { style: 'medium', color: { argb: BRASS } } };
       });
       hr.height = 22;
-      let tampak = 0;
-      rows.forEach((r, ri) => {
+      // Baris di luar pilihan (project / periode / sumber) TIDAK ikut diunduh — sama seperti report Word
+      const baris = opsi.cocok ? rows.filter(r => opsi.cocok(r._raw)) : rows;
+      let tampak = baris.length;
+      baris.forEach((r, ri) => {
         const row = ws.getRow(5 + ri);
-        const cocok = !opsi.cocok || opsi.cocok(r._raw);
-        if (!cocok) row.hidden = true; else tampak++;
         cols.forEach((c, ci) => {
           const cell = row.getCell(ci + 1);
           cell.value = r[c.k];
@@ -196,8 +196,8 @@ export default function Dashboard() {
           }
         });
       });
-      if (!rows.length) { ws.getCell(5, 2).value = 'Belum ada data.'; ws.getCell(5, 2).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
-      ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(rows.length, 1), column: cols.length } };
+      if (!baris.length) { ws.getCell(5, 2).value = 'Tidak ada data pada pilihan ini.'; ws.getCell(5, 2).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
+      ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(baris.length, 1), column: cols.length } };
       return { ws, tampak };
     };
 
@@ -212,7 +212,7 @@ export default function Dashboard() {
       if (!cur || rank > cur._rank) lastFU[key] = { ...f, _rank: rank };
     });
 
-    // ===== Sheet data (baris di luar pilihan disembunyikan) =====
+    // ===== Sheet data (baris di luar pilihan tidak diunduh) =====
     buatSheet('Database Lead', 'DATABASE LEAD', [
       { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 },
       { h: 'Nama', k: 'nama', w: 20 }, { h: 'WhatsApp', k: 'wa', w: 13 }, { h: 'Email', k: 'email', w: 18 },
@@ -787,7 +787,7 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
-        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang): baris yang tidak terpilih otomatis tersembunyi, buka Excel langsung bersih berisi data terpilih saja.</span>
+        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>
       </div>
       <div className="grid kpis">
         {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],
