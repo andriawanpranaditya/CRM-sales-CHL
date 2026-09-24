@@ -8,8 +8,9 @@ const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booki
 export default function Dashboard() {
   const [lastUpd, setLastUpd] = useState(null);
   function muatSemua() {
-    return Promise.all([api('/api/leads?all=1'), api('/api/followups?all=1'), api('/api/trx'), api('/api/settings'), api('/api/stock')])
-      .then(([l, f, t, s, st]) => {
+    return Promise.all([api('/api/leads?all=1'), api('/api/followups?all=1'), api('/api/trx'), api('/api/settings'), api('/api/stock'), api('/api/kegiatan').catch(() => [])])
+      .then(([l, f, t, s, st, kg]) => {
+        setKeg(kg || []);
         setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); setPosisi(st.positions || []);
         setLastUpd(new Date());
       })
@@ -24,6 +25,9 @@ export default function Dashboard() {
   const [d2, setD2] = useState('');
   const [stock, setStock] = useState([]);
   const [posisi, setPosisi] = useState([]);
+  const [keg, setKeg] = useState([]);
+  const [fotoKeg, setFotoKeg] = useState({});   // { idKegiatan: [dataURL, ...] } — hanya di memori
+  const [panelFoto, setPanelFoto] = useState(false);
   const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
   const [srcOpen, setSrcOpen] = useState(false);
 
@@ -420,6 +424,24 @@ export default function Dashboard() {
       R += 2;
     }
 
+
+    // Sheet Kegiatan — mengikuti filter project & periode
+    const kgX = (keg || []).filter(k => {
+      const t = String(k.tgl || '').slice(0, 10);
+      return (!proj || k.project === proj) && (!d1 || t >= d1) && (!d2 || t <= d2);
+    }).sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')));
+    buatSheet('Kegiatan', 'KEGIATAN SALES & MARKETING', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 }, { h: 'Jenis Kegiatan', k: 'jenis', w: 28 },
+      { h: 'Project', k: 'proj', w: 15 }, { h: 'Lokasi / Tempat', k: 'lok', w: 26 }, { h: 'PIC / Peserta', k: 'pic', w: 20 },
+      { h: 'Jumlah Lead', k: 'lead', w: 12, num: true }, { h: 'Biaya (Rp)', k: 'biaya', w: 15, num: true },
+      { h: 'Biaya per Lead (Rp)', k: 'perlead', w: 17, num: true }, { h: 'Catatan Hasil', k: 'cat', w: 34, wrap: true },
+    ], kgX.map(k => ({
+      tgl: dd(k.tgl), bulan: String(k.tgl || '').slice(0, 7), jenis: k.jenis, proj: k.project || '-',
+      lok: k.lokasi || '', pic: k.pic || '', lead: Number(k.jml_lead) || 0, biaya: Number(k.biaya) || 0,
+      perlead: Number(k.jml_lead) ? Math.round(Number(k.biaya || 0) / Number(k.jml_lead)) : 0,
+      cat: k.catatan || '',
+    })), { sub: 'Kegiatan pada pilihan project & periode. Foto dokumentasi hanya tersedia di report Word/PDF. · copyright © 2026 by Andriawanp' });
+
     // ===== Sheet Stok (posisi terkini) =====
     // Nilai unit = nilai terkini pada Master Stock (transaksi: nilai transaksi/booking · manual: nilai kontrak impor)
     const nilaiUnit = u => Number(u.nilai) || 0;
@@ -493,6 +515,38 @@ export default function Dashboard() {
     });
     return { url: cv.toDataURL('image/jpeg', 0.85), w: W, h: H };
   }
+
+  // Kompres foto di perangkat — tidak pernah dikirim/disimpan ke server
+  function kompresFoto(file, maks = 1200, mutu = 0.72) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const sc = Math.min(1, maks / Math.max(img.width, img.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL('image/jpeg', mutu));
+        };
+        img.onerror = rej; img.src = fr.result;
+      };
+      fr.onerror = rej; fr.readAsDataURL(file);
+    });
+  }
+  async function pilihFoto(idKeg, files) {
+    const ambil = [...files].slice(0, 6);
+    try {
+      const hasil = [];
+      for (const f of ambil) hasil.push(await kompresFoto(f));
+      setFotoKeg(x => ({ ...x, [idKeg]: [...(x[idKeg] || []), ...hasil].slice(0, 6) }));
+      toast(hasil.length + ' foto siap dilampirkan');
+    } catch { toast('Foto gagal dibaca'); }
+  }
+  const kegPeriode = () => keg.filter(k => {
+    const t = String(k.tgl || '').slice(0, 10);
+    return (!proj || k.project === proj) && (!d1 || t >= d1) && (!d2 || t <= d2);
+  });
 
   async function downloadWord(mode = 'word') {
     // Ambil logo sebagai base64 agar tertanam di dokumen Word
@@ -714,7 +768,30 @@ ${salesNs.length ? salesNs.map(sn => {
 <p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
 ${petaHtml}
 
-<h2>5. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
+${(() => {
+      const kg = kegPeriode();
+      if (!kg.length) return '';
+      const lead = kg.reduce((a, k) => a + (Number(k.jml_lead) || 0), 0);
+      const biaya = kg.reduce((a, k) => a + (Number(k.biaya) || 0), 0);
+      const perJenis = {};
+      kg.forEach(k => { perJenis[k.jenis] = (perJenis[k.jenis] || 0) + 1; });
+      const galeri = kg.map(k => {
+        const fotos = fotoKeg[k.id] || [];
+        if (!fotos.length) return '';
+        return `<h3 style="color:#23694A;margin:12px 0 4px">${esc(k.jenis)} — ${esc(k.lokasi)} · ${fmtDate(k.tgl)}</h3>
+<p class="muted">${esc(k.project || '-')}${k.pic ? ' · PIC: ' + esc(k.pic) : ''} · ${k.jml_lead || 0} lead${k.catatan ? ' · ' + esc(k.catatan) : ''}</p>
+<table style="border:none"><tr>${fotos.map((f, i) => `<td style="border:none;padding:4px;width:50%"><img src="${f}" width="300" height="225" style="width:300px;height:225px" /></td>${i % 2 === 1 ? '</tr><tr>' : ''}`).join('')}</tr></table>`;
+      }).join('');
+      return `<h2>5. AKTIVITAS SALES &amp; MARKETING</h2>
+<table><tr><th>Tanggal</th><th>Jenis</th><th>Lokasi</th><th>Project</th><th>PIC</th><th style="width:60px">Lead</th><th style="width:110px">Biaya</th></tr>
+${kg.map(k => `<tr><td>${fmtDate(k.tgl)}</td><td>${esc(k.jenis)}</td><td><b>${esc(k.lokasi)}</b></td><td>${esc(k.project || '-')}</td><td>${esc(k.pic || '-')}</td><td style="text-align:center"><b>${k.jml_lead || 0}</b></td><td>${Number(k.biaya) ? rp(k.biaya) : '-'}</td></tr>`).join('')}
+<tr><td colspan="5"><b>TOTAL ${kg.length} kegiatan</b></td><td style="text-align:center"><b>${lead}</b></td><td><b>${rp(biaya)}</b></td></tr>
+</table>
+<p class="muted">${Object.entries(perJenis).sort((a, b) => b[1] - a[1]).map(([j, n]) => j + ' ' + n + '×').join(' · ')}${lead ? ' · biaya per lead ' + rp(Math.round(biaya / lead)) : ''}</p>
+${galeri ? '<h3 style="color:#23694A;margin-top:14px">Dokumentasi Kegiatan</h3>' + galeri : ''}
+
+`;
+    })()}<h2>6. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
 <table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>
 ${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning)}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
 ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
@@ -784,9 +861,28 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
             </div>
           </>)}
         </div>
+        <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: '#8a5f14', fontWeight: 700 }}
+          onClick={() => setPanelFoto(v => !v)} title="Lampirkan foto kegiatan ke report Word/PDF">
+          📸 Foto Kegiatan{Object.values(fotoKeg).reduce((a, x) => a + x.length, 0) ? ` (${Object.values(fotoKeg).reduce((a, x) => a + x.length, 0)})` : ''}
+        </button>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
+        {panelFoto && (
+          <div style={{ flexBasis: '100%', background: '#FBF1DC', border: '1px solid #C9922E', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+            <b style={{ color: '#8a5f14' }}>📸 Lampirkan foto kegiatan</b>
+            <div className="hint" style={{ marginBottom: 6 }}>Foto diperkecil di perangkat ini lalu ditempel ke report — <b>tidak disimpan di aplikasi</b> dan hilang saat halaman ditutup.</div>
+            {kegPeriode().length ? kegPeriode().map(k => (
+              <div key={k.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid #EDD9AE' }}>
+                <span style={{ minWidth: 230, fontSize: 13 }}>📅 {fmtDate(k.tgl)} · <b>{k.jenis}</b> · {k.lokasi}</span>
+                <label className="sort-btn" style={{ padding: '3px 10px', cursor: 'pointer' }}>Pilih Foto
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => pilihFoto(k.id, e.target.files)} /></label>
+                <span className="hint">{(fotoKeg[k.id] || []).length ? '● '.repeat((fotoKeg[k.id] || []).length) + `${(fotoKeg[k.id] || []).length} foto` : 'belum ada foto'}</span>
+                {(fotoKeg[k.id] || []).length ? <button className="sort-btn" style={{ padding: '2px 8px' }}
+                  onClick={() => setFotoKeg(x => { const y = { ...x }; delete y[k.id]; return y; })}>✕ Kosongkan</button> : null}
+              </div>)) : <span className="hint">Tidak ada kegiatan pada project &amp; rentang tanggal yang dipilih.</span>}
+          </div>
+        )}
         <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>
       </div>
       <div className="grid kpis">
@@ -822,6 +918,32 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
           </div>
         </div>
       </div>
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2>Kegiatan Sales — {bulanLabel}</h2>
+        {(() => {
+          const mk = keg.filter(k => inMonth(k.tgl) && (!proj || k.project === proj));
+          const lead = mk.reduce((a, k) => a + (Number(k.jml_lead) || 0), 0);
+          const biaya = mk.reduce((a, k) => a + (Number(k.biaya) || 0), 0);
+          const perJenis = {};
+          mk.forEach(k => { perJenis[k.jenis] = (perJenis[k.jenis] || 0) + 1; });
+          return (<>
+            <div className="kpi-grid">
+              <div className="kpi"><div className="kpi-label">Total Kegiatan</div>
+                <div className="kpi-val" style={{ color: 'var(--green)' }}>{mk.length}</div></div>
+              <div className="kpi"><div className="kpi-label">Lead dari Kegiatan</div>
+                <div className="kpi-val" style={{ color: 'var(--brass)' }}>{lead}</div></div>
+              <div className="kpi"><div className="kpi-label">Biaya Kegiatan</div>
+                <div className="kpi-val" style={{ fontSize: 18 }}>{fmtRp(biaya)}</div></div>
+              <div className="kpi"><div className="kpi-label">Biaya per Lead</div>
+                <div className="kpi-val" style={{ fontSize: 18 }}>{lead ? fmtRp(Math.round(biaya / lead)) : '—'}</div></div>
+            </div>
+            <div className="hint" style={{ marginTop: 8 }}>
+              {Object.keys(perJenis).length ? Object.entries(perJenis).sort((a, b) => b[1] - a[1]).map(([j, n]) => `${j} ${n}×`).join(' · ') : 'Belum ada kegiatan bulan ini.'}
+            </div>
+          </>);
+        })()}
+      </div>
+
       <div className="card" style={{ marginBottom: 14 }}>
         <h2>Lead dari Marcom — {bulanLabel}</h2>
         <div className="kpi-grid">

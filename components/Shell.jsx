@@ -11,6 +11,7 @@ const MENUS = [
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin', 'markom'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
+  { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
@@ -24,9 +25,9 @@ export default function Shell({ user, children }) {
 
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
-    if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads')) router.replace('/form');
-    if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr')) router.replace('/dashboard');
-    if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr')) router.replace('/form');
+    if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/form');
+    if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
+    if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/form');
   }, [path, user.role, router]);
 
   // Bersih otomatis: penanda notifikasi/suara harian yang berumur > 7 hari

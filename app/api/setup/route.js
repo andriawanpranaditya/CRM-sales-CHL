@@ -139,6 +139,22 @@ export async function GET(req) {
     created_at timestamptz NOT NULL DEFAULT now()
   )`;
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_assign_lead ON lead_assign (lead_code)`);
+
+  // Kegiatan sales (kanvasing, open table, product knowledge, dll) — foto TIDAK disimpan di database
+  await sql`CREATE TABLE IF NOT EXISTS kegiatan (
+    id serial PRIMARY KEY,
+    tgl date,
+    jenis text NOT NULL,
+    project text,
+    lokasi text,
+    pic text,
+    jml_lead integer DEFAULT 0,
+    biaya numeric DEFAULT 0,
+    catatan text,
+    created_by text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_kegiatan_tgl ON kegiatan (tgl)`);
   await coba(() => sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`);
 
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
