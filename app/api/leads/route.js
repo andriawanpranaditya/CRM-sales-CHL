@@ -8,9 +8,10 @@ export async function GET(req) {
   const sql = db();
   const semua = new URL(req.url).searchParams.get('all') === '1'; // dipakai dashboard markom
   let rows;
-  if (user.role === 'sales') rows = await sql`SELECT * FROM leads WHERE sales = ${user.name} ORDER BY id`;
-  else if (user.role === 'markom' && !semua) rows = await sql`SELECT * FROM leads WHERE created_by = ${user.username} ORDER BY id`;
-  else rows = await sql`SELECT * FROM leads ORDER BY id`;
+  // creator_role: peran pembuat lead — dipakai laporan "lead dari Marcom"
+  if (user.role === 'sales') rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by WHERE l.sales = ${user.name} ORDER BY l.id`;
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by WHERE l.created_by = ${user.username} ORDER BY l.id`;
+  else rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by ORDER BY l.id`;
   return Response.json(rows);
 }
 

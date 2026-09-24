@@ -49,6 +49,10 @@ export default function Dashboard() {
   const mStart = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-01`;
   const inMonth = x => String(x || '').slice(0, 10) >= mStart;
   const mLeads = fLeads.filter(l => inMonth(l.tgl));
+  // Lead dari Marcom & berapa yang sudah diserahkan ke sales
+  const dariMarkom = arr => arr.filter(l => l.creator_role === 'markom');
+  const mMarkom = dariMarkom(mLeads);
+  const mMarkomKeSales = mMarkom.filter(l => (l.sales || '').trim());
   // Status transaksi per unit = yang TERAKHIR (Reserved yang sudah naik Booking tidak dihitung dua kali)
   const statusAkhir = arr => {
     const g = {};
@@ -218,6 +222,7 @@ export default function Dashboard() {
       { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Tgl FU Terakhir', k: 'futgl', w: 12 },
       { h: 'Update FU Terakhir', k: 'fuupd', w: 34, wrap: true }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
       { h: 'Riwayat Transaksi', k: 'riw', w: 34, wrap: true },
+      { h: 'Diinput Oleh', k: 'inp', w: 14 }, { h: 'Asal Lead', k: 'asal', w: 16 },
     ], leadsX.map(l => {
       const lf = lastFU[l.lead_code];
       return {
@@ -231,6 +236,8 @@ export default function Dashboard() {
         riw: [...trx].filter(t => t.lead_code === l.lead_code)
           .sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0))
           .map(t => t.jenis + ' ' + dd(t.tgl) + (t.unit ? ' (' + t.unit + ')' : '')).join(' → '),
+        inp: l.created_by || '-',
+        asal: l.creator_role === 'markom' ? (l.sales ? 'Marcom → Sales' : 'Marcom (belum diserahkan)') : 'Non-Marcom',
       };
     }), { cocok: cocokLead, warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : (c.k === 'fuupd' && r.fuupd === 'Belum ada follow up' ? RED_BG : null) });
 
@@ -348,6 +355,28 @@ export default function Dashboard() {
       R++;
     };
     const hitung = (arr, fn) => Object.entries(arr.reduce((a, x) => { const k = (fn(x) || '').trim(); if (k) a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    // Lead dari Marcom & serah terima ke sales
+    (() => {
+      const mk = pl.filter(l => l.creator_role === 'markom');
+      const ke = mk.filter(l => (l.sales || '').trim()).length;
+      if (!pl.length) return;
+      secHead('LEAD DARI MARCOM');
+      [['Lead masuk ke Marcom', mk.length, pl.length ? Math.round(mk.length / pl.length * 100) + '% dari total lead' : ''],
+       ['Sudah diserahkan ke Sales', ke, mk.length ? Math.round(ke / mk.length * 100) + '% dari lead Marcom' : ''],
+       ['Belum diserahkan', mk.length - ke, mk.length ? Math.round((mk.length - ke) / mk.length * 100) + '% dari lead Marcom' : ''],
+       ['Lead sumber lain (walk in / sales / manager)', pl.length - mk.length, '']].forEach(([lbl, n, ket], i2) => {
+        const row = rs.getRow(R);
+        row.getCell(2).value = lbl; row.getCell(2).font = { bold: i2 === 0, size: 10 };
+        row.getCell(3).value = n; row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(3).font = { bold: true, size: 12, color: { argb: i2 === 1 ? BRASS : i2 === 2 ? 'FFB3402F' : GREEN } };
+        rs.mergeCells(R, 4, R, 5);
+        row.getCell(4).value = ket; row.getCell(4).font = { size: 9.5, color: { argb: 'FF6B7A70' } };
+        [2, 3, 4, 5].forEach(ci => { row.getCell(ci).border = border; if (i2 % 2 === 1) row.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+        R++;
+      });
+      R++;
+    })();
+
     seksi('SUMBER LEAD', hitung(pl, l => l.sumber || 'Tidak diisi'));
     seksi('SUMBER VISIT (LEAD YANG SUDAH DATANG)', hitung(pl, l => /walk/i.test(l.sumber || '') ? (l.walkin_info || 'Walk In (tanpa info)') : (l.status === 'Site Visit' ? (l.sumber || 'Tidak diisi') : '')));
     seksi('DOMISILI (TOP 12)', hitung(pl, l => l.domisili));
@@ -603,6 +632,20 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 ${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.test(k) && walkDetail ? '<br/><span class="muted" style="font-size:8.5pt">via: ' + esc(walkDetail) + '</span>' : ''}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / Math.max(1, pl.length) * 100)}%</td><td>${bar(v)}</td></tr>`).join('') : '<tr><td colspan="4">Tidak ada lead pada periode ini.</td></tr>'}
 </table>
 
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Lead dari Marcom</h3>
+${(() => {
+      const mk = pl.filter(l => l.creator_role === 'markom');
+      const ke = mk.filter(l => (l.sales || '').trim());
+      const belum = mk.length - ke.length;
+      const pct = mk.length ? Math.round(ke.length / mk.length * 100) : 0;
+      return `<table><tr><th>Keterangan</th><th style="width:80px">Jumlah</th><th style="width:70px">%</th><th>Grafik</th></tr>
+<tr><td><b>Lead masuk ke Marcom</b></td><td style="text-align:center"><b>${mk.length}</b></td><td style="text-align:center">${pl.length ? Math.round(mk.length / pl.length * 100) : 0}% dari total lead</td><td>${bar(mk.length)}</td></tr>
+<tr><td>Sudah diserahkan ke Sales</td><td style="text-align:center"><b>${ke.length}</b></td><td style="text-align:center">${pct}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(mk.length && ke.length ? 1 : 0, Math.round(pct / 100 * 16)))}</span></td></tr>
+<tr><td>Belum diserahkan</td><td style="text-align:center"><b>${belum}</b></td><td style="text-align:center">${mk.length ? 100 - pct : 0}%</td><td><span style="color:#B3402F;letter-spacing:1px">${'▰'.repeat(Math.max(belum ? 1 : 0, Math.round((100 - pct) / 100 * 16)))}</span></td></tr>
+</table>
+<p class="muted" style="font-size:8.5pt">Lead Marcom = lead yang diinput akun Marcom pada periode ini; "diserahkan" bila lead sudah memiliki Sales/PIC.</p>`;
+    })()}
+
 <h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Reserved &amp; Booking</h3>
 <p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking — unit berstatus Reserved belum dihitung sebagai penjualan.</p>
 <table><tr><th>Jenis</th><th style="width:60px">Jumlah</th><th>Grafik</th><th style="width:150px">Nilai</th></tr>
@@ -779,6 +822,24 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
           </div>
         </div>
       </div>
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2>Lead dari Marcom — {bulanLabel}</h2>
+        <div className="kpi-grid">
+          <div className="kpi"><div className="kpi-label">Lead Masuk ke Marcom</div>
+            <div className="kpi-val" style={{ color: 'var(--green)' }}>{mMarkom.length}</div>
+            <div className="hint">diinput oleh akun Marcom bulan ini</div></div>
+          <div className="kpi"><div className="kpi-label">Sudah Diserahkan ke Sales</div>
+            <div className="kpi-val" style={{ color: 'var(--brass)' }}>{mMarkomKeSales.length}</div>
+            <div className="hint">{mMarkom.length ? Math.round(mMarkomKeSales.length / mMarkom.length * 100) + '% dari lead Marcom' : '—'}</div></div>
+          <div className="kpi"><div className="kpi-label">Belum Diserahkan</div>
+            <div className="kpi-val" style={{ color: mMarkom.length - mMarkomKeSales.length ? 'var(--red)' : 'var(--ink)' }}>{mMarkom.length - mMarkomKeSales.length}</div>
+            <div className="hint">masih di antrean Marcom</div></div>
+          <div className="kpi"><div className="kpi-label">Lead Sumber Lain</div>
+            <div className="kpi-val">{mLeads.length - mMarkom.length}</div>
+            <div className="hint">walk in / input sales &amp; manager</div></div>
+        </div>
+      </div>
+
       <div className="card" style={{ marginTop: 14 }}>
         <h2>Sumber Lead — {bulanLabel} ({mLeads.length} lead)</h2>
         {srcRows.length ? (
