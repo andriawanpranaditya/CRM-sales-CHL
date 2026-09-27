@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
@@ -258,7 +258,7 @@ export default function FormPage() {
     setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
       kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
       budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
-      catatan: l.catatan || '', next_fu: d10(l.next_fu) });
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
   }
@@ -269,6 +269,9 @@ export default function FormPage() {
   }
   const isMarkom = me && me.role === 'markom';
   useEffect(() => { if (isMarkom) api('/api/users').then(setSalesWA).catch(() => {}); }, [isMarkom]);
+  const [camps, setCamps] = useState([]);
+  const bolehCampaign = me && (me.role === 'markom' || me.role === 'manager');
+  useEffect(() => { if (bolehCampaign) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [bolehCampaign]);
   useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
 
   // Template FU markom sesuai project & day
@@ -454,6 +457,13 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           {!isMarkom && <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>}
           {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
+          {bolehCampaign && <div className="field"><label>Campaign <span className="hint">(analisa marcom)</span></label>
+            <select {...fl('campaign')}><option value="">— tanpa campaign —</option>
+              {camps.map(cp => <option key={cp.id} value={cp.nama}>{cp.nama}</option>)}
+              {lead.campaign && !camps.find(cp => cp.nama === lead.campaign) && <option value={lead.campaign}>{lead.campaign}</option>}
+            </select></div>}
+          {bolehCampaign && <div className="field"><label>Konten / Kreatif <span className="hint">(utm_content)</span></label>
+            <input {...fl('konten')} placeholder="contoh: reels-01" /></div>}
           {!isMarkom && /walk/i.test(lead.sumber || '') && (
             <div className="field"><label>Walk In — tahu dari mana? <span className="req">*</span></label>
               <select value={lead.walkin_info || ''} onChange={e => setLead({ ...lead, walkin_info: e.target.value })}>

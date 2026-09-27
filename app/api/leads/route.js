@@ -41,10 +41,10 @@ export async function POST(req) {
     }
   }
   const wInfo = /walk/i.test(b.sumber || '') ? (b.walkin_info || '') : '';
-  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, created_by)
+  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, campaign, konten, created_by)
     VALUES (${b.tgl || null}, ${b.nama}, ${b.wa || ''}, ${b.email || ''}, ${b.domisili || ''}, ${b.kerja || ''},
             ${b.sumber || ''}, ${wInfo}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
-            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${user.username})
+            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${b.campaign || ''}, ${b.konten || ''}, ${user.username})
     RETURNING id`;
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
@@ -69,7 +69,7 @@ export async function PATCH(req) {
   if (user.role === 'sales' && cur.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
-  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu'];
+  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
   let operKe = null;
@@ -85,6 +85,7 @@ export async function PATCH(req) {
     project = ${m.project || ''}, tipe = ${m.tipe || ''}, tujuan = ${m.tujuan || ''},
     budget = ${Number(m.budget) || 0}, bayar = ${m.bayar || ''}, sales = ${m.sales},
     status = ${m.status || 'New'}, catatan = ${m.catatan || ''}, next_fu = ${m.next_fu || null},
+    campaign = ${m.campaign || ''}, konten = ${m.konten || ''},
     updated_at = now()
     WHERE id = ${b.id}`;
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
