@@ -590,9 +590,8 @@ export default function Dashboard() {
     const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
-    // Hanya sales yang punya lead pada project & periode terpilih — yang lain tidak dimunculkan
-    const salesNs = [...new Set(pl.map(l => l.sales).filter(Boolean))]
-      .filter(sn => pl.some(l => l.sales === sn));
+    // Sales dengan lead pada periode ATAU transaksi pada periode (mis. lead masuk bulan lalu, Booking bulan ini)
+    const salesNs = [...new Set([...pl.map(l => l.sales), ...pt.map(t => t.sales || salesOf[t.lead_code])].filter(Boolean))];
     const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
@@ -652,8 +651,10 @@ export default function Dashboard() {
     let marcomHtml = '';
     if (mi) {
       const mkCodes = new Set(pl.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
-      const resM = pt.filter(t => t.jenis === 'Reserved' && mkCodes.has(t.lead_code));
-      const bookM = pt.filter(t => t.jenis === 'Booking' && mkCodes.has(t.lead_code));
+      // Transaksi dihitung dari SEMUA lead ber-asal Marcom (lead boleh masuk periode sebelumnya — penjualan diakui pada tanggal Booking)
+      const mkAll = new Set(fLeads.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
+      const resM = pt.filter(t => t.jenis === 'Reserved' && mkAll.has(t.lead_code));
+      const bookM = pt.filter(t => t.jenis === 'Booking' && mkAll.has(t.lead_code));
       const resMn = new Set(resM.map(t => t.lead_code)).size, bookMn = new Set(bookM.map(t => t.lead_code)).size;
       const resMv = resM.reduce((a, t) => a + Number(t.nilai || 0), 0);
       const bookMv = bookM.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
@@ -692,7 +693,7 @@ export default function Dashboard() {
 </tr>
 <tr class="muted"><td style="text-align:center">lead yang diinput akun Marcom</td><td style="text-align:center">Nilai: <b>${rp(resMv)}</b></td><td style="text-align:center">Nilai: <b>${rp(bookMv)}</b></td><td style="text-align:center">Booking ÷ lead Marcom</td></tr>
 </table>
-<p class="muted" style="font-size:8.5pt">Dihitung dari transaksi lead yang DIINPUT MARCOM — ukuran performa Marcom. Angka dapat berbeda dari Ringkasan di atas yang berbasis seluruh lead.</p>
+<p class="muted" style="font-size:8.5pt">Reserved/Booking = transaksi periode ini dari lead yang DIINPUT MARCOM (kapan pun lead-nya masuk) — ukuran performa Marcom; angka dapat berbeda dari Ringkasan yang berbasis seluruh lead. Closing Rate memakai lead Marcom yang masuk pada periode.</p>
 
 <h2>8. CAMPAIGN &amp; IKLAN DIGITAL (CLOSED-LOOP)</h2>
 <p class="muted">Total belanja iklan periode: <b>${rp(totSpend)}</b> · CPL ${perR(totSpend, pl.length)} · Biaya per Booking ${perR(totSpend, bookSet.size)}</p>
@@ -832,16 +833,18 @@ ${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
     }).join('')}
 </table>
 
-<h2>3. KINERJA PER SALES (lead masuk pada periode)</h2>
+<h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
 <table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
 ${salesNs.length ? salesNs.map(sn => {
       const mine = pl.filter(l => l.sales === sn);
-      const rs = [...resSet].filter(code => salesOf[code] === sn).length;
-      const bk = [...bookSet].filter(code => salesOf[code] === sn).length;
-      return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${mine.length ? Math.round(bk / mine.length * 100) + '%' : '0%'}</b></td></tr>`;
+      const punya = (t, jenis) => t.jenis === jenis && (t.sales || salesOf[t.lead_code]) === sn;
+      const rs = new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
+      const bk = new Set(pt.filter(t => punya(t, 'Booking')).map(t => t.lead_code)).size;
+      const rate = mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%');
+      return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${rate}</b></td></tr>`;
     }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}
 </table>
-<p class="muted" style="font-size:8.5pt">Closing Rate = jumlah lead yang mencapai Booking ÷ total lead sales tsb pada periode.</p>
+<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking dihitung dari TANGGAL TRANSAKSI pada periode — sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
 
 <h2>4. MASTER STOCK — PETA SITEPLAN</h2>
 <p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
