@@ -99,6 +99,120 @@ export default function MarcomPage() {
     return (data?.timKonten || []).map(u => ({ ...u, ...(leadMap[u.username] || { l0: 0, l0_bln: 0, l2: 0, l3: 0, nilai: 0 }) }));
   }, [data]);
 
+  // ===== Report Word / PDF — pola sama dengan report CRM (angka & grafik) =====
+  async function buatReport(mode) {
+    if (!data) return;
+    const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rp = n => Number(n) ? 'Rp ' + Number(n).toLocaleString('id-ID') : '—';
+    const perR = (sp, n) => (sp > 0 && n > 0) ? rp(Math.round(sp / n)) : '—';
+    const bar = (n, mx, warna = '#23694A') => '<span style="color:' + warna + ';letter-spacing:1px">' + '\u25B0'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / Math.max(1, mx) * 16))) + '</span>';
+    let logoTag = '';
+    try {
+      const blob = await fetch('/icon-192.png').then(r => r.blob());
+      const dataUrl = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      logoTag = `<img src="${dataUrl}" width="72" height="72" style="border-radius:12px" alt="CHL"/>`;
+    } catch {}
+    const projLabel = fProj || 'Semua Project';
+    const periodeLabel = periode === 'bulan' ? 'Bulan berjalan' : periode === 'semua' ? 'Semua periode' : (rentang[0] || '…') + ' s.d. ' + (rentang[1] || '…');
+    const dibuat = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const bc = (data.byCampaign || []).filter(r => r.kunci !== '(tanpa data)' || r.l0 > 0);
+    const l0Max = Math.max(1, ...bc.map(r => r.l0), 1);
+    const bs = data.bySumber || [];
+    const bsMax = Math.max(1, ...bs.map(r => r.l0), 1);
+    const bk = data.byKonten || [];
+    const bkMax = Math.max(1, ...bk.map(r => r.l0), 1);
+    const erMax = Math.max(0.0001, ...polaFormat.map(r => r.er || 0));
+    const domMax = Math.max(1, ...audDomisili.map(r => r.l2), 1);
+    const topKonten = (data.contents || []).map(x => ({ ...x, _er: er(x) })).filter(x => x._er !== null).sort((a, b) => b._er - a._er).slice(0, 5);
+
+    const html = `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Report Analisa Marcom</title>
+<style>
+body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1C2B23}
+h1{font-size:20pt;color:#23694A;margin:0} h2{font-size:13pt;color:#23694A;border-bottom:2px solid #C9922E;padding-bottom:4px;margin-top:24px}
+h3{color:#23694A;margin:14px 0 4px}
+table{border-collapse:collapse;width:100%;font-size:10pt} th{background:#1C2B23;color:#fff;padding:6px 8px;text-align:left}
+td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
+.muted{color:#6B7A70} .c{text-align:center}
+</style></head><body>
+<table style="border:none;width:100%"><tr>
+<td style="border:none;width:84px;vertical-align:middle">${logoTag}</td>
+<td style="border:none;vertical-align:middle">
+<p style="letter-spacing:3px;color:#C9922E;font-weight:bold;margin:0">CIPTA HARMONI LESTARI</p>
+<h1>REPORT ANALISA MARCOM</h1>
+</td></tr></table>
+<p class="muted">Project: <b>${esc(projLabel)}</b> &nbsp;|&nbsp; Periode: <b>${esc(periodeLabel)}</b> &nbsp;|&nbsp; Dibuat: ${dibuat} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app · menu Analisa Marcom</p>
+
+<h2>1. RINGKASAN</h2>
+<table>
+<tr><th class="c">LEAD MASUK (L0)</th><th class="c">LEAD BERKUALITAS (L2)</th><th class="c">BOOKING (L3)</th><th class="c">BELANJA IKLAN</th></tr>
+<tr>
+<td class="c" style="font-size:20pt;font-weight:bold;color:#23694A">${totFunnel.l0}</td>
+<td class="c" style="font-size:20pt;font-weight:bold;color:#C9922E">${totFunnel.l2}</td>
+<td class="c" style="font-size:20pt;font-weight:bold;color:#B3402F">${totFunnel.l3}</td>
+<td class="c" style="font-size:16pt;font-weight:bold;color:#23694A">${rp(totSpend)}</td>
+</tr>
+<tr class="muted"><td class="c">seluruh kanal</td><td class="c">Warm/Hot/Site Visit+</td><td class="c">Nilai: <b>${rp(totFunnel.nilai)}</b></td><td class="c">CPL ${perR(totSpend, totFunnel.l0)} · CPQL ${perR(totSpend, totFunnel.l2)} · per Booking ${perR(totSpend, totFunnel.l3)}</td></tr>
+</table>
+
+<h2>2. PERFORMA PER CAMPAIGN</h2>
+<table><tr><th>Campaign</th><th style="width:105px">Spend</th><th class="c" style="width:38px">L0</th><th class="c" style="width:38px">L2</th><th class="c" style="width:38px">L3</th><th style="width:100px">Nilai Booking</th><th style="width:90px">CPQL</th><th style="width:95px">Biaya/Booking</th><th>Grafik Lead</th></tr>
+${bc.length ? bc.map(r => { const sp = spendMap[r.kunci] || 0; return `<tr><td><b>${esc(r.kunci)}</b></td><td>${sp ? rp(sp) : '—'}</td><td class="c">${r.l0}</td><td class="c"><b>${r.l2}</b></td><td class="c"><b>${r.l3}</b></td><td>${Number(r.nilai) ? rp(r.nilai) : '—'}</td><td>${perR(sp, r.l2)}</td><td>${perR(sp, r.l3)}</td><td>${bar(r.l0, l0Max)}</td></tr>`; }).join('') : '<tr><td colspan="9">Belum ada data campaign pada periode ini.</td></tr>'}
+</table>
+<p class="muted" style="font-size:8.5pt">L0 lead masuk · L2 lead berkualitas · L3 Booking/Closing. CPQL = spend ÷ L2. Baris "(tanpa data)" = lead tanpa jejak campaign.</p>
+
+<h2>3. SUMBER LEAD</h2>
+<table><tr><th>Sumber</th><th class="c" style="width:55px">L0</th><th class="c" style="width:55px">L2</th><th class="c" style="width:55px">Booking</th><th class="c" style="width:70px">Rasio L2/L0</th><th>Grafik</th></tr>
+${bs.map(r => `<tr><td>${esc(r.kunci)}</td><td class="c"><b>${r.l0}</b></td><td class="c">${r.l2}</td><td class="c">${r.l3}</td><td class="c">${r.l0 ? Math.round(r.l2 / r.l0 * 100) + '%' : '—'}</td><td>${bar(r.l0, bsMax)}</td></tr>`).join('')}
+</table>
+
+${bk.length ? `<h2>4. KREATIF PENGHASIL LEAD</h2>
+<table><tr><th>Kode Kreatif (utm_content)</th><th class="c" style="width:55px">L0</th><th class="c" style="width:55px">L2</th><th class="c" style="width:55px">Booking</th><th>Grafik</th></tr>
+${bk.map(r => `<tr><td><b>${esc(r.kunci)}</b></td><td class="c">${r.l0}</td><td class="c"><b>${r.l2}</b></td><td class="c">${r.l3}</td><td>${bar(r.l0, bkMax, '#C9922E')}</td></tr>`).join('')}
+</table>` : ''}
+
+<h2>${bk.length ? 5 : 4}. KONTEN ORGANIK</h2>
+<table><tr><th>Format</th><th class="c" style="width:50px">Jml</th><th style="width:100px">Total Reach</th><th class="c" style="width:60px">ER</th><th class="c" style="width:70px">Klik Bio</th><th>Grafik ER</th></tr>
+${polaFormat.length ? polaFormat.map(r => `<tr><td>${esc(r.format)}</td><td class="c">${r.n}</td><td>${r.reach.toLocaleString('id-ID')}</td><td class="c"><b>${r.er === null ? '—' : (r.er * 100).toFixed(1) + '%'}</b></td><td class="c">${r.klik}</td><td>${bar(r.er || 0, erMax, '#C9922E')}</td></tr>`).join('') : '<tr><td colspan="6">Belum ada konten tercatat pada periode ini.</td></tr>'}
+</table>
+${polaJam.length ? `<p class="muted">Jam tayang terbaik (ER): ${polaJam.map(j => esc(j.jam) + ' ' + (j.er === null ? '—' : (j.er * 100).toFixed(1) + '%')).join(' · ')}</p>` : ''}
+${topKonten.length ? `<h3>Konten Terbaik (ER tertinggi)</h3>
+<table><tr><th style="width:80px">Tanggal</th><th style="width:80px">Platform</th><th>Topik / Hook</th><th class="c" style="width:90px">Reach</th><th class="c" style="width:55px">ER</th></tr>
+${topKonten.map(x => `<tr><td>${fmtDate(x.tgl)}</td><td>${esc(x.platform)}</td><td><b>${esc(x.topik || x.format)}</b>${x.hook ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(x.hook) + '</span>' : ''}</td><td class="c">${Number(x.reach || 0).toLocaleString('id-ID')}</td><td class="c"><b>${(x._er * 100).toFixed(1)}%</b></td></tr>`).join('')}
+</table>` : ''}
+
+<h2>${bk.length ? 6 : 5}. AUDIENS BERKUALITAS (profil lead L2 &amp; Booking)</h2>
+<table><tr><th>Domisili</th><th class="c" style="width:55px">L2</th><th class="c" style="width:60px">Booking</th><th>Grafik</th></tr>
+${audDomisili.length ? audDomisili.map(r => `<tr><td><b>${esc(r.nama)}</b></td><td class="c">${r.l2}</td><td class="c">${r.l3}</td><td>${bar(r.l2, domMax)}</td></tr>`).join('') : '<tr><td colspan="4">Belum ada lead berkualitas pada periode ini.</td></tr>'}
+</table>
+${audTujuan.length ? `<p class="muted">Tujuan beli lead berkualitas: ${audTujuan.map(x => esc(x.nama) + ' ' + x.l2).join(' · ')}</p>` : ''}
+
+<h2>${bk.length ? 7 : 6}. OUTPUT TIM MARCOM</h2>
+<table><tr><th>Nama</th><th class="c" style="width:85px">Konten (bln ini)</th><th class="c" style="width:70px">Konten</th><th class="c" style="width:70px">Entri Iklan</th><th class="c" style="width:60px">Lead</th><th class="c" style="width:50px">L2</th><th class="c" style="width:60px">Booking</th><th style="width:110px">Nilai Booking</th></tr>
+${tim.length ? tim.map(u => `<tr><td><b>${esc(u.name)}</b>${u.active ? '' : ' <span class="muted">(nonaktif)</span>'}</td><td class="c">${u.konten_bln}</td><td class="c">${u.konten}</td><td class="c">${u.entri_iklan}</td><td class="c">${u.l0}</td><td class="c"><b>${u.l2}</b></td><td class="c"><b>${u.l3}</b></td><td>${Number(u.nilai) ? rp(u.nilai) : '—'}</td></tr>`).join('') : '<tr><td colspan="8">Belum ada akun Marcom.</td></tr>'}
+</table>
+
+<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — menu Analisa Marcom · copyright &copy; 2026 by Andriawanp.</p>
+</body></html>`;
+
+    if (mode === 'pdf') {
+      const w = window.open('', '_blank');
+      if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
+      w.document.open();
+      w.document.write(html.replace('</head>', '<style>@page{size:A4 portrait;margin:14mm} body{background:#fff} table{page-break-inside:auto} tr{page-break-inside:avoid} h2{page-break-after:avoid}</style></head>'));
+      w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
+      toast('Jendela cetak terbuka — pilih "Save as PDF" sebagai printer 📄');
+      return;
+    }
+    const blob2 = new Blob(['\ufeff' + html], { type: 'application/msword' });
+    const a2 = document.createElement('a');
+    a2.href = URL.createObjectURL(blob2);
+    a2.download = `Report_Analisa_Marcom_${(fProj || 'Semua').replace(/\s+/g, '')}_${rentang[0] || 'awal'}_${rentang[1] || 'kini'}.doc`;
+    document.body.appendChild(a2); a2.click(); a2.remove();
+    toast('Report Word terunduh');
+  }
+
   if (!data) return <div className="loading">Memuat…</div>;
   const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
 
@@ -106,7 +220,11 @@ export default function MarcomPage() {
     <>
       <div className="page-head"><div><h1>Analisa Marcom</h1>
         <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (Warm/Hot/Site Visit+) · L3 Booking</div></div>
-        <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => buatReport('word')}>⬇ Report Word</button>
+          <button className="sort-btn" onClick={() => buatReport('pdf')}>📄 Report PDF</button>
+          <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div>
+        </div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
         {[['insight', '1 · Insight'], ['konten', '2 · Konten'], ['iklan', '3 · Iklan'], ['tim', '4 · Output Tim']].map(([key, t]) => (
