@@ -12,9 +12,10 @@ const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d
 const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
 const sanitEx = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const KODE_FORMAT = ['reels', 'carousel', 'single', 'story', 'video', 'search', 'pmax', 'display', 'banner', 'live'];
-const UTM_SRC = ['facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
+const PLATFORM_C = ['Meta (FB+IG)', 'Google', 'Tiktok', 'Youtube', 'Website', 'Lainnya'];
+const UTM_SRC = ['meta', 'facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
 const UTM_MED = ['cpc', 'social', 'banner', 'email', 'referral'];
-const C0 = { nama: '', platform: 'Facebook', project: '', tujuan: 'leads', bulan: bulanOpts[1], extra: '', budget: '', status: 'Aktif', catatan: '' };
+const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', bulan: bulanOpts[1], extra: '', budget: '', status: 'Aktif', catatan: '' };
 const M0 = { content_id: '', tgl: todayISO(), reach: '', like_n: '', komentar: '', share_n: '', save_n: '', view3: '', view_full: '', klik_bio: '' };
 const A0 = { tgl: todayISO(), campaign: '', kreatif: '', spend: '', impresi: '', reach: '', klik: '', hasil: '', catatan: '' };
 
@@ -276,7 +277,7 @@ export default function MarcomPage() {
             {!cEdit && <div className="field"><label>Bulan</label><select {...fc('bulan')}>{bulanOpts.map(b => <option key={b}>{b}</option>)}</select></div>}
             {!cEdit && <div className="field"><label>Pembeda (opsional)</label><input {...fc('extra')} placeholder="mis. lebaran / retargeting" /></div>}
             {!cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign — otomatis, pakai nama ini juga di Ads Manager</label><input value={namaGen} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>}
-            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>
+            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM_C.map(p => <option key={p}>{p}</option>)}{c.platform && !PLATFORM_C.includes(c.platform) && <option>{c.platform}</option>}</select></div>
             <div className="field"><label>Budget Rencana (Rp)</label><input type="number" min="0" {...fc('budget')} /></div>
             <div className="field"><label>Status</label><select {...fc('status')}><option>Aktif</option><option>Selesai</option></select></div>
             <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan</label><input {...fc('catatan')} placeholder="target audiens, penempatan, dsb" /></div>
@@ -338,8 +339,8 @@ export default function MarcomPage() {
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
-                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'instagram', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
-                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Facebook', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanOpts[1], extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanOpts[1], extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
