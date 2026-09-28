@@ -27,16 +27,18 @@ export async function GET(req) {
   // Periode analisa (opsional) — membatasi leads, iklan, dan konten berdasarkan tanggal
   const d1 = url.searchParams.get('d1') || null;
   const d2 = url.searchParams.get('d2') || null;
+  const proj = url.searchParams.get('project') || null;
 
   const [campaigns, contents, ads] = await Promise.all([
     sql`SELECT * FROM mi_campaigns ORDER BY status, id DESC`,
     sql`SELECT c.*, m.tgl AS m_tgl, m.reach, m.like_n, m.komentar, m.share_n, m.save_n, m.view3, m.view_full, m.klik_bio
         FROM mi_contents c
         LEFT JOIN LATERAL (SELECT * FROM mi_content_metrics WHERE content_id = c.id ORDER BY tgl DESC LIMIT 1) m ON true
-        WHERE (${d1}::date IS NULL OR c.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR c.tgl <= ${d2}::date)
+        WHERE (${d1}::date IS NULL OR c.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR c.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR c.project = ${proj})
         ORDER BY c.tgl DESC NULLS LAST, c.id DESC`,
     sql`SELECT * FROM mi_ads
         WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+          AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ${proj}))
         ORDER BY tgl DESC NULLS LAST, id DESC LIMIT 800`,
   ]);
 
@@ -52,7 +54,7 @@ export async function GET(req) {
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
         WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
     FROM leads l
-    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1 ORDER BY l0 DESC`,
     sql`
     SELECT COALESCE(NULLIF(l.sumber, ''), '(tanpa data)') AS kunci,
@@ -64,7 +66,7 @@ export async function GET(req) {
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
         WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
     FROM leads l
-    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1 ORDER BY l0 DESC`,
     sql`
     SELECT COALESCE(NULLIF(l.konten, ''), '') AS kunci,
@@ -74,7 +76,7 @@ export async function GET(req) {
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3
     FROM leads l
     WHERE COALESCE(l.konten, '') <> ''
-      AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+      AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1 ORDER BY l0 DESC LIMIT 30`,
     // Profil audiens dari lead BERKUALITAS (L2) & konversi — domisili, tujuan beli, tipe, sumber
     sql`
@@ -87,7 +89,7 @@ export async function GET(req) {
     FROM leads l
     WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))
-      AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+      AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1, 2, 3, 4 ORDER BY l2 DESC LIMIT 200`,
     // Output tim: funnel per akun marcom (semua periode terpilih)
     sql`
@@ -100,13 +102,13 @@ export async function GET(req) {
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
         WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
     FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+    WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1`,
     sql`
     SELECT u.username, u.name, u.active,
-      (SELECT count(*) FROM mi_contents c WHERE c.created_by = u.username)::int AS konten,
-      (SELECT count(*) FROM mi_contents c WHERE c.created_by = u.username AND c.tgl >= date_trunc('month', now())::date)::int AS konten_bln,
-      (SELECT count(*) FROM mi_ads a WHERE a.created_by = u.username)::int AS entri_iklan
+      (SELECT count(*) FROM mi_contents c WHERE c.created_by = u.username AND (${proj}::text IS NULL OR c.project = ${proj}))::int AS konten,
+      (SELECT count(*) FROM mi_contents c WHERE c.created_by = u.username AND c.tgl >= date_trunc('month', now())::date AND (${proj}::text IS NULL OR c.project = ${proj}))::int AS konten_bln,
+      (SELECT count(*) FROM mi_ads a WHERE a.created_by = u.username AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = a.campaign AND mc.project = ${proj})))::int AS entri_iklan
     FROM users u WHERE u.role = 'markom' ORDER BY u.name`,
   ]);
 
@@ -115,6 +117,7 @@ export async function GET(req) {
     SELECT COALESCE(NULLIF(campaign, ''), '(tanpa data)') AS kunci, sum(spend)::numeric AS spend
     FROM mi_ads
     WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+          AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ${proj}))
     GROUP BY 1`;
 
   return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, me: { role: user.role, username: user.username } });

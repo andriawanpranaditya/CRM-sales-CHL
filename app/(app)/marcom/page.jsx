@@ -21,6 +21,7 @@ export default function MarcomPage() {
   const [data, setData] = useState(null);
   const [set, setSet] = useState({ project: [] });
   const [busy, setBusy] = useState(false);
+  const [fProj, setFProj] = useState('');
   const [periode, setPeriode] = useState('bulan'); // bulan | semua | custom
   const [d1, setD1] = useState(''); const [d2, setD2] = useState('');
   const [k, setK] = useState(K0); const [kEdit, setKEdit] = useState(null);
@@ -35,10 +36,10 @@ export default function MarcomPage() {
   }, [periode, d1, d2]);
 
   const muat = () => Promise.all([
-    api('/api/marcom?d1=' + rentang[0] + '&d2=' + rentang[1]),
+    api('/api/marcom?d1=' + rentang[0] + '&d2=' + rentang[1] + '&project=' + encodeURIComponent(fProj)),
     api('/api/settings'),
   ]).then(([d, s]) => { setData(d); setSet(s); }).catch(e => toast(e.message));
-  useEffect(() => { muat(); }, [rentang[0], rentang[1]]); // eslint-disable-line
+  useEffect(() => { muat(); }, [rentang[0], rentang[1], fProj]); // eslint-disable-line
 
   const fk = key => ({ value: k[key], onChange: e => setK({ ...k, [key]: e.target.value }) });
   const fc = key => ({ value: c[key], onChange: e => setC({ ...c, [key]: e.target.value }) });
@@ -99,7 +100,7 @@ export default function MarcomPage() {
   }, [data]);
 
   if (!data) return <div className="loading">Memuat…</div>;
-  const camps = data.campaigns || [];
+  const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
 
   return (
     <>
@@ -112,6 +113,10 @@ export default function MarcomPage() {
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{t}</button>))}
       </div>
 
+      <div className="fu-toolbar" style={{ marginBottom: 8 }}>
+        <button className={'sort-btn' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>
+        {(set.project || []).map(p => <button key={p} className={'sort-btn' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
+      </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
         {[['bulan', 'Bulan Ini'], ['semua', 'Semua Periode'], ['custom', 'Pilih Tanggal']].map(([v, t]) => (
           <button key={v} className={'sort-btn' + (periode === v ? ' active' : '')} onClick={() => setPeriode(v)}>{t}</button>))}
