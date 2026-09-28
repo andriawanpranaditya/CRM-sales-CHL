@@ -7,7 +7,14 @@ const PLATFORM = ['Instagram', 'Facebook', 'Tiktok', 'Google', 'Youtube', 'Websi
 const FORMAT = ['Reels / Short Video', 'Carousel', 'Single Post', 'Story', 'Video Panjang', 'Live', 'Search Ads', 'Display / Banner', 'Lainnya'];
 const TUJUAN_C = ['leads', 'awareness', 'promo', 'traffic', 'event'];
 const K0 = { tgl: todayISO(), platform: 'Instagram', project: '', format: 'Reels / Short Video', topik: '', hook: '', jam: '', durasi: '', link: '' };
-const C0 = { nama: '', platform: 'Facebook', project: '', tujuan: 'leads', budget: '', status: 'Aktif', catatan: '' };
+const BULAN_ID = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
+const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); for (let i = 0; i < 14; i++) { out.push(BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2)); d.setMonth(d.getMonth() + 1); } return out; })();
+const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
+const sanitEx = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+const KODE_FORMAT = ['reels', 'carousel', 'single', 'story', 'video', 'search', 'pmax', 'display', 'banner', 'live'];
+const UTM_SRC = ['facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
+const UTM_MED = ['cpc', 'social', 'banner', 'email', 'referral'];
+const C0 = { nama: '', platform: 'Facebook', project: '', tujuan: 'leads', bulan: bulanOpts[1], extra: '', budget: '', status: 'Aktif', catatan: '' };
 const M0 = { content_id: '', tgl: todayISO(), reach: '', like_n: '', komentar: '', share_n: '', save_n: '', view3: '', view_full: '', klik_bio: '' };
 const A0 = { tgl: todayISO(), campaign: '', kreatif: '', spend: '', impresi: '', reach: '', klik: '', hasil: '', catatan: '' };
 
@@ -28,6 +35,7 @@ export default function MarcomPage() {
   const [c, setC] = useState(C0); const [cEdit, setCEdit] = useState(null);
   const [m, setM] = useState(M0);
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
+  const [lk, setLk] = useState(null);
 
   const rentang = useMemo(() => {
     if (periode === 'bulan') { const t = new Date(); return [new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10), todayISO()]; }
@@ -45,6 +53,7 @@ export default function MarcomPage() {
   const fc = key => ({ value: c[key], onChange: e => setC({ ...c, [key]: e.target.value }) });
   const fm = key => ({ value: m[key], onChange: e => setM({ ...m, [key]: e.target.value }) });
   const fa = key => ({ value: a[key], onChange: e => setA({ ...a, [key]: e.target.value }) });
+  const namaGen = [slugP(c.project) || 'chl', c.tujuan, c.bulan].filter(Boolean).join('_') + (sanitEx(c.extra) ? '_' + sanitEx(c.extra) : '');
 
   async function simpan(jenis, body, editId, reset) {
     setBusy(true);
@@ -261,19 +270,42 @@ export default function MarcomPage() {
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">(nama HARUS sama dengan utm_campaign & nama di platform iklan)</span></h3>
           <div className="form-grid">
-            <div className="field"><label>Nama Campaign <span className="req">*</span></label><input {...fc('nama')} placeholder="bio_leads_sep26" disabled={!!cEdit} /></div>
-            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>
-            <div className="field"><label>Project</label><select {...fc('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
+            {cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign (terkunci)</label><input value={c.nama} disabled style={{ fontFamily: 'monospace', fontWeight: 700 }} /></div>}
+            <div className="field"><label>Project <span className="req">*</span></label><select {...fc('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
             <div className="field"><label>Tujuan</label><select {...fc('tujuan')}>{TUJUAN_C.map(t => <option key={t}>{t}</option>)}</select></div>
+            {!cEdit && <div className="field"><label>Bulan</label><select {...fc('bulan')}>{bulanOpts.map(b => <option key={b}>{b}</option>)}</select></div>}
+            {!cEdit && <div className="field"><label>Pembeda (opsional)</label><input {...fc('extra')} placeholder="mis. lebaran / retargeting" /></div>}
+            {!cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign — otomatis, pakai nama ini juga di Ads Manager</label><input value={namaGen} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>}
+            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>
             <div className="field"><label>Budget Rencana (Rp)</label><input type="number" min="0" {...fc('budget')} /></div>
             <div className="field"><label>Status</label><select {...fc('status')}><option>Aktif</option><option>Selesai</option></select></div>
             <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan</label><input {...fc('catatan')} placeholder="target audiens, penempatan, dsb" /></div>
           </div>
           <div className="form-foot">
-            <button className="btn btn-primary" disabled={busy} onClick={() => simpan('campaign', c, cEdit, () => { setCEdit(null); setC(C0); })}>{cEdit ? 'Simpan Perubahan' : 'Simpan Campaign'}</button>
+            <button className="btn btn-primary" disabled={busy} onClick={() => { if (!cEdit && !c.project) return toast('Pilih project dulu'); simpan('campaign', { ...c, nama: cEdit ? c.nama : namaGen }, cEdit, () => { setCEdit(null); setC({ ...C0 }); }); }}>{cEdit ? 'Simpan Perubahan' : 'Simpan Campaign'}</button>
             {cEdit && <button className="sort-btn" onClick={() => { setCEdit(null); setC(C0); }}>Batal edit</button>}
           </div>
         </div>
+
+        {lk && (() => { const kode = lk.format + '-' + String(lk.no || 1).padStart(2, '0'); const sep = (lk.url || '').includes('?') ? '&' : '?'; const link = (lk.url || '') + sep + 'utm_source=' + lk.source + '&utm_medium=' + lk.medium + '&utm_campaign=' + lk.nama + '&utm_content=' + kode; const salin = async (teks, apa) => { try { await navigator.clipboard.writeText(teks); toast(apa + ' tersalin 📋'); } catch { window.prompt('Salin manual:', teks); } }; return (
+          <div className="card" style={{ marginBottom: 12, border: '1.5px solid var(--brass)' }}>
+            <h3 style={{ marginTop: 0 }}>🔗 Buat Link — <span style={{ fontFamily: 'monospace' }}>{lk.nama}</span></h3>
+            <div className="form-grid">
+              <div className="field"><label>URL Tujuan (landing page)</label><input value={lk.url} onChange={e => setLk({ ...lk, url: e.target.value })} placeholder="https://…" /></div>
+              <div className="field"><label>Format Kreatif</label><select value={lk.format} onChange={e => setLk({ ...lk, format: e.target.value })}>{KODE_FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>
+              <div className="field"><label>Nomor Kreatif</label><input type="number" min="1" value={lk.no} onChange={e => setLk({ ...lk, no: e.target.value })} /></div>
+              <div className="field"><label>utm_source</label><select value={lk.source} onChange={e => setLk({ ...lk, source: e.target.value })}>{UTM_SRC.map(f => <option key={f}>{f}</option>)}</select></div>
+              <div className="field"><label>utm_medium</label><select value={lk.medium} onChange={e => setLk({ ...lk, medium: e.target.value })}>{UTM_MED.map(f => <option key={f}>{f}</option>)}</select></div>
+              <div className="field"><label>Kode Kreatif (utm_content)</label><input value={kode} readOnly style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>
+              <div className="field" style={{ gridColumn: '1/-1' }}><label>LINK FINAL — pasang di iklan / bio</label><input value={link} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontSize: 12 }} /></div>
+            </div>
+            <div className="form-foot">
+              <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => salin(link, 'Link')}>📋 Salin Link</button>
+              <button className="sort-btn" onClick={() => salin(kode, 'Kode kreatif')}>📋 Salin Kode</button>
+              <button className="sort-btn" onClick={() => setLk(null)}>Tutup</button>
+            </div>
+            <span className="hint">Nama ad di Ads Manager = kode kreatif ({kode}). Nomor naik untuk tiap kreatif baru di campaign yang sama.</span>
+          </div>); })()}
 
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">(mingguan per campaign/kreatif dari Ads Manager — nanti otomatis saat konektor API aktif)</span></h3>
@@ -306,7 +338,8 @@ export default function MarcomPage() {
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
-                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Facebook', project: x.project || '', tujuan: x.tujuan || 'leads', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'instagram', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Facebook', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanOpts[1], extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
