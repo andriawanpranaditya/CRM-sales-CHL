@@ -709,8 +709,8 @@ ${bk.map(r => `<tr><td><b>${esc(r.kunci)}</b></td><td style="text-align:center">
 </table>` : ''}
 
 <h2>9. KONTEN ORGANIK — DETAIL PER KONTEN (${konten.length} konten)</h2>
-<table style="font-size:7.5pt"><tr><th style="width:48px">Tanggal</th><th style="width:46px">Platform</th><th style="width:52px">Format</th><th style="width:32%">Topik / Hook</th><th style="width:26px">Jam</th><th style="width:42px;text-align:center">Reach</th><th style="width:30px;text-align:center">Like</th><th style="width:42px;text-align:center">Kmt/DM</th><th style="width:30px;text-align:center">Share</th><th style="width:30px;text-align:center">Save</th><th style="width:36px;text-align:center">View 3s</th><th style="width:38px;text-align:center">View Full</th><th style="width:34px;text-align:center">Klik Bio</th><th style="width:32px;text-align:center">ER</th></tr>
-${konten.length ? konten.map(x => `<tr><td>${fmtDate(x.tgl)}</td><td>${esc(x.platform)}</td><td>${esc(x.format)}</td><td><b>${esc(x.topik || '—')}</b>${x.hook ? '<br/><span class="muted" style="font-size:7.5pt">' + esc(x.hook) + '</span>' : ''}</td><td>${esc(x.jam || '—')}</td><td style="text-align:center">${n0(x.reach)}</td><td style="text-align:center">${n0(x.like_n)}</td><td style="text-align:center">${n0(x.komentar)}</td><td style="text-align:center">${n0(x.share_n)}</td><td style="text-align:center">${n0(x.save_n)}</td><td style="text-align:center">${n0(x.view3)}</td><td style="text-align:center">${n0(x.view_full)}</td><td style="text-align:center">${n0(x.klik_bio)}</td><td style="text-align:center"><b>${pctEr(erOf(x))}</b></td></tr>`).join('') : '<tr><td colspan="14">Belum ada konten tercatat pada periode ini.</td></tr>'}
+<table style="font-size:7.5pt;table-layout:fixed;width:100%"><tr><th style="width:46px">Tanggal</th><th style="width:44px">Platform</th><th style="width:50px">Format</th><th style="width:215px">Topik</th><th style="width:26px">Jam</th><th style="width:38px;text-align:center">Reach</th><th style="width:28px;text-align:center">Like</th><th style="width:38px;text-align:center">Kmt/DM</th><th style="width:28px;text-align:center">Share</th><th style="width:28px;text-align:center">Save</th><th style="width:34px;text-align:center">View 3s</th><th style="width:36px;text-align:center">View Full</th><th style="width:32px;text-align:center">Klik Bio</th><th style="width:30px;text-align:center">ER</th></tr>
+${konten.length ? konten.map(x => `<tr><td>${fmtDate(x.tgl)}</td><td>${esc(x.platform)}</td><td>${esc(x.format)}</td><td><b>${esc(x.topik || x.format || '—')}</b></td><td>${esc(x.jam || '—')}</td><td style="text-align:center">${n0(x.reach)}</td><td style="text-align:center">${n0(x.like_n)}</td><td style="text-align:center">${n0(x.komentar)}</td><td style="text-align:center">${n0(x.share_n)}</td><td style="text-align:center">${n0(x.save_n)}</td><td style="text-align:center">${n0(x.view3)}</td><td style="text-align:center">${n0(x.view_full)}</td><td style="text-align:center">${n0(x.klik_bio)}</td><td style="text-align:center"><b>${pctEr(erOf(x))}</b></td></tr>`).join('') : '<tr><td colspan="14">Belum ada konten tercatat pada periode ini.</td></tr>'}
 </table>
 <p class="muted" style="font-size:8.5pt">Angka = performa terakhir yang di-update tim Marcom. ER = (like + komentar + share + save) ÷ reach.</p>
 ${polaF.length ? `<h3>Analisa: Pola Konten yang Menang</h3>
@@ -737,7 +737,7 @@ td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
 .badge-over{color:#B3402F;font-weight:bold} .muted{color:#6B7A70}
 .kpi{display:inline-block;border:1px solid #D8D6CC;padding:8px 16px;margin:4px 8px 4px 0}
 .kpi b{font-size:16pt;color:#23694A}
-h2{page-break-before:always;page-break-inside:avoid;page-break-after:avoid}
+h2{page-break-inside:avoid;page-break-after:avoid}
 h3{page-break-after:avoid}
 table{page-break-inside:auto} tr{page-break-inside:avoid} img{page-break-inside:avoid}
 </style></head><body>
@@ -749,7 +749,7 @@ table{page-break-inside:auto} tr{page-break-inside:avoid} img{page-break-inside:
 </td></tr></table>
 <p class="muted">Project: <b>${esc(projLabel)}</b> &nbsp;|&nbsp; Periode: <b>${esc(periode)}</b> &nbsp;|&nbsp; Dibuat: ${dd(new Date().toISOString())} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app</p>
 
-<h2 style="page-break-before:auto">1. RINGKASAN EKSEKUTIF</h2>
+<h2>1. RINGKASAN EKSEKUTIF</h2>
 <table>
 <tr><th style="text-align:center">LEAD MASUK</th><th style="text-align:center">FOLLOW UP</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th></tr>
 <tr>
