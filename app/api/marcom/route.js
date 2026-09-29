@@ -120,7 +120,23 @@ export async function GET(req) {
           AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ${proj}))
     GROUP BY 1`;
 
-  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, me: { role: user.role, username: user.username } });
+  // Website & SEO (hasil tarikan konektor GA4 + Search Console)
+  let ga4 = [], gsc = [], synclog = [];
+  try {
+    [ga4, gsc, synclog] = await Promise.all([
+      sql`SELECT source_medium, sum(sessions)::int AS sessions, sum(users)::int AS users, sum(key_events)::int AS key_events
+          FROM mi_ga4_daily
+          WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+          GROUP BY 1 ORDER BY sessions DESC LIMIT 25`,
+      sql`SELECT query, sum(clicks)::int AS clicks, sum(impressions)::int AS impressions,
+          round(avg(position)::numeric, 1) AS position
+          FROM mi_gsc_daily
+          WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+          GROUP BY 1 ORDER BY clicks DESC, impressions DESC LIMIT 30`,
+      sql`SELECT * FROM mi_sync_log ORDER BY id DESC LIMIT 12`,
+    ]);
+  } catch {}
+  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {

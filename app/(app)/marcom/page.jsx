@@ -71,6 +71,17 @@ export default function MarcomPage() {
     catch (e) { toast(e.message); }
   }
 
+  const [narik, setNarik] = useState(false);
+  async function tarikSekarang() {
+    setNarik(true);
+    try {
+      const r = await api('/api/mi-sync');
+      const ringkas = (r.hasil || []).map(h => `${h.sumber}: ${h.status} (${h.baris} baris)`).join(' · ');
+      toast(ringkas || 'Selesai');
+      await muat();
+    } catch (e) { toast(e.message); } finally { setNarik(false); }
+  }
+
   // ===== Insight (dihitung dari data GET) =====
   const spendMap = useMemo(() => Object.fromEntries((data?.spend || []).map(s => [s.kunci, Number(s.spend) || 0])), [data]);
   const totSpend = useMemo(() => Object.values(spendMap).reduce((x, y) => x + y, 0), [spendMap]);
@@ -119,7 +130,7 @@ export default function MarcomPage() {
         <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
-        {[['insight', '1 · Insight'], ['konten', '2 · Konten'], ['iklan', '3 · Iklan'], ['tim', '4 · Output Tim']].map(([key, t]) => (
+        {[['insight', '1 · Insight'], ['konten', '2 · Konten'], ['iklan', '3 · Iklan'], ['tim', '4 · Output Tim'], ['web', '5 · Website & SEO']].map(([key, t]) => (
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{t}</button>))}
       </div>
 
@@ -361,6 +372,59 @@ export default function MarcomPage() {
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada entri performa iklan.</td></tr>}</tbody>
             </table></div>
           </div>
+        </div>
+      </>)}
+
+      {tab === 'web' && (<>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>Website & SEO <span className="hint">(otomatis dari GA4 & Search Console — cron harian 05.30 WIB)</span></h3>
+            <button className="btn btn-primary" style={{ width: 'auto' }} disabled={narik} onClick={tarikSekarang}>{narik ? 'Menarik data…' : '⟳ Tarik Data Sekarang'}</button>
+          </div>
+          {(!data.ga4 || !data.ga4.length) && (!data.gsc || !data.gsc.length) && (
+            <p className="hint" style={{ marginBottom: 0 }}>Belum ada data. Pastikan environment variable Google (GOOGLE_SA_EMAIL, GOOGLE_SA_KEY, GA4_PROPERTY_ID, GSC_SITE_URL) sudah diisi di Vercel & /api/setup sudah dijalankan, lalu klik Tarik Data Sekarang.</p>
+          )}
+        </div>
+        <div className="two-col">
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Trafik Website per Sumber (GA4)</h3>
+            <div className="tbl-wrap tbl-compact"><table>
+              <thead><tr><th>Source / Medium</th><th className="num">Sessions</th><th className="num">Users</th><th className="num">Key Events</th></tr></thead>
+              <tbody>{(data.ga4 || []).length ? (data.ga4 || []).map(r => (
+                <tr key={r.source_medium}><td data-label="Sumber"><b>{r.source_medium}</b></td>
+                  <td className="num" data-label="Sessions">{Number(r.sessions).toLocaleString('id-ID')}</td>
+                  <td className="num" data-label="Users">{Number(r.users).toLocaleString('id-ID')}</td>
+                  <td className="num" data-label="Key Events"><b>{r.key_events}</b></td></tr>))
+                : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada data GA4.</td></tr>}</tbody>
+            </table></div>
+            <span className="hint">Key Events = event penting yang disetel di GA4 (klik WA, submit form, klik telepon).</span>
+          </div>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Kata Kunci Pencarian (Search Console)</h3>
+            <div className="tbl-wrap tbl-compact"><table>
+              <thead><tr><th>Query</th><th className="num">Klik</th><th className="num">Impresi</th><th className="num">Posisi</th></tr></thead>
+              <tbody>{(data.gsc || []).length ? (data.gsc || []).map(r => (
+                <tr key={r.query}><td data-label="Query"><b>{r.query}</b></td>
+                  <td className="num" data-label="Klik"><b>{r.clicks}</b></td>
+                  <td className="num" data-label="Impresi">{Number(r.impressions).toLocaleString('id-ID')}</td>
+                  <td className="num" data-label="Posisi">{r.position}</td></tr>))
+                : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada data Search Console (datanya terlambat ±2 hari dari Google).</td></tr>}</tbody>
+            </table></div>
+          </div>
+        </div>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Riwayat Tarikan Data</h3>
+          <div className="tbl-wrap tbl-compact"><table>
+            <thead><tr><th>Waktu</th><th>Sumber</th><th>Status</th><th className="num">Baris</th><th>Keterangan</th></tr></thead>
+            <tbody>{(data.synclog || []).length ? (data.synclog || []).map(r => (
+              <tr key={r.id}><td data-label="Waktu">{new Date(r.waktu).toLocaleString('id-ID')}</td>
+                <td data-label="Sumber">{r.sumber}</td>
+                <td data-label="Status"><span className={'badge ' + (r.status === 'sukses' ? 'b-warm' : r.status === 'gagal' ? 'b-hot' : 'b-cold')}>{r.status}</span></td>
+                <td className="num" data-label="Baris">{r.baris}</td>
+                <td data-label="Ket" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.pesan}</td></tr>))
+              : <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum pernah menarik data.</td></tr>}</tbody>
+          </table></div>
+          <span className="hint">Konektor Meta, Google Ads & TikTok akan aktif otomatis di halaman ini begitu token masing-masing terpasang di Vercel.</span>
         </div>
       </>)}
 

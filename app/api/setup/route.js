@@ -198,6 +198,23 @@ export async function GET(req) {
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_ads_tgl ON mi_ads (tgl)`);
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads (campaign)`);
 
+  await sql`CREATE TABLE IF NOT EXISTS mi_ga4_daily (
+    id serial PRIMARY KEY, tgl date NOT NULL, source_medium text NOT NULL,
+    sessions integer DEFAULT 0, users integer DEFAULT 0, key_events integer DEFAULT 0,
+    UNIQUE (tgl, source_medium)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_gsc_daily (
+    id serial PRIMARY KEY, tgl date NOT NULL, query text NOT NULL,
+    clicks integer DEFAULT 0, impressions integer DEFAULT 0, position numeric DEFAULT 0,
+    UNIQUE (tgl, query)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_sync_log (
+    id serial PRIMARY KEY, waktu timestamptz NOT NULL DEFAULT now(),
+    sumber text, status text, baris integer DEFAULT 0, pesan text
+  )`;
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_ga4_tgl ON mi_ga4_daily (tgl)`);
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_gsc_tgl ON mi_gsc_daily (tgl)`);
+
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})
               ON CONFLICT (key) DO NOTHING`;
