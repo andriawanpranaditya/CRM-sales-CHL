@@ -79,7 +79,7 @@ export default function MarcomPage() {
       const ringkas = (r.hasil || []).map(h => `${h.sumber}: ${h.status} (${h.baris} baris)`).join(' · ');
       toast(ringkas || 'Selesai');
       await muat();
-    } catch (e) { toast(e.message); } finally { setNarik(false); }
+    } catch (e) { toast(/504/.test(e.message) ? 'Tarikan melewati batas waktu server — data sebagian mungkin sudah tersimpan, klik Tarik lagi.' : e.message); await muat(); } finally { setNarik(false); }
   }
 
   // ===== Insight (dihitung dari data GET) =====

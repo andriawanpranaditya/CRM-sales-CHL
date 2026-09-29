@@ -60,16 +60,23 @@ async function tarikGA4(sql) {
   if (j.error) { res = await panggil('conversions'); j = await res.json(); }
   if (j.error) throw new Error('GA4: ' + (j.error.message || 'error'));
   const rows = j.rows || [];
+  // Simpan sekaligus per batch (bukan satu-satu) agar tidak timeout
+  const m = new Map();
   for (const r of rows) {
     const tgl = r.dimensionValues[0].value; // YYYYMMDD
     const tglIso = tgl.slice(0, 4) + '-' + tgl.slice(4, 6) + '-' + tgl.slice(6, 8);
     const sm = (r.dimensionValues[1].value || '(not set)').slice(0, 190);
-    const [sess, usr, kev] = r.metricValues.map(m => Number(m.value) || 0);
+    const [sess, usr, kev] = r.metricValues.map(v => Number(v.value) || 0);
+    m.set(tglIso + '|' + sm, [tglIso, sm, sess, usr, kev]);
+  }
+  const all = [...m.values()];
+  for (let i = 0; i < all.length; i += 1000) {
+    const b = all.slice(i, i + 1000);
     await sql`INSERT INTO mi_ga4_daily (tgl, source_medium, sessions, users, key_events)
-      VALUES (${tglIso}, ${sm}, ${sess}, ${usr}, ${kev})
+      SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[], ${b.map(x => x[4])}::int[])
       ON CONFLICT (tgl, source_medium) DO UPDATE SET sessions = EXCLUDED.sessions, users = EXCLUDED.users, key_events = EXCLUDED.key_events`;
   }
-  return { sumber: 'GA4', status: 'sukses', baris: rows.length, pesan: `${d1} s.d. ${d2}` };
+  return { sumber: 'GA4', status: 'sukses', baris: all.length, pesan: `${d1} s.d. ${d2}` };
 }
 
 async function tarikGSC(sql) {
@@ -85,13 +92,20 @@ async function tarikGSC(sql) {
   const j = await r.json();
   if (j.error) throw new Error('GSC: ' + (j.error.message || 'error'));
   const rows = j.rows || [];
+  const m = new Map();
   for (const x of rows) {
     const [tgl, q] = x.keys;
+    const qq = String(q).slice(0, 250);
+    m.set(tgl + '|' + qq, [tgl, qq, Number(x.clicks) || 0, Number(x.impressions) || 0, Number(x.position) || 0]);
+  }
+  const all = [...m.values()];
+  for (let i = 0; i < all.length; i += 1000) {
+    const b = all.slice(i, i + 1000);
     await sql`INSERT INTO mi_gsc_daily (tgl, query, clicks, impressions, position)
-      VALUES (${tgl}, ${String(q).slice(0, 250)}, ${Number(x.clicks) || 0}, ${Number(x.impressions) || 0}, ${Number(x.position) || 0})
+      SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[], ${b.map(x => x[4])}::numeric[])
       ON CONFLICT (tgl, query) DO UPDATE SET clicks = EXCLUDED.clicks, impressions = EXCLUDED.impressions, position = EXCLUDED.position`;
   }
-  return { sumber: 'Search Console', status: 'sukses', baris: rows.length, pesan: `${d1raw} s.d. ${d2}` };
+  return { sumber: 'Search Console', status: 'sukses', baris: all.length, pesan: `${d1raw} s.d. ${d2}` };
 }
 
 // Colokan konektor berikutnya — aktif otomatis saat env-nya diisi (tanpa ubah kode):
@@ -110,17 +124,17 @@ export async function GET(req) {
     }
   }
   const sql = db();
-  const hasil = [];
-  for (const tarik of [tarikGA4, tarikGSC]) {
+  const jalankan = async (tarik, nama) => {
     try {
       const h = await tarik(sql);
-      hasil.push(h);
       await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${h.sumber}, ${h.status}, ${h.baris}, ${h.pesan})`;
+      return h;
     } catch (e) {
-      const nama = tarik === tarikGA4 ? 'GA4' : 'Search Console';
-      hasil.push({ sumber: nama, status: 'gagal', baris: 0, pesan: String(e.message || e).slice(0, 400) });
-      try { await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${nama}, 'gagal', 0, ${String(e.message || e).slice(0, 400)})`; } catch {}
+      const pesan = String(e.message || e).slice(0, 400);
+      try { await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${nama}, 'gagal', 0, ${pesan})`; } catch {}
+      return { sumber: nama, status: 'gagal', baris: 0, pesan };
     }
-  }
+  };
+  const hasil = await Promise.all([jalankan(tarikGA4, 'GA4'), jalankan(tarikGSC, 'Search Console')]);
   return Response.json({ ok: true, hasil, waktu: new Date().toISOString() });
 }
