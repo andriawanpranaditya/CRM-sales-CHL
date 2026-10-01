@@ -38,6 +38,8 @@ export default function MarcomPage() {
   const [m, setM] = useState(M0);
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
+  const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
+  const [am, setAm] = useState(AM0);
   const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', campaign: '', konten: '' });
   const [tgRows, setTgRows] = useState(null);
   const [tgPick, setTgPick] = useState({});
@@ -498,6 +500,37 @@ export default function MarcomPage() {
               <span className="hint">Klik baris untuk mencentang. Centang hanya lead yang JELAS dari campaign itu — yang ragu biarkan kosong. Lead organik/offline (Website, WhatsApp, Referral, Walk In, dll) tidak wajib punya campaign, kecuali aktivitasnya didaftarkan sebagai campaign platform Offline.</span>
             </>);
           })()}
+        </div>
+
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>📆 Biaya Berulang <span className="hint">(banner, billboard, sewa booth, dll — isi sekali, disebar rata per bulan otomatis)</span></h3>
+          <div className="form-grid">
+            <div className="field"><label>Campaign <span className="req">*</span></label>
+              <select value={am.campaign} onChange={e => setAm({ ...am, campaign: e.target.value })}><option value="">— pilih —</option>{camps.map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select></div>
+            <div className="field"><label>Keterangan</label><input value={am.keterangan} onChange={e => setAm({ ...am, keterangan: e.target.value })} placeholder="mis. Billboard 2026 / Banner materi Sep–Nov" /></div>
+            <div className="field"><label>Total Biaya (Rp) <span className="req">*</span></label><input type="number" min="0" value={am.total} onChange={e => setAm({ ...am, total: e.target.value })} placeholder="21500000" /></div>
+            <div className="field"><label>Mulai Tayang (bulan) <span className="req">*</span></label><input type="month" value={am.mulai} onChange={e => setAm({ ...am, mulai: e.target.value })} /></div>
+            <div className="field"><label>Masa Tayang (bulan) <span className="req">*</span></label><input type="number" min="1" max="60" value={am.bulan} onChange={e => setAm({ ...am, bulan: e.target.value })} /></div>
+            <div className="field"><label>Per Bulan</label><input readOnly value={Number(am.total) > 0 && Number(am.bulan) > 0 ? fmtRp(Math.round(Number(am.total) / Number(am.bulan))) : '—'} style={{ fontWeight: 700, color: 'var(--green)' }} /></div>
+          </div>
+          <div className="form-foot"><button className="btn btn-primary" disabled={busy} onClick={() => simpan('amort', { ...am, mulai: am.mulai + '-01' }, null, () => setAm({ ...AM0 }))}>Simpan Biaya Berulang</button></div>
+          {(data.amort || []).length > 0 && (
+            <div className="tbl-wrap tbl-compact" style={{ marginTop: 10 }}><table>
+              <thead><tr><th>Campaign</th><th>Keterangan</th><th className="num">Total</th><th>Mulai</th><th className="num">Masa</th><th className="num">Per Bulan</th><th className="num">Berjalan</th><th>Aksi</th></tr></thead>
+              <tbody>{(data.amort || []).map(x => {
+                const mulai = (x.mulai instanceof Date ? x.mulai.toISOString() : String(x.mulai)).slice(0, 7);
+                const [yy, mm] = mulai.split('-').map(Number); const t = new Date();
+                const jalan = Math.min(Number(x.bulan), Math.max(0, (t.getFullYear() - yy) * 12 + (t.getMonth() + 1 - mm) + 1));
+                return (<tr key={x.id}>
+                  <td data-label="Campaign"><b>{x.campaign}</b></td><td data-label="Ket">{x.keterangan || '—'}</td>
+                  <td className="num" data-label="Total">{fmtRp(x.total)}</td><td data-label="Mulai">{mulai}</td>
+                  <td className="num" data-label="Masa">{x.bulan} bln</td><td className="num" data-label="Per Bulan">{fmtRp(Math.round(Number(x.total) / Number(x.bulan)))}</td>
+                  <td className="num" data-label="Berjalan">{jalan}/{x.bulan} bln</td>
+                  <td data-label="Aksi"><button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('amort', x.id, (x.keterangan || x.campaign))}>Hapus</button></td>
+                </tr>); })}</tbody>
+            </table></div>
+          )}
+          <span className="hint">Biaya hanya dihitung untuk bulan yang sudah berjalan, dan otomatis masuk ke kolom Spend, CPL, CPQL & report. Jangan input biaya yang sama lagi di Catat Performa Iklan — nanti terhitung dobel.</span>
         </div>
 
         <div className="card" style={{ marginBottom: 12 }}>

@@ -156,7 +156,26 @@ export async function GET(req) {
       AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
       AND (${proj}::text IS NULL OR project = ${proj})
     GROUP BY 1`;
-  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, spendAll, tanpaCamp, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  // Biaya berulang (amortisasi): disebar rata per bulan sejak bulan mulai; bulan yang belum berjalan tidak dihitung
+  let amort = [];
+  try { amort = await sql`SELECT a.*, c.project FROM mi_amort a LEFT JOIN mi_campaigns c ON c.nama = a.campaign ORDER BY a.id DESC`; } catch {}
+  const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  const sm = Object.fromEntries(spend.map(r => [r.kunci, Number(r.spend) || 0]));
+  for (const a of amort) {
+    if (proj && a.project !== proj) continue;
+    const n = Math.max(1, Number(a.bulan) || 1), tot = Number(a.total) || 0, dasar = Math.floor(tot / n);
+    const mulaiStr = (a.mulai instanceof Date ? a.mulai.toISOString() : String(a.mulai)).slice(0, 7);
+    const [yy, mm] = mulaiStr.split('-').map(Number);
+    for (let i = 0; i < n; i++) {
+      const tglBulan = new Date(Date.UTC(yy, mm - 1 + i, 1)).toISOString().slice(0, 10);
+      if (tglBulan > hariIni) break;
+      if (d1 && tglBulan < d1.slice(0, 7) + '-01') continue;
+      if (d2 && tglBulan > d2) continue;
+      sm[a.campaign] = (sm[a.campaign] || 0) + (i === n - 1 ? tot - dasar * (n - 1) : dasar);
+    }
+  }
+  const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
+  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
@@ -195,6 +214,20 @@ export async function POST(req) {
     if (!b.campaign) return Response.json({ error: 'Pilih campaign dulu' }, { status: 400 });
     const r = await sql`INSERT INTO mi_ads (tgl, campaign, kreatif, spend, impresi, reach, klik, hasil, catatan, created_by)
       VALUES (${b.tgl || null}, ${b.campaign}, ${b.kreatif || ''}, ${Number(b.spend) || 0}, ${Number(b.impresi) || 0}, ${Number(b.reach) || 0}, ${Number(b.klik) || 0}, ${Number(b.hasil) || 0}, ${b.catatan || ''}, ${user.username}) RETURNING id`;
+    return Response.json({ ok: true, id: r[0].id });
+  }
+  if (b.jenis === 'amort') {
+    const tot = Number(b.total) || 0, n = Number(b.bulan) || 0;
+    if (!b.campaign) return Response.json({ error: 'Pilih campaign' }, { status: 400 });
+    if (tot <= 0) return Response.json({ error: 'Total biaya wajib diisi' }, { status: 400 });
+    if (n < 1 || n > 60) return Response.json({ error: 'Masa tayang 1–60 bulan' }, { status: 400 });
+    if (!/^\d{4}-\d{2}/.test(String(b.mulai || ''))) return Response.json({ error: 'Bulan mulai wajib diisi' }, { status: 400 });
+    await sql`CREATE TABLE IF NOT EXISTS mi_amort (
+      id serial PRIMARY KEY, campaign text NOT NULL, keterangan text, total numeric NOT NULL,
+      mulai date NOT NULL, bulan integer NOT NULL, created_by text, created_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    const r = await sql`INSERT INTO mi_amort (campaign, keterangan, total, mulai, bulan, created_by)
+      VALUES (${b.campaign}, ${b.keterangan || ''}, ${tot}, ${String(b.mulai).slice(0, 7) + '-01'}, ${n}, ${user.username}) RETURNING id`;
     return Response.json({ ok: true, id: r[0].id });
   }
   return Response.json({ error: 'Jenis data tidak dikenal' }, { status: 400 });
@@ -243,6 +276,13 @@ export async function DELETE(req) {
   const id = Number(url.searchParams.get('id'));
   if (!id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
+  if (jenis === 'amort') {
+    const r = await sql`SELECT created_by FROM mi_amort WHERE id = ${id}`;
+    if (!r.length) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
+    if (user.role !== 'manager' && r[0].created_by !== user.username) return Response.json({ error: 'Hanya manager / pembuatnya yang boleh menghapus' }, { status: 403 });
+    await sql`DELETE FROM mi_amort WHERE id = ${id}`;
+    return Response.json({ ok: true });
+  }
   const tabel = { campaign: 'mi_campaigns', konten: 'mi_contents', iklan: 'mi_ads' }[jenis];
   if (!tabel) return Response.json({ error: 'Jenis data tidak dikenal' }, { status: 400 });
   // Marcom hanya boleh menghapus data yang ia input sendiri; manager bebas

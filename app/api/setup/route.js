@@ -212,6 +212,10 @@ export async function GET(req) {
     id serial PRIMARY KEY, waktu timestamptz NOT NULL DEFAULT now(),
     sumber text, status text, baris integer DEFAULT 0, pesan text
   )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_amort (
+    id serial PRIMARY KEY, campaign text NOT NULL, keterangan text, total numeric NOT NULL,
+    mulai date NOT NULL, bulan integer NOT NULL, created_by text, created_at timestamptz NOT NULL DEFAULT now()
+  )`;
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_ga4_tgl ON mi_ga4_daily (tgl)`);
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_gsc_tgl ON mi_gsc_daily (tgl)`);
 
