@@ -108,8 +108,99 @@ async function tarikGSC(sql) {
   return { sumber: 'Search Console', status: 'sukses', baris: all.length, pesan: `${d1raw} s.d. ${d2}` };
 }
 
+// ===== Instagram (Graph API via token System User Meta) =====
+// Env: META_TOKEN (wajib), IG_USER_ID (opsional — dicari otomatis dari Page), IG_PROJECT (default BIO DISTRICT)
+const GV = () => process.env.META_API_VERSION || 'v23.0';
+async function graph(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch(`https://graph.facebook.com/${GV()}/${path}${sep}access_token=${encodeURIComponent(process.env.META_TOKEN)}`);
+  const j = await r.json();
+  if (j.error) { const e = new Error(j.error.message || 'Graph error'); e.code = j.error.code; throw e; }
+  return j;
+}
+const kodeIG = u => { const m = String(u || '').match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/); return m ? m[2] : null; };
+const FORMAT_IG = { REELS: 'Reels / Short Video', VIDEO: 'Reels / Short Video', CAROUSEL_ALBUM: 'Carousel', IMAGE: 'Single Post' };
+async function insightMedia(id) {
+  // Metrik tiap tipe media berbeda — coba dari yang lengkap, turun bila ditolak
+  for (const set of ['reach,saved,shares', 'reach,saved', 'reach']) {
+    try {
+      const j = await graph(`${id}/insights?metric=${set}`);
+      const out = {};
+      (j.data || []).forEach(d => { out[d.name] = Number(d.values?.[0]?.value ?? d.total_value?.value ?? 0) || 0; });
+      return out;
+    } catch {}
+  }
+  return {};
+}
+async function tarikInstagram(sql) {
+  if (!process.env.META_TOKEN) return { sumber: 'Instagram', status: 'dilewati', baris: 0, pesan: 'META_TOKEN belum diisi' };
+  let igId = process.env.IG_USER_ID;
+  if (!igId) {
+    const pages = await graph('me/accounts?fields=name,instagram_business_account&limit=50');
+    const pg = (pages.data || []).find(p => p.instagram_business_account);
+    if (!pg) throw new Error('Tidak ada Facebook Page dengan akun Instagram terhubung pada token ini — cek aset Page & IG di System User');
+    igId = pg.instagram_business_account.id;
+  }
+  const proj = process.env.IG_PROJECT || 'BIO DISTRICT';
+  // Ambil postingan terbaru (maks 60, ±120 hari)
+  let media = [], next = `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30`;
+  const batas = Date.now() - 120 * 86400000;
+  while (next && media.length < 60) {
+    const j = await graph(next);
+    media = media.concat(j.data || []);
+    const after = j.paging?.cursors?.after;
+    const tua = (j.data || []).some(x => new Date(x.timestamp).getTime() < batas);
+    next = (j.paging?.next && after && !tua) ? `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30&after=${after}` : null;
+  }
+  media = media.filter(x => new Date(x.timestamp).getTime() >= batas);
+  // Insights paralel per 8
+  const ins = {};
+  for (let i = 0; i < media.length; i += 8) {
+    const part = media.slice(i, i + 8);
+    const hasil = await Promise.all(part.map(x => insightMedia(x.id)));
+    part.forEach((x, k) => { ins[x.id] = hasil[k]; });
+  }
+  const ada = await sql`SELECT id, tgl, format, link FROM mi_contents WHERE platform = 'Instagram'`;
+  const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  let baru = 0, cocok = 0;
+  for (const x of media) {
+    const wib = new Date(new Date(x.timestamp).getTime() + 7 * 3600000);
+    const tgl = wib.toISOString().slice(0, 10), jam = wib.toISOString().slice(11, 16);
+    const format = FORMAT_IG[x.media_product_type === 'REELS' ? 'REELS' : x.media_type] || 'Lainnya';
+    const kode = kodeIG(x.permalink);
+    // 1) cocokkan via link; 2) cadangan: tanggal & format sama, link kosong, kandidat tunggal
+    let row = ada.find(c => kodeIG(c.link) && kodeIG(c.link) === kode);
+    if (!row) {
+      const kand = ada.filter(c => !kodeIG(c.link) && (c.tgl instanceof Date ? c.tgl.toISOString() : String(c.tgl)).slice(0, 10) === tgl && c.format === format);
+      if (kand.length === 1) row = kand[0];
+    }
+    let cid;
+    if (row) {
+      cid = row.id; cocok++;
+      await sql`UPDATE mi_contents SET tgl = ${tgl}, jam = ${jam}, format = ${format}, link = ${x.permalink} WHERE id = ${cid}`;
+      row.link = x.permalink;
+    } else {
+      const baris1 = String(x.caption || '').split('\n').map(t => t.trim()).find(Boolean) || '';
+      const hook = format === 'Reels / Short Video' ? '' : baris1.slice(0, 200);
+      const r = await sql`INSERT INTO mi_contents (tgl, platform, project, format, topik, hook, jam, durasi, link, created_by)
+        VALUES (${tgl}, 'Instagram', ${proj}, ${format}, '', ${hook}, ${jam}, '', ${x.permalink}, 'auto-instagram') RETURNING id`;
+      cid = r[0].id; baru++;
+      ada.push({ id: cid, tgl, format, link: x.permalink });
+    }
+    // Metrik hari ini — view & klik bio (tidak tersedia per postingan di API) dipertahankan dari angka terakhir
+    const lama = (await sql`SELECT view3, view_full, klik_bio FROM mi_content_metrics WHERE content_id = ${cid} ORDER BY tgl DESC LIMIT 1`)[0] || {};
+    const it = ins[x.id] || {};
+    await sql`INSERT INTO mi_content_metrics (content_id, tgl, reach, like_n, komentar, share_n, save_n, view3, view_full, klik_bio)
+      VALUES (${cid}, ${hariIni}, ${it.reach || 0}, ${Number(x.like_count) || 0}, ${Number(x.comments_count) || 0}, ${it.shares || 0}, ${it.saved || 0},
+              ${Number(lama.view3) || 0}, ${Number(lama.view_full) || 0}, ${Number(lama.klik_bio) || 0})
+      ON CONFLICT (content_id, tgl) DO UPDATE SET reach = EXCLUDED.reach, like_n = EXCLUDED.like_n, komentar = EXCLUDED.komentar,
+        share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n`;
+  }
+  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` };
+}
+
 // Colokan konektor berikutnya — aktif otomatis saat env-nya diisi (tanpa ubah kode):
-// META_TOKEN + META_AD_ACCOUNT  -> tarikMeta()   (menyusul saat token siap)
+// META_TOKEN (sama dgn Instagram) + META_AD_ACCOUNT -> tarikMetaAds() (menyusul)
 // GADS_DEVELOPER_TOKEN ...      -> tarikGoogleAds()
 // TIKTOK_TOKEN ...              -> tarikTiktok()
 
@@ -135,6 +226,6 @@ export async function GET(req) {
       return { sumber: nama, status: 'gagal', baris: 0, pesan };
     }
   };
-  const hasil = await Promise.all([jalankan(tarikGA4, 'GA4'), jalankan(tarikGSC, 'Search Console')]);
+  const hasil = await Promise.all([jalankan(tarikGA4, 'GA4'), jalankan(tarikGSC, 'Search Console'), jalankan(tarikInstagram, 'Instagram')]);
   return Response.json({ ok: true, hasil, waktu: new Date().toISOString() });
 }

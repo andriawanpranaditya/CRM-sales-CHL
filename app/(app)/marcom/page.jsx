@@ -552,7 +552,7 @@ export default function MarcomPage() {
       {tab === 'web' && (<>
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h3 style={{ margin: 0 }}>Website & SEO <span className="hint">(otomatis dari GA4 & Search Console — cron harian 05.30 WIB)</span></h3>
+            <h3 style={{ margin: 0 }}>Website & SEO <span className="hint">(otomatis dari GA4, Search Console & Instagram — cron harian 05.30 WIB)</span></h3>
             <button className="btn btn-primary" style={{ width: 'auto' }} disabled={narik} onClick={tarikSekarang}>{narik ? 'Menarik data…' : '⟳ Tarik Data Sekarang'}</button>
           </div>
           {(!data.ga4 || !data.ga4.length) && (!data.gsc || !data.gsc.length) && (
@@ -598,7 +598,7 @@ export default function MarcomPage() {
                 <td data-label="Ket" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.pesan}</td></tr>))
               : <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum pernah menarik data.</td></tr>}</tbody>
           </table></div>
-          <span className="hint">Konektor Meta, Google Ads & TikTok akan aktif otomatis di halaman ini begitu token masing-masing terpasang di Vercel.</span>
+          <span className="hint">Instagram ikut ditarik di sini (hasilnya masuk ke tab Konten). Konektor Meta Ads, Google Ads & TikTok aktif otomatis begitu token masing-masing terpasang di Vercel.</span>
         </div>
       </>)}
 
