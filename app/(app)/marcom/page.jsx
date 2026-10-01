@@ -8,14 +8,15 @@ const FORMAT = ['Reels / Short Video', 'Carousel', 'Single Post', 'Story', 'Vide
 const TUJUAN_C = ['leads', 'awareness', 'promo', 'traffic', 'event'];
 const K0 = { tgl: todayISO(), platform: 'Instagram', project: '', format: 'Reels / Short Video', topik: '', hook: '', jam: '', durasi: '', link: '' };
 const BULAN_ID = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
-const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); for (let i = 0; i < 14; i++) { out.push(BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2)); d.setMonth(d.getMonth() + 1); } return out; })();
+const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); for (let i = 0; i < 25; i++) { out.push(BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2)); d.setMonth(d.getMonth() + 1); } return out; })();
+const bulanIni = (() => { const d = new Date(); return BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2); })();
 const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
 const sanitEx = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const KODE_FORMAT = ['reels', 'carousel', 'single', 'story', 'video', 'search', 'pmax', 'display', 'banner', 'live'];
 const PLATFORM_C = ['Meta (FB+IG)', 'Google', 'Tiktok', 'Youtube', 'Website', 'Offline (Event/Banner/Kanvasing)', 'Lainnya'];
 const UTM_SRC = ['meta', 'facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
 const UTM_MED = ['cpc', 'social', 'banner', 'email', 'referral'];
-const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', bulan: bulanOpts[1], extra: '', budget: '', status: 'Aktif', catatan: '' };
+const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', bulan: bulanIni, extra: '', budget: '', status: 'Aktif', catatan: '' };
 const M0 = { content_id: '', tgl: todayISO(), reach: '', like_n: '', komentar: '', share_n: '', save_n: '', view3: '', view_full: '', klik_bio: '' };
 const A0 = { tgl: todayISO(), campaign: '', kreatif: '', spend: '', impresi: '', reach: '', klik: '', hasil: '', catatan: '' };
 
@@ -532,7 +533,7 @@ export default function MarcomPage() {
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
-                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanOpts[1], extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanIni, extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
