@@ -12,7 +12,7 @@ const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d
 const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
 const sanitEx = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const KODE_FORMAT = ['reels', 'carousel', 'single', 'story', 'video', 'search', 'pmax', 'display', 'banner', 'live'];
-const PLATFORM_C = ['Meta (FB+IG)', 'Google', 'Tiktok', 'Youtube', 'Website', 'Lainnya'];
+const PLATFORM_C = ['Meta (FB+IG)', 'Google', 'Tiktok', 'Youtube', 'Website', 'Offline (Event/Banner/Kanvasing)', 'Lainnya'];
 const UTM_SRC = ['meta', 'facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
 const UTM_MED = ['cpc', 'social', 'banner', 'email', 'referral'];
 const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', bulan: bulanOpts[1], extra: '', budget: '', status: 'Aktif', catatan: '' };
@@ -187,7 +187,11 @@ export default function MarcomPage() {
     // ---------- YANG HARUS DIPERBAIKI ----------
     const camp = data.byCampaign || [];
     const tanpa = camp.find(r => r.kunci === '(tanpa data)');
-    if (tanpa && F.l0 > 0 && tanpa.l0 / F.l0 > 0.3) R.perbaiki.push(`${pc(tanpa.l0 / F.l0)} lead (${tanpa.l0}) tidak punya jejak campaign — analisa per campaign jadi buta. Wajibkan kolom Campaign diisi saat input lead digital, dan rapikan lead lama lewat Edit.`);
+    const tc = data.tanpaCamp || [];
+    const iklanTanpa = tc.filter(r => /ads/i.test(r.sumber));
+    const nIklanTanpa = iklanTanpa.reduce((a, r) => a + r.n, 0);
+    if (nIklanTanpa > 0) R.perbaiki.push(`${nIklanTanpa} lead dari iklan berbayar (${iklanTanpa.map(r => r.sumber + ' ' + r.n).join(', ')}) belum punya campaign — biaya iklannya tidak tersambung ke hasil. Tandai lewat Tandai Lead Massal di tab Iklan (daftarkan campaign-nya dulu bila belum ada).`);
+    void tanpa;
     camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 === 0 && r.l0 >= 1).forEach(r => R.perbaiki.push(`Campaign ${r.kunci} sudah menghabiskan ${rp(spendMap[r.kunci])} tapi belum menghasilkan satu pun lead berkualitas — evaluasi audiens & kreatifnya, atau hentikan.`));
     Object.entries(spendMap).filter(([k, v]) => v > 0 && k !== '(tanpa data)' && !camp.find(r => r.kunci === k)).forEach(([k, v]) => R.perbaiki.push(`Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM dari tombol 🔗 Link.`));
     (data.campaigns || []).filter(c => c.status === 'Aktif' && !(spendMap[c.nama] > 0)).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
@@ -229,6 +233,9 @@ export default function MarcomPage() {
       const topQ = gsc.filter(q => Number(q.clicks) > 0)[0];
       if (topQ) R.saran.push(`Google Ads: uji kata kunci "${topQ.query}" — terbukti mendatangkan klik organik, potensial dipercepat dengan iklan pencarian.`);
     }
+    const offline = tc.filter(r => /banner|spanduk|pameran|event|kanvas/i.test(r.sumber));
+    const nOff = offline.reduce((a, r) => a + r.n, 0);
+    if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
   }, [data, totFunnel, totSpend, spendMap, polaFormat, polaJam, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
@@ -487,7 +494,7 @@ export default function MarcomPage() {
                 <div className="field"><label>Kode Kreatif (opsional)</label><input value={tg.konten} onChange={e => setTg({ ...tg, konten: e.target.value })} placeholder="reels-01" /></div>
                 <div className="field"><label>&nbsp;</label><button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !nPick} onClick={tandaiMassal}>🏷️ Tandai {nPick} Lead</button></div>
               </div>
-              <span className="hint">Klik baris untuk mencentang. Centang hanya lead yang JELAS dari campaign itu — yang ragu biarkan kosong.</span>
+              <span className="hint">Klik baris untuk mencentang. Centang hanya lead yang JELAS dari campaign itu — yang ragu biarkan kosong. Lead organik/offline (Website, WhatsApp, Referral, Walk In, dll) tidak wajib punya campaign, kecuali aktivitasnya didaftarkan sebagai campaign platform Offline.</span>
             </>);
           })()}
         </div>

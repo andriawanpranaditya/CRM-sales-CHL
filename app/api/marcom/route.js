@@ -151,7 +151,12 @@ export async function GET(req) {
     ]);
   } catch {}
   const spendAll = await sql`SELECT campaign, sum(spend)::numeric AS total, max(tgl) AS terakhir, count(*)::int AS entri FROM mi_ads GROUP BY campaign`;
-  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, spendAll, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  const tanpaCamp = await sql`SELECT COALESCE(NULLIF(sumber, ''), '(kosong)') AS sumber, count(*)::int AS n FROM leads
+    WHERE COALESCE(campaign, '') = ''
+      AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+      AND (${proj}::text IS NULL OR project = ${proj})
+    GROUP BY 1`;
+  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, spendAll, tanpaCamp, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
