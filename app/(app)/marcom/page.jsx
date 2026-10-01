@@ -120,6 +120,98 @@ export default function MarcomPage() {
     return (data?.timKonten || []).map(u => ({ ...u, ...(leadMap[u.username] || { l0: 0, l0_bln: 0, l2: 0, l3: 0, nilai: 0 }) }));
   }, [data]);
 
+  // ===== Resume Analisa otomatis — ringkasan, yang harus diperbaiki, saran bulan depan =====
+  const resume = useMemo(() => {
+    if (!data) return null;
+    const R = { ringkas: [], perbaiki: [], saran: [] };
+    const rp = n => fmtRp(Math.round(n));
+    const pc = x => Math.round(x * 100) + '%';
+    const F = totFunnel;
+    const sedikit = F.l0 < 20;
+
+    // ---------- RINGKASAN ----------
+    if (F.l0 === 0) {
+      R.ringkas.push('Belum ada lead masuk pada filter ini — resume akan terisi begitu lead tercatat di CRM.');
+    } else {
+      R.ringkas.push(`${F.l0} lead masuk, ${F.l2} berkualitas (${pc(F.l2 / F.l0)}), ${F.l3} Booking${F.nilai ? ' senilai ' + rp(F.nilai) : ''}.`);
+      if (F.l1 >= 0) R.ringkas.push(`${pc(F.l1 / F.l0)} lead sudah tersentuh follow up.`);
+    }
+    if (totSpend > 0) R.ringkas.push(`Belanja iklan ${rp(totSpend)} — CPL ${per(totSpend, F.l0)}, CPQL ${per(totSpend, F.l2)}, biaya per Booking ${per(totSpend, F.l3)}.`);
+    const sumber = (data.bySumber || []).filter(r => r.kunci !== '(tanpa data)' && r.l0 > 0);
+    const topVol = [...sumber].sort((a, b) => b.l0 - a.l0)[0];
+    const topKual = [...sumber].filter(r => r.l0 >= 3).sort((a, b) => (b.l2 / b.l0) - (a.l2 / a.l0))[0];
+    if (topVol) R.ringkas.push(`Sumber lead terbanyak: ${topVol.kunci} (${topVol.l0} lead).` + (topKual && topKual.kunci !== topVol.kunci ? ` Kualitas terbaik: ${topKual.kunci} (${pc(topKual.l2 / topKual.l0)} jadi berkualitas).` : ''));
+    if ((data.contents || []).length) {
+      const fBest = polaFormat.find(r => r.er !== null);
+      R.ringkas.push(`${data.contents.length} konten tercatat` + (fBest ? `; format dengan engagement tertinggi: ${fBest.format} (ER ${pct(fBest.er)}).` : '.'));
+    }
+    const webOk = !fProj || /bio/i.test(fProj);
+    const ga4 = data.ga4 || [], gsc = data.gsc || [];
+    if (webOk && ga4.length) {
+      const ses = ga4.reduce((a, r) => a + Number(r.sessions || 0), 0);
+      const kev = ga4.reduce((a, r) => a + Number(r.key_events || 0), 0);
+      R.ringkas.push(`Website: ${ses.toLocaleString('id-ID')} sesi, terbanyak dari ${ga4[0].source_medium}; ${kev} key event (klik WA).`);
+    }
+    if (audDomisili.length && audDomisili[0].nama !== '(kosong)') R.ringkas.push(`Domisili lead berkualitas terbanyak: ${audDomisili.slice(0, 3).filter(d => d.nama !== '(kosong)').map(d => d.nama + ' (' + d.l2 + ')').join(', ')}.`);
+    if (sedikit && F.l0 > 0) R.ringkas.push('⚠ Data masih sedikit (< 20 lead) — anggap kesimpulan di bawah sebagai sinyal awal, belum pola tetap.');
+
+    // ---------- YANG HARUS DIPERBAIKI ----------
+    const camp = data.byCampaign || [];
+    const tanpa = camp.find(r => r.kunci === '(tanpa data)');
+    if (tanpa && F.l0 > 0 && tanpa.l0 / F.l0 > 0.3) R.perbaiki.push(`${pc(tanpa.l0 / F.l0)} lead (${tanpa.l0}) tidak punya jejak campaign — analisa per campaign jadi buta. Wajibkan kolom Campaign diisi saat input lead digital, dan rapikan lead lama lewat Edit.`);
+    camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 === 0 && r.l0 >= 1).forEach(r => R.perbaiki.push(`Campaign ${r.kunci} sudah menghabiskan ${rp(spendMap[r.kunci])} tapi belum menghasilkan satu pun lead berkualitas — evaluasi audiens & kreatifnya, atau hentikan.`));
+    Object.entries(spendMap).filter(([k, v]) => v > 0 && k !== '(tanpa data)' && !camp.find(r => r.kunci === k)).forEach(([k, v]) => R.perbaiki.push(`Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM dari tombol 🔗 Link.`));
+    (data.campaigns || []).filter(c => c.status === 'Aktif' && !(spendMap[c.nama] > 0)).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
+    sumber.filter(r => r.l0 >= 5 && r.l2 / r.l0 < 0.1).forEach(r => R.perbaiki.push(`Sumber ${r.kunci}: ${r.l0} lead tapi hanya ${r.l2} berkualitas (${pc(r.l2 / r.l0)}) — volume tinggi, kualitas rendah. Perketat targeting/kualifikasi di sumber ini.`));
+    if (F.l0 >= 5 && F.l1 / F.l0 < 0.7) R.perbaiki.push(`Hanya ${pc(F.l1 / F.l0)} lead yang sudah di-follow up — ${F.l0 - F.l1} lead belum disentuh sama sekali. Lead yang dibiarkan cepat dingin; koordinasikan kecepatan respon dengan tim sales.`);
+    if (F.l2 >= 3 && F.l3 === 0) R.perbaiki.push(`${F.l2} lead berkualitas belum ada yang Booking — dorong site visit & penawaran khusus bersama sales.`);
+    const kontenTanpaAngka = (data.contents || []).filter(x => !Number(x.reach)).length;
+    if (kontenTanpaAngka) R.perbaiki.push(`${kontenTanpaAngka} konten belum di-update angka performanya — pola konten yang menang belum bisa dibaca utuh. Update mingguan di tab Konten.`);
+    const kontenTanpaAtribut = (data.contents || []).filter(x => !x.topik || !x.jam).length;
+    if (kontenTanpaAtribut) R.perbaiki.push(`${kontenTanpaAtribut} konten tanpa topik/jam tayang — atribut ini bahan analisa "algoritma", lengkapi lewat Edit.`);
+    const kosongDom = audDomisili.find(d => d.nama === '(kosong)');
+    if (kosongDom && kosongDom.l2 >= 2) R.perbaiki.push(`${kosongDom.l2} lead berkualitas tanpa domisili — isi domisili saat input agar targeting wilayah akurat.`);
+    if (webOk && ga4.length && ga4.reduce((a, r) => a + Number(r.key_events || 0), 0) === 0) R.perbaiki.push('Key event website (klik WA) masih 0 — pastikan event click sudah ditandai sebagai key event di GA4, dan cek ulang dalam beberapa hari.');
+    if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
+    tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
+
+    // ---------- SARAN STRATEGI BULAN DEPAN ----------
+    const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
+      .map(r => ({ ...r, cpql: spendMap[r.kunci] / r.l2 })).sort((a, b) => a.cpql - b.cpql);
+    if (efektif.length >= 2) {
+      const best = efektif[0], worst = efektif[efektif.length - 1];
+      R.saran.push(`Realokasi budget: geser porsi dari ${worst.kunci} (CPQL ${rp(worst.cpql)}) ke ${best.kunci} (CPQL ${rp(best.cpql)}) — tiap rupiah di ${best.kunci} menghasilkan lead berkualitas ${(worst.cpql / best.cpql).toFixed(1)}× lebih murah.`);
+    } else if (efektif.length === 1) {
+      R.saran.push(`Pertahankan ${efektif[0].kunci} (CPQL ${rp(efektif[0].cpql)}) dan uji satu campaign pembanding dengan audiens/kreatif berbeda agar ada tolok ukur efisiensi.`);
+    }
+    if (topKual) R.saran.push(`Perbesar kanal ${topKual.kunci} — rasio lead berkualitasnya paling tinggi (${pc(topKual.l2 / topKual.l0)}).`);
+    const fBest = polaFormat.find(r => r.er !== null && r.n >= 2) || polaFormat.find(r => r.er !== null);
+    const jBest = polaJam.find(j => j.er !== null);
+    if (fBest) R.saran.push(`Produksi konten: perbanyak format ${fBest.format}${jBest ? `, tayangkan di slot ${jBest.jam}` : ''} — kombinasi dengan engagement terbaik sejauh ini.`);
+    const kBest = (data.byKonten || []).filter(r => r.l2 > 0).sort((a, b) => b.l2 - a.l2)[0];
+    if (kBest) R.saran.push(`Kreatif ${kBest.kunci} menghasilkan ${kBest.l2} lead berkualitas — buat 2–3 variasi turunannya (hook/visual berbeda, pesan sama).`);
+    const domTop = audDomisili.filter(d => d.nama !== '(kosong)').slice(0, 3);
+    if (domTop.length) R.saran.push(`Targeting wilayah: fokuskan iklan di ${domTop.map(d => d.nama).join(', ')} — asal lead yang terbukti berkualitas.`);
+    const tTop = audTujuan.filter(t => t.nama !== '-')[0];
+    if (tTop) R.saran.push(`Pesan utama: mayoritas lead berkualitas bertujuan "${tTop.nama}" — angkat sudut pandang itu di copy iklan & konten.`);
+    if (webOk && gsc.length) {
+      const peluang = gsc.filter(q => Number(q.impressions) >= 20 && Number(q.position) > 3 && Number(q.position) <= 20).sort((a, b) => b.impressions - a.impressions).slice(0, 3);
+      if (peluang.length) R.saran.push(`SEO: kata kunci ${peluang.map(q => '"' + q.query + '" (posisi ' + q.position + ')').join(', ')} sudah sering muncul tapi belum di 3 besar — buat/optimasi artikel khusus untuknya.`);
+      const topQ = gsc.filter(q => Number(q.clicks) > 0)[0];
+      if (topQ) R.saran.push(`Google Ads: uji kata kunci "${topQ.query}" — terbukti mendatangkan klik organik, potensial dipercepat dengan iklan pencarian.`);
+    }
+    if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
+    return R;
+  }, [data, totFunnel, totSpend, spendMap, polaFormat, polaJam, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
+
+  async function salinResume() {
+    if (!resume) return;
+    const label = (fProj || 'Semua Project') + ' · ' + (periode === 'bulan' ? 'Bulan Ini' : periode === 'semua' ? 'Semua Periode' : (rentang[0] + ' s.d. ' + rentang[1]));
+    const blok = (judul, arr) => judul + '\n' + arr.map(x => '• ' + x).join('\n');
+    const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('YANG HARUS DIPERBAIKI', resume.perbaiki.length ? resume.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI BULAN DEPAN', resume.saran);
+    try { await navigator.clipboard.writeText(teks); toast('Resume tersalin 📋'); } catch { window.prompt('Salin manual:', teks); }
+  }
+
   if (!data) return <div className="loading">Memuat…</div>;
   const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
 
@@ -154,6 +246,23 @@ export default function MarcomPage() {
           <div className="kpi"><div className="kpi-label">Booking (L3) · Nilai</div><div className="kpi-val" style={{ fontSize: 17 }}>{totFunnel.l3} · {fmtRp(totFunnel.nilai)}</div></div>
           <div className="kpi"><div className="kpi-label">CPL / CPQL / per Booking</div><div className="kpi-val" style={{ fontSize: 14 }}>{per(totSpend, totFunnel.l0)} / {per(totSpend, totFunnel.l2)} / {per(totSpend, totFunnel.l3)}</div></div>
         </div>
+
+        {resume && (
+          <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--brass)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>🧭 Resume Analisa <span className="hint">(otomatis dari data yang masuk — ikut filter project & periode)</span></h3>
+              <button className="sort-btn" onClick={salinResume}>📋 Salin Resume</button>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <b style={{ color: 'var(--green)' }}>Ringkasan</b>
+              <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.ringkas.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              <b style={{ color: 'var(--red)' }}>Yang Harus Diperbaiki</b>
+              <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.perbaiki.length ? resume.perbaiki.map((x, i) => <li key={i}>{x}</li>) : <li>Tidak ada temuan kritis — pertahankan disiplin input.</li>}</ul>
+              <b style={{ color: 'var(--brass)' }}>Saran Strategi Bulan Depan</b>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.55 }}>{resume.saran.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            </div>
+          </div>
+        )}
 
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Performa per Campaign (closed-loop)</h3>
