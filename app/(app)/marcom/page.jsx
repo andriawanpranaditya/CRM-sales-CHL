@@ -37,6 +37,9 @@ export default function MarcomPage() {
   const [m, setM] = useState(M0);
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
+  const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', campaign: '', konten: '' });
+  const [tgRows, setTgRows] = useState(null);
+  const [tgPick, setTgPick] = useState({});
 
   const rentang = useMemo(() => {
     if (periode === 'bulan') { const t = new Date(); return [new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10), todayISO()]; }
@@ -80,6 +83,32 @@ export default function MarcomPage() {
       toast(ringkas || 'Selesai');
       await muat();
     } catch (e) { toast(/504/.test(e.message) ? 'Tarikan melewati batas waktu server — data sebagian mungkin sudah tersimpan, klik Tarik lagi.' : e.message); await muat(); } finally { setNarik(false); }
+  }
+
+  async function cariUntagged() {
+    try {
+      const r = await api('/api/marcom?list=untagged&project=' + encodeURIComponent(fProj) + '&d1=' + (tg.d1 || '') + '&d2=' + (tg.d2 || ''));
+      setTgRows(r); setTgPick({});
+      if (!r.length) toast('Tidak ada lead tanpa campaign pada filter ini 👍');
+    } catch (e) { toast(e.message); }
+  }
+  async function tandaiMassal() {
+    const ids = Object.keys(tgPick).filter(k => tgPick[k]).map(Number);
+    if (!ids.length) return toast('Centang lead yang mau ditandai');
+    if (!tg.campaign) return toast('Pilih campaign tujuan');
+    if (!confirm(`Tandai ${ids.length} lead ke campaign "${tg.campaign}"${tg.konten ? ' dengan kreatif ' + tg.konten : ''}?`)) return;
+    setBusy(true);
+    try {
+      const r = await api('/api/marcom', { method: 'PATCH', body: JSON.stringify({ jenis: 'tag', ids, campaign: tg.campaign, konten: tg.konten.trim() }) });
+      toast(r.jumlah + ' lead ditandai ✅');
+      await cariUntagged(); await muat();
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+  // Isi form Angka dengan angka terakhir konten (jebakan "kolom kosong jadi 0" hilang)
+  function isiAngka(id) {
+    const x = (data?.contents || []).find(c => String(c.id) === String(id));
+    const n = k => (x && x[k] !== null && x[k] !== undefined) ? String(x[k]) : '';
+    setM({ content_id: String(id || ''), tgl: todayISO(), reach: n('reach'), like_n: n('like_n'), komentar: n('komentar'), share_n: n('share_n'), save_n: n('save_n'), view3: n('view3'), view_full: n('view_full'), klik_bio: n('klik_bio') });
   }
 
   // ===== Insight (dihitung dari data GET) =====
@@ -348,10 +377,10 @@ export default function MarcomPage() {
         </div>
 
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Update Angka Performa <span className="hint">(seminggu sekali per konten — angka terbaru menimpa tanggal yang sama)</span></h3>
+          <h3 style={{ marginTop: 0 }}>Update Angka Performa <span className="hint">(seminggu sekali — pilih konten, angka terakhir otomatis terisi; ubah yang berubah saja)</span></h3>
           <div className="form-grid">
             <div className="field"><label>Konten <span className="req">*</span></label>
-              <select {...fm('content_id')}><option value="">— pilih konten —</option>
+              <select value={m.content_id} onChange={e => isiAngka(e.target.value)}><option value="">— pilih konten —</option>
                 {(data.contents || []).map(x => <option key={x.id} value={x.id}>{fmtDate(x.tgl)} · {x.platform} · {(x.topik || x.format || '').slice(0, 40)}</option>)}</select></div>
             <div className="field"><label>Per Tanggal</label><input type="date" {...fm('tgl')} /></div>
             <div className="field"><label>Reach</label><input type="number" min="0" {...fm('reach')} /></div>
@@ -380,7 +409,7 @@ export default function MarcomPage() {
               <td className="num" data-label="Klik">{x.klik_bio || '—'}</td>
               <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                 <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setKEdit(x.id); setK({ tgl: String(x.tgl || '').slice(0, 10), platform: x.platform || 'Instagram', project: x.project || '', format: x.format || FORMAT[0], topik: x.topik || '', hook: x.hook || '', jam: x.jam || '', durasi: x.durasi || '', link: x.link || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
-                <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setM({ ...M0, content_id: String(x.id), tgl: todayISO() }); toast('Isi angka performanya lalu Simpan Angka'); }}>Angka</button>
+                <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>
                 <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>
               </span></td>
             </tr>)) : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
@@ -429,11 +458,47 @@ export default function MarcomPage() {
           </div>); })()}
 
         <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>🏷️ Tandai Lead Massal <span className="hint">(lead tanpa campaign{fProj ? ' · ' + fProj : ''} — tandai banyak sekaligus)</span></h3>
+          <div className="form-grid">
+            <div className="field"><label>Lead Masuk Dari</label><input type="date" value={tg.d1} onChange={e => setTg({ ...tg, d1: e.target.value })} /></div>
+            <div className="field"><label>Sampai</label><input type="date" value={tg.d2} onChange={e => setTg({ ...tg, d2: e.target.value })} /></div>
+            <div className="field"><label>&nbsp;</label><button className="btn btn-primary" style={{ width: 'auto' }} onClick={cariUntagged}>🔍 Cari Lead Tanpa Campaign</button></div>
+          </div>
+          {tgRows && tgRows.length > 0 && (() => {
+            const sumberOpts = [...new Set(tgRows.map(r => r.sumber || '(kosong)'))];
+            const tampil = tgRows.filter(r => !tg.sumber || (r.sumber || '(kosong)') === tg.sumber);
+            const nPick = tampil.filter(r => tgPick[r.id]).length;
+            return (<>
+              <div className="fu-toolbar" style={{ margin: '10px 0' }}>
+                <button className={'sort-btn' + (!tg.sumber ? ' active' : '')} onClick={() => setTg({ ...tg, sumber: '' })}>Semua Sumber ({tgRows.length})</button>
+                {sumberOpts.map(o => <button key={o} className={'sort-btn' + (tg.sumber === o ? ' active' : '')} onClick={() => setTg({ ...tg, sumber: o })}>{o} ({tgRows.filter(r => (r.sumber || '(kosong)') === o).length})</button>)}
+              </div>
+              <div className="tbl-wrap tbl-compact" style={{ maxHeight: 340, overflowY: 'auto' }}><table>
+                <thead><tr><th style={{ width: 36 }}><input type="checkbox" checked={tampil.length > 0 && nPick === tampil.length} onChange={e => { const n = { ...tgPick }; tampil.forEach(r => { n[r.id] = e.target.checked; }); setTgPick(n); }} /></th><th>Tgl Masuk</th><th>ID</th><th>Nama</th><th>Sumber</th><th>Status</th></tr></thead>
+                <tbody>{tampil.map(r => (
+                  <tr key={r.id} onClick={() => setTgPick({ ...tgPick, [r.id]: !tgPick[r.id] })} style={{ cursor: 'pointer' }}>
+                    <td><input type="checkbox" checked={!!tgPick[r.id]} readOnly /></td>
+                    <td data-label="Tgl">{fmtDate(r.tgl)}</td><td data-label="ID">{r.lead_code}</td><td data-label="Nama"><b>{r.nama}</b></td>
+                    <td data-label="Sumber">{r.sumber || '—'}</td><td data-label="Status">{r.status}</td></tr>))}</tbody>
+              </table></div>
+              <div className="form-grid" style={{ marginTop: 10 }}>
+                <div className="field"><label>Tandai ke Campaign <span className="req">*</span></label>
+                  <select value={tg.campaign} onChange={e => setTg({ ...tg, campaign: e.target.value })}><option value="">— pilih —</option>{camps.map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select></div>
+                <div className="field"><label>Kode Kreatif (opsional)</label><input value={tg.konten} onChange={e => setTg({ ...tg, konten: e.target.value })} placeholder="reels-01" /></div>
+                <div className="field"><label>&nbsp;</label><button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !nPick} onClick={tandaiMassal}>🏷️ Tandai {nPick} Lead</button></div>
+              </div>
+              <span className="hint">Klik baris untuk mencentang. Centang hanya lead yang JELAS dari campaign itu — yang ragu biarkan kosong.</span>
+            </>);
+          })()}
+        </div>
+
+        <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">(mingguan per campaign/kreatif dari Ads Manager — nanti otomatis saat konektor API aktif)</span></h3>
           <div className="form-grid">
             <div className="field"><label>Tanggal</label><input type="date" {...fa('tgl')} /></div>
             <div className="field"><label>Campaign <span className="req">*</span></label>
-              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif').map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select></div>
+              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif').map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
+              {a.campaign && (() => { const sa = (data.spendAll || []).find(r => r.campaign === a.campaign); return <span className="hint" style={{ color: 'var(--brass)' }}>{sa ? `Sudah tercatat ${fmtRp(sa.total)} dari ${sa.entri} entri (terakhir ${fmtDate(sa.terakhir)}). Isi spend SEJAK entri terakhir saja, bukan total.` : 'Belum ada entri — isi spend sejak campaign mulai sampai tanggal ini.'}</span>; })()}</div>
             <div className="field"><label>Kreatif (utm_content)</label><input {...fa('kreatif')} placeholder="reels-01" /></div>
             <div className="field"><label>Spend (Rp)</label><input type="number" min="0" {...fa('spend')} /></div>
             <div className="field"><label>Impresi</label><input type="number" min="0" {...fa('impresi')} /></div>

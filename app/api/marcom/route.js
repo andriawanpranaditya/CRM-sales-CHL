@@ -18,6 +18,20 @@ export async function GET(req) {
   const sql = db();
   const url = new URL(req.url);
 
+  // Daftar lead tanpa campaign — bahan alat Tandai Lead Massal (marcom hanya lead yang ia input)
+  if (url.searchParams.get('list') === 'untagged') {
+    const pj = url.searchParams.get('project') || null;
+    const a1 = url.searchParams.get('d1') || null, a2 = url.searchParams.get('d2') || null;
+    const own = user.role === 'markom' ? user.username : null;
+    const rows = await sql`SELECT id, lead_code, nama, tgl, sumber, project, status FROM leads
+      WHERE COALESCE(campaign, '') = ''
+        AND (${pj}::text IS NULL OR project = ${pj})
+        AND (${a1}::date IS NULL OR tgl >= ${a1}::date) AND (${a2}::date IS NULL OR tgl <= ${a2}::date)
+        AND (${own}::text IS NULL OR created_by = ${own})
+      ORDER BY tgl DESC NULLS LAST, id DESC LIMIT 500`;
+    return Response.json(rows);
+  }
+
   // Ringkas: daftar campaign aktif untuk dropdown Form Input (dipakai juga oleh manager)
   if (url.searchParams.get('list') === 'campaign') {
     const rows = await sql`SELECT id, nama, platform, project FROM mi_campaigns WHERE status = 'Aktif' ORDER BY nama`;
@@ -136,7 +150,8 @@ export async function GET(req) {
       sql`SELECT * FROM mi_sync_log ORDER BY id DESC LIMIT 12`,
     ]);
   } catch {}
-  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  const spendAll = await sql`SELECT campaign, sum(spend)::numeric AS total, max(tgl) AS terakhir, count(*)::int AS entri FROM mi_ads GROUP BY campaign`;
+  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend, spendAll, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
@@ -162,8 +177,11 @@ export async function POST(req) {
   }
   if (b.jenis === 'metrik') {
     if (!b.content_id) return Response.json({ error: 'Pilih konten yang di-update angkanya' }, { status: 400 });
+    // Kolom yang dikosongkan memakai angka terakhir konten itu — bukan ditimpa 0
+    const lama = (await sql`SELECT * FROM mi_content_metrics WHERE content_id = ${Number(b.content_id)} ORDER BY tgl DESC LIMIT 1`)[0] || {};
+    const v = k => (b[k] === '' || b[k] === null || b[k] === undefined) ? (Number(lama[k]) || 0) : (Number(b[k]) || 0);
     await sql`INSERT INTO mi_content_metrics (content_id, tgl, reach, like_n, komentar, share_n, save_n, view3, view_full, klik_bio)
-      VALUES (${Number(b.content_id)}, ${b.tgl || new Date().toISOString().slice(0, 10)}, ${Number(b.reach) || 0}, ${Number(b.like_n) || 0}, ${Number(b.komentar) || 0}, ${Number(b.share_n) || 0}, ${Number(b.save_n) || 0}, ${Number(b.view3) || 0}, ${Number(b.view_full) || 0}, ${Number(b.klik_bio) || 0})
+      VALUES (${Number(b.content_id)}, ${b.tgl || new Date().toISOString().slice(0, 10)}, ${v('reach')}, ${v('like_n')}, ${v('komentar')}, ${v('share_n')}, ${v('save_n')}, ${v('view3')}, ${v('view_full')}, ${v('klik_bio')})
       ON CONFLICT (content_id, tgl) DO UPDATE SET reach = EXCLUDED.reach, like_n = EXCLUDED.like_n, komentar = EXCLUDED.komentar,
         share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n, view3 = EXCLUDED.view3, view_full = EXCLUDED.view_full, klik_bio = EXCLUDED.klik_bio`;
     return Response.json({ ok: true });
@@ -180,8 +198,20 @@ export async function POST(req) {
 export async function PATCH(req) {
   const { user, err } = await akses(); if (err) return err;
   const b = await req.json();
-  if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
+  if (b.jenis === 'tag') {
+    const ids = (b.ids || []).map(Number).filter(Boolean);
+    if (!ids.length) return Response.json({ error: 'Pilih minimal satu lead' }, { status: 400 });
+    if (!b.campaign) return Response.json({ error: 'Pilih campaign tujuan' }, { status: 400 });
+    const ada = await sql`SELECT 1 FROM mi_campaigns WHERE nama = ${b.campaign}`;
+    if (!ada.length) return Response.json({ error: 'Campaign tidak terdaftar' }, { status: 400 });
+    const own = user.role === 'markom' ? user.username : null;
+    const r = await sql`UPDATE leads SET campaign = ${b.campaign},
+        konten = CASE WHEN ${b.konten || ''} = '' THEN konten ELSE ${b.konten || ''} END, updated_at = now()
+      WHERE id = ANY(${ids}::int[]) AND (${own}::text IS NULL OR created_by = ${own}) RETURNING id`;
+    return Response.json({ ok: true, jumlah: r.length });
+  }
+  if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   if (b.jenis === 'campaign') {
     await sql`UPDATE mi_campaigns SET platform = ${b.platform || ''}, project = ${b.project || ''}, tujuan = ${b.tujuan || ''},
       budget = ${Number(b.budget) || 0}, status = ${b.status || 'Aktif'}, catatan = ${b.catatan || ''} WHERE id = ${b.id}`;
