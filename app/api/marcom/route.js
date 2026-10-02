@@ -158,7 +158,7 @@ export async function GET(req) {
 
   // Spend iklan per campaign (periode terpilih) — untuk CPL/CPQL/biaya per Booking
   const spend = await sql`
-    SELECT COALESCE(NULLIF(campaign, ''), '(tanpa data)') AS kunci, sum(spend)::numeric AS spend
+    SELECT COALESCE(NULLIF(campaign, ''), '(tanpa data)') AS kunci, sum(spend)::numeric AS spend, sum(COALESCE(hasil, 0))::int AS hasil
     FROM mi_ads
     WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
           AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ${proj}))
@@ -213,7 +213,8 @@ export async function GET(req) {
     }
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  const hasilPlat = Object.fromEntries(spend.map(r => [r.kunci, Number(r.hasil) || 0]));
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
@@ -275,6 +276,18 @@ export async function PATCH(req) {
   const { user, err } = await akses(); if (err) return err;
   const b = await req.json();
   const sql = db();
+  if (b.jenis === 'gabung') {
+    // Gabungkan campaign 'dari' ke campaign 'ke' — tag lead, entri spend & biaya berulang ikut pindah
+    if (user.role !== 'manager') return Response.json({ error: 'Hanya manager yang boleh menggabungkan campaign' }, { status: 403 });
+    if (!b.dari || !b.ke || b.dari === b.ke) return Response.json({ error: 'Pilih dua campaign yang berbeda' }, { status: 400 });
+    const ada = await sql`SELECT nama FROM mi_campaigns WHERE nama = ANY(${[b.dari, b.ke]}::text[])`;
+    if (ada.length < 2) return Response.json({ error: 'Campaign tidak ditemukan' }, { status: 404 });
+    const l = await sql`UPDATE leads SET campaign = ${b.ke}, updated_at = now() WHERE campaign = ${b.dari} RETURNING id`;
+    const a = await sql`UPDATE mi_ads SET campaign = ${b.ke} WHERE campaign = ${b.dari} RETURNING id`;
+    try { await sql`UPDATE mi_amort SET campaign = ${b.ke} WHERE campaign = ${b.dari}`; } catch {}
+    await sql`DELETE FROM mi_campaigns WHERE nama = ${b.dari}`;
+    return Response.json({ ok: true, lead: l.length, entri: a.length });
+  }
   if (b.jenis === 'tag') {
     const ids = (b.ids || []).map(Number).filter(Boolean);
     if (!ids.length) return Response.json({ error: 'Pilih minimal satu lead' }, { status: 400 });

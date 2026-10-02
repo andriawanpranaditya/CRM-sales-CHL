@@ -227,6 +227,15 @@ async function graphUrl(url) {
   if (j.error) throw new Error(j.error.message || 'Graph error');
   return j;
 }
+// Objective Meta -> tujuan campaign di CRM
+function tujuanMeta(o) {
+  const x = String(o || '').toUpperCase();
+  if (/LEAD|MESSAGE|SALES|CONVERSION/.test(x)) return 'leads';
+  if (/TRAFFIC|LINK_CLICK/.test(x)) return 'traffic';
+  if (/ENGAGEMENT|POST_ENGAGEMENT|PAGE_LIKES/.test(x)) return 'engagement';
+  if (/AWARENESS|REACH|VIDEO/.test(x)) return 'awareness';
+  return 'leads';
+}
 const HASIL_META = ['onsite_conversion.messaging_conversation_started_7d', 'lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead', 'contact_total'];
 function hasilMeta(actions) {
   const a = actions || [];
@@ -247,10 +256,10 @@ async function tarikMetaAds(sql) {
   const adaApi = (await sql`SELECT 1 FROM mi_ads WHERE sumber = 'meta-api' LIMIT 1`).length > 0;
   const mundur = new Date(Date.now() + 7 * 3600000 - 37 * 86400000).toISOString().slice(0, 10);
   const since = adaApi ? (mundur > MULAI ? mundur : MULAI) : MULAI; // tarikan pertama: sejak titik mulai analisa
-  const rows = [], statusCamp = {};
+  const rows = [], statusCamp = {}, objCamp = {};
   for (const acc of akun) {
-    const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status&limit=200`);
-    (cs.data || []).forEach(c => { statusCamp[c.name] = c.effective_status; });
+    const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective&limit=200`);
+    (cs.data || []).forEach(c => { statusCamp[c.name] = c.effective_status; objCamp[c.name] = c.objective; });
     let url = `https://graph.facebook.com/${GV()}/act_${acc}/insights?level=ad&time_increment=1`
       + `&time_range=${encodeURIComponent(JSON.stringify({ since, until: hariIni }))}`
       + `&fields=campaign_name,ad_id,ad_name,spend,impressions,reach,inline_link_clicks,actions&limit=500`
@@ -268,14 +277,14 @@ async function tarikMetaAds(sql) {
     if (peta.has(nm.toLowerCase())) continue;
     const st = statusCamp[nm] === 'ACTIVE' ? 'Aktif' : 'Selesai';
     await sql`INSERT INTO mi_campaigns (nama, platform, project, tujuan, budget, status, catatan, created_by, sumber)
-      VALUES (${nm}, 'Meta (FB+IG)', ${proj}, 'leads', 0, ${st}, 'Terdaftar otomatis dari Meta Ads', 'auto-meta', 'meta-api')
+      VALUES (${nm}, 'Meta (FB+IG)', ${proj}, ${tujuanMeta(objCamp[nm])}, 0, ${st}, 'Terdaftar otomatis dari Meta Ads', 'auto-meta', 'meta-api')
       ON CONFLICT (nama) DO NOTHING`;
     peta.set(nm.toLowerCase(), nm); baru++;
   }
   // Status campaign mengikuti Ads Manager
   for (const [nm, ef] of Object.entries(statusCamp)) {
     const crm = peta.get(nm.toLowerCase());
-    if (crm) await sql`UPDATE mi_campaigns SET status = ${ef === 'ACTIVE' ? 'Aktif' : 'Selesai'}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
+    if (crm) await sql`UPDATE mi_campaigns SET status = ${ef === 'ACTIVE' ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
   }
   // Simpan performa harian per iklan (upsert)
   const data = rows.filter(r => r.campaign_name).map(r => [

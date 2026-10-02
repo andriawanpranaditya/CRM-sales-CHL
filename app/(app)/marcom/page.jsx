@@ -5,7 +5,7 @@ import { api, fmtRp, fmtDate, todayISO } from '@/components/util';
 
 const PLATFORM = ['Instagram', 'Facebook', 'Tiktok', 'Google', 'Youtube', 'Website', 'Lainnya'];
 const FORMAT = ['Reels / Short Video', 'Carousel', 'Single Post', 'Story', 'Video Panjang', 'Live', 'Search Ads', 'Display / Banner', 'Lainnya'];
-const TUJUAN_C = ['leads', 'awareness', 'promo', 'traffic', 'event'];
+const TUJUAN_C = ['leads', 'awareness', 'engagement', 'promo', 'traffic', 'event'];
 const K0 = { tgl: todayISO(), platform: 'Instagram', project: '', format: 'Reels / Short Video', topik: '', hook: '', jam: '', durasi: '', link: '' };
 const BULAN_ID = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
 const ymdLokal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -44,6 +44,7 @@ export default function MarcomPage() {
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
   const [formManual, setFormManual] = useState(false);
+  const [gb, setGb] = useState(null); // { dari, ke }
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
   const [am, setAm] = useState(AM0);
   const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', campaign: '', konten: '' });
@@ -95,6 +96,16 @@ export default function MarcomPage() {
     } catch (e) { toast(/504/.test(e.message) ? 'Tarikan melewati batas waktu server — data sebagian mungkin sudah tersimpan, klik Tarik lagi.' : e.message); await muat(); } finally { setNarik(false); }
   }
 
+  async function gabungCampaign() {
+    if (!gb || !gb.ke) return toast('Pilih campaign tujuan');
+    if (!confirm(`Gabungkan "${gb.dari}" ke "${gb.ke}"?\nTag lead, entri spend & biaya berulang ikut pindah, lalu "${gb.dari}" dihapus. Tidak bisa dibatalkan.`)) return;
+    setBusy(true);
+    try {
+      const r = await api('/api/marcom', { method: 'PATCH', body: JSON.stringify({ jenis: 'gabung', dari: gb.dari, ke: gb.ke }) });
+      toast(`Digabung ✅ — ${r.lead} lead & ${r.entri} entri spend dipindahkan`);
+      setGb(null); await muat();
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
   async function cariUntagged() {
     try {
       const r = await api('/api/marcom?list=untagged&project=' + encodeURIComponent(fProj) + '&d1=' + (tg.d1 || '') + '&d2=' + (tg.d2 || ''));
@@ -177,6 +188,11 @@ export default function MarcomPage() {
       R.ringkas.push(`${F.l0} lead masuk, ${F.l2} berkualitas (${pc(F.l2 / F.l0)}), ${F.l3} Booking${F.nilai ? ' senilai ' + rp(F.nilai) : ''}.`);
       if (F.l1 >= 0) R.ringkas.push(`${pc(F.l1 / F.l0)} lead sudah tersentuh follow up.`);
     }
+    if (totSpend > 0) {
+      const plat = {};
+      Object.entries(spendMap).forEach(([k, v]) => { if (!v) return; const p0 = String(((data.campaigns || []).find(c => c.nama === k) || {}).platform || 'Lainnya').replace(/ \(.*\)/, ''); plat[p0] = (plat[p0] || 0) + v; });
+      R.ringkas.push('Belanja per platform: ' + Object.entries(plat).sort((a, b) => b[1] - a[1]).map(([p0, v]) => `${p0} ${rp(v)}`).join(' · ') + '.');
+    }
     if (totSpend > 0) R.ringkas.push(`Belanja iklan ${rp(totSpend)} untuk ${paidFunnel.l0} lead ber-campaign — CPL ${per(totSpend, paidFunnel.l0)}, CPQL ${per(totSpend, paidFunnel.l2)}, biaya per Booking ${per(totSpend, paidFunnel.l3)}.` + (paidFunnel.l3 === 0 && F.l3 > 0 ? ' Booking periode ini belum berasal dari lead ber-campaign.' : ''));
     const sumber = (data.bySumber || []).filter(r => r.kunci !== '(tanpa data)' && r.l0 > 0);
     const topVol = [...sumber].sort((a, b) => b.l0 - a.l0)[0];
@@ -205,7 +221,14 @@ export default function MarcomPage() {
     if (nIklanTanpa > 0) R.perbaiki.push(`${nIklanTanpa} lead dari iklan berbayar (${iklanTanpa.map(r => r.sumber + ' ' + r.n).join(', ')}) belum punya campaign — biaya iklannya tidak tersambung ke hasil. Tandai lewat Tandai Lead Massal di tab Iklan (daftarkan campaign-nya dulu bila belum ada).`);
     void tanpa;
     camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 === 0 && r.l0 >= 1).forEach(r => R.perbaiki.push(`Campaign ${r.kunci} sudah menghabiskan ${rp(spendMap[r.kunci])} tapi belum menghasilkan satu pun lead berkualitas — evaluasi audiens & kreatifnya, atau hentikan.`));
-    Object.entries(spendMap).filter(([k, v]) => v > 0 && k !== '(tanpa data)' && !camp.find(r => r.kunci === k)).forEach(([k, v]) => R.perbaiki.push(`Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM dari tombol 🔗 Link.`));
+    const tujuanOf = k => ((data.campaigns || []).find(c => c.nama === k) || {}).tujuan || 'leads';
+    const hp = data.hasilPlat || {};
+    const tanpaLead = Object.entries(spendMap).filter(([k, v]) => v > 0 && k !== '(tanpa data)' && !camp.find(r => r.kunci === k));
+    const atas = tanpaLead.filter(([k]) => ['traffic', 'awareness', 'engagement'].includes(tujuanOf(k)) && !(hp[k] > 0));
+    tanpaLead.filter(([k]) => !atas.find(([a]) => a === k)).forEach(([k, v]) => R.perbaiki.push(hp[k] > 0
+      ? `Campaign ${k} (${rp(v)}): platform mencatat ${hp[k]} percakapan/lead, tapi belum ada satu pun lead CRM yang ditandai ke campaign ini — tandai lewat Tandai Lead Massal, dan pasang kode campaign di pesan WA otomatis iklannya agar sales tahu asalnya.`
+      : `Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM dari tombol 🔗 Link.`));
+    if (atas.length) R.ringkas.push(`${atas.length} campaign funnel atas (traffic/awareness/engagement) menghabiskan ${rp(atas.reduce((a, [, v]) => a + v, 0))} — tugasnya mendatangkan kunjungan & jangkauan, jadi dinilai dari klik/biaya per klik, bukan jumlah lead.`);
     (data.campaigns || []).filter(c => c.status === 'Aktif' && !(spendMap[c.nama] > 0)).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
     sumber.filter(r => r.l0 >= 5 && r.l2 / r.l0 < 0.1).forEach(r => R.perbaiki.push(`Sumber ${r.kunci}: ${r.l0} lead tapi hanya ${r.l2} berkualitas (${pc(r.l2 / r.l0)}) — volume tinggi, kualitas rendah. Perketat targeting/kualifikasi di sumber ini.`));
     if (F.l0 >= 5 && F.l1 / F.l0 < 0.7) R.perbaiki.push(`Hanya ${pc(F.l1 / F.l0)} lead yang sudah di-follow up — ${F.l0 - F.l1} lead belum disentuh sama sekali. Lead yang dibiarkan cepat dingin; koordinasikan kecepatan respon dengan tim sales.`);
@@ -504,6 +527,23 @@ export default function MarcomPage() {
             <span className="hint">Nama ad di Ads Manager = kode kreatif ({kode}). Nomor naik untuk tiap kreatif baru di campaign yang sama.</span>
           </div>); })()}
 
+        {gb && (
+          <div className="card" style={{ marginBottom: 12, border: '1.5px solid var(--brass)' }}>
+            <h3 style={{ marginTop: 0 }}>🔀 Gabungkan Campaign <span className="hint">(untuk campaign yang sama tapi tercatat dengan dua nama)</span></h3>
+            <div className="form-grid">
+              <div className="field"><label>Campaign yang digabungkan (akan dihapus)</label><input value={gb.dari} readOnly style={{ fontWeight: 700 }} /></div>
+              <div className="field"><label>Gabungkan ke <span className="req">*</span></label>
+                <select value={gb.ke} onChange={e => setGb({ ...gb, ke: e.target.value })}><option value="">— pilih campaign tujuan —</option>
+                  {(data.campaigns || []).filter(c => c.nama !== gb.dari).map(c => <option key={c.id} value={c.nama}>{c.nama}{c.sumber === 'meta-api' ? ' (Meta)' : ''}</option>)}</select></div>
+            </div>
+            <div className="form-foot">
+              <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !gb.ke} onClick={gabungCampaign}>Gabungkan</button>
+              <button className="sort-btn" onClick={() => setGb(null)}>Batal</button>
+            </div>
+            <span className="hint">Tag lead, entri spend manual & biaya berulang dipindahkan ke campaign tujuan. Bila campaign tujuan ditarik otomatis dari Meta, entri spend manual lama otomatis tidak dihitung lagi (tidak dobel).</span>
+          </div>
+        )}
+
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>🏷️ Tandai Lead Massal <span className="hint">(lead tanpa campaign{fProj ? ' · ' + fProj : ''} — tandai banyak sekaligus)</span></h3>
           <div className="form-grid">
@@ -604,6 +644,7 @@ export default function MarcomPage() {
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanIni, extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
+                    {data.me && data.me.role === 'manager' && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => setGb({ dari: x.nama, ke: '' })}>Gabungkan</button>}
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
