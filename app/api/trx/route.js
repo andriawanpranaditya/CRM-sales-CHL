@@ -7,9 +7,9 @@ export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const rows = user.role !== 'sales'
-    ? await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
+    ? await sql`SELECT t.*, l.nama, l.tipe, COALESCE(NULLIF(t.sales, ''), l.sales) AS sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
         FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.id DESC`
-    : await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
+    : await sql`SELECT t.*, l.nama, l.tipe, COALESCE(NULLIF(t.sales, ''), l.sales) AS sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
         FROM transactions t JOIN leads l ON l.lead_code = t.lead_code WHERE l.sales = ${user.name} ORDER BY t.id DESC`;
   return Response.json(rows);
 }
@@ -79,9 +79,12 @@ export async function POST(req) {
       for (const r of res) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
     }
   }
-  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, created_by)
+  // Snapshot nama sales: pemilik lead saat transaksi dibuat (sales yang input = dirinya sendiri)
+  const pemilik = await sql`SELECT sales FROM leads WHERE lead_code = ${b.lead_code}`;
+  const salesTrx = user.role === 'sales' ? user.name : ((pemilik[0] && pemilik[0].sales) || '');
+  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, sales, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
-            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
+            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${salesTrx}, ${user.username})`;
   // Booking/Closing: tanda manual (mis. kuning Reserved) dilepas supaya peta mengikuti transaksi -> merah
   if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
     await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;

@@ -17,11 +17,31 @@ export default function LeadsPage() {
   const [me, setMe] = useState(null);
   const [fus, setFus] = useState([]);           // riwayat FU lintas lead (tab 2)
   const [sel, setSel] = useState(null);         // lead_code terpilih
+  const [tandai, setTandai] = useState([]);     // id lead yang dicentang untuk dipindahkan
+  const [salesTujuan, setSalesTujuan] = useState('');
+  const [pindahBusy, setPindahBusy] = useState(false);
   const [detail, setDetail] = useState(null);   // timeline lead terpilih
   const [loadDet, setLoadDet] = useState(false);
 
   const load = () => Promise.all([api('/api/leads'), api('/api/settings'), api('/api/auth/me'), api('/api/followups')])
     .then(([l, s, u, f]) => { setLeads(l); setSet(s); setMe(u); setFus(f); }).catch(e => toast(e.message));
+
+  // Pindahkan lead terpilih ke sales lain (khusus manager)
+  async function pindahkan() {
+    if (!salesTujuan) return toast('Pilih sales tujuan dulu');
+    const target = leads.filter(l => tandai.includes(l.id) && l.sales !== salesTujuan);
+    if (!target.length) return toast('Tidak ada lead yang perlu dipindahkan');
+    if (!confirm(`Pindahkan ${target.length} lead ke ${salesTujuan}?\n\nPerpindahan tercatat di riwayat tiap lead (siapa → siapa, jam berapa).`)) return;
+    setPindahBusy(true);
+    let ok = 0, gagal = 0;
+    for (const l of target) {
+      try { await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: l.id, sales: salesTujuan }) }); ok++; }
+      catch { gagal++; }
+    }
+    setPindahBusy(false); setTandai([]); setSalesTujuan('');
+    toast(`${ok} lead dipindahkan ke ${salesTujuan}` + (gagal ? ` · ${gagal} gagal` : ' ✅'));
+    load();
+  }
 
   // Buka timeline satu lead
   async function bukaLead(kode) {
@@ -135,6 +155,7 @@ export default function LeadsPage() {
     );
   }
 
+  const isMgr = me && me.role === 'manager';
   if (!leads) return <div className="loading">Memuat…</div>;
 
   return (
@@ -147,6 +168,21 @@ export default function LeadsPage() {
         <button className={tab === 'lead' ? 'active' : ''} onClick={() => setTab('lead')}>1 · Lead</button>
         <button className={tab === 'fu' ? 'active' : ''} onClick={() => setTab('fu')}>2 · Riwayat Follow Up</button>
       </div>
+      {tab === 'lead' && isMgr && tandai.length > 0 && (
+        <div className="note" style={{ background: '#E4EFE8', borderColor: 'var(--green)', marginBottom: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <b>{tandai.length} lead dipilih</b> — pindahkan ke:
+          <select className="sort-filter" style={{ marginLeft: 0, minWidth: 170 }} value={salesTujuan} onChange={e => setSalesTujuan(e.target.value)}>
+            <option value="">— pilih sales —</option>
+            {(set.sales || []).map(sn => <option key={sn}>{sn}</option>)}
+          </select>
+          <button className="btn btn-primary" style={{ width: 'auto', padding: '7px 16px' }} onClick={pindahkan} disabled={pindahBusy}>
+            {pindahBusy ? '⏳ Memindahkan…' : '→ Pindahkan'}
+          </button>
+          <button className="sort-btn" onClick={() => setTandai([])}>Batal</button>
+          <span className="hint">Riwayat perpindahan tercatat otomatis di tiap lead.</span>
+        </div>
+      )}
+
       {tab === 'lead' && <>
       <div className="fu-toolbar">
         <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
@@ -172,7 +208,11 @@ export default function LeadsPage() {
         </select>
       </div>
       <div className="tbl-wrap tbl-compact"><table>
-        <thead><tr><th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
+        <thead><tr>{isMgr && <th style={{ width: 34 }}>
+            <input type="checkbox" title="Pilih semua pada tampilan ini"
+              checked={rows.length > 0 && rows.every(l => tandai.includes(l.id))}
+              onChange={e => setTandai(e.target.checked ? rows.map(l => l.id) : [])} />
+          </th>}<th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
           <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(l => {
@@ -181,6 +221,10 @@ export default function LeadsPage() {
             return <React.Fragment key={l.id}>
               <tr onClick={() => bukaLead(l.lead_code)}
               style={{ cursor: 'pointer', background: sel === l.lead_code ? '#E4EFE8' : undefined }}>
+              {isMgr && <td data-label="Pilih" onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={tandai.includes(l.id)}
+                  onChange={e => setTandai(t => e.target.checked ? [...t, l.id] : t.filter(x => x !== l.id))} />
+              </td>}
               <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
                 <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
@@ -202,18 +246,18 @@ export default function LeadsPage() {
                 : <span className="hint">—</span>}</td>
               </tr>
               {sel === l.lead_code && (
-                <tr className="row-detail"><td colSpan={10} style={{ background: '#FAF9F5', borderTop: '2px solid var(--green)' }}>
+                <tr className="row-detail"><td colSpan={isMgr ? 11 : 10} style={{ background: '#FAF9F5', borderTop: '2px solid var(--green)' }}>
                   {panelRiwayat()}
                 </td></tr>)}
             </React.Fragment>;
-          }) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Tidak ada lead pada filter ini.</td></tr>}
+          }) : <tr><td colSpan={isMgr ? 11 : 10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Tidak ada lead pada filter ini.</td></tr>}
         </tbody>
       </table></div>
       </>}
 
       {tab === 'fu' && (
         <div className="tbl-wrap tbl-compact"><table>
-          <thead><tr><th>Tanggal / Jam</th><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Detail Komunikasi</th><th>Objection</th><th>Next Action</th><th>Tgl Next FU</th></tr></thead>
+          <thead><tr><th>Tanggal / Jam</th><th>ID Lead</th><th>Nama</th><th>Di-FU Oleh</th><th>Pemilik Lead</th><th>Detail Komunikasi</th><th>Objection</th><th>Next Action</th><th>Tgl Next FU</th></tr></thead>
           <tbody>
             {fus.length ? [...fus]
               .filter(f => (!proj || f.project === proj) && (!fSales || f.sales === fSales))
@@ -222,13 +266,14 @@ export default function LeadsPage() {
                   <td data-label="Tanggal">{fmtDate(f.tgl)}<span className="sub2">{f.created_at ? jam(f.created_at).split(' ').slice(-1)[0] : ''}</span></td>
                   <td data-label="ID Lead"><span className="id-tag">{f.lead_code}</span></td>
                   <td data-label="Nama"><b>{f.nama || ''}</b></td>
-                  <td data-label="Sales">{f.sales || ''}</td>
+                  <td data-label="Di-FU Oleh"><b>{f.oleh || f.created_by || '—'}</b></td>
+                  <td data-label="Pemilik Lead">{f.sales || '—'}</td>
                   <td data-label="Detail">{f.detail}</td>
                   <td data-label="Objection">{f.objection || '—'}</td>
                   <td data-label="Next Action">{f.next_action || '—'}</td>
                   <td data-label="Tgl Next FU">{f.next_tgl ? fmtDate(f.next_tgl) : '—'}</td>
                 </tr>))
-              : <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada follow up.</td></tr>}
+              : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada follow up.</td></tr>}
           </tbody>
         </table></div>
       )}
