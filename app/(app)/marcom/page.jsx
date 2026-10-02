@@ -527,23 +527,6 @@ export default function MarcomPage() {
             <span className="hint">Nama ad di Ads Manager = kode kreatif ({kode}). Nomor naik untuk tiap kreatif baru di campaign yang sama.</span>
           </div>); })()}
 
-        {gb && (
-          <div className="card" style={{ marginBottom: 12, border: '1.5px solid var(--brass)' }}>
-            <h3 style={{ marginTop: 0 }}>🔀 Gabungkan Campaign <span className="hint">(untuk campaign yang sama tapi tercatat dengan dua nama)</span></h3>
-            <div className="form-grid">
-              <div className="field"><label>Campaign yang digabungkan (akan dihapus)</label><input value={gb.dari} readOnly style={{ fontWeight: 700 }} /></div>
-              <div className="field"><label>Gabungkan ke <span className="req">*</span></label>
-                <select value={gb.ke} onChange={e => setGb({ ...gb, ke: e.target.value })}><option value="">— pilih campaign tujuan —</option>
-                  {(data.campaigns || []).filter(c => c.nama !== gb.dari).map(c => <option key={c.id} value={c.nama}>{c.nama}{c.sumber === 'meta-api' ? ' (Meta)' : ''}</option>)}</select></div>
-            </div>
-            <div className="form-foot">
-              <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !gb.ke} onClick={gabungCampaign}>Gabungkan</button>
-              <button className="sort-btn" onClick={() => setGb(null)}>Batal</button>
-            </div>
-            <span className="hint">Tag lead, entri spend manual & biaya berulang dipindahkan ke campaign tujuan. Bila campaign tujuan ditarik otomatis dari Meta, entri spend manual lama otomatis tidak dihitung lagi (tidak dobel).</span>
-          </div>
-        )}
-
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>🏷️ Tandai Lead Massal <span className="hint">(lead tanpa campaign{fProj ? ' · ' + fProj : ''} — tandai banyak sekaligus)</span></h3>
           <div className="form-grid">
@@ -633,6 +616,22 @@ export default function MarcomPage() {
         <div className="two-col">
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Daftar Campaign</h3>
+        {gb && (
+          <div id="panel-gabung" className="card" style={{ marginBottom: 12, border: '1.5px solid var(--brass)' }}>
+            <h3 style={{ marginTop: 0 }}>🔀 Gabungkan Campaign <span className="hint">(untuk campaign yang sama tapi tercatat dengan dua nama)</span></h3>
+            <div className="form-grid">
+              <div className="field"><label>Campaign yang digabungkan (akan dihapus)</label><input value={gb.dari} readOnly style={{ fontWeight: 700 }} /></div>
+              <div className="field"><label>Gabungkan ke <span className="req">*</span></label>
+                <select value={gb.ke} onChange={e => setGb({ ...gb, ke: e.target.value })}><option value="">— pilih campaign tujuan —</option>
+                  {(data.campaigns || []).filter(c => c.nama !== gb.dari).map(c => <option key={c.id} value={c.nama}>{c.nama}{c.sumber === 'meta-api' ? ' (Meta)' : ''}</option>)}</select></div>
+            </div>
+            <div className="form-foot">
+              <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !gb.ke} onClick={gabungCampaign}>Gabungkan</button>
+              <button className="sort-btn" onClick={() => setGb(null)}>Batal</button>
+            </div>
+            <span className="hint">Tag lead, entri spend manual & biaya berulang dipindahkan ke campaign tujuan. Bila campaign tujuan ditarik otomatis dari Meta, entri spend manual lama otomatis tidak dihitung lagi (tidak dobel).</span>
+          </div>
+        )}
             <div className="tbl-wrap tbl-compact"><table>
               <thead><tr><th>Nama</th><th>Platform</th><th>Project</th><th className="num">Budget</th><th className="num">Spend</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>{camps.length ? camps.map(x => (
@@ -644,7 +643,7 @@ export default function MarcomPage() {
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanIni, extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
-                    {data.me && data.me.role === 'manager' && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => setGb({ dari: x.nama, ke: '' })}>Gabungkan</button>}
+                    {data.me && data.me.role === 'manager' && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setGb({ dari: x.nama, ke: '' }); setTimeout(() => { const el = document.getElementById('panel-gabung'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50); }}>Gabungkan</button>}
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
