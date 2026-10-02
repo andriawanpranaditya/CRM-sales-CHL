@@ -18,6 +18,10 @@ let l2Siap = false;
 async function siapkanL2(sql) {
   if (l2Siap) return;
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS l2_at timestamptz`; } catch (e) { console.error('l2_at kolom', e); }
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
+  try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
+  try { await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
   try {
     await sql`CREATE OR REPLACE FUNCTION mi_set_l2_at() RETURNS trigger AS $$
       BEGIN
@@ -158,6 +162,8 @@ export async function GET(req) {
     FROM mi_ads
     WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
           AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ${proj}))
+          AND NOT (COALESCE(mi_ads.sumber, 'manual') = 'manual'
+                   AND EXISTS (SELECT 1 FROM mi_ads b WHERE b.sumber = 'meta-api' AND lower(b.campaign) = lower(mi_ads.campaign)))
     GROUP BY 1`;
 
   // Website & SEO (hasil tarikan konektor GA4 + Search Console)

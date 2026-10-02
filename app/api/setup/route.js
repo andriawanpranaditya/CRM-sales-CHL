@@ -74,10 +74,6 @@ export async function GET(req) {
   await coba(() => sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','markom','sales'))`);
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wa text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS nilai_jual numeric`;
-  // Nama sales disimpan pada transaksi (snapshot) agar pencapaian tidak ikut berpindah saat lead dioper
-  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS sales text`;
-  await coba(() => sql`UPDATE transactions t SET sales = l.sales
-    FROM leads l WHERE l.lead_code = t.lead_code AND (t.sales IS NULL OR t.sales = '')`);
   // Index performa — mempercepat kueri saat data ribuan baris
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_leads_tgl ON leads (tgl)`);
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_leads_sales ON leads (sales)`);
@@ -160,6 +156,72 @@ export async function GET(req) {
   )`;
   await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_kegiatan_tgl ON kegiatan (tgl)`);
   await coba(() => sql`ALTER TABLE trx_files DROP CONSTRAINT IF EXISTS trx_files_jenis_check`);
+
+  // ===== Modul Analisa Marcom (tabel berprefix mi_ — blok toleran, aman dijalankan berulang) =====
+  await sql`CREATE TABLE IF NOT EXISTS mi_campaigns (
+    id serial PRIMARY KEY,
+    nama text UNIQUE NOT NULL,
+    platform text, project text, tujuan text,
+    budget numeric DEFAULT 0,
+    status text NOT NULL DEFAULT 'Aktif',
+    catatan text, created_by text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_contents (
+    id serial PRIMARY KEY,
+    tgl date, platform text, project text, format text,
+    topik text, hook text, jam text, durasi text, link text,
+    created_by text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_content_metrics (
+    id serial PRIMARY KEY,
+    content_id integer NOT NULL,
+    tgl date NOT NULL,
+    reach integer DEFAULT 0, like_n integer DEFAULT 0, komentar integer DEFAULT 0,
+    share_n integer DEFAULT 0, save_n integer DEFAULT 0,
+    view3 integer DEFAULT 0, view_full integer DEFAULT 0, klik_bio integer DEFAULT 0,
+    UNIQUE (content_id, tgl)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_ads (
+    id serial PRIMARY KEY,
+    tgl date, campaign text, kreatif text,
+    spend numeric DEFAULT 0,
+    impresi integer DEFAULT 0, reach integer DEFAULT 0, klik integer DEFAULT 0, hasil integer DEFAULT 0,
+    catatan text, created_by text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  // Jejak campaign & kreatif pada lead — kunci closed-loop iklan -> Booking
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS campaign text`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS konten text`;
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_metrics_content ON mi_content_metrics (content_id)`);
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_ads_tgl ON mi_ads (tgl)`);
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads (campaign)`);
+
+  await sql`CREATE TABLE IF NOT EXISTS mi_ga4_daily (
+    id serial PRIMARY KEY, tgl date NOT NULL, source_medium text NOT NULL,
+    sessions integer DEFAULT 0, users integer DEFAULT 0, key_events integer DEFAULT 0,
+    UNIQUE (tgl, source_medium)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_gsc_daily (
+    id serial PRIMARY KEY, tgl date NOT NULL, query text NOT NULL,
+    clicks integer DEFAULT 0, impressions integer DEFAULT 0, position numeric DEFAULT 0,
+    UNIQUE (tgl, query)
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_sync_log (
+    id serial PRIMARY KEY, waktu timestamptz NOT NULL DEFAULT now(),
+    sumber text, status text, baris integer DEFAULT 0, pesan text
+  )`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_amort (
+    id serial PRIMARY KEY, campaign text NOT NULL, keterangan text, total numeric NOT NULL,
+    mulai date NOT NULL, bulan integer NOT NULL, created_by text, created_at timestamptz NOT NULL DEFAULT now()
+  )`;
+  await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`;
+  await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`;
+  await coba(() => sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`);
+  await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS sumber text`;
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_ga4_tgl ON mi_ga4_daily (tgl)`);
+  await coba(() => sql`CREATE INDEX IF NOT EXISTS idx_mi_gsc_tgl ON mi_gsc_daily (tgl)`);
 
   for (const [key2, items] of Object.entries(DEFAULT_SETTINGS)) {
     await sql`INSERT INTO settings (key, items) VALUES (${key2}, ${JSON.stringify(items)})

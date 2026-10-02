@@ -43,6 +43,7 @@ export default function MarcomPage() {
   const [m, setM] = useState(M0);
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
+  const [formManual, setFormManual] = useState(false);
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
   const [am, setAm] = useState(AM0);
   const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', campaign: '', konten: '' });
@@ -222,7 +223,8 @@ export default function MarcomPage() {
       if (sesTot && pangle / sesTot >= 0.1) R.perbaiki.push(`${pc(pangle / sesTot)} sesi website (${pangle.toLocaleString('id-ID')}) datang dari Pangle — jaringan iklan pihak ketiga TikTok yang banyak menghasilkan klik tidak sengaja dari aplikasi game/utilitas. Matikan penempatan Pangle di TikTok Ads Manager, dan jangan anggap trafik ini sebagai minat nyata.`);
     }
     if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
-    tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
+    // Bila Instagram sudah ditarik otomatis, konten tidak lagi dicatat manual per orang — aturan ini hanya berlaku saat input manual
+    if (!(data.contents || []).some(c => c.created_by === 'auto-instagram')) tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
 
     // ---------- SARAN STRATEGI ----------
     const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
@@ -266,6 +268,10 @@ export default function MarcomPage() {
 
   if (!data) return <div className="loading">Memuat…</div>;
   const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
+  const metaApi = (data.ads || []).some(x => x.sumber === 'meta-api') || (data.campaigns || []).some(x => x.sumber === 'meta-api');
+  const igAktif = (data.contents || []).some(x => x.created_by === 'auto-instagram');
+  const igTanpaTopik = (data.contents || []).filter(x => x.platform === 'Instagram' && !x.topik).length;
+  const igEdit = kEdit && k.platform === 'Instagram' && igAktif;
 
   return (
     <>
@@ -384,50 +390,64 @@ export default function MarcomPage() {
       </>)}
 
       {tab === 'konten' && (<>
+        {igAktif && !kEdit && !formManual && (
+          <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--brass)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div><b>⚡ Konten Instagram masuk otomatis tiap pagi</b> — tanggal, jam, format, link & semua angkanya.
+                <div className="hint">Tugas tim: klik <b>Lengkapi</b> pada konten Instagram untuk mengisi <b>Topik</b> (dan <b>Hook</b> untuk Reels).{igTanpaTopik ? ` Masih ${igTanpaTopik} konten tanpa topik.` : ' Semua konten sudah bertopik 👍'}</div></div>
+              <button className="sort-btn" onClick={() => setFormManual(true)}>➕ Catat Konten Manual (Facebook / TikTok / lainnya)</button>
+            </div>
+          </div>
+        )}
+        {(!igAktif || kEdit || formManual) && (
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>{kEdit ? 'Edit Konten' : 'Catat Konten Tayang'} <span className="hint">(2 menit tiap posting — atribut inilah yang membuat "algoritma" bisa dibaca)</span></h3>
+          <h3 style={{ marginTop: 0 }}>{igEdit ? 'Lengkapi Konten Instagram' : kEdit ? 'Edit Konten' : 'Catat Konten Manual'} <span className="hint">{igEdit ? '(tanggal, jam, format, link & angka sudah otomatis — cukup isi topik & hook)' : '(untuk platform yang belum tersambung otomatis)'}</span></h3>
           <div className="form-grid">
-            <div className="field"><label>Tanggal Tayang</label><input type="date" {...fk('tgl')} /></div>
-            <div className="field"><label>Platform <span className="req">*</span></label><select {...fk('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>
+            {!igEdit && <div className="field"><label>Tanggal Tayang</label><input type="date" {...fk('tgl')} /></div>}
+            {!igEdit && <div className="field"><label>Platform <span className="req">*</span></label><select {...fk('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>}
             <div className="field"><label>Project</label><select {...fk('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
-            <div className="field"><label>Format <span className="req">*</span></label><select {...fk('format')}>{FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>
+            {!igEdit && <div className="field"><label>Format <span className="req">*</span></label><select {...fk('format')}>{FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>}
             <div className="field"><label>Topik</label><input {...fk('topik')} placeholder="contoh: promo DP 0% / progres pembangunan" /></div>
-            <div className="field"><label>Hook (3 detik pertama)</label><input {...fk('hook')} placeholder="kalimat/adegan pembuka" /></div>
-            <div className="field"><label>Jam Tayang</label><input {...fk('jam')} placeholder="contoh: 19:00" /></div>
+            <div className="field"><label>Hook (3 detik pertama)</label><input {...fk('hook')} placeholder={k.format && k.format.startsWith('Reels') ? 'adegan — gerakan kamera — audio' : 'teks slide/gambar pertama'} /></div>
+            {!igEdit && <div className="field"><label>Jam Tayang</label><input {...fk('jam')} placeholder="contoh: 19:00" /></div>}
             <div className="field"><label>Durasi</label><input {...fk('durasi')} placeholder="contoh: 30 dtk" /></div>
-            <div className="field" style={{ gridColumn: '1/-1' }}><label>Link Konten</label><input {...fk('link')} placeholder="https://…" /></div>
+            {!igEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Link Konten</label><input {...fk('link')} placeholder="https://…" /></div>}
           </div>
           <div className="form-foot">
-            <button className="btn btn-primary" disabled={busy} onClick={() => simpan('konten', k, kEdit, () => { setKEdit(null); setK({ ...K0, tgl: todayISO() }); })}>{kEdit ? 'Simpan Perubahan' : 'Simpan Konten'}</button>
-            {kEdit && <button className="sort-btn" onClick={() => { setKEdit(null); setK({ ...K0, tgl: todayISO() }); }}>Batal edit</button>}
+            <button className="btn btn-primary" disabled={busy} onClick={() => simpan('konten', k, kEdit, () => { setKEdit(null); setFormManual(false); setK({ ...K0, tgl: todayISO() }); })}>{kEdit ? 'Simpan Perubahan' : 'Simpan Konten'}</button>
+            {(kEdit || formManual) && <button className="sort-btn" onClick={() => { setKEdit(null); setFormManual(false); setK({ ...K0, tgl: todayISO() }); }}>Batal</button>}
           </div>
         </div>
+        )}
 
+        {(!igAktif || (m.content_id && ((data.contents || []).find(c => String(c.id) === String(m.content_id)) || {}).platform !== 'Instagram')) && (
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Update Angka Performa <span className="hint">(seminggu sekali — pilih konten, angka terakhir otomatis terisi; ubah yang berubah saja)</span></h3>
           <div className="form-grid">
             <div className="field"><label>Konten <span className="req">*</span></label>
               <select value={m.content_id} onChange={e => isiAngka(e.target.value)}><option value="">— pilih konten —</option>
-                {(data.contents || []).map(x => <option key={x.id} value={x.id}>{fmtDate(x.tgl)} · {x.platform} · {(x.topik || x.format || '').slice(0, 40)}</option>)}</select></div>
+                {(data.contents || []).filter(x => !igAktif || x.platform !== 'Instagram').map(x => <option key={x.id} value={x.id}>{fmtDate(x.tgl)} · {x.platform} · {(x.topik || x.format || '').slice(0, 40)}</option>)}</select></div>
             <div className="field"><label>Per Tanggal</label><input type="date" {...fm('tgl')} /></div>
             <div className="field"><label>Reach</label><input type="number" min="0" {...fm('reach')} /></div>
             <div className="field"><label>Like</label><input type="number" min="0" {...fm('like_n')} /></div>
             <div className="field"><label>Komentar</label><input type="number" min="0" {...fm('komentar')} /></div>
             <div className="field"><label>Share</label><input type="number" min="0" {...fm('share_n')} /></div>
             <div className="field"><label>Save</label><input type="number" min="0" {...fm('save_n')} /></div>
-            <div className="field"><label>View 3 dtk</label><input type="number" min="0" {...fm('view3')} /></div>
+            <div className="field"><label>Views</label><input type="number" min="0" {...fm('view3')} /></div>
             <div className="field"><label>View Selesai</label><input type="number" min="0" {...fm('view_full')} /></div>
             <div className="field"><label>Klik Bio / Link</label><input type="number" min="0" {...fm('klik_bio')} /></div>
           </div>
-          <div className="form-foot"><button className="btn btn-primary" disabled={busy} onClick={() => simpan('metrik', m, null, () => setM({ ...M0, tgl: todayISO() }))}>Simpan Angka</button></div>
+          <div className="form-foot"><button className="btn btn-primary" disabled={busy} onClick={() => simpan('metrik', m, null, () => setM({ ...M0, tgl: todayISO() }))}>Simpan Angka</button>
+            {igAktif && <button className="sort-btn" onClick={() => setM({ ...M0, tgl: todayISO() })}>Tutup</button>}</div>
         </div>
+        )}
 
         <div className="tbl-wrap tbl-compact"><table>
           <thead><tr><th>Tanggal</th><th>Platform</th><th>Format</th><th>Topik / Hook</th><th>Jam</th><th className="num">Reach</th><th className="num">ER</th><th className="num">Klik Bio</th><th>Aksi</th></tr></thead>
           <tbody>{(data.contents || []).length ? (data.contents || []).map(x => (
             <tr key={x.id}>
               <td data-label="Tanggal">{fmtDate(x.tgl)}</td>
-              <td data-label="Platform">{x.platform}</td>
+              <td data-label="Platform">{x.platform}{igAktif && x.platform === 'Instagram' ? <div className="hint">⚡ otomatis</div> : null}</td>
               <td data-label="Format"><span className="badge b-new">{x.format}</span></td>
               <td data-label="Topik"><b>{x.topik || '—'}</b>{x.hook ? <div className="hint">{x.hook}</div> : null}</td>
               <td data-label="Jam">{x.jam || '—'}</td>
@@ -435,8 +455,8 @@ export default function MarcomPage() {
               <td className="num" data-label="ER"><b>{pct(er(x))}</b></td>
               <td className="num" data-label="Klik">{x.klik_bio || '—'}</td>
               <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setKEdit(x.id); setK({ tgl: String(x.tgl || '').slice(0, 10), platform: x.platform || 'Instagram', project: x.project || '', format: x.format || FORMAT[0], topik: x.topik || '', hook: x.hook || '', jam: x.jam || '', durasi: x.durasi || '', link: x.link || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
-                <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>
+                <button className="sort-btn" style={{ padding: '3px 9px', ...(igAktif && x.platform === 'Instagram' && !x.topik ? { color: 'var(--brass)', fontWeight: 700 } : {}) }} onClick={() => { setKEdit(x.id); setK({ tgl: String(x.tgl || '').slice(0, 10), platform: x.platform || 'Instagram', project: x.project || '', format: x.format || FORMAT[0], topik: x.topik || '', hook: x.hook || '', jam: x.jam || '', durasi: x.durasi || '', link: x.link || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{igAktif && x.platform === 'Instagram' ? 'Lengkapi' : 'Edit'}</button>
+                {!(igAktif && x.platform === 'Instagram') && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>}
                 <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>
               </span></td>
             </tr>)) : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
@@ -445,7 +465,7 @@ export default function MarcomPage() {
 
       {tab === 'iklan' && (<>
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">(nama HARUS sama dengan utm_campaign & nama di platform iklan)</span></h3>
+          <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">{metaApi ? '(campaign Meta terdaftar otomatis dari Ads Manager — daftarkan manual untuk Google, TikTok & Offline)' : '(nama HARUS sama dengan utm_campaign & nama di platform iklan)'}</span></h3>
           <div className="form-grid">
             {cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign (terkunci)</label><input value={c.nama} disabled style={{ fontFamily: 'monospace', fontWeight: 700 }} /></div>}
             <div className="field"><label>Project <span className="req">*</span></label><select {...fc('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
@@ -551,11 +571,11 @@ export default function MarcomPage() {
         </div>
 
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">(mingguan per campaign/kreatif dari Ads Manager — nanti otomatis saat konektor API aktif)</span></h3>
+          <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">{metaApi ? '(spend Meta ditarik otomatis tiap pagi — form ini untuk Google, TikTok & lainnya)' : '(mingguan per campaign/kreatif dari Ads Manager)'}</span></h3>
           <div className="form-grid">
             <div className="field"><label>Tanggal</label><input type="date" {...fa('tgl')} /></div>
             <div className="field"><label>Campaign <span className="req">*</span></label>
-              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif').map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
+              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif' && !(metaApi && String(x.platform || '').startsWith('Meta'))).map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
               {a.campaign && (() => { const sa = (data.spendAll || []).find(r => r.campaign === a.campaign); return <span className="hint" style={{ color: 'var(--brass)' }}>{sa ? `Sudah tercatat ${fmtRp(sa.total)} dari ${sa.entri} entri (terakhir ${fmtDate(sa.terakhir)}). Isi spend SEJAK entri terakhir saja, bukan total.` : 'Belum ada entri — isi spend sejak campaign mulai sampai tanggal ini.'}</span>; })()}</div>
             <div className="field"><label>Kreatif (utm_content)</label><input {...fa('kreatif')} placeholder="reels-01" /></div>
             <div className="field"><label>Spend (Rp)</label><input type="number" min="0" {...fa('spend')} /></div>
@@ -577,7 +597,7 @@ export default function MarcomPage() {
               <thead><tr><th>Nama</th><th>Platform</th><th>Project</th><th className="num">Budget</th><th className="num">Spend</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>{camps.length ? camps.map(x => (
                 <tr key={x.id}>
-                  <td data-label="Nama"><b>{x.nama}</b></td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
+                  <td data-label="Nama"><b>{x.nama}</b>{x.sumber === 'meta-api' ? <div className="hint">⚡ otomatis dari Meta Ads</div> : null}</td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
                   <td className="num" data-label="Budget">{Number(x.budget) ? fmtRp(x.budget) : '—'}</td>
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
@@ -590,12 +610,12 @@ export default function MarcomPage() {
             </table></div>
           </div>
           <div className="card" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginTop: 0 }}>Entri Performa Terakhir</h3>
+            <h3 style={{ marginTop: 0 }}>Entri Performa Manual {metaApi ? <span className="hint">(data Meta Ads otomatis tidak ditampilkan di sini — lihat kolom Spend di Daftar Campaign)</span> : null}</h3>
             <div className="tbl-wrap tbl-compact"><table>
               <thead><tr><th>Tanggal</th><th>Campaign</th><th>Kreatif</th><th className="num">Spend</th><th className="num">Klik</th><th className="num">Hasil</th><th>Aksi</th></tr></thead>
-              <tbody>{(data.ads || []).length ? (data.ads || []).slice(0, 60).map(x => (
+              <tbody>{(data.ads || []).filter(x => x.sumber !== 'meta-api').length ? (data.ads || []).filter(x => x.sumber !== 'meta-api').slice(0, 60).map(x => (
                 <tr key={x.id}>
-                  <td data-label="Tanggal">{fmtDate(x.tgl)}</td><td data-label="Campaign">{x.campaign}</td><td data-label="Kreatif">{x.kreatif || '—'}</td>
+                  <td data-label="Tanggal">{fmtDate(x.tgl)}</td><td data-label="Campaign">{x.campaign}{(data.ads || []).some(y => y.sumber === 'meta-api' && String(y.campaign).toLowerCase() === String(x.campaign).toLowerCase()) ? <div className="hint" style={{ color: 'var(--brass)' }}>digantikan data API — tidak dihitung, boleh dihapus</div> : null}</td><td data-label="Kreatif">{x.kreatif || '—'}</td>
                   <td className="num" data-label="Spend">{fmtRp(x.spend)}</td><td className="num" data-label="Klik">{x.klik || 0}</td><td className="num" data-label="Hasil">{x.hasil || 0}</td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setAEdit(x.id); setA({ tgl: String(x.tgl || '').slice(0, 10), campaign: x.campaign || '', kreatif: x.kreatif || '', spend: x.spend || '', impresi: x.impresi || '', reach: x.reach || '', klik: x.klik || '', hasil: x.hasil || '', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
