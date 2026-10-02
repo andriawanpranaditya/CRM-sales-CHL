@@ -13,10 +13,33 @@ async function akses() {
   return { user };
 }
 
+// Jejak "pernah berkualitas": l2_at diisi otomatis (trigger) saat status lead pertama kali naik ke Warm/Hot/Appointment/Site Visit/Booking/Closing
+let l2Siap = false;
+async function siapkanL2(sql) {
+  if (l2Siap) return;
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS l2_at timestamptz`; } catch (e) { console.error('l2_at kolom', e); }
+  try {
+    await sql`CREATE OR REPLACE FUNCTION mi_set_l2_at() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') AND NEW.l2_at IS NULL THEN NEW.l2_at := now(); END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql`;
+    await sql`DROP TRIGGER IF EXISTS trg_mi_l2_at ON leads`;
+    await sql`CREATE TRIGGER trg_mi_l2_at BEFORE INSERT OR UPDATE ON leads FOR EACH ROW EXECUTE FUNCTION mi_set_l2_at()`;
+  } catch (e) { console.error('l2_at trigger', e); }
+  try {
+    await sql`UPDATE leads SET l2_at = COALESCE(updated_at, now())
+      WHERE l2_at IS NULL AND (status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+        OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = leads.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))`;
+  } catch (e) { console.error('l2_at backfill', e); }
+  l2Siap = true;
+}
+
 export async function GET(req) {
   const { user, err } = await akses(); if (err) return err;
   const sql = db();
   const url = new URL(req.url);
+  await siapkanL2(sql);
 
   // Daftar lead tanpa campaign — bahan alat Tandai Lead Massal (marcom hanya lead yang ia input)
   if (url.searchParams.get('list') === 'untagged') {
@@ -62,7 +85,7 @@ export async function GET(req) {
     SELECT COALESCE(NULLIF(l.campaign, ''), '(tanpa data)') AS kunci,
       count(*)::int AS l0,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code))::int AS l1,
-      count(*) FILTER (WHERE l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+      count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
@@ -74,7 +97,7 @@ export async function GET(req) {
     SELECT COALESCE(NULLIF(l.sumber, ''), '(tanpa data)') AS kunci,
       count(*)::int AS l0,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code))::int AS l1,
-      count(*) FILTER (WHERE l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+      count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
@@ -85,7 +108,7 @@ export async function GET(req) {
     sql`
     SELECT COALESCE(NULLIF(l.konten, ''), '') AS kunci,
       count(*)::int AS l0,
-      count(*) FILTER (WHERE l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+      count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3
     FROM leads l
@@ -101,7 +124,7 @@ export async function GET(req) {
       count(*)::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3
     FROM leads l
-    WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+    WHERE ((l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))
       AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1, 2, 3, 4 ORDER BY l2 DESC LIMIT 200`,
@@ -110,7 +133,7 @@ export async function GET(req) {
     SELECT l.created_by AS username,
       count(*)::int AS l0,
       count(*) FILTER (WHERE l.tgl >= date_trunc('month', now())::date)::int AS l0_bln,
-      count(*) FILTER (WHERE l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing')
+      count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
@@ -166,12 +189,18 @@ export async function GET(req) {
     const n = Math.max(1, Number(a.bulan) || 1), tot = Number(a.total) || 0, dasar = Math.floor(tot / n);
     const mulaiStr = (a.mulai instanceof Date ? a.mulai.toISOString() : String(a.mulai)).slice(0, 7);
     const [yy, mm] = mulaiStr.split('-').map(Number);
+    const hariMs = 86400000;
     for (let i = 0; i < n; i++) {
-      const tglBulan = new Date(Date.UTC(yy, mm - 1 + i, 1)).toISOString().slice(0, 10);
-      if (tglBulan > hariIni) break;
-      if (d1 && tglBulan < d1.slice(0, 7) + '-01') continue;
-      if (d2 && tglBulan > d2) continue;
-      sm[a.campaign] = (sm[a.campaign] || 0) + (i === n - 1 ? tot - dasar * (n - 1) : dasar);
+      const awal = Date.UTC(yy, mm - 1 + i, 1), akhir = Date.UTC(yy, mm + i, 0); // hari pertama & terakhir bulan
+      const jumlahHari = Math.round((akhir - awal) / hariMs) + 1;
+      // Irisan bulan ini dengan rentang filter, dibatasi s.d. hari ini (biaya bulan berjalan dihitung pro-rata hari)
+      const dari = Math.max(awal, d1 ? Date.parse(d1 + 'T00:00:00Z') : awal);
+      const sampai = Math.min(akhir, d2 ? Date.parse(d2 + 'T00:00:00Z') : akhir, Date.parse(hariIni + 'T00:00:00Z'));
+      if (awal > Date.parse(hariIni + 'T00:00:00Z')) break;
+      if (sampai < dari) continue;
+      const hari = Math.round((sampai - dari) / hariMs) + 1;
+      const porsiBulan = i === n - 1 ? tot - dasar * (n - 1) : dasar;
+      sm[a.campaign] = (sm[a.campaign] || 0) + Math.round(porsiBulan * hari / jumlahHari);
     }
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));

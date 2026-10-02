@@ -118,6 +118,8 @@ export default function MarcomPage() {
   const spendMap = useMemo(() => Object.fromEntries((data?.spend || []).map(s => [s.kunci, Number(s.spend) || 0])), [data]);
   const totSpend = useMemo(() => Object.values(spendMap).reduce((x, y) => x + y, 0), [spendMap]);
   const totFunnel = useMemo(() => (data?.bySumber || []).reduce((t, r) => ({ l0: t.l0 + r.l0, l1: t.l1 + r.l1, l2: t.l2 + r.l2, l3: t.l3 + r.l3, nilai: t.nilai + Number(r.nilai || 0) }), { l0: 0, l1: 0, l2: 0, l3: 0, nilai: 0 }), [data]);
+  // Funnel lead yang punya campaign (berbayar/terukur) — dasar CPL/CPQL/biaya per Booking yang jujur
+  const paidFunnel = useMemo(() => (data?.byCampaign || []).filter(r => r.kunci !== '(tanpa data)').reduce((t, r) => ({ l0: t.l0 + r.l0, l2: t.l2 + r.l2, l3: t.l3 + r.l3 }), { l0: 0, l2: 0, l3: 0 }), [data]);
   const polaFormat = useMemo(() => {
     const g = {};
     (data?.contents || []).forEach(x => {
@@ -168,7 +170,7 @@ export default function MarcomPage() {
       R.ringkas.push(`${F.l0} lead masuk, ${F.l2} berkualitas (${pc(F.l2 / F.l0)}), ${F.l3} Booking${F.nilai ? ' senilai ' + rp(F.nilai) : ''}.`);
       if (F.l1 >= 0) R.ringkas.push(`${pc(F.l1 / F.l0)} lead sudah tersentuh follow up.`);
     }
-    if (totSpend > 0) R.ringkas.push(`Belanja iklan ${rp(totSpend)} — CPL ${per(totSpend, F.l0)}, CPQL ${per(totSpend, F.l2)}, biaya per Booking ${per(totSpend, F.l3)}.`);
+    if (totSpend > 0) R.ringkas.push(`Belanja iklan ${rp(totSpend)} untuk ${paidFunnel.l0} lead ber-campaign — CPL ${per(totSpend, paidFunnel.l0)}, CPQL ${per(totSpend, paidFunnel.l2)}, biaya per Booking ${per(totSpend, paidFunnel.l3)}.` + (paidFunnel.l3 === 0 && F.l3 > 0 ? ' Booking periode ini belum berasal dari lead ber-campaign.' : ''));
     const sumber = (data.bySumber || []).filter(r => r.kunci !== '(tanpa data)' && r.l0 > 0);
     const topVol = [...sumber].sort((a, b) => b.l0 - a.l0)[0];
     const topKual = [...sumber].filter(r => r.l0 >= 3).sort((a, b) => (b.l2 / b.l0) - (a.l2 / a.l0))[0];
@@ -208,6 +210,11 @@ export default function MarcomPage() {
     const kosongDom = audDomisili.find(d => d.nama === '(kosong)');
     if (kosongDom && kosongDom.l2 >= 2) R.perbaiki.push(`${kosongDom.l2} lead berkualitas tanpa domisili — isi domisili saat input agar targeting wilayah akurat.`);
     if (webOk && ga4.length && ga4.reduce((a, r) => a + Number(r.key_events || 0), 0) === 0) R.perbaiki.push('Key event website (klik WA) masih 0 — pastikan event click sudah ditandai sebagai key event di GA4, dan cek ulang dalam beberapa hari.');
+    if (webOk && ga4.length) {
+      const sesTot = ga4.reduce((a, r) => a + Number(r.sessions || 0), 0);
+      const pangle = ga4.filter(r => /pangle/i.test(r.source_medium)).reduce((a, r) => a + Number(r.sessions || 0), 0);
+      if (sesTot && pangle / sesTot >= 0.1) R.perbaiki.push(`${pc(pangle / sesTot)} sesi website (${pangle.toLocaleString('id-ID')}) datang dari Pangle — jaringan iklan pihak ketiga TikTok yang banyak menghasilkan klik tidak sengaja dari aplikasi game/utilitas. Matikan penempatan Pangle di TikTok Ads Manager, dan jangan anggap trafik ini sebagai minat nyata.`);
+    }
     if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
     tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
 
@@ -241,7 +248,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, totSpend, spendMap, polaFormat, polaJam, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -257,7 +264,7 @@ export default function MarcomPage() {
   return (
     <>
       <div className="page-head"><div><h1>Analisa Marcom</h1>
-        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (Warm/Hot/Site Visit+) · L3 Booking</div></div>
+        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (pernah Warm/Hot/Site Visit+, atau Walk In) · L3 Booking</div></div>
         <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
@@ -283,7 +290,7 @@ export default function MarcomPage() {
           <div className="kpi"><div className="kpi-label">Lead Masuk (L0)</div><div className="kpi-val" style={{ color: 'var(--green)' }}>{totFunnel.l0}</div></div>
           <div className="kpi"><div className="kpi-label">Lead Berkualitas (L2)</div><div className="kpi-val" style={{ color: 'var(--brass)' }}>{totFunnel.l2}</div></div>
           <div className="kpi"><div className="kpi-label">Booking (L3) · Nilai</div><div className="kpi-val" style={{ fontSize: 17 }}>{totFunnel.l3} · {fmtRp(totFunnel.nilai)}</div></div>
-          <div className="kpi"><div className="kpi-label">CPL / CPQL / per Booking</div><div className="kpi-val" style={{ fontSize: 14 }}>{per(totSpend, totFunnel.l0)} / {per(totSpend, totFunnel.l2)} / {per(totSpend, totFunnel.l3)}</div></div>
+          <div className="kpi"><div className="kpi-label">CPL / CPQL / per Booking <span style={{ fontWeight: 400 }}>(lead ber-campaign)</span></div><div className="kpi-val" style={{ fontSize: 14 }}>{per(totSpend, paidFunnel.l0)} / {per(totSpend, paidFunnel.l2)} / {per(totSpend, paidFunnel.l3)}</div></div>
         </div>
 
         {resume && (
