@@ -10,7 +10,8 @@ const K0 = { tgl: todayISO(), platform: 'Instagram', project: '', format: 'Reels
 const BULAN_ID = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agt', 'sep', 'okt', 'nov', 'des'];
 const ymdLokal = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const NAMA_BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-const pilihanBulan = (() => { const out = []; const d = new Date(); d.setDate(1); for (let i = 0; i < 13; i++) { out.push({ v: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), t: NAMA_BLN[d.getMonth()] + ' ' + d.getFullYear() }); d.setMonth(d.getMonth() - 1); } return out; })();
+const ANALISA_MULAI = '2026-09';
+const pilihanBulan = (() => { const out = []; const d = new Date(); d.setDate(1); for (let i = 0; i < 24; i++) { const v = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); if (v < ANALISA_MULAI) break; out.push({ v, t: NAMA_BLN[d.getMonth()] + ' ' + d.getFullYear() }); d.setMonth(d.getMonth() - 1); } return out; })();
 const bulanOpts = (() => { const out = []; const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 12); for (let i = 0; i < 25; i++) { out.push(BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2)); d.setMonth(d.getMonth() + 1); } return out; })();
 const bulanIni = (() => { const d = new Date(); return BULAN_ID[d.getMonth()] + String(d.getFullYear()).slice(2); })();
 const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
@@ -35,7 +36,7 @@ export default function MarcomPage() {
   const [busy, setBusy] = useState(false);
   const [fProj, setFProj] = useState('');
   const [periode, setPeriode] = useState('bulan'); // bulan | perbulan | semua | custom
-  const [bln, setBln] = useState(pilihanBulan[1].v);
+  const [bln, setBln] = useState((pilihanBulan[1] || pilihanBulan[0]).v);
   const [d1, setD1] = useState(''); const [d2, setD2] = useState('');
   const [k, setK] = useState(K0); const [kEdit, setKEdit] = useState(null);
   const [c, setC] = useState(C0); const [cEdit, setCEdit] = useState(null);
@@ -178,7 +179,7 @@ export default function MarcomPage() {
     if (totSpend > 0) R.ringkas.push(`Belanja iklan ${rp(totSpend)} untuk ${paidFunnel.l0} lead ber-campaign — CPL ${per(totSpend, paidFunnel.l0)}, CPQL ${per(totSpend, paidFunnel.l2)}, biaya per Booking ${per(totSpend, paidFunnel.l3)}.` + (paidFunnel.l3 === 0 && F.l3 > 0 ? ' Booking periode ini belum berasal dari lead ber-campaign.' : ''));
     const sumber = (data.bySumber || []).filter(r => r.kunci !== '(tanpa data)' && r.l0 > 0);
     const topVol = [...sumber].sort((a, b) => b.l0 - a.l0)[0];
-    const topKual = [...sumber].filter(r => r.l0 >= 3).sort((a, b) => (b.l2 / b.l0) - (a.l2 / a.l0))[0];
+    const topKual = [...sumber].filter(r => r.l0 >= 3 && !/walk/i.test(r.kunci)).sort((a, b) => (b.l2 / b.l0) - (a.l2 / a.l0))[0]; // Walk In otomatis berkualitas — tidak dibandingkan
     if (topVol) R.ringkas.push(`Sumber lead terbanyak: ${topVol.kunci} (${topVol.l0} lead).` + (topKual && topKual.kunci !== topVol.kunci ? ` Kualitas terbaik: ${topKual.kunci} (${pc(topKual.l2 / topKual.l0)} jadi berkualitas).` : ''));
     if ((data.contents || []).length) {
       const fBest = polaFormat.find(r => r.er !== null);
@@ -223,7 +224,7 @@ export default function MarcomPage() {
     if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
     tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
 
-    // ---------- SARAN STRATEGI BULAN DEPAN ----------
+    // ---------- SARAN STRATEGI ----------
     const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
       .map(r => ({ ...r, cpql: spendMap[r.kunci] / r.l2 })).sort((a, b) => a.cpql - b.cpql);
     if (efektif.length >= 2) {
@@ -257,9 +258,9 @@ export default function MarcomPage() {
 
   async function salinResume() {
     if (!resume) return;
-    const label = (fProj || 'Semua Project') + ' · ' + (periode === 'bulan' ? 'Bulan Ini' : periode === 'perbulan' ? (pilihanBulan.find(o => o.v === bln) || {}).t : periode === 'semua' ? 'Semua Periode' : (rentang[0] + ' s.d. ' + rentang[1]));
+    const label = (fProj || 'Semua Project') + ' · ' + (periode === 'bulan' ? 'Bulan Ini' : periode === 'perbulan' ? (pilihanBulan.find(o => o.v === bln) || {}).t : periode === 'semua' ? 'Sejak Sep 2026' : (rentang[0] + ' s.d. ' + rentang[1]));
     const blok = (judul, arr) => judul + '\n' + arr.map(x => '• ' + x).join('\n');
-    const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('YANG HARUS DIPERBAIKI', resume.perbaiki.length ? resume.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI BULAN DEPAN', resume.saran);
+    const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('YANG HARUS DIPERBAIKI', resume.perbaiki.length ? resume.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI', resume.saran);
     try { await navigator.clipboard.writeText(teks); toast('Resume tersalin 📋'); } catch { window.prompt('Salin manual:', teks); }
   }
 
@@ -269,7 +270,7 @@ export default function MarcomPage() {
   return (
     <>
       <div className="page-head"><div><h1>Analisa Marcom</h1>
-        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (pernah Warm/Hot/Site Visit+, atau Walk In) · L3 Booking</div></div>
+        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (pernah Warm/Hot/Site Visit+, atau Walk In) · data analisa mulai 1 Sep 2026 · L3 Booking</div></div>
         <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
@@ -282,7 +283,7 @@ export default function MarcomPage() {
         {(set.project || []).map(p => <button key={p} className={'sort-btn' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
       </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
-        {[['bulan', 'Bulan Ini'], ['perbulan', 'Per Bulan'], ['semua', 'Semua Periode'], ['custom', 'Pilih Tanggal']].map(([v, t]) => (
+        {[['bulan', 'Bulan Ini'], ['perbulan', 'Per Bulan'], ['semua', 'Sejak Sep 2026'], ['custom', 'Pilih Tanggal']].map(([v, t]) => (
           <button key={v} className={'sort-btn' + (periode === v ? ' active' : '')} onClick={() => setPeriode(v)}>{t}</button>))}
         {periode === 'perbulan' && (
           <select className="sort-filter" style={{ marginLeft: 0 }} value={bln} onChange={e => setBln(e.target.value)}>
@@ -313,7 +314,7 @@ export default function MarcomPage() {
               <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.ringkas.map((x, i) => <li key={i}>{x}</li>)}</ul>
               <b style={{ color: 'var(--red)' }}>Yang Harus Diperbaiki</b>
               <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.perbaiki.length ? resume.perbaiki.map((x, i) => <li key={i}>{x}</li>) : <li>Tidak ada temuan kritis — pertahankan disiplin input.</li>}</ul>
-              <b style={{ color: 'var(--brass)' }}>Saran Strategi Bulan Depan</b>
+              <b style={{ color: 'var(--brass)' }}>Saran Strategi</b>
               <ul style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.55 }}>{resume.saran.map((x, i) => <li key={i}>{x}</li>)}</ul>
             </div>
           </div>

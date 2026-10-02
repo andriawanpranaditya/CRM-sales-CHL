@@ -62,7 +62,10 @@ export async function GET(req) {
   }
 
   // Periode analisa (opsional) — membatasi leads, iklan, dan konten berdasarkan tanggal
-  const d1 = url.searchParams.get('d1') || null;
+  // Titik mulai analisa (baseline): data sebelum tanggal ini tidak dibaca — bisa diubah lewat env MI_ANALISA_MULAI
+  const MULAI = process.env.MI_ANALISA_MULAI || '2026-09-01';
+  const d1in = url.searchParams.get('d1') || null;
+  const d1 = (!d1in || d1in < MULAI) ? MULAI : d1in;
   const d2 = url.searchParams.get('d2') || null;
   const proj = url.searchParams.get('project') || null;
 
@@ -204,7 +207,7 @@ export async function GET(req) {
     }
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
-  return Response.json({ campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
