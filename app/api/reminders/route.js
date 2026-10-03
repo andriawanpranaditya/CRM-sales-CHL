@@ -61,5 +61,33 @@ export async function GET() {
       .map(([k, v]) => ({ project: k.split('|')[0], unit: k.split('|')[1], warna: v }));
   }
 
-  return Response.json({ today, hariIni, terlambat, stok, total: rows.length + stok.length });
+  // Lead masuk tapi belum tercatat: bandingkan angka platform (Meta: percakapan WA dari iklan; GA4: klik WA website)
+  // dengan lead yang diinput ke CRM pada hari yang sama. Hanya untuk marcom & manager/admin.
+  let celah = [];
+  if (user.role !== 'sales') {
+    try {
+      const hari = await sql`SELECT d::date AS tgl FROM generate_series(${today}::date - 3, ${today}::date - 1, interval '1 day') d`;
+      const meta = await sql`SELECT tgl, sum(COALESCE(hasil, 0))::int AS n FROM mi_ads
+        WHERE sumber = 'meta-api' AND tgl BETWEEN ${today}::date - 3 AND ${today}::date - 1 GROUP BY tgl`;
+      let ga = [];
+      try { ga = await sql`SELECT tgl, sum(key_events)::int AS n FROM mi_ga4_daily
+        WHERE tgl BETWEEN ${today}::date - 3 AND ${today}::date - 1 GROUP BY tgl`; } catch {}
+      const crm = await sql`SELECT tgl,
+          count(*) FILTER (WHERE sumber ~* '(facebook|instagram|whatsapp|meta)')::int AS meta,
+          count(*) FILTER (WHERE sumber ~* 'website')::int AS web
+        FROM leads WHERE tgl BETWEEN ${today}::date - 3 AND ${today}::date - 1 GROUP BY tgl`;
+      const k = d => new Date(d).toISOString().slice(0, 10);
+      const mM = Object.fromEntries(meta.map(r => [k(r.tgl), r.n]));
+      const mG = Object.fromEntries(ga.map(r => [k(r.tgl), r.n]));
+      const mC = Object.fromEntries(crm.map(r => [k(r.tgl), r]));
+      for (const h of hari) {
+        const t = k(h.tgl), c = mC[t] || { meta: 0, web: 0 };
+        if ((mM[t] || 0) - c.meta >= 2) celah.push({ tgl: t, sumber: 'Iklan Meta (chat WA)', platform: mM[t], crm: c.meta });
+        if ((mG[t] || 0) - c.web >= 3) celah.push({ tgl: t, sumber: 'Website (klik WA)', platform: mG[t], crm: c.web });
+      }
+      celah.sort((a, b) => b.tgl.localeCompare(a.tgl));
+    } catch (e) { console.error('celah lead', e); }
+  }
+
+  return Response.json({ today, hariIni, terlambat, stok, celah, total: rows.length + stok.length + celah.length });
 }

@@ -287,6 +287,16 @@ export default function MarcomPage() {
       R.perbaiki.push(`Hanya ${pc(hoBalas / hoDioper)} lead yang masih membalas setelah dioper ke sales${terendah ? ` (terendah: ${terendah.sales} ${terendah.membalas}/${terendah.dioper})` : ''} — pastikan marcom mengisi konteks & mengirim pesan "Kabari Lead", dan sales menyapa < 1 jam memakai template lanjutan, bukan sapaan umum.`);
     }
 
+    // Lead masuk tapi belum tercatat (periode): angka platform vs lead CRM
+    {
+      const metaChat = Object.entries(data.hasilPlat || {}).filter(([k]) => infoCamp(k).sumber === 'meta-api').reduce((a, [, v]) => a + (Number(v) || 0), 0);
+      const leadMeta = (data.bySumber || []).filter(r => /facebook|instagram|whatsapp|meta/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
+      if (metaChat - leadMeta >= 5 && leadMeta < metaChat * 0.7) R.perbaiki.push(`Iklan Meta mencatat ${metaChat} percakapan WA, tapi lead Facebook Ads/Instagram/WhatsApp yang tercatat di CRM hanya ${leadMeta} — sekitar ${metaChat - leadMeta} chat kemungkinan belum dibalas atau belum diinput. Cek WA tim marcom & sales, input semua lead yang masuk.`);
+      const klikWA = webOk ? (data.ga4 || []).reduce((a, r) => a + Number(r.key_events || 0), 0) : 0;
+      const leadWeb = (data.bySumber || []).filter(r => /website/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
+      if (klikWA >= 5 && leadWeb < klikWA * 0.3) R.perbaiki.push(`Website mencatat ${klikWA} klik WA, tapi lead bersumber Website di CRM hanya ${leadWeb}. Sebagian klik bisa berulang dari orang yang sama, tapi selisih sebesar ini menandakan ada chat dari website yang belum diinput.`);
+    }
+
     // ---------- SARAN STRATEGI ----------
     const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
       .map(r => ({ ...r, cpql: spendMap[r.kunci] / r.l2 })).sort((a, b) => a.cpql - b.cpql);

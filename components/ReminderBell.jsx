@@ -36,7 +36,7 @@ export default function ReminderBell({ user }) {
         const key = 'crm_notif_' + d.today;
         if (!localStorage.getItem(key)) {
           new Notification('CRM Sales CHL — Pengingat', {
-            body: `📅 ${d.hariIni.length} FU hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : '') + ((d.stok || []).length ? ` · 🗺 ${d.stok.length} unit perlu ditandai di Master Stock` : ''),
+            body: `📅 ${d.hariIni.length} FU hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : '') + ((d.stok || []).length ? ` · 🗺 ${d.stok.length} unit perlu ditandai di Master Stock` : '') + ((d.celah || []).length ? ` · 📩 ada lead masuk yang belum tercatat` : ''),
             icon: '/icon-192.png', badge: '/icon-192.png',
           });
           try { localStorage.setItem(key, '1'); } catch {}
@@ -117,6 +117,16 @@ export default function ReminderBell({ user }) {
             <div className="bell-list">
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
+              {(data.celah || []).length > 0 && <>
+                <div className="bell-sub">📩 Lead masuk belum tercatat ({data.celah.length})</div>
+                {data.celah.map(c => (
+                  <a key={c.tgl + c.sumber} href="/form" className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                    <span><b>{fmtDate(c.tgl)} · {c.sumber}</b><br />
+                      <span className="hint">Platform mencatat <b>{c.platform}</b>{c.sumber.startsWith('Website') ? ' klik WA' : ' percakapan WA'}, baru <b>{c.crm}</b> lead tercatat di CRM — cek chat WA, input lead yang belum masuk.</span></span>
+                    <span className="badge b-overdue">+{c.platform - c.crm}</span>
+                  </a>
+                ))}
+              </>}
               {(data.stok || []).length > 0 && <>
                 <div className="bell-sub">🗺 Penjualan baru — tandai di Master Stock ({data.stok.length})</div>
                 {data.stok.map(u => (
