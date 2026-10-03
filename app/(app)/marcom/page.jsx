@@ -217,7 +217,9 @@ export default function MarcomPage() {
     if (webOk && ga4.length) {
       const ses = ga4.reduce((a, r) => a + Number(r.sessions || 0), 0);
       const kev = ga4.reduce((a, r) => a + Number(r.key_events || 0), 0);
-      R.ringkas.push(`Website: ${ses.toLocaleString('id-ID')} sesi, terbanyak dari ${ga4[0].source_medium}; ${kev} key event (klik WA).`);
+      const sesPangle = ga4.filter(r => /pangle/i.test(r.source_medium)).reduce((a, r) => a + Number(r.sessions || 0), 0);
+      const topAsli = ga4.find(r => !/pangle/i.test(r.source_medium));
+      R.ringkas.push(`Website: ${(ses - sesPangle).toLocaleString('id-ID')} sesi pengunjung sungguhan${sesPangle ? ` (di luar ${sesPangle.toLocaleString('id-ID')} sesi Pangle yang tidak dihitung sebagai minat)` : ''}, terbanyak dari ${topAsli ? topAsli.source_medium : '-'}; ${kev} key event (klik WA).`);
     }
     if (audDomisili.length && audDomisili[0].nama !== '(kosong)') R.ringkas.push(`Domisili lead berkualitas terbanyak: ${audDomisili.slice(0, 3).filter(d => d.nama !== '(kosong)').map(d => d.nama + ' (' + d.l2 + ')').join(', ')}.`);
     if (sedikit && F.l0 > 0) R.ringkas.push('⚠ Data masih sedikit (< 20 lead) — anggap kesimpulan di bawah sebagai sinyal awal, belum pola tetap.');
@@ -234,30 +236,47 @@ export default function MarcomPage() {
     const nIklanTanpa = iklanTanpa.reduce((a, r) => a + r.n, 0);
     if (nIklanTanpa > 0) R.perbaiki.push(`${nIklanTanpa} lead dari iklan berbayar (${iklanTanpa.map(r => r.sumber + ' ' + r.n).join(', ')}) belum punya campaign — biaya iklannya tidak tersambung ke hasil. Tandai lewat Tandai Lead Massal di tab Iklan (daftarkan campaign-nya dulu bila belum ada).`);
     void tanpa;
-    camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 === 0 && r.l0 >= 1).forEach(r => R.perbaiki.push(`Campaign ${r.kunci} sudah menghabiskan ${rp(spendMap[r.kunci])} tapi belum menghasilkan satu pun lead berkualitas — evaluasi audiens & kreatifnya, atau hentikan.`));
-    const tujuanOf = k => ((data.campaigns || []).find(c => c.nama === k) || {}).tujuan || 'leads';
+    // Penilaian per campaign hanya bila datanya cukup: spend >= Rp500 rb di periode ini ATAU periode sudah >= 14 hari.
+    // Campaign yang sudah Selesai tidak masuk "perbaiki" (biayanya tetap dihitung).
+    const hariPeriode = (() => { const a1 = rentang[0] ? new Date(rentang[0]) : null; const a2 = rentang[1] ? new Date(rentang[1]) : new Date(); return a1 ? Math.max(1, Math.round((a2 - a1) / 86400000) + 1) : 999; })();
+    const infoCamp = k => (data.campaigns || []).find(c => c.nama === k) || {};
+    const layakNilai = k => infoCamp(k).status !== 'Selesai' && ((spendMap[k] || 0) >= 500000 || hariPeriode >= 14);
+    let ditahan = 0;
+    camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 === 0 && r.l0 >= 1).forEach(r => {
+      if (!layakNilai(r.kunci)) { ditahan++; return; }
+      R.perbaiki.push(`Campaign ${r.kunci} sudah menghabiskan ${rp(spendMap[r.kunci])} tapi belum menghasilkan satu pun lead berkualitas — evaluasi audiens & kreatifnya, atau hentikan.`);
+    });
+    const tujuanOf = k => infoCamp(k).tujuan || 'leads';
     const hp = data.hasilPlat || {};
     const tanpaLead = Object.entries(spendMap).filter(([k, v]) => v > 0 && k !== '(tanpa data)' && !camp.find(r => r.kunci === k));
     const atas = tanpaLead.filter(([k]) => ['traffic', 'awareness', 'engagement'].includes(tujuanOf(k)) && !(hp[k] > 0));
-    tanpaLead.filter(([k]) => !atas.find(([a]) => a === k)).forEach(([k, v]) => R.perbaiki.push(hp[k] > 0
-      ? `Campaign ${k} (${rp(v)}): platform mencatat ${hp[k]} percakapan/lead, tapi belum ada satu pun lead CRM yang ditandai ke campaign ini — tandai lewat Tandai Lead Massal, dan pasang kode campaign di pesan WA otomatis iklannya agar sales tahu asalnya.`
-      : `Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM dari tombol 🔗 Link.`));
+    tanpaLead.filter(([k]) => !atas.find(([a]) => a === k)).forEach(([k, v]) => {
+      if (!layakNilai(k)) { ditahan++; return; }
+      R.perbaiki.push(hp[k] > 0
+        ? `Campaign ${k} (${rp(v)}): platform mencatat ${hp[k]} percakapan/lead, tapi belum ada satu pun lead CRM yang ditandai ke campaign ini — untuk iklan baru, pakai kode iklan WA dari tombol 🔗 Link agar lead bisa ditandai otomatis.`
+        : `Campaign ${k} berbelanja ${rp(v)} tapi tidak ada satu pun lead yang tercatat dengannya — cek apakah link iklannya sudah pakai UTM atau kode iklan WA dari tombol 🔗 Link.`);
+    });
     if (atas.length) R.ringkas.push(`${atas.length} campaign funnel atas (traffic/awareness/engagement) menghabiskan ${rp(atas.reduce((a, [, v]) => a + v, 0))} — tugasnya mendatangkan kunjungan & jangkauan, jadi dinilai dari klik/biaya per klik, bukan jumlah lead.`);
-    (data.campaigns || []).filter(c => c.status === 'Aktif' && !(spendMap[c.nama] > 0)).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
+    if (ditahan) R.ringkas.push(`Penilaian ${ditahan} campaign ditahan dulu — periode baru berjalan ${hariPeriode} hari dan spend-nya masih kecil. Penilaian muncul setelah periode ≥ 14 hari atau spend campaign ≥ Rp500 rb (atau campaign sudah selesai: biayanya tetap dihitung, tanpa peringatan).`);
+    // Campaign aktif tanpa spend: hanya untuk campaign yang spend-nya dicatat manual (Meta ditarik otomatis)
+    (data.campaigns || []).filter(c => c.status === 'Aktif' && c.sumber !== 'meta-api' && !(spendMap[c.nama] > 0) && hariPeriode >= 7).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
     sumber.filter(r => r.l0 >= 5 && r.l2 / r.l0 < 0.1).forEach(r => R.perbaiki.push(`Sumber ${r.kunci}: ${r.l0} lead tapi hanya ${r.l2} berkualitas (${pc(r.l2 / r.l0)}) — volume tinggi, kualitas rendah. Perketat targeting/kualifikasi di sumber ini.`));
     if (F.l0 >= 5 && F.l1 / F.l0 < 0.7) R.perbaiki.push(`Hanya ${pc(F.l1 / F.l0)} lead yang sudah di-follow up — ${F.l0 - F.l1} lead belum disentuh sama sekali. Lead yang dibiarkan cepat dingin; koordinasikan kecepatan respon dengan tim sales.`);
     if (F.l2 >= 3 && F.l3 === 0) R.perbaiki.push(`${F.l2} lead berkualitas belum ada yang Booking — dorong site visit & penawaran khusus bersama sales.`);
     const kontenTanpaAngka = (data.contents || []).filter(x => !Number(x.reach)).length;
     if (kontenTanpaAngka) R.perbaiki.push(`${kontenTanpaAngka} konten belum di-update angka performanya — pola konten yang menang belum bisa dibaca utuh. Update mingguan di tab Konten.`);
     const kontenTanpaAtribut = (data.contents || []).filter(x => !x.topik || !x.jam).length;
-    if (kontenTanpaAtribut) R.perbaiki.push(`${kontenTanpaAtribut} konten tanpa topik/jam tayang — atribut ini bahan analisa "algoritma", lengkapi lewat Edit.`);
+    if (kontenTanpaAtribut) R.perbaiki.push(`${kontenTanpaAtribut} konten tanpa topik/jam tayang — atribut ini bahan analisa "algoritma", lengkapi lewat tombol Lengkapi di tab Konten.`);
     const kosongDom = audDomisili.find(d => d.nama === '(kosong)');
     if (kosongDom && kosongDom.l2 >= 2) R.perbaiki.push(`${kosongDom.l2} lead berkualitas tanpa domisili — isi domisili saat input agar targeting wilayah akurat.`);
     if (webOk && ga4.length && ga4.reduce((a, r) => a + Number(r.key_events || 0), 0) === 0) R.perbaiki.push('Key event website (klik WA) masih 0 — pastikan event click sudah ditandai sebagai key event di GA4, dan cek ulang dalam beberapa hari.');
     if (webOk && ga4.length) {
       const sesTot = ga4.reduce((a, r) => a + Number(r.sessions || 0), 0);
       const pangle = ga4.filter(r => /pangle/i.test(r.source_medium)).reduce((a, r) => a + Number(r.sessions || 0), 0);
-      if (sesTot && pangle / sesTot >= 0.1) R.perbaiki.push(`${pc(pangle / sesTot)} sesi website (${pangle.toLocaleString('id-ID')}) datang dari Pangle — jaringan iklan pihak ketiga TikTok yang banyak menghasilkan klik tidak sengaja dari aplikasi game/utilitas. Matikan penempatan Pangle di TikTok Ads Manager, dan jangan anggap trafik ini sebagai minat nyata.`);
+      if ((data.pangle7 || 0) > 0) R.perbaiki.push(`Trafik Pangle masih masuk dalam 7 hari terakhir (${data.pangle7} sesi) — ada iklan TikTok yang tayang di jaringan aplikasi pihak ketiga. Matikan penempatan Pangle di TikTok Ads Manager (Ad group › Placements › Select placement › hanya TikTok).`);
+      else if (sesTot && pangle / sesTot >= 0.1) R.ringkas.push(`Catatan: ${pc(pangle / sesTot)} sesi website periode ini (${pangle.toLocaleString('id-ID')}) berasal dari Pangle — iklan TikTok yang sudah berhenti. Trafik ini tidak dihitung sebagai minat; saat iklan TikTok dijalankan lagi, pakai Select placement tanpa Pangle.`);
+      const adaSpendTiktok = Object.entries(spendMap).some(([k, v]) => v > 0 && /tiktok/i.test(String(((data.campaigns || []).find(c => c.nama === k) || {}).platform || '')));
+      if (pangle > 0 && !adaSpendTiktok) R.perbaiki.push(`Ada ${pangle.toLocaleString('id-ID')} sesi dari iklan TikTok (via Pangle) di periode ini, tapi belum ada spend TikTok yang tercatat — biaya iklan TikTok belum masuk analisa. Daftarkan campaign platform Tiktok dan catat spend-nya dari TikTok Ads Manager › Reporting.`);
     }
     if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
     // Bila Instagram sudah ditarik otomatis, konten tidak lagi dicatat manual per orang — aturan ini hanya berlaku saat input manual
@@ -299,7 +318,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -753,7 +772,7 @@ export default function MarcomPage() {
             <div className="tbl-wrap tbl-compact"><table>
               <thead><tr><th>Source / Medium</th><th className="num">Sessions</th><th className="num">Users</th><th className="num">Key Events</th></tr></thead>
               <tbody>{(data.ga4 || []).length ? (data.ga4 || []).map(r => (
-                <tr key={r.source_medium}><td data-label="Sumber"><b>{r.source_medium}</b></td>
+                <tr key={r.source_medium} style={/pangle/i.test(r.source_medium) ? { opacity: .6 } : undefined}><td data-label="Sumber"><b>{r.source_medium}</b>{/pangle/i.test(r.source_medium) ? <div className="hint" style={{ color: 'var(--red)' }}>⚠ iklan TikTok di aplikasi pihak ketiga — tidak dihitung sebagai minat</div> : null}</td>
                   <td className="num" data-label="Sessions">{Number(r.sessions).toLocaleString('id-ID')}</td>
                   <td className="num" data-label="Users">{Number(r.users).toLocaleString('id-ID')}</td>
                   <td className="num" data-label="Key Events"><b>{r.key_events}</b></td></tr>))
