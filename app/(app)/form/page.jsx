@@ -479,7 +479,15 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
           <div className="field"><label>WhatsApp</label><input {...fl('wa')} placeholder="08xxxxxxxxxx" /></div>
           <div className="field"><label>Email</label><input type="email" {...fl('email')} /></div>
-          {!isMarkom && <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>}
+          <div className="field"><label>Domisili <span className="hint">(pilih dari saran atau ketik area baru)</span></label>
+            {(() => {
+              const saran = [...new Set([...(set.domisili || []), ...leads.map(x => String(x.domisili || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+              return (<>
+                <input list="dl-domisili" {...fl('domisili')} placeholder="mis. Gading Serpong"
+                  onBlur={e => { const v = e.target.value.trim(); const c = saran.find(x => x.toLowerCase() === v.toLowerCase()); setLead(cur => ({ ...cur, domisili: c || v })); }} />
+                <datalist id="dl-domisili">{saran.map(x => <option key={x} value={x} />)}</datalist>
+              </>);
+            })()}</div>
           {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
           <div className="field"><label>Kode Iklan <span className="hint">(bila ada di chat pertama, mis. BD14-2)</span></label>

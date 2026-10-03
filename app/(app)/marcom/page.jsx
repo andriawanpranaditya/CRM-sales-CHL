@@ -147,6 +147,16 @@ export default function MarcomPage() {
     });
     return Object.entries(g).map(([f, v]) => ({ format: f, n: v.n, reach: v.reach, er: v.reach ? v.eng / v.reach : null, klik: v.klik })).sort((x, y) => (y.er || 0) - (x.er || 0));
   }, [data]);
+  const polaTopik = useMemo(() => {
+    const g = {};
+    (data?.contents || []).forEach(x => {
+      const key = String(x.topik || '').trim(); if (!key) return;
+      g[key] = g[key] || { n: 0, reach: 0, eng: 0, klik: 0 };
+      g[key].n++; g[key].reach += Number(x.reach) || 0; g[key].klik += Number(x.klik_bio) || 0;
+      g[key].eng += (Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0);
+    });
+    return Object.entries(g).map(([t, v]) => ({ topik: t, n: v.n, reach: v.reach, er: v.reach ? v.eng / v.reach : null, klik: v.klik })).sort((a, b) => (b.er || 0) - (a.er || 0));
+  }, [data]);
   const polaJam = useMemo(() => {
     const g = {};
     (data?.contents || []).forEach(x => {
@@ -270,7 +280,8 @@ export default function MarcomPage() {
     if (topKual) R.saran.push(`Perbesar kanal ${topKual.kunci} — rasio lead berkualitasnya paling tinggi (${pc(topKual.l2 / topKual.l0)}).`);
     const fBest = polaFormat.find(r => r.er !== null && r.n >= 2) || polaFormat.find(r => r.er !== null);
     const jBest = polaJam.find(j => j.er !== null);
-    if (fBest) R.saran.push(`Produksi konten: perbanyak format ${fBest.format}${jBest ? `, tayangkan di slot ${jBest.jam}` : ''} — kombinasi dengan engagement terbaik sejauh ini.`);
+    const tBest = polaTopik.find(r => r.er !== null && r.n >= 2) || polaTopik.find(r => r.er !== null);
+    if (fBest) R.saran.push(`Produksi konten: perbanyak format ${fBest.format}${tBest ? ` bertopik "${tBest.topik}" (ER ${pct(tBest.er)})` : ''}${jBest ? `, tayangkan di slot ${jBest.jam}` : ''} — kombinasi dengan engagement terbaik sejauh ini.`);
     const kBest = (data.byKonten || []).filter(r => r.l2 > 0).sort((a, b) => b.l2 - a.l2)[0];
     if (kBest) R.saran.push(`Kreatif ${kBest.kunci} menghasilkan ${kBest.l2} lead berkualitas — buat 2–3 variasi turunannya (hook/visual berbeda, pesan sama).`);
     const domTop = audDomisili.filter(d => d.nama !== '(kosong)').slice(0, 3);
@@ -288,7 +299,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, audDomisili, audTujuan, tim, fProj]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -408,6 +419,14 @@ export default function MarcomPage() {
                   <td className="num" data-label="ER"><b>{pct(r.er)}</b></td><td className="num" data-label="Klik">{r.klik}</td></tr>))}</tbody>
             </table></div>
             {polaJam.length > 0 && <div className="hint" style={{ marginTop: 8 }}>Jam tayang terbaik (ER): {polaJam.map(j => `${j.jam} ${pct(j.er)}`).join(' · ')}</div>}
+            {polaTopik.length > 0 && (
+              <div className="tbl-wrap tbl-compact" style={{ marginTop: 10 }}><table>
+                <thead><tr><th>Topik</th><th className="num">Jml</th><th className="num">Total Reach</th><th className="num">ER</th><th className="num">Klik Bio</th></tr></thead>
+                <tbody>{polaTopik.map(r => (
+                  <tr key={r.topik}><td data-label="Topik">{r.topik}</td><td className="num" data-label="Jml">{r.n}</td>
+                    <td className="num" data-label="Reach">{r.reach.toLocaleString('id-ID')}</td>
+                    <td className="num" data-label="ER"><b>{pct(r.er)}</b></td><td className="num" data-label="Klik">{r.klik}</td></tr>))}</tbody>
+              </table></div>)}
           </div>
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Audiens yang Tepat (dari lead L2 & Booking)</h3>
@@ -439,7 +458,15 @@ export default function MarcomPage() {
             {!igEdit && <div className="field"><label>Platform <span className="req">*</span></label><select {...fk('platform')}>{PLATFORM.map(p => <option key={p}>{p}</option>)}</select></div>}
             <div className="field"><label>Project</label><select {...fk('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
             {!igEdit && <div className="field"><label>Format <span className="req">*</span></label><select {...fk('format')}>{FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>}
-            <div className="field"><label>Topik</label><input {...fk('topik')} placeholder="contoh: promo DP 0% / progres pembangunan" /></div>
+            <div className="field"><label>Topik <span className="hint">(pilih kategori atau ketik baru)</span></label>
+              {(() => {
+                const saran = [...new Set([...(set.topik || []), ...(data.contents || []).map(x => String(x.topik || '').trim()).filter(Boolean)])];
+                return (<>
+                  <input list="dl-topik" {...fk('topik')} placeholder="mis. Promo & Harga"
+                    onBlur={e => { const v = e.target.value.trim(); const c = saran.find(x => x.toLowerCase() === v.toLowerCase()); setK(cur => ({ ...cur, topik: c || v })); }} />
+                  <datalist id="dl-topik">{saran.map(x => <option key={x} value={x} />)}</datalist>
+                </>);
+              })()}</div>
             <div className="field"><label>Hook (3 detik pertama)</label><input {...fk('hook')} placeholder={k.format && k.format.startsWith('Reels') ? 'adegan — gerakan kamera — audio' : 'teks slide/gambar pertama'} /></div>
             {!igEdit && <div className="field"><label>Jam Tayang</label><input {...fk('jam')} placeholder="contoh: 19:00" /></div>}
             <div className="field"><label>Durasi</label><input {...fk('durasi')} placeholder="contoh: 30 dtk" /></div>

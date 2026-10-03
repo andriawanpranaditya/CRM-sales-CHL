@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
 
-const LABELS = { status: 'Status Pipeline', sumber: 'Sumber Lead', project: 'Project', tipe: 'Tipe / Unit', tujuan: 'Tujuan Pembelian', bayar: 'Cara Pembayaran' };
+const LABELS = { status: 'Status Pipeline', sumber: 'Sumber Lead', project: 'Project', tipe: 'Tipe / Unit', tujuan: 'Tujuan Pembelian', bayar: 'Cara Pembayaran', domisili: 'Domisili (nama area)', topik: 'Topik Konten (Analisa Marcom)' };
 
 export default function SettingsPage() {
   const [vals, setVals] = useState(null);
