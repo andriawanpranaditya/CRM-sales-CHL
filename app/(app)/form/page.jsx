@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
@@ -457,6 +457,9 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           {!isMarkom && <div className="field"><label>Domisili</label><input {...fl('domisili')} /></div>}
           {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
+          <div className="field"><label>Kode Iklan <span className="hint">(bila ada di chat pertama, mis. BD14-2)</span></label>
+            <input {...fl('kode_wa')} placeholder="kosongkan bila tidak ada" style={{ textTransform: 'uppercase' }} />
+            {(() => { const mm = /^([A-Z]{2,3})(\d+)-(\d+)$/.exec(String(lead.kode_wa || '').trim().toUpperCase().replace(/[()\s]/g, '')); const cp = mm && (camps || []).find(c => String(c.id) === mm[2]); return lead.kode_wa ? <span className="hint" style={{ color: mm ? 'var(--green)' : 'var(--red)' }}>{mm ? (cp ? '✓ Campaign: ' + cp.nama : '✓ Format benar — campaign diisi otomatis saat disimpan') : 'Format kode tidak dikenali (contoh: BD14-2)'}</span> : null; })()}</div>
           {bolehCampaign && <div className="field"><label>Campaign <span className="hint">(analisa marcom)</span></label>
             <select {...fl('campaign')}><option value="">— tanpa campaign —</option>
               {camps.map(cp => <option key={cp.id} value={cp.nama}>{cp.nama}</option>)}

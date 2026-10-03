@@ -507,24 +507,58 @@ export default function MarcomPage() {
           </div>
         </div>
 
-        {lk && (() => { const kode = lk.format + '-' + String(lk.no || 1).padStart(2, '0'); const sep = (lk.url || '').includes('?') ? '&' : '?'; const link = (lk.url || '') + sep + 'utm_source=' + lk.source + '&utm_medium=' + lk.medium + '&utm_campaign=' + lk.nama + '&utm_content=' + kode; const salin = async (teks, apa) => { try { await navigator.clipboard.writeText(teks); toast(apa + ' tersalin 📋'); } catch { window.prompt('Salin manual:', teks); } }; return (
+        {lk && (() => {
+          const salin = async (teks, apa) => { try { await navigator.clipboard.writeText(teks); toast(apa + ' tersalin 📋'); } catch { window.prompt('Salin manual:', teks); } };
+          // --- Mode Link Website (UTM) ---
+          const kode = lk.format + '-' + String(lk.no || 1).padStart(2, '0');
+          const sep = (lk.url || '').includes('?') ? '&' : '?';
+          const link = (lk.url || '') + sep + 'utm_source=' + lk.source + '&utm_medium=' + lk.medium + '&utm_campaign=' + lk.nama + '&utm_content=' + kode;
+          // --- Mode Kode WA: inisial project + id campaign + nomor iklan (mis. BD14-2) ---
+          const inisial = (String(lk.project || 'CHL').trim().split(/\s+/).map(w => w[0]).join('').toUpperCase() + 'X').slice(0, 2);
+          const kodeWA = inisial + lk.id + '-' + (parseInt(lk.noWa, 10) || 1);
+          const pesan = (lk.teks || '').trim() + ' (' + kodeWA + ')';
+          const nomor = String(lk.wa || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+          const linkWA = 'https://wa.me/' + nomor + '?text=' + encodeURIComponent(pesan);
+          return (
           <div className="card" style={{ marginBottom: 12, border: '1.5px solid var(--brass)' }}>
-            <h3 style={{ marginTop: 0 }}>🔗 Buat Link — <span style={{ fontFamily: 'monospace' }}>{lk.nama}</span></h3>
-            <div className="form-grid">
-              <div className="field"><label>URL Tujuan (landing page)</label><input value={lk.url} onChange={e => setLk({ ...lk, url: e.target.value })} placeholder="https://…" /></div>
-              <div className="field"><label>Format Kreatif</label><select value={lk.format} onChange={e => setLk({ ...lk, format: e.target.value })}>{KODE_FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>
-              <div className="field"><label>Nomor Kreatif</label><input type="number" min="1" value={lk.no} onChange={e => setLk({ ...lk, no: e.target.value })} /></div>
-              <div className="field"><label>utm_source</label><select value={lk.source} onChange={e => setLk({ ...lk, source: e.target.value })}>{UTM_SRC.map(f => <option key={f}>{f}</option>)}</select></div>
-              <div className="field"><label>utm_medium</label><select value={lk.medium} onChange={e => setLk({ ...lk, medium: e.target.value })}>{UTM_MED.map(f => <option key={f}>{f}</option>)}</select></div>
-              <div className="field"><label>Kode Kreatif (utm_content)</label><input value={kode} readOnly style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>
-              <div className="field" style={{ gridColumn: '1/-1' }}><label>LINK FINAL — pasang di iklan / bio</label><input value={link} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontSize: 12 }} /></div>
+            <h3 style={{ marginTop: 0 }}>🔗 Buat Link & Kode — <span style={{ fontFamily: 'monospace' }}>{lk.nama}</span></h3>
+            <div className="fu-toolbar" style={{ marginBottom: 10 }}>
+              <button className={'sort-btn' + (lk.mode === 'wa' ? ' active' : '')} onClick={() => setLk({ ...lk, mode: 'wa' })}>💬 Kode WA (iklan ke chat WhatsApp)</button>
+              <button className={'sort-btn' + (lk.mode !== 'wa' ? ' active' : '')} onClick={() => setLk({ ...lk, mode: 'web' })}>🌐 Link Website (UTM)</button>
             </div>
-            <div className="form-foot">
-              <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => salin(link, 'Link')}>📋 Salin Link</button>
-              <button className="sort-btn" onClick={() => salin(kode, 'Kode kreatif')}>📋 Salin Kode</button>
-              <button className="sort-btn" onClick={() => setLk(null)}>Tutup</button>
-            </div>
-            <span className="hint">Nama ad di Ads Manager = kode kreatif ({kode}). Nomor naik untuk tiap kreatif baru di campaign yang sama.</span>
+            {lk.mode === 'wa' ? (<>
+              <div className="form-grid">
+                <div className="field"><label>Nomor Iklan di Campaign Ini</label><input type="number" min="1" value={lk.noWa} onChange={e => setLk({ ...lk, noWa: e.target.value })} /></div>
+                <div className="field"><label>Nomor WA Tujuan</label><input value={lk.wa} onChange={e => setLk({ ...lk, wa: e.target.value })} placeholder="6281…" /></div>
+                <div className="field"><label>Kode Iklan</label><input value={kodeWA} readOnly style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>Kalimat Pembuka</label><input value={lk.teks} onChange={e => setLk({ ...lk, teks: e.target.value })} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>PESAN WA OTOMATIS — tempel di Ads Manager › Message template › Prefilled message</label><input value={pesan} readOnly onFocus={e => e.target.select()} style={{ fontWeight: 600 }} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>LINK WA — untuk iklan Traffic ke wa.me, bio, atau tombol</label><input value={linkWA} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontSize: 12 }} /></div>
+              </div>
+              <div className="form-foot">
+                <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => salin(pesan, 'Pesan WA')}>📋 Salin Pesan</button>
+                <button className="sort-btn" onClick={() => salin(linkWA, 'Link WA')}>📋 Salin Link WA</button>
+                <button className="sort-btn" onClick={() => salin(kodeWA, 'Kode iklan')}>📋 Salin Kode</button>
+                <button className="sort-btn" onClick={() => setLk(null)}>Tutup</button>
+              </div>
+              <span className="hint">Satu kode per iklan: naikkan Nomor Iklan untuk tiap iklan baru di campaign yang sama. Saat lead masuk, sales cukup ketik kode {kodeWA} di kolom <b>Kode Iklan</b> pada Form Input — campaign & kreatif terisi otomatis.</span>
+            </>) : (<>
+              <div className="form-grid">
+                <div className="field"><label>URL Tujuan (landing page)</label><input value={lk.url} onChange={e => setLk({ ...lk, url: e.target.value })} placeholder="https://…" /></div>
+                <div className="field"><label>Format Kreatif</label><select value={lk.format} onChange={e => setLk({ ...lk, format: e.target.value })}>{KODE_FORMAT.map(f => <option key={f}>{f}</option>)}</select></div>
+                <div className="field"><label>Nomor Kreatif</label><input type="number" min="1" value={lk.no} onChange={e => setLk({ ...lk, no: e.target.value })} /></div>
+                <div className="field"><label>utm_source</label><select value={lk.source} onChange={e => setLk({ ...lk, source: e.target.value })}>{UTM_SRC.map(f => <option key={f}>{f}</option>)}</select></div>
+                <div className="field"><label>utm_medium</label><select value={lk.medium} onChange={e => setLk({ ...lk, medium: e.target.value })}>{UTM_MED.map(f => <option key={f}>{f}</option>)}</select></div>
+                <div className="field"><label>Kode Kreatif (utm_content)</label><input value={kode} readOnly style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>LINK FINAL — pasang di iklan / bio</label><input value={link} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontSize: 12 }} /></div>
+              </div>
+              <div className="form-foot">
+                <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => salin(link, 'Link')}>📋 Salin Link</button>
+                <button className="sort-btn" onClick={() => salin(kode, 'Kode kreatif')}>📋 Salin Kode</button>
+                <button className="sort-btn" onClick={() => setLk(null)}>Tutup</button>
+              </div>
+              <span className="hint">Untuk iklan yang mengarah ke website. Nama ad di Ads Manager = kode kreatif ({kode}).</span>
+            </>)}
           </div>); })()}
 
         <div className="card" style={{ marginBottom: 12 }}>
@@ -641,7 +675,7 @@ export default function MarcomPage() {
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
-                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ id: x.id, project: x.project || fProj || '', mode: String(x.platform || '').startsWith('Meta') ? 'wa' : 'web', noWa: 1, wa: '6281385237865', teks: 'Halo ' + (x.project ? x.project.replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) : 'Bio District') + ', saya mau info rumahnya', nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanIni, extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     {data.me && data.me.role === 'manager' && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setGb({ dari: x.nama, ke: '' }); setTimeout(() => { const el = document.getElementById('panel-gabung'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50); }}>Gabungkan</button>}
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>

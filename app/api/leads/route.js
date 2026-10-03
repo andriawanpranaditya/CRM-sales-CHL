@@ -3,6 +3,18 @@ import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// Kode iklan WA dari pesan pertama (mis. BD14-2 = project BIO DISTRICT, campaign id 14, iklan ke-2) -> campaign & kreatif
+async function petakanKodeWA(sql, kode) {
+  const k = String(kode || '').trim().toUpperCase().replace(/[()\s]/g, '');
+  const m = /^([A-Z]{2,3})(\d+)-(\d+)$/.exec(k);
+  if (!m) return null;
+  try {
+    const c = await sql`SELECT nama FROM mi_campaigns WHERE id = ${Number(m[2])}`;
+    if (c.length) return { campaign: c[0].nama, konten: k };
+  } catch {}
+  return null;
+}
+
 export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
@@ -23,6 +35,7 @@ export async function POST(req) {
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
+  if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
   if (waN.startsWith('0')) waN = '62' + waN.slice(1); else if (waN.startsWith('8')) waN = '62' + waN;
@@ -72,6 +85,7 @@ export async function PATCH(req) {
   const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
+  if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!m.campaign) m.campaign = pk.campaign; if (!m.konten) m.konten = pk.konten; } }
   let operKe = null;
   if ((user.role === 'manager' || user.role === 'markom') && 'sales' in b && b.sales) {
     if ((cur.sales || '') !== b.sales) operKe = b.sales;
