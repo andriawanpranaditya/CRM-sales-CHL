@@ -216,6 +216,7 @@ export async function GET(req) {
     id serial PRIMARY KEY, campaign text NOT NULL, keterangan text, total numeric NOT NULL,
     mulai date NOT NULL, bulan integer NOT NULL, created_by text, created_at timestamptz NOT NULL DEFAULT now()
   )`;
+  await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`;
   await coba(() => sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`);

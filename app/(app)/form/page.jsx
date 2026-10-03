@@ -137,10 +137,11 @@ export default function FormPage() {
   const [me, setMe] = useState(null);
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
-  const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
-  const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
+  const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
+  const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '', konteks: '' });
   const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
+  const [l2sDone, setL2sDone] = useState(null);
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
   const [stok, setStok] = useState([]);
   const [berkas, setBerkas] = useState(null);
@@ -283,7 +284,7 @@ export default function FormPage() {
     return t.replace('{nama}', (l && l.nama) || 'Kak').replace('{officer}', (me && me.name) || 'tim BIO District');
   }
   // Template pesan oper lead ke sales (Leads to Sales)
-  function templateL2S(l, salesName) {
+  function templateL2S(l, salesName, konteks) {
     if (!l) return '';
     return `Halo ${salesName || '[Sales]'} 👋
 Ada lead baru untuk segera di-follow up:
@@ -294,12 +295,14 @@ Ada lead baru untuk segera di-follow up:
 🏠 Project: ${l.project || '-'}
 🔎 Sumber: ${l.sumber || '-'}
 📝 Keterangan: ${l.catatan || '-'}
+💬 Yang ditanyakan lead: ${konteks || '-'}
 
-Mohon langsung disapa ya, semangat closing! 💪`;
+Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini. Mohon sapa paling lambat 1 jam & LANJUTKAN topik di atas (jangan mulai dari awal). Template pembuka sudah otomatis tersedia di tab Follow Up. Semangat closing! 💪`;
   }
   async function kirimL2S() {
     if (!l2s.lead_code) return toast('Pilih ID Lead dulu');
     if (!l2s.sales) return toast('Pilih Sales tujuan dulu');
+    if (!(l2s.konteks || '').trim()) return toast('Isi dulu apa yang ditanyakan lead — sales butuh konteks untuk melanjutkan chat');
     const lObj = leads.find(x => x.lead_code === l2s.lead_code);
     const sObj = salesWA.find(x => x.name === l2s.sales);
     if (!sObj || !sObj.wa) return toast('Sales ini belum punya No. WA — minta manager mengisinya di menu Pengguna');
@@ -309,11 +312,12 @@ Mohon langsung disapa ya, semangat closing! 💪`;
     setBusy(true);
     try {
       await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: lObj.id, sales: l2s.sales }) });
-      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: 'Leads to Sales → ' + l2s.sales, wa_pesan: l2s.pesan }) });
+      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: 'Leads to Sales → ' + l2s.sales + ' · Konteks: ' + l2s.konteks.trim(), wa_pesan: l2s.pesan }) });
       toast('Lead dioper ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲');
       if (diHP) setTimeout(() => { bukaWA(sObj.wa, l2s.pesan); }, 350);
       else bukaWA(sObj.wa, l2s.pesan, winWA);
-      setL2s({ lead_code: '', tgl: todayISO(), pesan: '', sales: '' });
+      setL2sDone({ nama: lObj.nama, wa: lObj.wa, project: lObj.project, sales: l2s.sales, salesWa: sObj.wa });
+      setL2s({ lead_code: '', tgl: todayISO(), pesan: '', sales: '', konteks: '' });
       refresh().catch(() => {});
     } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
   }
@@ -367,9 +371,29 @@ Mohon langsung disapa ya, semangat closing! 💪`;
   }
 
   // Pilih template sales otomatis: lead belum merespon (New/Cold) -> Day-1 / Day-3 / Day-7 sesuai jumlah FU sebelumnya
+  // Serah terima dari marcom: FU sales dihitung sesudah "Leads to Sales", plus konteks yang ditanyakan lead
+  function infoHandoff(l) {
+    if (!l) return null;
+    const riw = fus.filter(f => f.lead_code === l.lead_code);
+    const h = riw.filter(f => String(f.detail || '').startsWith('Leads to Sales')).sort((a, b) => (b.id || 0) - (a.id || 0))[0];
+    if (!h) return null;
+    const m = /Konteks:\s*([\s\S]+)$/.exec(String(h.detail || ''));
+    return { sesudah: riw.filter(f => (f.id || 0) > (h.id || 0)).length, konteks: m ? m[1].trim() : '' };
+  }
+  function templateHandoff(l, konteks) {
+    const h = new Date().getHours();
+    const salam = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam';
+    const nama = (l && l.nama) ? l.nama : '';
+    const sales = (me && me.name) ? me.name : 'tim Sales';
+    const proj = (l && l.project) ? l.project.replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) : 'Bio District';
+    return `Selamat ${salam} Kak ${nama} 🙏\n\nSaya ${sales}, konsultan properti ${proj} — melanjutkan chat Kakak dengan admin kami${konteks ? ' soal ' + konteks : ''}.\n\nSupaya info yang saya kirim pas, rencananya untuk ditempati sendiri atau investasi, Kak? Kalau berkenan, saya juga bisa bantu jadwalkan survey lokasi — lebih nyaman Sabtu atau Minggu?`;
+  }
+
   function templateSales(l) {
     if (!l) return '';
-    const n = fus.filter(f => f.lead_code === l.lead_code).length;
+    const ho = infoHandoff(l);
+    if (ho && ho.sesudah === 0) return templateHandoff(l, ho.konteks);
+    const n = ho ? ho.sesudah : fus.filter(f => f.lead_code === l.lead_code).length;
     const belumRespon = !l.status || l.status === 'New' || l.status === 'Cold';
     if (belumRespon && n === 0) return templateSalesDay(1, l);
     if (belumRespon && n === 1) return templateSalesDay(3, l);
@@ -390,6 +414,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
     if (!fu.detail.trim()) return toast(isMarkom ? 'Pilih Day Follow Up dulu' : 'Detail Komunikasi wajib diisi');
+    if (!isMarkom && fu.balas === null) return toast('Pilih dulu: apakah lead membalas?');
     // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
     const leadFu = leads.find(x => x.lead_code === fu.lead_code);
     const pesan = (fu.wa_pesan || '').trim();
@@ -414,7 +439,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
       } else {
         toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : stopFU ? 'Follow up tersimpan — konsumen ' + fu.next_action + ', jadwal FU dihentikan' : 'Follow up tersimpan (lead belum punya nomor WA)');
       }
-      setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '' });
+      setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
     } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
   }
@@ -512,7 +537,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
               const l = leads.find(x => x.lead_code === e.target.value);
               if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
               const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
-              setFu({ ...fu, lead_code: e.target.value, wa_pesan: (otoIsi && l) ? templateSales(l) : fu.wa_pesan });
+              setFu({ ...fu, lead_code: e.target.value, status: l ? (l.status || '') : '', balas: null, wa_pesan: (otoIsi && l) ? templateSales(l) : fu.wa_pesan });
             }}>{leadOpt}</select></div>
           {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
@@ -541,7 +566,7 @@ Mohon langsung disapa ya, semangat closing! 💪`;
             : <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
               <textarea rows={2} {...ff('detail')} /></div>}
           <div className="field" style={{ gridColumn: '1/-1' }}>
-            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih{!isMarkom && fu.lead_code ? (() => { const l = leads.find(x => x.lead_code === fu.lead_code); const n = fus.filter(f => f.lead_code === fu.lead_code).length; const br = l && (!l.status || l.status === 'New' || l.status === 'Cold'); return br && n <= 2 ? ' — Day-' + [1, 3, 7][n] + ' lead belum respon' : ''; })() : ''} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
+            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih{!isMarkom && fu.lead_code ? (() => { const l = leads.find(x => x.lead_code === fu.lead_code); const ho = infoHandoff(l); if (ho && ho.sesudah === 0) return ' — pesan pembuka melanjutkan chat admin'; const n = ho ? ho.sesudah : fus.filter(f => f.lead_code === fu.lead_code).length; const br = l && (!l.status || l.status === 'New' || l.status === 'Cold'); return br && n <= 2 ? ' — Day-' + [1, 3, 7][n] + ' lead belum respon' : ''; })() : ''} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
               <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
                 onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateSales(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
               {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
@@ -549,6 +574,17 @@ Mohon langsung disapa ya, semangat closing! 💪`;
             </label>
             <textarea rows={5} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
               placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." /></div>
+          {!isMarkom && <div className="field"><label>Lead membalas? <span className="req">*</span></label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className={'sort-btn' + (fu.balas === true ? ' active' : '')} onClick={() => setFu({ ...fu, balas: true })}>✓ Ya, membalas</button>
+              <button type="button" className={'sort-btn' + (fu.balas === false ? ' active' : '')} onClick={() => setFu({ ...fu, balas: false })}>✕ Belum membalas</button>
+            </div></div>}
+          {!isMarkom && <div className="field"><label>Status Lead Sekarang</label>
+            <select value={fu.status} onChange={e => setFu({ ...fu, status: e.target.value })}>
+              <option value="">— pilih —</option>
+              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).map(o => <option key={o}>{o}</option>)}
+            </select>
+            <span className="hint">Ubah bila ada perkembangan — mis. sudah survey → Site Visit</span></div>}
           {!isMarkom && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
           {!isMarkom && <div className="field"><label>Next Action</label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: TANPA_NEXT.includes(e.target.value) ? '' : fu.next_tgl })}>
@@ -574,22 +610,28 @@ Mohon langsung disapa ya, semangat closing! 💪`;
             <select value={l2s.lead_code} onChange={e => {
               const l = leads.find(x => x.lead_code === e.target.value);
               const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
-              setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales) : l2s.pesan });
+              setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, l2s.konteks) : l2s.pesan });
             }}>{leadOpt}</select></div>
           <div className="field"><label>Tanggal</label><input type="date" value={l2s.tgl} onChange={e => setL2s({ ...l2s, tgl: e.target.value })} /></div>
           <div className="field"><label>Sales Tujuan <span className="req">*</span></label>
             <select value={l2s.sales} onChange={e => {
               const l = leads.find(x => x.lead_code === l2s.lead_code);
               const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
-              setL2s({ ...l2s, sales: e.target.value, pesan: (oto && l) ? templateL2S(l, e.target.value) : l2s.pesan });
+              setL2s({ ...l2s, sales: e.target.value, pesan: (oto && l) ? templateL2S(l, e.target.value, l2s.konteks) : l2s.pesan });
             }}>
               <option value="">— pilih sales —</option>
               {salesWA.map(u2 => <option key={u2.id} value={u2.name}>{u2.name}{u2.wa ? '' : ' (belum ada No. WA)'}</option>)}
             </select></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}><label>Yang Ditanyakan / Diminati Lead <span className="req">*</span> <span className="hint">(konteks agar sales melanjutkan obrolan, bukan mulai dari awal)</span></label>
+            <input value={l2s.konteks} onChange={e => {
+              const l = leads.find(x => x.lead_code === l2s.lead_code);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, konteks: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, e.target.value) : l2s.pesan });
+            }} placeholder="mis. harga tipe A & bisa KPR, minta e-brochure, tanya akses ke stasiun" /></div>
           <div className="field" style={{ gridColumn: '1/-1' }}>
             <label>Pesan WhatsApp ke Sales <span className="hint">(otomatis berisi nama, nomor WA & keterangan konsumen — bebas diedit)</span>
               <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
-                onClick={() => setL2s({ ...l2s, pesan: templateL2S(leads.find(x => x.lead_code === l2s.lead_code), l2s.sales) })}>↺ Isi Template</button>
+                onClick={() => setL2s({ ...l2s, pesan: templateL2S(leads.find(x => x.lead_code === l2s.lead_code), l2s.sales, l2s.konteks) })}>↺ Isi Template</button>
             </label>
             <textarea rows={7} value={l2s.pesan} onChange={e => setL2s({ ...l2s, pesan: e.target.value })}
               placeholder="Pilih lead & sales — pesan akan tersusun otomatis di sini." /></div>
@@ -598,6 +640,21 @@ Mohon langsung disapa ya, semangat closing! 💪`;
           <button className="btn btn-primary" onClick={kirimL2S} disabled={busy}>📲 Kirim</button>
           <span className="hint">Lead otomatis berpindah menjadi milik sales terpilih & tercatat di riwayat follow up.</span>
         </div>
+        {l2sDone && (() => {
+          const nomorSales = String(l2sDone.salesWa || '').replace(/[^0-9]/g, '').replace(/^62/, '0');
+          const proj = (l2sDone.project || 'Bio District').replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase());
+          const kabar = `Halo Kak ${l2sDone.nama || ''} 🙏 Terima kasih sudah tertarik dengan ${proj}. Untuk info lengkap, simulasi pembayaran & jadwal survey, Kakak akan dihubungi langsung oleh ${l2sDone.sales}, konsultan properti kami, dari nomor ${nomorSales}. Mohon disimpan ya Kak, supaya chat-nya tidak terlewat 😊`;
+          return (
+            <div className="note" style={{ marginTop: 12, borderLeft: '4px solid var(--brass)' }}>
+              <b>Langkah terakhir — kabari lead</b> supaya ia mengenali nomor {l2sDone.sales} dan tidak mengabaikannya:
+              <div style={{ margin: '8px 0', fontStyle: 'italic' }}>{kabar}</div>
+              {l2sDone.wa
+                ? <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => { bukaWA(l2sDone.wa, kabar); setL2sDone(null); }}>📲 Kabari Lead</button>
+                : <span className="hint">Lead ini belum punya nomor WA di CRM.</span>}
+              <button className="sort-btn" style={{ marginLeft: 8 }} onClick={() => setL2sDone(null)}>Lewati</button>
+            </div>
+          );
+        })()}
       </div>}
 
       {tab === 'trx' && <div className="card">

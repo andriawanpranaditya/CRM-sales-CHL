@@ -212,6 +212,10 @@ export default function MarcomPage() {
     if (audDomisili.length && audDomisili[0].nama !== '(kosong)') R.ringkas.push(`Domisili lead berkualitas terbanyak: ${audDomisili.slice(0, 3).filter(d => d.nama !== '(kosong)').map(d => d.nama + ' (' + d.l2 + ')').join(', ')}.`);
     if (sedikit && F.l0 > 0) R.ringkas.push('⚠ Data masih sedikit (< 20 lead) — anggap kesimpulan di bawah sebagai sinyal awal, belum pola tetap.');
 
+    const ho = data.handoff || [];
+    const hoDioper = ho.reduce((a, r) => a + r.dioper, 0), hoBalas = ho.reduce((a, r) => a + r.membalas, 0);
+    if (hoDioper) R.ringkas.push(`${hoDioper} lead dioper marcom ke sales; ${hoBalas} (${pc(hoBalas / hoDioper)}) masih membalas setelah serah terima.`);
+
     // ---------- YANG HARUS DIPERBAIKI ----------
     const camp = data.byCampaign || [];
     const tanpa = camp.find(r => r.kunci === '(tanpa data)');
@@ -248,6 +252,11 @@ export default function MarcomPage() {
     if (webOk && !ga4.length) R.perbaiki.push('Data website belum masuk — klik Tarik Data Sekarang di tab Website & SEO atau cek koneksi GA4.');
     // Bila Instagram sudah ditarik otomatis, konten tidak lagi dicatat manual per orang — aturan ini hanya berlaku saat input manual
     if (!(data.contents || []).some(c => c.created_by === 'auto-instagram')) tim.filter(u => u.active && u.konten_bln === 0).forEach(u => R.perbaiki.push(`${u.name} belum mencatat konten bulan ini — pastikan tiap konten tayang tercatat agar output tim terukur.`));
+
+    if (hoDioper >= 3 && hoBalas / hoDioper < 0.5) {
+      const terendah = [...ho].filter(r => r.dioper >= 2).sort((a, b) => (a.membalas / a.dioper) - (b.membalas / b.dioper))[0];
+      R.perbaiki.push(`Hanya ${pc(hoBalas / hoDioper)} lead yang masih membalas setelah dioper ke sales${terendah ? ` (terendah: ${terendah.sales} ${terendah.membalas}/${terendah.dioper})` : ''} — pastikan marcom mengisi konteks & mengirim pesan "Kabari Lead", dan sales menyapa < 1 jam memakai template lanjutan, bukan sapaan umum.`);
+    }
 
     // ---------- SARAN STRATEGI ----------
     const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
@@ -755,6 +764,19 @@ export default function MarcomPage() {
       </>)}
 
       {tab === 'tim' && (<>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Respon Lead Setelah Dioper ke Sales <span className="hint">(membalas = sales menandai "lead membalas" atau status lead naik sesudah serah terima)</span></h3>
+          <div className="tbl-wrap tbl-compact"><table>
+            <thead><tr><th>Sales</th><th className="num">Lead Dioper</th><th className="num">Masih Membalas</th><th className="num">Rasio</th></tr></thead>
+            <tbody>{(data.handoff || []).length ? (data.handoff || []).map(r => (
+              <tr key={r.sales}><td data-label="Sales"><b>{r.sales}</b></td>
+                <td className="num" data-label="Dioper">{r.dioper}</td>
+                <td className="num" data-label="Membalas">{r.membalas}</td>
+                <td className="num" data-label="Rasio"><b style={{ color: r.dioper && r.membalas / r.dioper < 0.5 ? 'var(--red)' : 'var(--green)' }}>{r.dioper ? Math.round(r.membalas / r.dioper * 100) + '%' : '—'}</b></td></tr>))
+              : <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada lead yang dioper pada periode ini.</td></tr>}</tbody>
+          </table></div>
+          <span className="hint">Kolom "Lead membalas?" di form follow up sales baru tersedia sejak pembaruan ini, jadi angka periode sebelumnya hanya dihitung dari kenaikan status lead.</span>
+        </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Output Tim Marcom <span className="hint">(lead mengikuti periode terpilih; kolom "bulan ini" selalu bulan berjalan)</span></h3>
           <div className="tbl-wrap tbl-compact"><table>

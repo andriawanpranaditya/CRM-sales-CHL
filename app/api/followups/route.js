@@ -3,14 +3,22 @@ import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
+// Kolom "lead membalas?" pada follow up — disiapkan sekali per cold start
+let kolomBalas = false;
+async function siapkanBalas(sql) {
+  if (kolomBalas) return;
+  try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
+  kolomBalas = true;
+}
+
 export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const semua = new URL(req.url).searchParams.get('all') === '1';
   let rows;
-  if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, COALESCE(u.name, f.created_by) AS oleh FROM followups f JOIN leads l ON l.lead_code = f.lead_code LEFT JOIN users u ON u.username = f.created_by WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
-  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, COALESCE(u.name, f.created_by) AS oleh FROM followups f JOIN leads l ON l.lead_code = f.lead_code LEFT JOIN users u ON u.username = f.created_by WHERE l.created_by = ${user.username} ORDER BY f.tgl DESC, f.id DESC`;
-  else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, COALESCE(u.name, f.created_by) AS oleh FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code LEFT JOIN users u ON u.username = f.created_by ORDER BY f.tgl DESC, f.id DESC`;
+  if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.created_by = ${user.username} ORDER BY f.tgl DESC, f.id DESC`;
+  else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`;
   return Response.json(rows);
 }
 
@@ -23,8 +31,14 @@ export async function POST(req) {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
-  await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by)
-    VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username})`;
+  await siapkanBalas(sql);
+  const balas = b.balas === true ? true : b.balas === false ? false : null;
+  await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
+    VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas})`;
+  // Status lead ikut diperbarui dari form follow up (Drop/Reserved/Booking diatur oleh logika di bawah)
+  if (b.status && !['Drop', 'Reserved', 'Booking'].includes(b.next_action || '')) {
+    await sql`UPDATE leads SET status = ${b.status}, updated_at = now() WHERE lead_code = ${b.lead_code} AND status IS DISTINCT FROM ${b.status}`;
+  }
   // Sinkron ke lead
   if (b.next_action === 'Drop') {
     // Drop: status lead jadi Drop & jadwal FU dihapus -> tidak muncul lagi di lonceng/reminder

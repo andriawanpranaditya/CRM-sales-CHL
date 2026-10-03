@@ -18,6 +18,7 @@ let l2Siap = false;
 async function siapkanL2(sql) {
   if (l2Siap) return;
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS l2_at timestamptz`; } catch (e) { console.error('l2_at kolom', e); }
+  try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
   try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
@@ -183,6 +184,20 @@ export async function GET(req) {
     ]);
   } catch {}
   const spendAll = await sql`SELECT campaign, sum(spend)::numeric AS total, max(tgl) AS terakhir, count(*)::int AS entri FROM mi_ads GROUP BY campaign`;
+  // Respon lead setelah dioper ke sales: membalas = ada FU "lead membalas" sesudah serah terima, atau status naik sesudahnya
+  let handoff = [];
+  try {
+    handoff = await sql`
+      SELECT COALESCE(NULLIF(l.sales, ''), '(belum ada)') AS sales, count(*)::int AS dioper,
+        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f2 WHERE f2.lead_code = l.lead_code AND f2.balas = true AND f2.id > h.id)
+                          OR (l.l2_at IS NOT NULL AND l.l2_at::date >= h.tgl))::int AS membalas,
+        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f3 WHERE f3.lead_code = l.lead_code AND f3.balas IS NOT NULL AND f3.id > h.id))::int AS tercatat
+      FROM leads l
+      JOIN LATERAL (SELECT id, tgl FROM followups f WHERE f.lead_code = l.lead_code AND f.detail LIKE 'Leads to Sales%' ORDER BY f.id DESC LIMIT 1) h ON true
+      WHERE (${d1}::date IS NULL OR h.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR h.tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR l.project = ${proj})
+      GROUP BY 1 ORDER BY dioper DESC`;
+  } catch (e) { console.error('handoff', e); }
   const tanpaCamp = await sql`SELECT COALESCE(NULLIF(sumber, ''), '(kosong)') AS sumber, count(*)::int AS n FROM leads
     WHERE COALESCE(campaign, '') = ''
       AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
@@ -214,7 +229,7 @@ export async function GET(req) {
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
   const hasilPlat = Object.fromEntries(spend.map(r => [r.kunci, Number(r.hasil) || 0]));
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, handoff, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
