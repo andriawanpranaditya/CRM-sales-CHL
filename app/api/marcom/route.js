@@ -92,7 +92,7 @@ export async function GET(req) {
     sql`
     SELECT COALESCE(NULLIF(l.campaign, ''), '(tanpa data)') AS kunci,
       count(*)::int AS l0,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code))::int AS l1,
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa'))::int AS l1,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
@@ -104,7 +104,7 @@ export async function GET(req) {
     sql`
     SELECT COALESCE(NULLIF(l.sumber, ''), '(tanpa data)') AS kunci,
       count(*)::int AS l0,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code))::int AS l1,
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa'))::int AS l1,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
@@ -174,7 +174,7 @@ export async function GET(req) {
         COALESCE(l.walkin_info, '') AS walkin_info, COALESCE(l.sales, '') AS sales,
         COALESCE(NULLIF(l.konten, ''), '') AS konten, l.created_by,
         COALESCE(NULLIF(l.domisili, ''), '(kosong)') AS domisili, COALESCE(NULLIF(l.tujuan, ''), '-') AS tujuan, COALESCE(NULLIF(l.tipe, ''), '-') AS tipe,
-        (SELECT count(*)::int FROM followups f WHERE f.lead_code = a.lead_code AND (f.tgl IS NULL OR f.tgl <= a.tgl)) AS nfu,
+        (SELECT count(*)::int FROM followups f WHERE f.lead_code = a.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa' AND (f.tgl IS NULL OR f.tgl <= a.tgl)) AS nfu,
         (EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom')
           OR COALESCE(l.campaign, '') <> ''
           OR (COALESCE(l.sumber, '') !~* 'walk' AND COALESCE(l.sumber, '') ~* '(facebook|instagram|google|tiktok|website|meta|marketplace|banner|spanduk|billboard|pameran|event)')
