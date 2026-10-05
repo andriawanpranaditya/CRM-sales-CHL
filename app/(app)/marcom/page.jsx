@@ -808,11 +808,11 @@ export default function MarcomPage() {
         </div>
         <div className="two-col">
           <div className="card" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginTop: 0 }}>Trafik Website per Sumber (GA4)</h3>
+            <h3 style={{ marginTop: 0 }}>Trafik Website per Sumber (GA4) <span className="hint">(website biodistrictofficial.com — tidak mengikuti filter project)</span></h3>
             <div className="tbl-wrap tbl-compact"><table>
               <thead><tr><th>Source / Medium</th><th className="num">Sessions</th><th className="num">Users</th><th className="num">Key Events</th></tr></thead>
               <tbody>{(data.ga4 || []).length ? (data.ga4 || []).map(r => (
-                <tr key={r.source_medium} style={/pangle/i.test(r.source_medium) ? { opacity: .6 } : undefined}><td data-label="Sumber"><b>{r.source_medium}</b>{/pangle/i.test(r.source_medium) ? <div className="hint" style={{ color: 'var(--red)' }}>⚠ iklan TikTok di aplikasi pihak ketiga — tidak dihitung sebagai minat</div> : null}</td>
+                <tr key={r.source_medium} style={/pangle/i.test(r.source_medium) ? { opacity: .6 } : undefined}><td data-label="Sumber"><b>{r.source_medium}</b>{/pangle/i.test(r.source_medium) ? <div className="hint" style={{ color: 'var(--red)' }}>⚠ iklan TikTok di aplikasi pihak ketiga — tidak dihitung sebagai minat</div> : null}{r.source_medium === '(data not available)' ? <div className="hint">kunjungan 1–2 hari terakhir yang masih diproses GA4 — terbagi ke sumber aslinya setelah tarikan berikutnya</div> : null}{r.source_medium === '(not set)' ? <div className="hint" style={{ color: 'var(--brass)' }}>sumber tidak terbaca GA4 — wajarnya hanya beberapa persen; bila besar, cek tag GA4 dobel di website</div> : null}</td>
                   <td className="num" data-label="Sessions">{Number(r.sessions).toLocaleString('id-ID')}</td>
                   <td className="num" data-label="Users">{Number(r.users).toLocaleString('id-ID')}</td>
                   <td className="num" data-label="Key Events"><b>{r.key_events}</b></td></tr>))

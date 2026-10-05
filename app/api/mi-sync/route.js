@@ -70,6 +70,9 @@ async function tarikGA4(sql) {
     m.set(tglIso + '|' + sm, [tglIso, sm, sess, usr, kev]);
   }
   const all = [...m.values()];
+  // GA4 memproses ulang data 1–2 hari terakhir (mis. "(data not available)" dipindah ke sumber aslinya):
+  // ganti seluruh jendela tarikan agar baris lama tidak tertinggal & terhitung dobel
+  if (all.length) await sql`DELETE FROM mi_ga4_daily WHERE tgl BETWEEN ${d1}::date AND ${d2}::date`;
   for (let i = 0; i < all.length; i += 1000) {
     const b = all.slice(i, i + 1000);
     await sql`INSERT INTO mi_ga4_daily (tgl, source_medium, sessions, users, key_events)
@@ -99,6 +102,7 @@ async function tarikGSC(sql) {
     m.set(tgl + '|' + qq, [tgl, qq, Number(x.clicks) || 0, Number(x.impressions) || 0, Number(x.position) || 0]);
   }
   const all = [...m.values()];
+  if (all.length) await sql`DELETE FROM mi_gsc_daily WHERE tgl BETWEEN ${d1raw}::date AND ${d2}::date`;
   for (let i = 0; i < all.length; i += 1000) {
     const b = all.slice(i, i + 1000);
     await sql`INSERT INTO mi_gsc_daily (tgl, query, clicks, impressions, position)
