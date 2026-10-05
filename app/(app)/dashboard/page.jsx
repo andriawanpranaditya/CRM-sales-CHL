@@ -665,6 +665,8 @@ export default function Dashboard() {
       const spendMap = Object.fromEntries((mi.spend || []).map(x => [x.kunci, Number(x.spend) || 0]));
       const totSpend = Object.values(spendMap).reduce((a, b) => a + b, 0);
       const perR = (sp, n) => (sp > 0 && n > 0) ? rp(Math.round(sp / n)) : '—';
+      const rpS = v => { v = Number(v) || 0; if (!v) return '—'; if (v >= 1e9) return 'Rp' + (v / 1e9).toFixed(2).replace('.', ',') + ' M'; if (v >= 1e6) return 'Rp' + (v / 1e6).toFixed(1).replace('.', ',') + ' jt'; return 'Rp' + Math.round(v).toLocaleString('id-ID'); };
+      const perS = (sp, n) => (sp > 0 && n > 0) ? rpS(sp / n) : '—';
       const barW = (n, mx, w = '#23694A') => '<span style="color:' + w + ';letter-spacing:1px">' + '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / Math.max(1, mx) * 16))) + '</span>';
       const bc = mi.byCampaign || []; const bcMax = Math.max(1, ...bc.map(r => r.l0), 1);
       const bk = mi.byKonten || []; const bkMax = Math.max(1, ...bk.map(r => r.l0), 1);
@@ -699,17 +701,25 @@ export default function Dashboard() {
 </table>
 <p class="muted" style="font-size:8.5pt">Reserved/Booking dihitung pada tanggal transaksi periode ini dari lead marketing (kapan pun lead-nya masuk). Lead referral, kanvasing, dan WA langsung ke sales tidak dihitung sebagai hasil marketing${mi.bookingLain ? ` (${mi.bookingLain} booking periode ini)` : ''}.</p>
 ${bdet.length ? `<h3>Detail Booking: dari Lead Masuk sampai Booking</h3>
-<table><tr><th>Lead</th><th>Asal</th><th>Sales</th><th style="width:80px">Lead Masuk</th><th style="width:80px">Booking</th><th style="width:55px;text-align:center">Lama (hari)</th><th style="width:55px;text-align:center">Follow Up</th><th style="width:110px">Nilai</th></tr>
-${bdet.map(b => `<tr><td><b>${esc(b.lead_code)}</b>${b.unit ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.unit) + '</span>' : ''}</td><td>${/walk/i.test(b.sumber) ? 'Walk In via ' + esc(b.walkin_info || '-') : esc(b.sumber)}${b.campaign && b.campaign !== '(tanpa data)' ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.campaign) + '</span>' : ''}</td><td>${esc(b.sales || '—')}</td><td>${fmtDate(b.tgl_lead)}</td><td>${fmtDate(b.tgl_booking)}</td><td style="text-align:center"><b>${b.hari}</b></td><td style="text-align:center">${b.nfu}</td><td>${Number(b.nilai) ? rp(b.nilai) : '—'}</td></tr>`).join('')}
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:14%">Lead</th><th style="width:25%">Asal</th><th style="width:10%">Sales</th><th style="width:12%">Lead Masuk</th><th style="width:12%">Booking</th><th style="width:8%;text-align:center">Lama (hari)</th><th style="width:8%;text-align:center">Follow Up</th><th style="width:11%">Nilai</th></tr>
+${bdet.map(b => `<tr><td><b>${esc(b.lead_code)}</b>${b.unit ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.unit) + '</span>' : ''}</td><td>${/walk/i.test(b.sumber) ? 'Walk In via ' + esc(b.walkin_info || '-') : esc(b.sumber)}${b.campaign && b.campaign !== '(tanpa data)' ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.campaign) + '</span>' : ''}</td><td>${esc(b.sales || '—')}</td><td>${fmtDate(b.tgl_lead)}</td><td>${fmtDate(b.tgl_booking)}</td><td style="text-align:center"><b>${b.hari}</b></td><td style="text-align:center">${b.nfu}</td><td style="white-space:nowrap">${rpS(b.nilai)}</td></tr>`).join('')}
 </table>
 <p class="muted" style="font-size:8.5pt">Rata-rata ${Math.round(bdet.reduce((a, b) => a + Number(b.hari || 0), 0) / bdet.length)} hari dari lead masuk sampai booking.</p>` : ''}
 
 <h2>8. CAMPAIGN &amp; IKLAN DIGITAL (CLOSED-LOOP)</h2>
-<p class="muted">Total belanja iklan periode: <b>${rp(totSpend)}</b> · CPL ${perR(totSpend, pl.length)} · Biaya per Booking ${perR(totSpend, bookSet.size)}</p>
-<table><tr><th>Campaign</th><th style="width:100px">Spend</th><th style="width:36px;text-align:center">L0</th><th style="width:36px;text-align:center">L2</th><th style="width:36px;text-align:center">L3</th><th style="width:100px">Nilai Booking</th><th style="width:88px">CPQL</th><th style="width:92px">Biaya/Booking</th><th>Grafik Lead</th></tr>
-${bc.length ? bc.map(r => { const sp = spendMap[r.kunci] || 0; return `<tr><td><b>${esc(r.kunci)}</b></td><td>${sp ? rp(sp) : '—'}</td><td style="text-align:center">${r.l0}</td><td style="text-align:center"><b>${r.l2}</b></td><td style="text-align:center"><b>${r.l3}</b></td><td>${Number(r.nilai) ? rp(r.nilai) : '—'}</td><td>${perR(sp, r.l2)}</td><td>${perR(sp, r.l3)}</td><td>${barW(r.l0, bcMax)}</td></tr>`; }).join('') : '<tr><td colspan="9">Belum ada data campaign pada periode ini.</td></tr>'}
-</table>
-<p class="muted" style="font-size:8.5pt">L0 lead masuk · L2 lead berkualitas (Warm/Hot/Site Visit+) · L3 Booking/Closing · CPQL = spend ÷ L2. Baris "(tanpa data)" = lead tanpa jejak campaign.</p>
+${(() => {
+  const paid = bc.filter(r => r.kunci !== '(tanpa data)').reduce((t, r) => ({ l0: t.l0 + r.l0, l2: t.l2 + r.l2, l3: t.l3 + r.l3 }), { l0: 0, l2: 0, l3: 0 });
+  const baris = bc.filter(r => r.kunci !== '(tanpa data)').map(r => ({ ...r, sp: spendMap[r.kunci] || 0 }));
+  Object.entries(spendMap).forEach(([k, v]) => { if (v > 0 && k !== '(tanpa data)' && !baris.find(r => r.kunci === k)) baris.push({ kunci: k, l0: 0, l2: 0, l3: 0, nilai: 0, sp: v }); });
+  baris.sort((x, y) => y.sp - x.sp || y.l0 - x.l0);
+  const tanpa = bc.find(r => r.kunci === '(tanpa data)');
+  const td = 'style="text-align:center"', nw = 'style="white-space:nowrap"';
+  return `<p class="muted">Total belanja iklan periode: <b>${rp(totSpend)}</b> · untuk ${paid.l0} lead ber-campaign · CPL ${perR(totSpend, paid.l0)} · CPQL ${perR(totSpend, paid.l2)} · Biaya per Booking ${perR(totSpend, paid.l3)}</p>
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:33%">Campaign</th><th style="width:12%">Spend</th><th style="width:6%;text-align:center">L0</th><th style="width:6%;text-align:center">L2</th><th style="width:6%;text-align:center">L3</th><th style="width:13%">Nilai Booking</th><th style="width:12%">CPQL</th><th style="width:12%">Biaya/Booking</th></tr>
+${baris.length || tanpa ? baris.map(r => `<tr><td style="word-wrap:break-word"><b>${esc(r.kunci)}</b></td><td ${nw}>${rpS(r.sp)}</td><td ${td}>${r.l0}</td><td ${td}><b>${r.l2}</b></td><td ${td}><b>${r.l3}</b></td><td ${nw}>${rpS(r.nilai)}</td><td ${nw}>${perS(r.sp, r.l2)}</td><td ${nw}>${perS(r.sp, r.l3)}</td></tr>`).join('') + (tanpa ? `<tr class="muted"><td>(tanpa data)</td><td>—</td><td ${td}>${tanpa.l0}</td><td ${td}>${tanpa.l2}</td><td ${td}>${tanpa.l3}</td><td ${nw}>${rpS(tanpa.nilai)}</td><td>—</td><td>—</td></tr>` : '') : '<tr><td colspan="8">Belum ada data campaign pada periode ini.</td></tr>'}
+</table>`;
+})()}
+<p class="muted" style="font-size:8.5pt">L0 lead masuk · L2 lead berkualitas (Warm/Hot/Site Visit+) · L3 Booking/Closing · CPQL = spend ÷ L2. Campaign tanpa lead tetap ditampilkan agar jumlah spend sama dengan total. Baris "(tanpa data)" = lead tanpa jejak campaign.</p>
 ${bk.length ? `<h3>Kreatif Penghasil Lead (utm_content)</h3>
 <table><tr><th>Kode Kreatif</th><th style="width:50px;text-align:center">L0</th><th style="width:50px;text-align:center">L2</th><th style="width:60px;text-align:center">Booking</th><th>Grafik</th></tr>
 ${bk.map(r => `<tr><td><b>${esc(r.kunci)}</b></td><td style="text-align:center">${r.l0}</td><td style="text-align:center"><b>${r.l2}</b></td><td style="text-align:center">${r.l3}</td><td>${barW(r.l0, bkMax, '#C9922E')}</td></tr>`).join('')}
