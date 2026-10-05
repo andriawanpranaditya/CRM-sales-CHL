@@ -48,10 +48,14 @@ export default function Dashboard() {
 
   if (!leads) return <div className="loading">Memuat data dari database…</div>;
 
-  // ===== Dashboard menampilkan BULAN BERJALAN: tanggal 1 s/d hari ini =====
+  // ===== Periode Dashboard: mengikuti tanggal report bila diisi; bila kosong = BULAN BERJALAN (tgl 1 s/d hari ini) =====
   const nowD = new Date();
   const mStart = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-01`;
-  const inMonth = x => String(x || '').slice(0, 10) >= mStart;
+  const periodeCustom = !!(d1 || d2);
+  const pStart = periodeCustom ? (d1 || '0000-01-01') : mStart;
+  const pEnd = periodeCustom ? (d2 || '9999-12-31') : '9999-12-31';
+  const inMonth = x => { const t = String(x || '').slice(0, 10); return t >= pStart && t <= pEnd; };
+  const fmtTgl = t => new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   const mLeads = fLeads.filter(l => inMonth(l.tgl));
   // Lead dari Marcom & berapa yang sudah diserahkan ke sales
   const dariMarkom = arr => arr.filter(l => l.creator_role === 'markom');
@@ -65,7 +69,9 @@ export default function Dashboard() {
     return Object.values(g);
   };
   const mTrx = statusAkhir(fTrx.filter(t => inMonth(t.tgl)));
-  const bulanLabel = nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const bulanLabel = periodeCustom
+    ? (d1 && d2 ? `${fmtTgl(d1)} – ${fmtTgl(d2)}` : d1 ? `sejak ${fmtTgl(d1)}` : `s.d. ${fmtTgl(d2)}`)
+    : nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
   const byStatus = st => mLeads.filter(l => l.status === st).length;
   // Reminder dari POSISI TERKINI tiap lead (leads.next_fu) — FU yang sudah di-update otomatis hilang dari overdue
@@ -929,7 +935,9 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
     <>
       <div className="page-head">
         <div><h1>Dashboard</h1>
-          <div className="sub">Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div className="sub">Data real-time dari database bersama — auto-refresh tiap menit{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={muatSemua}>↻ Segarkan</button></div></div>
+          <div className="sub">{periodeCustom
+            ? <>Data periode terpilih: <b>{bulanLabel}</b> (mengikuti tanggal report) <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => { setD1(''); setD2(''); }}>↺ Kembali ke bulan berjalan</button></>
+            : <>Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</div><div className="sub">Data real-time dari database bersama — auto-refresh tiap menit{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={muatSemua}>↻ Segarkan</button></div></div>
         <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
       </div>
       <div className="fu-toolbar">
@@ -987,7 +995,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               </div>)) : <span className="hint">Tidak ada kegiatan pada project &amp; rentang tanggal yang dipilih.</span>}
           </div>
         )}
-        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>
+        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode. <b>Tampilan Dashboard di bawah ikut rentang tanggal ini</b>; bila tanggal dikosongkan, Dashboard kembali ke bulan berjalan (Reminder Follow-up selalu berdasarkan hari ini).</span>
       </div>
       <div className="grid kpis">
         {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],
