@@ -158,6 +158,42 @@ export async function GET(req) {
   ]);
 
   // Spend iklan per campaign (periode terpilih) — untuk CPL/CPQL/biaya per Booking
+  // Penjualan diakui pada TANGGAL BOOKING: L3 & nilai dihitung dari transaksi yang statusnya terakhir Booking/Closing
+  // dan tanggalnya di periode ini, dikreditkan ke campaign/sumber/kreatif/marcom asal lead — kapan pun lead masuk.
+  try {
+    const jual = await sql`
+      WITH akhir AS (
+        SELECT DISTINCT ON (t.lead_code, COALESCE(t.project, ''), COALESCE(NULLIF(t.unit, ''), 'x' || t.id)) t.*
+        FROM transactions t
+        ORDER BY t.lead_code, COALESCE(t.project, ''), COALESCE(NULLIF(t.unit, ''), 'x' || t.id), t.tgl DESC NULLS LAST, t.id DESC)
+      SELECT a.lead_code, COALESCE(NULLIF(a.nilai_jual, 0), a.nilai, 0)::numeric AS nilai,
+        COALESCE(NULLIF(l.campaign, ''), '(tanpa data)') AS campaign, COALESCE(NULLIF(l.sumber, ''), '(tanpa data)') AS sumber,
+        COALESCE(NULLIF(l.konten, ''), '') AS konten, l.created_by,
+        COALESCE(NULLIF(l.domisili, ''), '(kosong)') AS domisili, COALESCE(NULLIF(l.tujuan, ''), '-') AS tujuan, COALESCE(NULLIF(l.tipe, ''), '-') AS tipe
+      FROM akhir a JOIN leads l ON l.lead_code = a.lead_code
+      WHERE a.jenis IN ('Booking', 'Closing')
+        AND (${d1}::date IS NULL OR a.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR a.tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR COALESCE(NULLIF(a.project, ''), l.project) = ${proj})`;
+    const kosong = k => ({ kunci: k, l0: 0, l1: 0, l2: 0, l3: 0, nilai: 0 });
+    const gabung = (arr, kunciOf, buat) => {
+      arr.forEach(r => { r.l3 = 0; if ('nilai' in r) r.nilai = 0; });
+      for (const j of jual) {
+        const k = kunciOf(j); if (k === null) continue;
+        let r = arr.find(x => buat.cocok(x, j, k));
+        if (!r) { r = buat.baru(j, k); arr.push(r); }
+        r.l3 += 1; if ('nilai' in r) r.nilai = Number(r.nilai || 0) + Number(j.nilai || 0);
+      }
+    };
+    gabung(byCampaign, j => j.campaign, { cocok: (x, j, k) => x.kunci === k, baru: (j, k) => kosong(k) });
+    gabung(bySumber, j => j.sumber, { cocok: (x, j, k) => x.kunci === k, baru: (j, k) => kosong(k) });
+    gabung(byKonten, j => j.konten || null, { cocok: (x, j, k) => x.kunci === k, baru: (j, k) => ({ kunci: k, l0: 0, l2: 0, l3: 0 }) });
+    gabung(audiens, j => j.domisili, { cocok: (x, j) => x.domisili === j.domisili && x.tujuan === j.tujuan && x.tipe === j.tipe && x.sumber === j.sumber,
+      baru: j => ({ domisili: j.domisili, tujuan: j.tujuan, tipe: j.tipe, sumber: j.sumber, l2: 0, l3: 0 }) });
+    const marcomSet = new Set(timKonten.map(u => u.username));
+    gabung(timLead, j => marcomSet.has(j.created_by) ? j.created_by : null, { cocok: (x, j, k) => x.username === k,
+      baru: (j, k) => ({ username: k, l0: 0, l0_bln: 0, l2: 0, l3: 0, nilai: 0 }) });
+  } catch (e) { console.error('penjualan periode', e); }
+
   const spend = await sql`
     SELECT COALESCE(NULLIF(campaign, ''), '(tanpa data)') AS kunci, sum(spend)::numeric AS spend, sum(COALESCE(hasil, 0))::int AS hasil
     FROM mi_ads
@@ -185,6 +221,12 @@ export async function GET(req) {
   } catch {}
   const spendAll = await sql`SELECT campaign, sum(spend)::numeric AS total, max(tgl) AS terakhir, count(*)::int AS entri FROM mi_ads GROUP BY campaign`;
   // Respon lead setelah dioper ke sales: membalas = ada FU "lead membalas" sesudah serah terima, atau status naik sesudahnya
+  let pangle7 = 0;
+  try {
+    const r7 = await sql`SELECT COALESCE(sum(sessions), 0)::int AS n FROM mi_ga4_daily
+      WHERE source_medium ILIKE '%pangle%' AND tgl >= (now() + interval '7 hours')::date - 7`;
+    pangle7 = r7[0]?.n || 0;
+  } catch {}
   let handoff = [];
   try {
     handoff = await sql`
@@ -229,7 +271,7 @@ export async function GET(req) {
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
   const hasilPlat = Object.fromEntries(spend.map(r => [r.kunci, Number(r.hasil) || 0]));
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, handoff, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {

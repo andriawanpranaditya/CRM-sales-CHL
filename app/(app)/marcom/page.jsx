@@ -348,7 +348,7 @@ export default function MarcomPage() {
   return (
     <>
       <div className="page-head"><div><h1>Analisa Marcom</h1>
-        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (pernah Warm/Hot/Site Visit+, atau Walk In) · data analisa mulai 1 Sep 2026 · L3 Booking</div></div>
+        <div className="sub">Konten & iklan tim marcom vs hasil di CRM — L0 lead masuk · L1 tersentuh FU · L2 berkualitas (pernah Warm/Hot/Site Visit+, atau Walk In) · data analisa mulai 1 Sep 2026 · L3 Booking (dihitung pada tanggal booking)</div></div>
         <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
