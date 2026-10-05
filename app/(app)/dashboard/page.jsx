@@ -653,6 +653,8 @@ export default function Dashboard() {
     let marcomHtml = '';
     if (mi) {
       const mkCodes = new Set(pl.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
+      const mkt = mi.marketing || null; // definisi hasil marketing dari Analisa Marcom (marcom, campaign, kanal marketing, walk in via media marketing)
+      const bdet = mi.bookingDetail || [];
       // Transaksi dihitung dari SEMUA lead ber-asal Marcom (lead boleh masuk periode sebelumnya — penjualan diakui pada tanggal Booking)
       const mkAll = new Set(fLeads.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
       const resM = pt.filter(t => t.jenis === 'Reserved' && mkAll.has(t.lead_code));
@@ -684,18 +686,23 @@ export default function Dashboard() {
       marcomHtml = `<h1 style="margin-top:32px;border-top:3px solid #23694A;padding-top:14px;page-break-before:always">BAGIAN MARKETING</h1>
 <p class="muted">Aktivitas & performa tim Marketing Communication — sumber: menu Analisa Marcom.</p>
 
-<h2>7. PENJUALAN DARI LEAD MARCOM</h2>
+<h2>7. PENJUALAN DARI LEAD MARKETING</h2>
 <table>
-<tr><th style="text-align:center">LEAD MARCOM MASUK</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th><th style="text-align:center">CLOSING RATE MARCOM</th></tr>
+<tr><th style="text-align:center">LEAD MARKETING MASUK</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th><th style="text-align:center">CLOSING RATE</th></tr>
 <tr>
-<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${mkCodes.size}</td>
-<td style="text-align:center;font-size:20pt;font-weight:bold;color:#C9922E">${resMn}</td>
-<td style="text-align:center;font-size:20pt;font-weight:bold;color:#B3402F">${bookMn}</td>
-<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${mkCodes.size ? Math.round(bookMn / mkCodes.size * 100) + '%' : '0%'}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${mkt ? mkt.leadMasuk : mkCodes.size}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#C9922E">${mkt ? mkt.reserved : resMn}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#B3402F">${mkt ? mkt.booking : bookMn}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${(() => { const lm = mkt ? mkt.leadMasuk : mkCodes.size, bk = mkt ? mkt.booking : bookMn; return lm ? Math.round(bk / lm * 100) + '%' : '0%'; })()}</td>
 </tr>
-<tr class="muted"><td style="text-align:center">lead yang diinput akun Marcom</td><td style="text-align:center">Nilai: <b>${rp(resMv)}</b></td><td style="text-align:center">Nilai: <b>${rp(bookMv)}</b></td><td style="text-align:center">Booking ÷ lead Marcom</td></tr>
+<tr class="muted"><td style="text-align:center">lead dari marcom, campaign, kanal marketing & walk in via media marketing</td><td style="text-align:center">Nilai: <b>${rp(mkt ? mkt.nilaiReserved : resMv)}</b></td><td style="text-align:center">Nilai: <b>${rp(mkt ? mkt.nilaiBooking : bookMv)}</b></td><td style="text-align:center">Booking ÷ lead marketing masuk</td></tr>
 </table>
-<p class="muted" style="font-size:8.5pt">Reserved/Booking = transaksi periode ini dari lead yang DIINPUT MARCOM (kapan pun lead-nya masuk) — ukuran performa Marcom; angka dapat berbeda dari Ringkasan yang berbasis seluruh lead. Closing Rate memakai lead Marcom yang masuk pada periode.</p>
+<p class="muted" style="font-size:8.5pt">Reserved/Booking dihitung pada tanggal transaksi periode ini dari lead marketing (kapan pun lead-nya masuk). Lead referral, kanvasing, dan WA langsung ke sales tidak dihitung sebagai hasil marketing${mi.bookingLain ? ` (${mi.bookingLain} booking periode ini)` : ''}.</p>
+${bdet.length ? `<h3>Detail Booking: dari Lead Masuk sampai Booking</h3>
+<table><tr><th>Lead</th><th>Asal</th><th>Sales</th><th style="width:80px">Lead Masuk</th><th style="width:80px">Booking</th><th style="width:55px;text-align:center">Lama (hari)</th><th style="width:55px;text-align:center">Follow Up</th><th style="width:110px">Nilai</th></tr>
+${bdet.map(b => `<tr><td><b>${esc(b.lead_code)}</b>${b.unit ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.unit) + '</span>' : ''}</td><td>${/walk/i.test(b.sumber) ? 'Walk In via ' + esc(b.walkin_info || '-') : esc(b.sumber)}${b.campaign && b.campaign !== '(tanpa data)' ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.campaign) + '</span>' : ''}</td><td>${esc(b.sales || '—')}</td><td>${fmtDate(b.tgl_lead)}</td><td>${fmtDate(b.tgl_booking)}</td><td style="text-align:center"><b>${b.hari}</b></td><td style="text-align:center">${b.nfu}</td><td>${Number(b.nilai) ? rp(b.nilai) : '—'}</td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Rata-rata ${Math.round(bdet.reduce((a, b) => a + Number(b.hari || 0), 0) / bdet.length)} hari dari lead masuk sampai booking.</p>` : ''}
 
 <h2>8. CAMPAIGN &amp; IKLAN DIGITAL (CLOSED-LOOP)</h2>
 <p class="muted">Total belanja iklan periode: <b>${rp(totSpend)}</b> · CPL ${perR(totSpend, pl.length)} · Biaya per Booking ${perR(totSpend, bookSet.size)}</p>

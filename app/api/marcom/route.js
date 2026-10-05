@@ -158,22 +158,47 @@ export async function GET(req) {
   ]);
 
   // Spend iklan per campaign (periode terpilih) — untuk CPL/CPQL/biaya per Booking
-  // Penjualan diakui pada TANGGAL BOOKING: L3 & nilai dihitung dari transaksi yang statusnya terakhir Booking/Closing
-  // dan tanggalnya di periode ini, dikreditkan ke campaign/sumber/kreatif/marcom asal lead — kapan pun lead masuk.
+  // Penjualan diakui pada TANGGAL BOOKING. Yang dihitung sebagai hasil MARKETING hanya lead yang:
+  // diinput akun marcom, ATAU punya campaign, ATAU sumbernya kanal marketing, ATAU walk in yang tahu dari kanal marketing
+  // (termasuk media offline banner/spanduk/billboard). Referral, kanvasing, WA langsung ke sales & lainnya tidak dihitung.
+  let bookingDetail = [], bookingLain = 0, marketing = { leadMasuk: 0, reserved: 0, nilaiReserved: 0, booking: 0, nilaiBooking: 0 };
   try {
-    const jual = await sql`
+    const trxP = await sql`
       WITH akhir AS (
         SELECT DISTINCT ON (t.lead_code, COALESCE(t.project, ''), COALESCE(NULLIF(t.unit, ''), 'x' || t.id)) t.*
         FROM transactions t
         ORDER BY t.lead_code, COALESCE(t.project, ''), COALESCE(NULLIF(t.unit, ''), 'x' || t.id), t.tgl DESC NULLS LAST, t.id DESC)
-      SELECT a.lead_code, COALESCE(NULLIF(a.nilai_jual, 0), a.nilai, 0)::numeric AS nilai,
+      SELECT a.lead_code, a.jenis, a.unit, a.tgl AS tgl_trx, l.tgl AS tgl_lead, (a.tgl - l.tgl)::int AS hari,
+        COALESCE(NULLIF(a.nilai_jual, 0), a.nilai, 0)::numeric AS nilai, COALESCE(a.nilai, 0)::numeric AS nilai_res,
         COALESCE(NULLIF(l.campaign, ''), '(tanpa data)') AS campaign, COALESCE(NULLIF(l.sumber, ''), '(tanpa data)') AS sumber,
+        COALESCE(l.walkin_info, '') AS walkin_info, COALESCE(l.sales, '') AS sales,
         COALESCE(NULLIF(l.konten, ''), '') AS konten, l.created_by,
-        COALESCE(NULLIF(l.domisili, ''), '(kosong)') AS domisili, COALESCE(NULLIF(l.tujuan, ''), '-') AS tujuan, COALESCE(NULLIF(l.tipe, ''), '-') AS tipe
+        COALESCE(NULLIF(l.domisili, ''), '(kosong)') AS domisili, COALESCE(NULLIF(l.tujuan, ''), '-') AS tujuan, COALESCE(NULLIF(l.tipe, ''), '-') AS tipe,
+        (SELECT count(*)::int FROM followups f WHERE f.lead_code = a.lead_code AND (f.tgl IS NULL OR f.tgl <= a.tgl)) AS nfu,
+        (EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom')
+          OR COALESCE(l.campaign, '') <> ''
+          OR (COALESCE(l.sumber, '') !~* 'walk' AND COALESCE(l.sumber, '') ~* '(facebook|instagram|google|tiktok|website|meta|marketplace|banner|spanduk|billboard|pameran|event)')
+          OR (COALESCE(l.sumber, '') ~* 'walk' AND COALESCE(l.walkin_info, '') ~* '(facebook|instagram|google|tiktok|website|meta|marketplace|banner|spanduk|billboard|pameran|event)')) AS marketing
       FROM akhir a JOIN leads l ON l.lead_code = a.lead_code
-      WHERE a.jenis IN ('Booking', 'Closing')
+      WHERE a.jenis IN ('Reserved', 'Booking', 'Closing')
         AND (${d1}::date IS NULL OR a.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR a.tgl <= ${d2}::date)
         AND (${proj}::text IS NULL OR COALESCE(NULLIF(a.project, ''), l.project) = ${proj})`;
+    const jual = trxP.filter(j => j.jenis !== 'Reserved' && j.marketing);
+    const resM = trxP.filter(j => j.jenis === 'Reserved' && j.marketing);
+    bookingLain = trxP.filter(j => j.jenis !== 'Reserved' && !j.marketing).length;
+    bookingDetail = jual.map(j => ({ lead_code: j.lead_code, unit: j.unit, sales: j.sales, sumber: j.sumber, walkin_info: j.walkin_info,
+      campaign: j.campaign, tgl_lead: j.tgl_lead, tgl_booking: j.tgl_trx, hari: j.hari, nfu: j.nfu, nilai: Number(j.nilai) || 0 }))
+      .sort((x, y) => String(y.tgl_booking).localeCompare(String(x.tgl_booking)));
+    const lm = await sql`SELECT count(*)::int AS n FROM leads l
+      WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR l.project = ${proj})
+        AND (EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom')
+          OR COALESCE(l.campaign, '') <> ''
+          OR (COALESCE(l.sumber, '') !~* 'walk' AND COALESCE(l.sumber, '') ~* '(facebook|instagram|google|tiktok|website|meta|marketplace|banner|spanduk|billboard|pameran|event)')
+          OR (COALESCE(l.sumber, '') ~* 'walk' AND COALESCE(l.walkin_info, '') ~* '(facebook|instagram|google|tiktok|website|meta|marketplace|banner|spanduk|billboard|pameran|event)'))`;
+    marketing = { leadMasuk: lm[0]?.n || 0, reserved: resM.length, nilaiReserved: resM.reduce((a, j) => a + (Number(j.nilai_res) || 0), 0),
+      booking: jual.length, nilaiBooking: jual.reduce((a, j) => a + (Number(j.nilai) || 0), 0) };
+
     const kosong = k => ({ kunci: k, l0: 0, l1: 0, l2: 0, l3: 0, nilai: 0 });
     const gabung = (arr, kunciOf, buat) => {
       arr.forEach(r => { r.l3 = 0; if ('nilai' in r) r.nilai = 0; });
@@ -271,7 +296,7 @@ export async function GET(req) {
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
   const hasilPlat = Object.fromEntries(spend.map(r => [r.kunci, Number(r.hasil) || 0]));
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {

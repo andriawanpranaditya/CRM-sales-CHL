@@ -228,6 +228,16 @@ export default function MarcomPage() {
     const hoDioper = ho.reduce((a, r) => a + r.dioper, 0), hoBalas = ho.reduce((a, r) => a + r.membalas, 0);
     if (hoDioper) R.ringkas.push(`${hoDioper} lead dioper marcom ke sales; ${hoBalas} (${pc(hoBalas / hoDioper)}) masih membalas setelah serah terima.`);
 
+    const bd = data.bookingDetail || [];
+    const asalLead = b => /walk/i.test(b.sumber) ? `Walk In via ${b.walkin_info || '-'}` : (b.campaign && b.campaign !== '(tanpa data)' ? `${b.sumber} · ${b.campaign}` : b.sumber);
+    if (bd.length) {
+      const hs = bd.map(b => Number(b.hari)).filter(h => !isNaN(h));
+      const rata = hs.length ? Math.round(hs.reduce((a, h) => a + h, 0) / hs.length) : null;
+      R.ringkas.push(`Booking dari marketing: ${bd.length} unit senilai ${rp(bd.reduce((a, b) => a + (Number(b.nilai) || 0), 0))}` + (rata !== null ? `; rata-rata ${rata} hari dari lead masuk sampai booking (tercepat ${Math.min(...hs)}, terlama ${Math.max(...hs)} hari).` : '.'));
+      bd.slice(0, 8).forEach(b => R.ringkas.push(`${b.lead_code} — ${asalLead(b)}: masuk ${fmtDate(b.tgl_lead)}, booking ${fmtDate(b.tgl_booking)} (${b.hari} hari, ${b.nfu} follow up${b.sales ? ', sales ' + b.sales : ''}).`));
+    }
+    if (data.bookingLain) R.ringkas.push(`${data.bookingLain} booking lain di periode ini berasal dari lead non-marketing (referral, kanvasing, WA langsung ke sales) — tidak dihitung sebagai hasil marketing.`);
+
     // ---------- YANG HARUS DIPERBAIKI ----------
     const camp = data.byCampaign || [];
     const tanpa = camp.find(r => r.kunci === '(tanpa data)');
@@ -412,6 +422,26 @@ export default function MarcomPage() {
                 <td className="num" data-label="Biaya/Booking">{per(sp, r.l3)}</td></tr>); })}</tbody>
           </table></div>
           <span className="hint">Lead terhitung ke campaign bila kolom Campaign diisi saat input lead (otomatis bila link iklan memakai UTM sesuai taksonomi).</span>
+        </div>
+
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Booking dari Marketing <span className="hint">(dihitung pada tanggal booking; lead dari marcom, campaign, kanal marketing, atau walk in via media marketing)</span></h3>
+          <div className="tbl-wrap tbl-compact"><table>
+            <thead><tr><th>Lead</th><th>Asal</th><th>Sales</th><th>Lead Masuk</th><th>Booking</th><th className="num">Lama (hari)</th><th className="num">Follow Up</th><th className="num">Nilai</th></tr></thead>
+            <tbody>{(data.bookingDetail || []).length ? (data.bookingDetail || []).map(b => (
+              <tr key={b.lead_code + (b.unit || '')}>
+                <td data-label="Lead"><b>{b.lead_code}</b>{b.unit ? <div className="hint">{b.unit}</div> : null}</td>
+                <td data-label="Asal">{/walk/i.test(b.sumber) ? 'Walk In via ' + (b.walkin_info || '-') : b.sumber}{b.campaign && b.campaign !== '(tanpa data)' ? <div className="hint">{b.campaign}</div> : null}</td>
+                <td data-label="Sales">{b.sales || '—'}</td>
+                <td data-label="Masuk">{fmtDate(b.tgl_lead)}</td>
+                <td data-label="Booking">{fmtDate(b.tgl_booking)}</td>
+                <td className="num" data-label="Lama"><b>{b.hari}</b></td>
+                <td className="num" data-label="FU">{b.nfu}</td>
+                <td className="num" data-label="Nilai">{Number(b.nilai) ? fmtRp(b.nilai) : '—'}</td>
+              </tr>))
+              : <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada booking dari lead marketing pada periode ini.</td></tr>}</tbody>
+          </table></div>
+          {data.bookingLain ? <span className="hint">{data.bookingLain} booking lain berasal dari lead non-marketing (referral, kanvasing, WA langsung ke sales) dan tidak dihitung di sini.</span> : null}
         </div>
 
         <div className="two-col">
