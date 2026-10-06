@@ -16,6 +16,7 @@ const MENUS = [
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'markom', 'sales'] },
   { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'admin', 'markom', 'sales'] },
+  { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'markom'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
 ];

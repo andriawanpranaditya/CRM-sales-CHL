@@ -117,6 +117,14 @@ export default function ReminderBell({ user }) {
             <div className="bell-list">
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
+              {(data.aiSiap || []).length > 0 && <>
+                <div className="bell-sub">🤖 Dari asisten AI — siap dioper ({data.aiSiap.length})</div>
+                {data.aiSiap.map(l => (
+                  <a key={l.lead_code} href="/form" className="rem-item" style={{ borderLeftColor: l.ai_status === 'eskalasi' ? 'var(--red)' : 'var(--green)' }}>
+                    <span><b>{l.lead_code} · {l.nama}</b><br /><span className="hint">{l.ai_status === 'eskalasi' ? '⚠ Minta bicara dengan tim — ' : '✓ Kualifikasi lengkap — '}{l.ai_ringkasan || 'lihat chat WA'}</span></span>
+                    <span className={'badge ' + (l.ai_status === 'eskalasi' ? 'b-overdue' : 'b-close')}>{l.ai_status === 'eskalasi' ? 'Segera' : 'Oper'}</span>
+                  </a>))}
+              </>}
               {(data.celah || []).length > 0 && <>
                 <div className="bell-sub">📩 Lead masuk belum tercatat ({data.celah.length})</div>
                 {data.celahTotal && (

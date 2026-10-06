@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { db } from '@/lib/db';
+import { db, DEFAULT_SETTINGS } from '@/lib/db';
+import { siapkanAI, konfigAI, tanyaAI, kirimWA } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -40,6 +41,7 @@ async function siapkan(sql) {
     msg_id text PRIMARY KEY, wa text, project text, lead_code text, isi text, referral jsonb,
     created_at timestamptz NOT NULL DEFAULT now())`;
   try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
+  try { await siapkanAI(sql); } catch (e) { console.error('siapkanAI', e); }
   siap = true;
 }
 
@@ -50,7 +52,7 @@ function isiPesan(m) {
   return `[${m.type || 'pesan'}]`;
 }
 
-async function prosesPesan(sql, m, namaProfil, project) {
+async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   const wa = String(m.from || '').replace(/[^0-9]/g, '');
   if (!wa || !m.id) return;
   const isi = isiPesan(m);
@@ -76,6 +78,8 @@ async function prosesPesan(sql, m, namaProfil, project) {
     await sql`UPDATE leads SET next_fu = ${hari}, updated_at = now()
       WHERE lead_code = ${l.lead_code} AND status NOT IN ('Drop', 'Closing') AND (next_fu IS NULL OR next_fu > ${hari})`;
     await sql`UPDATE wa_inbox SET lead_code = ${l.lead_code} WHERE msg_id = ${m.id}`;
+    await catatPercakapan(sql, wa, project, l.lead_code, 'user', isi);
+    await balasAI(sql, { wa, project, lead_code: l.lead_code, phoneId, msgId: m.id });
     return;
   }
 
@@ -118,6 +122,60 @@ async function prosesPesan(sql, m, namaProfil, project) {
   const code = 'LEAD-' + String(ins[0].id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${ins[0].id}`;
   await sql`UPDATE wa_inbox SET lead_code = ${code} WHERE msg_id = ${m.id}`;
+  await catatPercakapan(sql, wa, project, code, 'user', isi);
+  await balasAI(sql, { wa, project, lead_code: code, phoneId, msgId: m.id });
+}
+
+async function catatPercakapan(sql, wa, project, lead_code, peran, isi) {
+  try { await sql`INSERT INTO wa_percakapan (wa, project, lead_code, peran, isi) VALUES (${wa}, ${project}, ${lead_code}, ${peran}, ${String(isi || '').slice(0, 2000)})`; } catch {}
+}
+
+// ===== Asisten AI: balas otomatis selama lead belum diambil tim / belum punya sales =====
+async function balasAI(sql, { wa, project, lead_code, phoneId, msgId }) {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY || !phoneId) return;
+    const cfg = await konfigAI(sql, project);
+    if (!cfg.aktif) return;
+    const ld = (await sql`SELECT * FROM leads WHERE lead_code = ${lead_code}`)[0];
+    if (!ld || ld.sales || ['diambil_tim', 'eskalasi', 'nonaktif'].includes(ld.ai_status || '') || ['Drop', 'Booking', 'Closing', 'Reserved'].includes(ld.status)) return;
+    // Calon pembeli sering mengirim beberapa pesan beruntun: tunggu sebentar, lalu hanya pesan TERAKHIR yang dibalas
+    await new Promise(r => setTimeout(r, 4000));
+    const terbaru = await sql`SELECT msg_id FROM wa_inbox WHERE wa = ${wa} ORDER BY created_at DESC LIMIT 1`;
+    if (terbaru[0] && terbaru[0].msg_id !== msgId) return;
+    const riwayat = (await sql`SELECT peran, isi FROM wa_percakapan WHERE wa = ${wa} ORDER BY id DESC LIMIT 16`).reverse();
+    const set = { ...DEFAULT_SETTINGS };
+    try { (await sql`SELECT key, items FROM settings`).forEach(r => { set[r.key] = r.items; }); } catch {}
+    const out = await tanyaAI({ project, pengetahuan: cfg.pengetahuan, set, riwayat });
+    if (!out.balasan) return;
+    await kirimWA(phoneId, wa, String(out.balasan).slice(0, 1500));
+    await catatPercakapan(sql, wa, project, lead_code, 'ai', out.balasan);
+    // Isi kolom kualifikasi yang masih kosong (tidak menimpa isian tim)
+    const d = out.data || {};
+    await sql`UPDATE leads SET
+        nama = CASE WHEN (nama IS NULL OR nama = '' OR nama LIKE 'WA %') AND ${d.nama || ''} <> '' THEN ${d.nama || ''} ELSE nama END,
+        domisili = CASE WHEN COALESCE(domisili, '') = '' THEN ${d.domisili || ''} ELSE domisili END,
+        budget = CASE WHEN COALESCE(budget, 0) = 0 THEN ${Number(d.budget) || 0} ELSE budget END,
+        bayar = CASE WHEN COALESCE(bayar, '') = '' THEN ${d.bayar || ''} ELSE bayar END,
+        usia = CASE WHEN COALESCE(usia, '') = '' THEN ${d.usia || ''} ELSE usia END,
+        tujuan = CASE WHEN COALESCE(tujuan, '') = '' THEN ${d.tujuan || ''} ELSE tujuan END,
+        tipe = CASE WHEN COALESCE(tipe, '') = '' THEN ${d.tipe || ''} ELSE tipe END,
+        ai_ringkasan = ${out.ringkasan || ld.ai_ringkasan || ''},
+        ai_status = ${out.eskalasi ? 'eskalasi' : out.siap_oper ? 'siap_oper' : 'aktif'},
+        next_fu = CASE WHEN ${!!(out.eskalasi || out.siap_oper)} THEN (now() + interval '7 hours')::date ELSE next_fu END,
+        updated_at = now()
+      WHERE lead_code = ${lead_code}`;
+  } catch (e) { console.error('balasAI', e); }
+}
+
+// Pesan yang dikirim tim langsung dari aplikasi WhatsApp Business (coexistence echo) → AI berhenti untuk lead itu
+async function prosesEcho(sql, e, project) {
+  const wa = String(e.to || '').replace(/[^0-9]/g, '');
+  if (!wa) return;
+  const isi = e.type === 'text' ? (e.text?.body || '') : `[${e.type || 'pesan'}]`;
+  const ld = (await sql`SELECT lead_code FROM leads
+    WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa} ORDER BY id LIMIT 1`)[0];
+  await catatPercakapan(sql, wa, project, ld?.lead_code || null, 'tim', isi);
+  if (ld) await sql`UPDATE leads SET ai_status = 'diambil_tim', updated_at = now() WHERE lead_code = ${ld.lead_code} AND COALESCE(ai_status, '') <> 'diambil_tim'`;
 }
 
 export async function POST(req) {
@@ -131,13 +189,18 @@ export async function POST(req) {
   const peta = petaNomor();
   for (const e of body.entry || []) {
     for (const c of e.changes || []) {
-      if (c.field !== 'messages') continue;
       const v = c.value || {};
+      if (/echo/i.test(c.field || '')) {
+        const pj = peta[String(v.metadata?.display_phone_number || '').replace(/[^0-9]/g, '')] || '';
+        for (const e of (v.message_echoes || v.messages || [])) { try { await prosesEcho(sql, e, pj); } catch (err) { console.error('echo', err); } }
+        continue;
+      }
+      if (c.field !== 'messages') continue;
       const project = peta[String(v.metadata?.display_phone_number || '').replace(/[^0-9]/g, '')] || '';
       const nama = {};
       (v.contacts || []).forEach(k => { nama[k.wa_id] = k.profile?.name || ''; });
       for (const m of v.messages || []) {
-        try { await prosesPesan(sql, m, nama[m.from] || '', project); } catch (err) { console.error('wa-webhook', err); }
+        try { await prosesPesan(sql, m, nama[m.from] || '', project, v.metadata?.phone_number_id); } catch (err) { console.error('wa-webhook', err); }
       }
     }
   }

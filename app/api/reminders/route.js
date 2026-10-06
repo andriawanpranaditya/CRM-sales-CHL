@@ -98,5 +98,13 @@ export async function GET() {
     } catch (e) { console.error('celah lead', e); }
   }
 
-  return Response.json({ today, hariIni, terlambat, stok, celah, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: rows.length + stok.length + celah.length });
+  let aiSiap = [];
+  if (user.role !== 'sales') {
+    try {
+      aiSiap = await sql`SELECT lead_code, nama, wa, project, ai_status, ai_ringkasan FROM leads
+        WHERE ai_status IN ('siap_oper', 'eskalasi') AND COALESCE(sales, '') = '' AND status NOT IN ('Drop', 'Closing')
+        ORDER BY (ai_status = 'eskalasi') DESC, updated_at DESC LIMIT 20`;
+    } catch {}
+  }
+  return Response.json({ today, hariIni, terlambat, stok, celah, aiSiap, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: rows.length + stok.length + celah.length + aiSiap.length });
 }
