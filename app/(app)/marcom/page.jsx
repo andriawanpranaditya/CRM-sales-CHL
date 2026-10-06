@@ -44,6 +44,7 @@ export default function MarcomPage() {
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
   const [formManual, setFormManual] = useState(false);
+  const [kSort, setKSort] = useState({ key: 'tgl', dir: 'desc' }); // urutan tabel konten
   const [showSpendManual, setShowSpendManual] = useState(false);
   const [gb, setGb] = useState(null); // { dari, ke }
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
@@ -575,8 +576,15 @@ export default function MarcomPage() {
           </div>
         </div>
         <div className="tbl-wrap tbl-compact"><table>
-          <thead><tr><th>Tanggal</th><th>Platform</th><th>Format</th><th>Topik / Hook</th><th>Jam</th><th className="num">Reach</th><th className="num">Like</th><th className="num">Komentar</th><th className="num">Share</th><th className="num">Save</th><th className="num">Views</th><th className="num">ER</th><th className="num">Klik Bio</th><th>Aksi</th></tr></thead>
-          <tbody>{(data.contents || []).length ? (data.contents || []).map(x => (
+          <thead><tr>{[['tgl', 'Tanggal'], ['platform', 'Platform'], ['format', 'Format'], ['topik', 'Topik / Hook'], ['jam', 'Jam'], ['reach', 'Reach'], ['like_n', 'Like'], ['komentar', 'Komentar'], ['share_n', 'Share'], ['save_n', 'Save'], ['view3', 'Views'], ['er', 'ER'], ['klik_bio', 'Klik Bio']].map(([k, t]) => (
+            <th key={k} className={['reach', 'like_n', 'komentar', 'share_n', 'save_n', 'view3', 'er', 'klik_bio'].includes(k) ? 'num' : ''} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="Klik untuk mengurutkan"
+              onClick={() => setKSort(s0 => ({ key: k, dir: s0.key === k && s0.dir === 'desc' ? 'asc' : 'desc' }))}>{t}{kSort.key === k ? (kSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}</th>))}<th>Aksi</th></tr></thead>
+          <tbody>{(data.contents || []).length ? [...(data.contents || [])].sort((a, b) => {
+            const k = kSort.key, d = kSort.dir === 'desc' ? -1 : 1;
+            const v = x => k === 'er' ? (er(x) ?? -1) : ['tgl', 'platform', 'format', 'topik', 'jam'].includes(k) ? String(x[k] || '') : (Number(x[k]) || 0);
+            const va = v(a), vb = v(b);
+            return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * d;
+          }).map(x => (
             <tr key={x.id}>
               <td data-label="Tanggal">{fmtDate(x.tgl)}</td>
               <td data-label="Platform">{x.platform}{igAktif && x.platform === 'Instagram' ? <div className="hint">⚡ otomatis</div> : null}</td>
