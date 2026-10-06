@@ -6,11 +6,28 @@ export const dynamic = 'force-dynamic';
 const KUALITAS = ['Warm', 'Hot', 'Appointment', 'Site Visit'];
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit'];
 
+// Pengisian satu kali: lead yang sudah berstatus Drop bulan ini sebelum pencatat aktif, diberi riwayat dari tanggal terakhir diubah
+let dropAwalSiap = false;
+async function isiRiwayatDropAwal(sql) {
+  if (dropAwalSiap) return;
+  try {
+    await sql`INSERT INTO lead_status_log (lead_code, jenis, dari, ke, sales_saat, oleh, alasan, tgl, created_at)
+      SELECT l.lead_code, 'status', NULL, 'Drop', COALESCE(l.sales, ''), l.created_by,
+        COALESCE(NULLIF((SELECT f.objection FROM followups f WHERE f.lead_code = l.lead_code AND f.next_action = 'Drop' ORDER BY f.id DESC LIMIT 1), ''), '(riwayat perkiraan — sebelum pencatat aktif)'),
+        (COALESCE(l.updated_at, now()) + interval '7 hours')::date, COALESCE(l.updated_at, now())
+      FROM leads l
+      WHERE l.status = 'Drop' AND COALESCE(l.updated_at, now()) >= date_trunc('month', now() + interval '7 hours')
+        AND NOT EXISTS (SELECT 1 FROM lead_status_log s WHERE s.lead_code = l.lead_code AND s.ke = 'Drop')`;
+    dropAwalSiap = true;
+  } catch (e) { console.error('isiRiwayatDropAwal', e); }
+}
+
 // Ringkasan pergerakan status lead per periode (dari riwayat yang dicatat trigger database)
 export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   await siapkanStatusLog(sql);
+  await isiRiwayatDropAwal(sql);
   const url = new URL(req.url);
   const d1 = url.searchParams.get('d1') || null, d2 = url.searchParams.get('d2') || null;
   const proj = url.searchParams.get('project') || null;
