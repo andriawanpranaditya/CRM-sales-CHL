@@ -33,6 +33,7 @@ export async function POST(req) {
   }
   await siapkanBalas(sql);
   const balas = b.balas === true ? true : b.balas === false ? false : null;
+  if (b.next_action === 'Drop' && (b.objection || '').trim() && !String(b.detail || '').includes('Drop:')) b.detail = String(b.detail || '') + ' — Drop: ' + b.objection.trim();
   await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
     VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas})`;
   // Status lead ikut diperbarui dari form follow up (Drop/Reserved/Booking diatur oleh logika di bawah)
