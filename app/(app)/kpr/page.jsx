@@ -137,8 +137,10 @@ export default function SimulasiCaraBayar() {
   const [bunga, setBunga] = useState(2.75);
   const [dbr, setDbr] = useState(40);
   const [penghasilan, setPenghasilan] = useState('');
-  const [tahunFix, setTahunFix] = useState(3);        // masa bunga fix (BIO)
-  const [bungaLanjut, setBungaLanjut] = useState(11); // perkiraan bunga setelah masa fix
+  const [tahunFix, setTahunFix] = useState(3);        // tahap 1: masa bunga fix (tahun) — bunganya = kolom Bunga di atas
+  const [tahap2, setTahap2] = useState({ tahun: 3, bunga: 4 });   // tahap 2 (0 tahun = tidak dipakai)
+  const [tahap3, setTahap3] = useState({ tahun: 4, bunga: 5 });   // tahap 3 (0 tahun = tidak dipakai)
+  const [bungaLanjut, setBungaLanjut] = useState(11); // floating setelah semua tahap fix
   const [lihatTabel, setLihatTabel] = useState(true);
   const [cicilanLain, setCicilanLain] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -189,24 +191,40 @@ export default function SimulasiCaraBayar() {
   const TENOR = isPermai ? PERMAI.tenor : TENOR_KPR;
   const angs = useMemo(() => anuitas(plafon, Number(bunga) || 0, (Number(tenor) || 0) * 12), [plafon, bunga, tenor]);
   // Proyeksi setelah masa fix + rincian anuitas (pokok & bunga per bulan)
+  // Skema berjenjang: tiap tahap angsuran dihitung ulang dari SISA POKOK & SISA TENOR dengan bunga tahap itu (cara bank menghitung)
   const amort = useMemo(() => {
     const nB = (Number(tenor) || 0) * 12;
     if (!plafon || !nB) return null;
-    const nFix = isPermai ? nB : Math.min(nB, (Number(tahunFix) || 0) * 12); // Permai: bunga tetap sepanjang tenor
-    const i1 = (Number(bunga) || 0) / 1200, i2 = (Number(bungaLanjut) || 0) / 1200;
-    const aFix = angs;
-    let sisa = plafon;
-    for (let b = 1; b <= nFix; b++) sisa = Math.max(0, sisa - (aFix - sisa * i1));
-    const sisaFix = sisa;
-    const aLanjut = nB - nFix > 0 ? anuitas(sisaFix, Number(bungaLanjut) || 0, nB - nFix) : 0;
-    const baris = []; sisa = plafon; let totBunga = 0, totBayar = 0;
-    for (let b = 1; b <= nB; b++) {
-      const fix = b <= nFix, a = fix ? aFix : aLanjut, bg = sisa * (fix ? i1 : i2), pk = a - bg;
-      sisa = Math.max(0, sisa - pk); totBunga += bg; totBayar += a;
-      baris.push({ b, fix, a, bg, pk, sisa });
+    let tahapList;
+    if (isPermai) tahapList = [{ nama: 'Fix', bulan: nB, bunga: Number(bunga) || 0 }]; // Permai: bunga tetap sepanjang tenor
+    else {
+      const t1 = Math.max(0, Number(tahunFix) || 0) * 12, t2 = Math.max(0, Number(tahap2.tahun) || 0) * 12, t3 = Math.max(0, Number(tahap3.tahun) || 0) * 12;
+      tahapList = [
+        { nama: 'Fix 1', bulan: t1, bunga: Number(bunga) || 0 },
+        { nama: 'Fix 2', bulan: t2, bunga: Number(tahap2.bunga) || 0 },
+        { nama: 'Fix 3', bulan: t3, bunga: Number(tahap3.bunga) || 0 },
+      ].filter(t => t.bulan > 0);
+      // potong bila melebihi tenor, lalu sisanya floating
+      let akum = 0;
+      tahapList = tahapList.map(t => { const bln = Math.max(0, Math.min(t.bulan, nB - akum)); akum += bln; return { ...t, bulan: bln }; }).filter(t => t.bulan > 0);
+      if (nB - akum > 0) tahapList.push({ nama: 'Floating', bulan: nB - akum, bunga: Number(bungaLanjut) || 0, floating: true });
     }
-    return { nB, nFix, sisaFix, aLanjut, baris, totBunga, totBayar };
-  }, [plafon, bunga, tenor, tahunFix, bungaLanjut, angs, isPermai]);
+    const baris = []; let sisa = plafon, totBunga = 0, totBayar = 0, b = 0, mulai = 0;
+    const tahap = tahapList.map(t => {
+      const sisaBulan = nB - mulai;
+      const a = anuitas(sisa, t.bunga, sisaBulan); // dihitung ulang dari sisa pokok & sisa tenor
+      const i = t.bunga / 1200, dari = mulai + 1, sisaAwal = sisa;
+      for (let k = 0; k < t.bulan; k++) {
+        b++; const bg = sisa * i, pk = a - bg; sisa = Math.max(0, sisa - pk); totBunga += bg; totBayar += a;
+        baris.push({ b, tahap: t.nama, fix: !t.floating, a, bg, pk, sisa });
+      }
+      mulai += t.bulan;
+      return { ...t, a, dari, sampai: mulai, sisaAwal, sisaAkhir: sisa };
+    });
+    const fixTerakhir = tahap.filter(t => !t.floating).slice(-1)[0];
+    const floating = tahap.find(t => t.floating);
+    return { nB, tahap, baris, totBunga, totBayar, nFix: fixTerakhir ? fixTerakhir.sampai : nB, sisaFix: fixTerakhir ? fixTerakhir.sisaAkhir : 0, aLanjut: floating ? floating.a : 0 };
+  }, [plafon, bunga, tenor, tahunFix, tahap2, tahap3, bungaLanjut, isPermai]);
   const lain = Number(cicilanLain) || 0;
   const butuh = angs ? (angs + lain) / (dbr / 100) : 0;
   const dbrAkt = Number(penghasilan) ? ((angs + lain) / Number(penghasilan)) * 100 : null;
@@ -226,6 +244,7 @@ export default function SimulasiCaraBayar() {
     rows.forEach(r => { t += `${tglID(r.tgl)} — ${r.ket}: ${fmtRp(r.nominal) === '—' ? 'Rp0' : fmtRp(r.nominal)}\n`; });
     if (cara === 'kpr') {
       t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
+      if (amort && !isPermai && amort.tahap.length > 1) t += `\n\n*Skema bunga berjenjang (tenor ${tenor} th)*:\n` + amort.tahap.map(x => `${x.floating ? 'Floating' : x.nama} (th ${Math.ceil(x.dari / 12)}–${Math.ceil(x.sampai / 12)}, ${x.bunga}%${x.floating ? '*' : ''}): ${fmtRp(Math.round(x.a))}/bln`).join('\n') + `\n_*floating = perkiraan, mengikuti bunga bank saat itu_`;
       t += `\nPenghasilan minimal ± ${fmtRp(Math.round(butuh))}/bln (DBR ${dbr}%).`;
     }
     t += `\n\nPembayaran ke: ${REK.pt} · BCA ${REK.no} (${REK.cab}).\n_Simulasi; mengikuti ketentuan price list yang berlaku._`;
@@ -277,6 +296,14 @@ export default function SimulasiCaraBayar() {
           doc.text('penghasilan min. ' + fmtRp(Math.round((a + lain) / (dbr / 100))) + ' (DBR ' + dbr + '%)', M + 95, y);
           y += 6;
         });
+        if (amort && !isPermai && amort.tahap.length > 1) {
+          y += 2; doc.setFont('helvetica', 'bold'); doc.text('Skema bunga berjenjang — tenor ' + tenor + ' tahun', M, y); y += 5; doc.setFont('helvetica', 'normal');
+          amort.tahap.forEach(x => {
+            doc.text((x.floating ? 'Floating' : x.nama) + ' (tahun ' + Math.ceil(x.dari / 12) + '-' + Math.ceil(x.sampai / 12) + ', ' + x.bunga + '%' + (x.floating ? '*' : '') + ')', M + 3, y);
+            doc.text(fmtRp(Math.round(x.a)) + ' / bulan', M + 95, y); y += 5;
+          });
+          doc.text('*Bunga floating mengikuti suku bunga bank saat itu (perkiraan).', M + 3, y); y += 4;
+        }
         y += 4;
       }
       doc.setFontSize(8.5); doc.setTextColor(90, 100, 92);
@@ -440,23 +467,30 @@ export default function SimulasiCaraBayar() {
 
             {amort && !isPermai && (
               <div style={{ marginTop: 14 }}>
-                <h3 style={{ margin: '0 0 6px' }}>Perhitungan Setelah Masa Fix <span className="hint">(perkiraan)</span></h3>
+                <h3 style={{ margin: '0 0 6px' }}>Skema Bunga Berjenjang <span className="hint">(fix bertahap sampai 3 tahap, sisanya floating — isi 0 tahun bila tahap tidak dipakai)</span></h3>
                 <div className="form-grid">
-                  <div className="field"><label>Masa Bunga Fix</label>
-                    <select value={tahunFix} onChange={e => setTahunFix(Number(e.target.value))}>
-                      {[1, 2, 3, 5, 8, 10].filter(t => t < Number(tenor)).map(t => <option key={t} value={t}>{t} tahun</option>)}
-                    </select></div>
-                  <div className="field"><label>Perkiraan Bunga Setelah Fix (%)</label>
-                    <input type="number" min="0" step="0.25" value={bungaLanjut} onChange={e => setBungaLanjut(e.target.value)} /></div>
+                  <div className="field"><label>Tahap 1 — Lama (tahun)</label><input type="number" min="0" max={tenor} value={tahunFix} onChange={e => setTahunFix(e.target.value)} /></div>
+                  <div className="field"><label>Tahap 1 — Bunga (%)</label><input type="number" min="0" step="0.05" value={bunga} onChange={e => setBunga(e.target.value)} /></div>
+                  <div className="field"><label>Tahap 2 — Lama (tahun)</label><input type="number" min="0" value={tahap2.tahun} onChange={e => setTahap2({ ...tahap2, tahun: e.target.value })} /></div>
+                  <div className="field"><label>Tahap 2 — Bunga (%)</label><input type="number" min="0" step="0.05" value={tahap2.bunga} onChange={e => setTahap2({ ...tahap2, bunga: e.target.value })} /></div>
+                  <div className="field"><label>Tahap 3 — Lama (tahun)</label><input type="number" min="0" value={tahap3.tahun} onChange={e => setTahap3({ ...tahap3, tahun: e.target.value })} /></div>
+                  <div className="field"><label>Tahap 3 — Bunga (%)</label><input type="number" min="0" step="0.05" value={tahap3.bunga} onChange={e => setTahap3({ ...tahap3, bunga: e.target.value })} /></div>
+                  <div className="field"><label>Floating — Perkiraan Bunga (%)</label><input type="number" min="0" step="0.25" value={bungaLanjut} onChange={e => setBungaLanjut(e.target.value)} /></div>
                 </div>
-                <div className="tbl-wrap"><table className="tbl-compact"><tbody>
-                  <tr><td>Angsuran tahun ke-1 s/d ke-{tahunFix} (bunga fix {bunga}%)</td><td className="num"><b>{fmtRp(Math.round(angs))}</b></td></tr>
-                  <tr><td>Sisa pokok saat masa fix berakhir (bulan ke-{amort.nFix})</td><td className="num">{fmtRp(Math.round(amort.sisaFix))}</td></tr>
-                  <tr><td>Perkiraan angsuran tahun ke-{Number(tahunFix) + 1} s/d lunas (bunga {bungaLanjut}%)</td><td className="num"><b>{fmtRp(Math.round(amort.aLanjut))}</b></td></tr>
-                  <tr><td>Total bunga s/d lunas (perkiraan)</td><td className="num">{fmtRp(Math.round(amort.totBunga))}</td></tr>
-                  <tr><td>Total pembayaran s/d lunas (perkiraan)</td><td className="num">{fmtRp(Math.round(amort.totBayar))}</td></tr>
-                </tbody></table></div>
-                <p className="hint">Bunga setelah masa fix mengikuti suku bunga bank saat itu — angka di atas hanya perkiraan dan bisa disiasati dengan take over atau pelunasan sebagian.</p>
+                <div className="tbl-wrap"><table className="tbl-compact">
+                  <thead><tr><th>Tahap</th><th>Periode</th><th className="num">Bunga</th><th className="num">Angsuran / bulan</th><th className="num">Sisa pokok di akhir tahap</th></tr></thead>
+                  <tbody>{amort.tahap.map(t => (
+                    <tr key={t.nama}>
+                      <td data-label="Tahap">{t.floating ? <span className="badge b-warm">Floating</span> : <span className="badge b-close">{t.nama}</span>}</td>
+                      <td data-label="Periode">Bulan {t.dari}–{t.sampai} <span className="hint">(tahun {Math.ceil(t.dari / 12)}–{Math.ceil(t.sampai / 12)})</span></td>
+                      <td className="num" data-label="Bunga">{t.bunga}%{t.floating ? ' *' : ''}</td>
+                      <td className="num" data-label="Angsuran"><b>{fmtRp(Math.round(t.a))}</b></td>
+                      <td className="num" data-label="Sisa">{fmtRp(Math.round(t.sisaAkhir))}</td>
+                    </tr>))}
+                    <tr><td colSpan={3}><b>Total bunga s/d lunas (perkiraan)</b></td><td className="num" colSpan={2}><b>{fmtRp(Math.round(amort.totBunga))}</b></td></tr>
+                    <tr><td colSpan={3}><b>Total pembayaran s/d lunas (perkiraan)</b></td><td className="num" colSpan={2}><b>{fmtRp(Math.round(amort.totBayar))}</b></td></tr>
+                  </tbody></table></div>
+                <p className="hint">Angsuran tiap tahap dihitung ulang dari sisa pokok dan sisa tenor dengan bunga tahap itu. * Bunga floating mengikuti suku bunga bank saat itu — angkanya hanya perkiraan, bisa disiasati dengan take over atau pelunasan sebagian.</p>
               </div>
             )}
             {amort && isPermai && (
@@ -474,9 +508,9 @@ export default function SimulasiCaraBayar() {
                       <thead><tr><th>Bulan</th>{!isPermai && <th>Masa</th>}<th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
                       <tbody>
                         {amort.baris.map(r => (
-                          <tr key={r.b} style={!isPermai && r.b === amort.nFix + 1 ? { borderTop: '2px solid #C9922E' } : undefined}>
+                          <tr key={r.b} style={!isPermai && amort.tahap.some(t => t.dari === r.b && r.b > 1) ? { borderTop: '2px solid #C9922E' } : undefined}>
                             <td data-label="Bulan">{r.b}</td>
-                            {!isPermai && <td data-label="Masa">{r.fix ? <span className="badge b-close">Fix</span> : <span className="badge b-warm">Setelah fix</span>}</td>}
+                            {!isPermai && <td data-label="Masa">{r.fix ? <span className="badge b-close">{r.tahap}</span> : <span className="badge b-warm">Floating</span>}</td>}
                             <td className="num" data-label="Angsuran">{fmtRp(Math.round(r.a))}</td>
                             <td className="num" data-label="Pokok">{fmtRp(Math.round(r.pk))}</td>
                             <td className="num" data-label="Bunga">{fmtRp(Math.round(r.bg))}</td>
