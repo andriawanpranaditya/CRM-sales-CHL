@@ -568,7 +568,7 @@ export default function MarcomPage() {
 
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Total Engagement Periode Ini <span className="hint">({totalEng.n} konten · ER = (like + komentar + share + save) ÷ reach)</span></h3>
-          <div className="kpi-grid">
+          <div className="kpi-grid kpi-compact">
             {[['Reach', totalEng.reach], ['Like', totalEng.like], ['Komentar', totalEng.kom], ['Share', totalEng.share], ['Save', totalEng.save], ['Views', totalEng.views], ['Klik Bio', totalEng.klik], ['ER rata-rata', totalEng.reach ? pct((totalEng.like + totalEng.kom + totalEng.share + totalEng.save) / totalEng.reach) : '—']].map(([l, v]) => (
               <div className="kpi" key={l}><div className="kpi-label">{l}</div><div className="kpi-val">{typeof v === 'number' ? v.toLocaleString('id-ID') : v}</div></div>))}
           </div>
