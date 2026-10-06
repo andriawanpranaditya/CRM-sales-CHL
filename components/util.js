@@ -54,7 +54,17 @@ export function bukaWA(nomor, teks, winSiap) {
   return true;
 }
 
+// ===== Indikator sibuk global: dipakai BusyIndicator untuk menampilkan "Memuat…" / "Selesai" =====
+let sibuk = 0; const pendengar = new Set();
+const umumkan = () => pendengar.forEach(f => { try { f(sibuk); } catch {} });
+export function onSibuk(fn) { pendengar.add(fn); fn(sibuk); return () => pendengar.delete(fn); }
+
 export async function api(url, opts) {
+  if (opts && opts.silent) { const { silent, ...o } = opts; return apiInti(url, Object.keys(o).length ? o : undefined); }
+  sibuk++; umumkan();
+  try { return await apiInti(url, opts); } finally { sibuk = Math.max(0, sibuk - 1); umumkan(); }
+}
+async function apiInti(url, opts) {
   let res;
   try {
     // cache: 'no-store' — data CRM selalu segar, browser/PWA dilarang menyajikan respons lama

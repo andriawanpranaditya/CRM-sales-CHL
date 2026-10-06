@@ -29,7 +29,7 @@ export default function ReminderBell({ user }) {
 
   async function load() {
     try {
-      const d = await api('/api/reminders');
+      const d = await api('/api/reminders', { silent: true });
       setData(d); dataRef.current = d;
       // Notifikasi browser (sekali per hari per perangkat, bila diizinkan)
       if (d.total > 0 && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !notified.current) {

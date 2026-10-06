@@ -122,7 +122,15 @@ th.num{text-align:right}
 .note{background:var(--brass-soft);border:1px solid #EAD6A8;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#7A5A15;margin-bottom:16px}
 .set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
 .set-grid textarea{min-height:180px;resize:vertical}
-.loading{color:var(--muted);padding:30px;text-align:center}
+.loading{color:var(--muted);padding:40px 20px;text-align:center;font-size:14px;letter-spacing:.2px}
+.loading::before{content:'';display:block;width:64px;height:64px;margin:0 auto 14px;background:url('/logo.png') center/contain no-repeat;
+  animation:chl-bloom 1.6s ease-in-out infinite;filter:drop-shadow(0 0 0 rgba(201,146,46,0))}
+.loading::after{content:'';display:block;width:140px;height:3px;margin:14px auto 0;border-radius:3px;
+  background:linear-gradient(90deg,transparent 0%,var(--brass) 50%,transparent 100%);background-size:200% 100%;animation:chl-bar 1.3s linear infinite}
+@keyframes chl-bloom{0%,100%{transform:scale(.86) rotate(-3deg);opacity:.75;filter:drop-shadow(0 0 0 rgba(201,146,46,0))}
+  50%{transform:scale(1.06) rotate(3deg);opacity:1;filter:drop-shadow(0 0 10px rgba(201,146,46,.45))}}
+@keyframes chl-bar{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.loading::before,.loading::after{animation:none}}
 
 .copyright{text-align:center;color:var(--muted);font-size:11px;margin-top:34px;letter-spacing:.4px;opacity:.8}
 
@@ -234,3 +242,12 @@ th.num{text-align:right}
   .row-detail > td::before{content:none !important}
   .row-detail .kpi-grid{grid-template-columns:1fr 1fr}
 }
+
+/* ===== Indikator sibuk global (logo CHL) ===== */
+.busy-chip{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:8px;
+  padding:7px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.14);
+  font-size:13px;font-weight:600;color:var(--ink);animation:busy-in .18s ease-out}
+.busy-chip.selesai{color:var(--green);border-color:rgba(35,105,74,.35)}
+.busy-logo{width:22px;height:22px;background:url('/logo.png') center/contain no-repeat;animation:chl-bloom 1.2s ease-in-out infinite}
+@keyframes busy-in{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+@media(max-width:600px){.busy-chip{top:auto;bottom:76px;font-size:12px}}

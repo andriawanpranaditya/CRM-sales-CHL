@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
+import BusyIndicator from '@/components/BusyIndicator';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -110,6 +111,7 @@ export default function Shell({ user, children }) {
       </aside>
       <main className="main">
         <div className="bell-desktop"><ReminderBell user={user} /></div>
+        <BusyIndicator />
         {children}
         <div className="copyright">copyright &copy; 2026 by Andriawanp</div>
       </main>

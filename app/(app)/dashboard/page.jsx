@@ -7,8 +7,8 @@ const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booki
 
 export default function Dashboard() {
   const [lastUpd, setLastUpd] = useState(null);
-  function muatSemua() {
-    return Promise.all([api('/api/leads?all=1'), api('/api/followups?all=1'), api('/api/trx'), api('/api/settings'), api('/api/stock'), api('/api/kegiatan').catch(() => [])])
+  function muatSemua(senyap = false) { // senyap = refresh latar belakang (tanpa indikator "Memuat…")
+    return Promise.all([api('/api/leads?all=1', { silent: senyap }), api('/api/followups?all=1', { silent: senyap }), api('/api/trx', { silent: senyap }), api('/api/settings', { silent: senyap }), api('/api/stock', { silent: senyap }), api('/api/kegiatan', { silent: senyap }).catch(() => [])])
       .then(([l, f, t, s, st, kg]) => {
         setKeg(kg || []);
         setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); setPosisi(st.positions || []);
@@ -35,8 +35,8 @@ export default function Dashboard() {
   useEffect(() => {
     muatSemua();
     // Dashboard selalu segar: refresh tiap 60 detik + setiap tab/aplikasi kembali dibuka
-    const t = setInterval(muatSemua, 60 * 1000);
-    const onVis = () => { if (document.visibilityState === 'visible') muatSemua(); };
+    const t = setInterval(() => muatSemua(true), 60 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') muatSemua(true); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('focus', onVis);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
@@ -52,7 +52,7 @@ export default function Dashboard() {
     const t = new Date(); const awalBln = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
     const custom = !!(d1 || d2);
     const q = '/api/status-log?d1=' + (custom ? (d1 || '') : awalBln) + '&d2=' + (custom ? (d2 || '') : '') + '&project=' + encodeURIComponent(proj || '');
-    api(q).then(setSl).catch(() => setSl(null));
+    api(q, { silent: true }).then(setSl).catch(() => setSl(null));
   }, [d1, d2, proj, lastUpd]); // eslint-disable-line
   if (!leads) return <div className="loading">Memuat data dari database…</div>;
 
