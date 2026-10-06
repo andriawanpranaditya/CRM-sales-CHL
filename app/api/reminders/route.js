@@ -86,8 +86,17 @@ export async function GET() {
         if ((mG[t] || 0) - c.web >= 3) celah.push({ tgl: t, sumber: 'Website (klik WA)', platform: mG[t], crm: c.web });
       }
       celah.sort((a, b) => b.tgl.localeCompare(a.tgl));
+      // Total 7 hari terakhir (termasuk hari ini) — supaya angka per hari tidak disalahartikan sebagai total
+      try {
+        const m7 = await sql`SELECT COALESCE(sum(hasil), 0)::int AS n FROM mi_ads WHERE sumber = 'meta-api' AND tgl BETWEEN ${today}::date - 6 AND ${today}::date`;
+        const g7 = await sql`SELECT COALESCE(sum(key_events), 0)::int AS n FROM mi_ga4_daily WHERE tgl BETWEEN ${today}::date - 6 AND ${today}::date`;
+        const c7 = await sql`SELECT count(*) FILTER (WHERE sumber ~* '(facebook|instagram|whatsapp|meta)')::int AS meta,
+          count(*) FILTER (WHERE sumber ~* 'website')::int AS web FROM leads WHERE tgl BETWEEN ${today}::date - 6 AND ${today}::date`;
+        var celahTotal = { dari: new Date(new Date(today).getTime() - 6 * 86400000).toISOString().slice(0, 10), sampai: today,
+          meta: { platform: m7[0]?.n || 0, crm: c7[0]?.meta || 0 }, web: { platform: g7[0]?.n || 0, crm: c7[0]?.web || 0 } };
+      } catch {}
     } catch (e) { console.error('celah lead', e); }
   }
 
-  return Response.json({ today, hariIni, terlambat, stok, celah, total: rows.length + stok.length + celah.length });
+  return Response.json({ today, hariIni, terlambat, stok, celah, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: rows.length + stok.length + celah.length });
 }

@@ -119,6 +119,12 @@ export default function ReminderBell({ user }) {
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
               {(data.celah || []).length > 0 && <>
                 <div className="bell-sub">📩 Lead masuk belum tercatat ({data.celah.length})</div>
+                {data.celahTotal && (
+                  <div className="rem-item" style={{ borderLeftColor: 'var(--brass)', cursor: 'default' }}>
+                    <span><b>Total 7 hari terakhir ({fmtDate(data.celahTotal.dari)}–{fmtDate(data.celahTotal.sampai)})</b><br />
+                      <span className="hint">Website: <b>{data.celahTotal.web.platform}</b> klik WA (GA4) vs <b>{data.celahTotal.web.crm}</b> lead Website di CRM · Iklan Meta: <b>{data.celahTotal.meta.platform}</b> percakapan vs <b>{data.celahTotal.meta.crm}</b> lead FB/IG/WA di CRM. Data GA4 & Meta 1–2 hari terakhir belum lengkap.</span></span>
+                  </div>
+                )}
                 {data.celah.map(c => (
                   <a key={c.tgl + c.sumber} href="/form" className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
                     <span><b>{fmtDate(c.tgl)} · {c.sumber}</b><br />
