@@ -233,6 +233,13 @@ async function siapkanKolomAds(sql) {
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
   try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
   try { await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_ads_breakdown (
+    tgl date NOT NULL, campaign text NOT NULL, dim text NOT NULL, k1 text NOT NULL, k2 text NOT NULL DEFAULT '',
+    spend numeric DEFAULT 0, impresi integer DEFAULT 0, klik integer DEFAULT 0, hasil integer DEFAULT 0,
+    PRIMARY KEY (tgl, campaign, dim, k1, k2))`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_adset_targeting (
+    adset_id text PRIMARY KEY, campaign text, nama text, status text, usia_min integer, usia_max integer, gender text,
+    lokasi text, minat text, penempatan text, advantage boolean, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   kolomAdsSiap = true;
 }
 async function graphUrl(url) {
@@ -256,6 +263,68 @@ function hasilMeta(actions) {
   for (const t of HASIL_META) { const f = a.find(x => x.action_type === t); if (f) return Math.round(Number(f.value) || 0); }
   return 0;
 }
+// Rincian hasil iklan per usia–gender, wilayah, dan penempatan (harian per campaign) — ganti jendela tarikan agar tidak menumpuk
+async function tarikBreakdown(sql, akun, since, until, peta) {
+  const DIM = [['usia_gender', 'age,gender', r => [r.age || '-', r.gender || '-']], ['wilayah', 'region', r => [r.region || '-', '']],
+               ['penempatan', 'publisher_platform,platform_position', r => [r.publisher_platform || '-', r.platform_position || '']]];
+  let total = 0;
+  for (const [dim, bd, kunci] of DIM) {
+    try {
+      const rows = [];
+      for (const acc of akun) {
+        let url = `https://graph.facebook.com/${GV()}/act_${acc}/insights?level=campaign&time_increment=1&breakdowns=${bd}`
+          + `&time_range=${encodeURIComponent(JSON.stringify({ since, until }))}&fields=campaign_name,spend,impressions,inline_link_clicks,actions&limit=500`
+          + `&access_token=${encodeURIComponent(process.env.META_TOKEN)}`;
+        let h = 0;
+        while (url && h < 60) { const j = await graphUrl(url); rows.push(...(j.data || [])); url = j.paging?.next || null; h++; }
+      }
+      const data = rows.filter(r => r.campaign_name).map(r => { const [k1, k2] = kunci(r); return [r.date_start, peta.get(r.campaign_name.toLowerCase()) || r.campaign_name, dim, String(k1), String(k2),
+        Number(r.spend) || 0, Number(r.impressions) || 0, Number(r.inline_link_clicks) || 0, hasilMeta(r.actions)]; });
+      await sql`DELETE FROM mi_ads_breakdown WHERE dim = ${dim} AND tgl BETWEEN ${since}::date AND ${until}::date`;
+      for (let i = 0; i < data.length; i += 500) {
+        const b = data.slice(i, i + 500);
+        await sql`INSERT INTO mi_ads_breakdown (tgl, campaign, dim, k1, k2, spend, impresi, klik, hasil)
+          SELECT x.t, x.c, x.d, x.a, x.b, x.sp, x.im, x.kl, x.ha
+          FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::text[], ${b.map(x => x[3])}::text[], ${b.map(x => x[4])}::text[],
+                      ${b.map(x => x[5])}::numeric[], ${b.map(x => x[6])}::int[], ${b.map(x => x[7])}::int[], ${b.map(x => x[8])}::int[]) AS x(t, c, d, a, b, sp, im, kl, ha)
+          ON CONFLICT (tgl, campaign, dim, k1, k2) DO UPDATE SET spend = EXCLUDED.spend, impresi = EXCLUDED.impresi, klik = EXCLUDED.klik, hasil = EXCLUDED.hasil`;
+      }
+      total += data.length;
+    } catch (e) { console.error('breakdown ' + dim, e); }
+  }
+  return total;
+}
+// Pengaturan targeting tiap ad set (untuk audit terhadap persona)
+async function tarikTargeting(sql, akun, peta) {
+  let n = 0;
+  for (const acc of akun) {
+    try {
+      let url = `https://graph.facebook.com/${GV()}/act_${acc}/adsets?fields=name,effective_status,campaign{name},targeting&limit=200&access_token=${encodeURIComponent(process.env.META_TOKEN)}`;
+      let h = 0;
+      while (url && h < 10) {
+        const j = await graphUrl(url); url = j.paging?.next || null; h++;
+        for (const a of j.data || []) {
+          const t = a.targeting || {}, g = t.geo_locations || {};
+          const lokasi = [...(g.countries || []), ...(g.regions || []).map(x => x.name), ...(g.cities || []).map(x => x.name + (x.radius ? ` +${x.radius}${x.distance_unit === 'mile' ? 'mi' : 'km'}` : '')),
+            ...(g.custom_locations || []).map(x => (x.name || 'titik peta') + (x.radius ? ` +${x.radius}${x.distance_unit === 'mile' ? 'mi' : 'km'}` : ''))].join(', ');
+          const minat = (t.flexible_spec || []).flatMap(f => [...(f.interests || []), ...(f.behaviors || []), ...(f.life_events || []), ...(f.family_statuses || [])].map(x => x.name)).join(', ');
+          const pen = (t.publisher_platforms || ['otomatis (Advantage+ placements)']).join(', ') + ((t.publisher_platforms || []).includes('audience_network') ? '' : '');
+          const camp = a.campaign?.name ? (peta.get(a.campaign.name.toLowerCase()) || a.campaign.name) : '';
+          await sql`INSERT INTO mi_adset_targeting (adset_id, campaign, nama, status, usia_min, usia_max, gender, lokasi, minat, penempatan, advantage, updated_at)
+            VALUES (${a.id}, ${camp}, ${a.name || ''}, ${a.effective_status || ''}, ${t.age_min || null}, ${t.age_max || null},
+                    ${(t.genders || []).length ? t.genders.map(x => x === 1 ? 'pria' : 'wanita').join(', ') : 'semua'}, ${lokasi}, ${minat}, ${pen},
+                    ${t.targeting_automation?.advantage_audience === 1}, now())
+            ON CONFLICT (adset_id) DO UPDATE SET campaign = EXCLUDED.campaign, nama = EXCLUDED.nama, status = EXCLUDED.status, usia_min = EXCLUDED.usia_min,
+              usia_max = EXCLUDED.usia_max, gender = EXCLUDED.gender, lokasi = EXCLUDED.lokasi, minat = EXCLUDED.minat, penempatan = EXCLUDED.penempatan,
+              advantage = EXCLUDED.advantage, updated_at = now()`;
+          n++;
+        }
+      }
+    } catch (e) { console.error('targeting', e); }
+  }
+  return n;
+}
+
 async function tarikMetaAds(sql) {
   if (!process.env.META_TOKEN) return { sumber: 'Meta Ads', status: 'dilewati', baris: 0, pesan: 'META_TOKEN belum diisi' };
   await siapkanKolomAds(sql);
@@ -314,9 +383,11 @@ async function tarikMetaAds(sql) {
       ON CONFLICT (ext_key) DO UPDATE SET spend = EXCLUDED.spend, impresi = EXCLUDED.impresi, reach = EXCLUDED.reach,
         klik = EXCLUDED.klik, hasil = EXCLUDED.hasil, campaign = EXCLUDED.campaign, kreatif = EXCLUDED.kreatif`;
   }
+  const nBd = await tarikBreakdown(sql, akun, since, hariIni, peta);
+  const nTg = await tarikTargeting(sql, akun, peta);
   const totalSpend = data.reduce((a, x) => a + x[4], 0);
   return { sumber: 'Meta Ads', status: 'sukses', baris: data.length,
-    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') };
+    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') + ` · ${nBd} baris rincian · ${nTg} ad set` };
 }
 
 // Colokan konektor berikutnya — aktif otomatis saat env-nya diisi (tanpa ubah kode):

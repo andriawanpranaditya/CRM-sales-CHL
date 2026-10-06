@@ -344,6 +344,29 @@ export async function GET(req) {
       tambah(fit.byCampaign, l.campaign, r.kat); tambah(fit.bySumber, l.sumber, r.kat); if (l.konten) tambah(fit.byKonten, l.konten, r.kat);
     }
   } catch (e) { console.error('fit', e); }
+  // ===== Fase 2: rincian iklan Meta (usia–gender, wilayah, penempatan), targeting ad set, & usia lead CRM =====
+  let breakdown = [], targeting = [], usiaLead = [];
+  try {
+    breakdown = await sql`SELECT dim, k1, k2, sum(spend)::numeric AS spend, sum(impresi)::int AS impresi, sum(klik)::int AS klik, sum(hasil)::int AS hasil
+      FROM mi_ads_breakdown b
+      WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = b.campaign AND mc.project = ${proj}))
+      GROUP BY dim, k1, k2`;
+  } catch {}
+  try {
+    targeting = await sql`SELECT t.* FROM mi_adset_targeting t
+      WHERE (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = t.campaign AND mc.project = ${proj}))
+      ORDER BY (t.status = 'ACTIVE') DESC, t.updated_at DESC LIMIT 60`;
+  } catch {}
+  try {
+    const lu = await sql`SELECT project, domisili, budget, bayar, usia, tujuan FROM leads
+      WHERE COALESCE(usia, '') <> '' AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date) AND (${proj}::text IS NULL OR project = ${proj})`;
+    const kel = u => { const m = usiaTengah(u); if (!m) return null; return m < 25 ? '18-24' : m < 35 ? '25-34' : m < 45 ? '35-44' : m < 55 ? '45-54' : m < 65 ? '55-64' : '65+'; };
+    const agg = {};
+    lu.forEach(l => { const k = kel(l.usia); if (!k) return; agg[k] = agg[k] || { k, n: 0, cocok: 0 }; agg[k].n++; const r = skorPersona(l, persona[l.project]); if (r && r.kat === 'cocok') agg[k].cocok++; });
+    usiaLead = Object.values(agg);
+  } catch {}
+
   // Follower Instagram: terbaru, dan posisi di awal periode (untuk pertumbuhan)
   let igAkun = null;
   try {
@@ -353,7 +376,7 @@ export async function GET(req) {
       igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
     }
   } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, persona, fit, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {

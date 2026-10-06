@@ -24,6 +24,17 @@ const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', b
 const M0 = { content_id: '', tgl: todayISO(), reach: '', like_n: '', komentar: '', share_n: '', save_n: '', view3: '', view_full: '', klik_bio: '' };
 const A0 = { tgl: todayISO(), campaign: '', kreatif: '', spend: '', impresi: '', reach: '', klik: '', hasil: '', catatan: '' };
 
+// ===== Audit iklan Meta (Fase 2) =====
+const USIA_META = ['18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+const tengahUsiaMeta = k => k === '65+' ? 70 : (k.split('-').map(Number).reduce((a, b) => a + b, 0) / 2);
+const dalamUsiaPersona = (k, pr) => pr ? (t => t >= pr.usiaMin - 2 && t <= pr.usiaMax + 2)(tengahUsiaMeta(k)) : true;
+const wilayahTarget = w => /banten|jakarta/i.test(w || '');
+function ringkasDim(rows, dim, kunci) {
+  const g = {};
+  (rows || []).filter(r => r.dim === dim).forEach(r => { const k = kunci(r); g[k] = g[k] || { k, spend: 0, impresi: 0, klik: 0, hasil: 0 }; g[k].spend += Number(r.spend) || 0; g[k].impresi += r.impresi || 0; g[k].klik += r.klik || 0; g[k].hasil += r.hasil || 0; });
+  const tot = Object.values(g).reduce((a, x) => a + x.spend, 0);
+  return Object.values(g).map(x => ({ ...x, share: tot ? x.spend / tot : 0, ctr: x.impresi ? x.klik / x.impresi : null, cph: x.hasil ? x.spend / x.hasil : null })).sort((a, b) => b.spend - a.spend);
+}
 // Reach rate = reach ÷ follower; patokan berbeda untuk Reels vs feed (post & carousel)
 const PATOKAN_RR = { reels: [0.15, 0.30, 0.60], feed: [0.05, 0.10, 0.20] };
 const jenisRR = f => /reels|video/i.test(f || '') ? 'reels' : 'feed';
@@ -422,6 +433,22 @@ export default function MarcomPage() {
       'Ganti materi: unit nyata + hadiah per tipe tampil di 1 detik pertama, harga "mulai Rp1,5 M" di visual; uji 2–3 variasi kreatif per ad set.');
     add('Iklan', 'Biaya per klik iklan Meta', cpc, cpc !== null ? rp0(cpc) : '—', 'bagus ≤Rp1.500 · cukup ≤Rp3.000', v(cpc, 1500, 3000, true),
       'Persempit lokasi ke area inti persona, matikan penempatan Audience Network, hentikan ad set dengan CTR terendah.');
+    // Targeting iklan terhadap persona (Fase 2)
+    {
+      const prA = data.persona?.[fProj || 'BIO DISTRICT'];
+      const usia = ringkasDim(data.breakdown, 'usia_gender', r => r.k1);
+      const wil = ringkasDim(data.breakdown, 'wilayah', r => r.k1);
+      const pen = ringkasDim(data.breakdown, 'penempatan', r => r.k1);
+      const luarUsia = usia.length ? usia.filter(x => !dalamUsiaPersona(x.k, prA)).reduce((a, x) => a + x.share, 0) : null;
+      const luarWil = wil.length ? wil.filter(x => !wilayahTarget(x.k)).reduce((a, x) => a + x.share, 0) : null;
+      const an = pen.length ? pen.filter(x => /audience_network/.test(x.k)).reduce((a, x) => a + x.share, 0) : null;
+      add('Iklan', 'Spend di luar usia persona', luarUsia, luarUsia !== null ? pct(luarUsia) : '—', 'bagus ≤15% · cukup ≤30% dari spend', v(luarUsia, 0.15, 0.30, true),
+        `Batasi usia ad set ke ${prA ? prA.usiaMin + '–' + (prA.usiaMax + 10) : 'rentang persona'}; bila Advantage+ audience aktif, isi usia minimum sebagai batas keras.`);
+      add('Iklan', 'Spend di luar Banten & DKI Jakarta', luarWil, luarWil !== null ? pct(luarWil) : '—', 'bagus ≤10% · cukup ≤25% dari spend', v(luarWil, 0.10, 0.25, true),
+        'Ganti lokasi ad set menjadi titik radius di sekitar Serpong–BSD (mis. 15–25 km) plus Jakarta Barat, bukan seluruh Indonesia atau provinsi.');
+      add('Iklan', 'Spend di Audience Network', an, an !== null ? pct(an) : '—', 'bagus ≤5% · cukup ≤15% dari spend', v(an, 0.05, 0.15, true),
+        'Matikan penempatan Audience Network (aplikasi pihak ketiga): kliknya murah tapi jarang menjadi calon pembeli.');
+    }
     // Niat → tercatat
     const metaChat = Object.entries(data.hasilPlat || {}).filter(([k]) => ((data.campaigns || []).find(c => c.nama === k) || {}).sumber === 'meta-api').reduce((a, [, n]) => a + (Number(n) || 0), 0);
     const leadMeta = (data.bySumber || []).filter(r => /facebook|instagram|whatsapp|meta/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
@@ -997,6 +1024,57 @@ export default function MarcomPage() {
                 </tr>))}</tbody>
             </table></div>
           </div>
+
+          {(() => {
+            const prA = pr;
+            const usia = ringkasDim(data.breakdown, 'usia_gender', r => r.k1);
+            const gender = ringkasDim(data.breakdown, 'usia_gender', r => r.k2 === 'male' ? 'Pria' : r.k2 === 'female' ? 'Wanita' : 'Tidak diketahui');
+            const wil = ringkasDim(data.breakdown, 'wilayah', r => r.k1);
+            const pen = ringkasDim(data.breakdown, 'penempatan', r => r.k1 + (r.k2 ? ' · ' + r.k2.replace(/_/g, ' ') : ''));
+            const ul = Object.fromEntries((data.usiaLead || []).map(x => [x.k, x]));
+            const rpS = n => n === null || n === undefined ? '—' : fmtRp(Math.round(n));
+            const tabel = (judul, rows, kolomExtra, flag) => rows.length ? (
+              <div style={{ marginBottom: 12 }}>
+                <h4 style={{ margin: '6px 0' }}>{judul}</h4>
+                <div className="tbl-wrap tbl-compact"><table>
+                  <thead><tr><th>Kelompok</th><th className="num">Spend</th><th className="num">% spend</th><th className="num">CTR</th><th className="num">Hasil (chat/lead)</th><th className="num">Biaya / hasil</th>{kolomExtra ? kolomExtra.head : null}<th>Catatan</th></tr></thead>
+                  <tbody>{rows.slice(0, 12).map(x => { const f = flag ? flag(x) : null; return (
+                    <tr key={x.k}><td><b>{x.k}</b></td><td className="num">{rpS(x.spend)}</td><td className="num">{pct(x.share)}</td><td className="num">{x.ctr !== null ? pct(x.ctr) : '—'}</td><td className="num">{x.hasil}</td><td className="num">{rpS(x.cph)}</td>
+                      {kolomExtra ? kolomExtra.cell(x) : null}<td className="hint" style={{ color: f && f.buruk ? 'var(--red)' : undefined }}>{f ? f.teks : ''}</td></tr>); })}</tbody>
+                </table></div>
+              </div>) : null;
+            const ada = usia.length || wil.length || pen.length || (data.targeting || []).length;
+            return (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <h3 style={{ marginTop: 0 }}>🔎 Audit Iklan Meta <span className="hint">(ditarik otomatis tiap pagi · dibandingkan dengan persona {projP})</span></h3>
+                {!ada && <p className="hint">Belum ada data rincian iklan. Data muncul setelah tarikan Meta Ads berikutnya (⟳ Tarik Data Sekarang di tab Website & SEO).</p>}
+                {tabel('Per usia (dibandingkan dengan usia lead di CRM)', USIA_META.map(k => usia.find(x => x.k === k)).filter(Boolean),
+                  { head: <><th className="num">Lead CRM</th><th className="num">Lead cocok</th></>, cell: x => <><td className="num">{ul[x.k]?.n || 0}</td><td className="num" style={{ color: 'var(--green)' }}>{ul[x.k]?.cocok || 0}</td></> },
+                  x => dalamUsiaPersona(x.k, prA) ? { teks: 'dalam rentang persona' } : { teks: x.share >= 0.1 ? 'di luar persona — pertimbangkan dikeluarkan' : 'di luar persona', buruk: x.share >= 0.1 })}
+                {tabel('Per gender', gender, null, null)}
+                {tabel('Per wilayah', wil, null, x => wilayahTarget(x.k) ? { teks: 'area target' } : { teks: x.share >= 0.05 ? 'di luar area target — persempit lokasi' : 'di luar area target', buruk: x.share >= 0.05 })}
+                {tabel('Per penempatan', pen, null, x => /audience_network/.test(x.k) ? { teks: 'aplikasi pihak ketiga — matikan', buruk: true } : null)}
+                {(data.targeting || []).length ? (
+                  <div>
+                    <h4 style={{ margin: '6px 0' }}>Targeting yang terpasang per ad set</h4>
+                    <div className="tbl-wrap tbl-compact"><table>
+                      <thead><tr><th>Campaign · Ad set</th><th>Status</th><th>Usia</th><th>Gender</th><th>Lokasi</th><th>Minat</th><th>Penempatan</th><th>Temuan audit</th></tr></thead>
+                      <tbody>{data.targeting.map(t => {
+                        const temuan = [];
+                        if (prA && t.usia_min && t.usia_min < prA.usiaMin - 5) temuan.push(`usia mulai ${t.usia_min}, jauh di bawah persona ${prA.usiaMin}`);
+                        if (prA && t.usia_max && t.usia_max > prA.usiaMax + 15) temuan.push(`usia sampai ${t.usia_max}`);
+                        if (/indonesia|^id$/i.test(t.lokasi || '') || /\bID\b/.test(t.lokasi || '')) temuan.push('lokasi seluruh Indonesia — terlalu luas');
+                        if (/audience_network/.test(t.penempatan || '')) temuan.push('Audience Network aktif');
+                        if (t.advantage) temuan.push('Advantage+ audience: usia & gender hanya saran untuk Meta');
+                        return (
+                          <tr key={t.adset_id}><td><b>{t.campaign}</b><div className="hint">{t.nama}</div></td><td className="hint">{t.status}</td><td>{t.usia_min || 18}–{t.usia_max || 65}</td><td className="hint">{t.gender}</td>
+                            <td className="hint" style={{ maxWidth: 220 }}>{t.lokasi || '—'}</td><td className="hint" style={{ maxWidth: 200 }}>{t.minat || 'tanpa minat khusus'}</td><td className="hint">{t.penempatan}</td>
+                            <td className="hint" style={{ color: temuan.length ? 'var(--red)' : 'var(--green)' }}>{temuan.length ? temuan.join(' · ') : 'sesuai persona'}</td></tr>); })}</tbody>
+                    </table></div>
+                  </div>) : null}
+                <p className="hint" style={{ marginTop: 6 }}>Wilayah dari Meta hanya sampai tingkat provinsi, jadi Tangerang dan Serpong terbaca sebagai Banten. Hasil = percakapan WA atau lead versi Meta; bandingkan dengan kolom Lead CRM untuk melihat yang benar-benar tercatat dan cocok persona.</p>
+              </div>);
+          })()}
 
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Kualitas Lead terhadap Persona <span className="hint">(lead masuk pada periode · % cocok dihitung dari lead yang datanya cukup)</span></h3>

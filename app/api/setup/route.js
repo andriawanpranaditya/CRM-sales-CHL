@@ -219,6 +219,10 @@ export async function GET(req) {
   await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`;
   await siapkanStatusLog(sql);
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_ads_breakdown (tgl date NOT NULL, campaign text NOT NULL, dim text NOT NULL, k1 text NOT NULL, k2 text NOT NULL DEFAULT '',
+    spend numeric DEFAULT 0, impresi integer DEFAULT 0, klik integer DEFAULT 0, hasil integer DEFAULT 0, PRIMARY KEY (tgl, campaign, dim, k1, k2))`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_adset_targeting (adset_id text PRIMARY KEY, campaign text, nama text, status text, usia_min integer, usia_max integer, gender text,
+    lokasi text, minat text, penempatan text, advantage boolean, updated_at timestamptz NOT NULL DEFAULT now())`;
   await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`;
