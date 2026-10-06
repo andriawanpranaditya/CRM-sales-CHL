@@ -19,6 +19,8 @@ async function siapkanL2(sql) {
   if (l2Siap) return;
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS l2_at timestamptz`; } catch (e) { console.error('l2_at kolom', e); }
   try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
   try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
@@ -38,6 +40,36 @@ async function siapkanL2(sql) {
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = leads.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))`;
   } catch (e) { console.error('l2_at backfill', e); }
   l2Siap = true;
+}
+
+// ===== Persona target per project & skor kecocokan lead (0–100) =====
+const PERSONA_DEFAULT = {
+  'BIO DISTRICT': {
+    areaInti: ['serpong', 'bsd', 'alam sutera', 'gading serpong', 'tangerang selatan', 'tangsel', 'tangerang', 'karawaci', 'cisauk', 'pagedangan'],
+    areaLuas: ['jakarta barat', 'jakarta selatan', 'bintaro', 'kebon jeruk', 'kembangan', 'puri'],
+    hargaMin: 1500000000, usiaMin: 30, usiaMax: 45, tujuan: 'ditempati',
+    catatan: 'Draf dari 42 lead berkualitas & 32 unit terjual: 68% domisili Serpong–BSD–Tangsel–Tangerang, 89% KPR, budget median Rp1,95 M, unit terjual median Rp2,74 M.',
+  },
+};
+function usiaTengah(u) {
+  const t = String(u || '').replace(/\s/g, '');
+  if (!t) return null; if (t.startsWith('<')) return 22; if (t.endsWith('+')) return Number(t.replace('+', '')) + 3;
+  const m = /(\d+)\D+(\d+)/.exec(t); return m ? (Number(m[1]) + Number(m[2])) / 2 : (Number(t) || null);
+}
+function skorPersona(l, p) {
+  if (!p) return null;
+  let s = 0, terisi = 0;
+  const d = String(l.domisili || '').toLowerCase().trim();
+  if (d) { terisi++; if ((p.areaInti || []).some(a => d.includes(a))) s += 30; else if ((p.areaLuas || []).some(a => d.includes(a))) s += 15; }
+  const b = Number(l.budget) || 0;
+  if (b > 0) { terisi++; s += b >= p.hargaMin ? 30 : b >= p.hargaMin * 0.8 ? 15 : 0; }
+  if (String(l.bayar || '').trim()) { terisi++; s += 15; }
+  const u = usiaTengah(l.usia);
+  if (u) { terisi++; s += (u >= p.usiaMin && u <= p.usiaMax) ? 15 : (u >= p.usiaMin - 5 && u <= p.usiaMax + 5) ? 7 : 0; }
+  const tj = String(l.tujuan || '').toLowerCase().trim();
+  if (tj) { terisi++; s += /tinggal|huni|tempat|keluarga/.test(tj) ? 10 : /invest/.test(tj) ? 7 : 3; }
+  const kat = terisi < 3 ? 'kurang' : s >= 70 ? 'cocok' : s >= 40 ? 'sebagian' : 'tidak';
+  return { skor: s, terisi, kat };
 }
 
 export async function GET(req) {
@@ -296,7 +328,32 @@ export async function GET(req) {
   }
   const spendGab = Object.entries(sm).map(([kunci, v]) => ({ kunci, spend: v }));
   const hasilPlat = Object.fromEntries(spend.map(r => [r.kunci, Number(r.hasil) || 0]));
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  // Persona (default + yang disimpan) & kecocokan lead periode ini
+  const persona = { ...PERSONA_DEFAULT };
+  try { (await sql`SELECT project, data FROM mi_persona`).forEach(r => { persona[r.project] = { ...(persona[r.project] || {}), ...r.data }; }); } catch {}
+  const fit = { total: { n: 0, cocok: 0, sebagian: 0, tidak: 0, kurang: 0, tanpaPersona: 0 }, byCampaign: {}, bySumber: {}, byKonten: {} };
+  try {
+    const lp = await sql`SELECT lead_code, project, domisili, budget, bayar, usia, tujuan, COALESCE(NULLIF(campaign, ''), '(tanpa data)') AS campaign,
+        COALESCE(NULLIF(sumber, ''), '(tanpa data)') AS sumber, COALESCE(konten, '') AS konten FROM leads
+      WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date) AND (${proj}::text IS NULL OR project = ${proj})`;
+    const tambah = (obj, k, kat) => { obj[k] = obj[k] || { n: 0, cocok: 0, sebagian: 0, tidak: 0, kurang: 0 }; obj[k].n++; obj[k][kat]++; };
+    for (const l of lp) {
+      const r = skorPersona(l, persona[l.project]);
+      if (!r) { fit.total.tanpaPersona++; continue; }
+      fit.total.n++; fit.total[r.kat]++;
+      tambah(fit.byCampaign, l.campaign, r.kat); tambah(fit.bySumber, l.sumber, r.kat); if (l.konten) tambah(fit.byKonten, l.konten, r.kat);
+    }
+  } catch (e) { console.error('fit', e); }
+  // Follower Instagram: terbaru, dan posisi di awal periode (untuk pertumbuhan)
+  let igAkun = null;
+  try {
+    const kini = await sql`SELECT tgl, username, followers FROM mi_ig_akun ORDER BY tgl DESC LIMIT 1`;
+    if (kini.length) {
+      const awalP = await sql`SELECT followers FROM mi_ig_akun WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) ORDER BY tgl ASC LIMIT 1`;
+      igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
+    }
+  } catch {}
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, persona, fit, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
@@ -358,6 +415,17 @@ export async function PATCH(req) {
   const { user, err } = await akses(); if (err) return err;
   const b = await req.json();
   const sql = db();
+  if (b.jenis === 'persona') {
+    if (user.role !== 'manager') return Response.json({ error: 'Hanya manager yang boleh mengubah persona' }, { status: 403 });
+    if (!b.project || !b.data) return Response.json({ error: 'Project & data persona wajib' }, { status: 400 });
+    const bersih = d => String(d || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+    const data = { areaInti: bersih(b.data.areaInti), areaLuas: bersih(b.data.areaLuas), hargaMin: Number(b.data.hargaMin) || 0,
+      usiaMin: Number(b.data.usiaMin) || 0, usiaMax: Number(b.data.usiaMax) || 0, tujuan: String(b.data.tujuan || ''), catatan: String(b.data.catatan || '') };
+    await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
+    await sql`INSERT INTO mi_persona (project, data, updated_by) VALUES (${b.project}, ${JSON.stringify(data)}::jsonb, ${user.username})
+      ON CONFLICT (project) DO UPDATE SET data = EXCLUDED.data, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+    return Response.json({ ok: true });
+  }
   if (b.jenis === 'gabung') {
     // Gabungkan campaign 'dari' ke campaign 'ke' — tag lead, entri spend & biaya berulang ikut pindah
     if (user.role !== 'manager') return Response.json({ error: 'Hanya manager yang boleh menggabungkan campaign' }, { status: 403 });

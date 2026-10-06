@@ -153,6 +153,16 @@ async function tarikInstagram(sql) {
     igId = pg.instagram_business_account.id;
   }
   const proj = process.env.IG_PROJECT || 'BIO DISTRICT';
+  // Jumlah follower harian (dasar reach rate) — gagal di sini tidak menghentikan tarikan konten
+  let follower = null;
+  try {
+    const akun = await graph(`${igId}?fields=followers_count,username`);
+    follower = Number(akun.followers_count) || null;
+    await sql`CREATE TABLE IF NOT EXISTS mi_ig_akun (tgl date PRIMARY KEY, ig_id text, username text, followers integer)`;
+    if (follower) await sql`INSERT INTO mi_ig_akun (tgl, ig_id, username, followers)
+      VALUES ((now() + interval '7 hours')::date, ${igId}, ${akun.username || ''}, ${follower})
+      ON CONFLICT (tgl) DO UPDATE SET followers = EXCLUDED.followers, username = EXCLUDED.username`;
+  } catch (e) { console.error('ig followers', e); }
   // Ambil postingan terbaru (maks 60, ±120 hari)
   let media = [], next = `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30`;
   const batas = Date.now() - 120 * 86400000;
@@ -211,7 +221,7 @@ async function tarikInstagram(sql) {
       ON CONFLICT (content_id, tgl) DO UPDATE SET reach = EXCLUDED.reach, like_n = EXCLUDED.like_n, komentar = EXCLUDED.komentar,
         share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n, view3 = EXCLUDED.view3, klik_bio = EXCLUDED.klik_bio`;
   }
-  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` };
+  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` + (follower ? ` · ${follower.toLocaleString('id-ID')} follower` : '') };
 }
 
 // ===== Meta Ads (Marketing API, token & System User yang sama dengan Instagram) =====

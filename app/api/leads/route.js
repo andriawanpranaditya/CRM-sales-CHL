@@ -36,6 +36,7 @@ export async function POST(req) {
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
   await siapkanStatusLog(sql);
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
@@ -55,10 +56,10 @@ export async function POST(req) {
     }
   }
   const wInfo = /walk/i.test(b.sumber || '') ? (b.walkin_info || '') : '';
-  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, campaign, konten, created_by)
+  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, campaign, konten, usia, created_by)
     VALUES (${b.tgl || null}, ${b.nama}, ${b.wa || ''}, ${b.email || ''}, ${b.domisili || ''}, ${b.kerja || ''},
             ${b.sumber || ''}, ${wInfo}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
-            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${b.campaign || ''}, ${b.konten || ''}, ${user.username})
+            ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${b.campaign || ''}, ${b.konten || ''}, ${b.usia || ''}, ${user.username})
     RETURNING id`;
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
@@ -77,13 +78,14 @@ export async function PATCH(req) {
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   if (user.role === 'sales' && cur.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
-  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten'];
+  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten', 'usia'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!m.campaign) m.campaign = pk.campaign; if (!m.konten) m.konten = pk.konten; } }
@@ -100,7 +102,7 @@ export async function PATCH(req) {
     project = ${m.project || ''}, tipe = ${m.tipe || ''}, tujuan = ${m.tujuan || ''},
     budget = ${Number(m.budget) || 0}, bayar = ${m.bayar || ''}, sales = ${m.sales},
     status = ${m.status || 'New'}, catatan = ${m.catatan || ''}, next_fu = ${m.next_fu || null},
-    campaign = ${m.campaign || ''}, konten = ${m.konten || ''},
+    campaign = ${m.campaign || ''}, konten = ${m.konten || ''}, usia = ${m.usia || ''},
     updated_at = now()
     WHERE id = ${b.id}`;
   await tandaiOleh(sql, cur.lead_code, user.username, '');

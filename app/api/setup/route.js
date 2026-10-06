@@ -218,6 +218,8 @@ export async function GET(req) {
   )`;
   await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`;
   await siapkanStatusLog(sql);
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`;
+  await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`;
   await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`;
   await coba(() => sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`);

@@ -24,6 +24,17 @@ const C0 = { nama: '', platform: 'Meta (FB+IG)', project: '', tujuan: 'leads', b
 const M0 = { content_id: '', tgl: todayISO(), reach: '', like_n: '', komentar: '', share_n: '', save_n: '', view3: '', view_full: '', klik_bio: '' };
 const A0 = { tgl: todayISO(), campaign: '', kreatif: '', spend: '', impresi: '', reach: '', klik: '', hasil: '', catatan: '' };
 
+// Reach rate = reach ÷ follower; patokan berbeda untuk Reels vs feed (post & carousel)
+const PATOKAN_RR = { reels: [0.15, 0.30, 0.60], feed: [0.05, 0.10, 0.20] };
+const jenisRR = f => /reels|video/i.test(f || '') ? 'reels' : 'feed';
+function labelRR(rr, format) {
+  if (rr === null || rr === undefined) return null;
+  const [b, g, sb] = PATOKAN_RR[jenisRR(format)];
+  if (rr >= sb) return { t: 'Sangat bagus', c: 'var(--green)', w: 800 };
+  if (rr >= g) return { t: 'Bagus', c: 'var(--green)', w: 600 };
+  if (rr >= b) return { t: 'Biasa', c: 'var(--muted)', w: 500 };
+  return { t: 'Rendah', c: 'var(--red)', w: 600 };
+}
 const er = (r) => { const reach = Number(r.reach) || 0; if (!reach) return null; return ((Number(r.like_n) || 0) + (Number(r.komentar) || 0) + (Number(r.share_n) || 0) + (Number(r.save_n) || 0)) / reach; };
 const pct = (x) => x === null || x === undefined ? '—' : (x * 100).toFixed(1) + '%';
 const per = (spend, n) => (spend > 0 && n > 0) ? fmtRp(Math.round(spend / n)) : '—';
@@ -44,6 +55,7 @@ export default function MarcomPage() {
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
   const [formManual, setFormManual] = useState(false);
+  const [personaEdit, setPersonaEdit] = useState(null); // { project, areaInti, areaLuas, hargaMin, usiaMin, usiaMax, tujuan, catatan }
   const [kSort, setKSort] = useState({ key: 'tgl', dir: 'desc' }); // urutan tabel konten
   const [showSpendManual, setShowSpendManual] = useState(false);
   const [gb, setGb] = useState(null); // { dari, ke }
@@ -161,6 +173,14 @@ export default function MarcomPage() {
     });
     return Object.entries(g).map(([t, v]) => ({ topik: t, ...v, er: v.reach ? v.eng / v.reach : null })).sort((a, b) => (b.er || 0) - (a.er || 0));
   }, [data]);
+  const follower = Number(data?.igAkun?.followers) || 0;
+  const rr = x => follower && Number(x.reach) ? Number(x.reach) / follower : null;
+  const rrRata = useMemo(() => {
+    const g = { reels: [], feed: [] };
+    (data?.contents || []).filter(x => x.platform === 'Instagram').forEach(x => { const v = rr(x); if (v !== null) g[jenisRR(x.format)].push(v); });
+    const avg = a => a.length ? a.reduce((t, v) => t + v, 0) / a.length : null;
+    return { reels: avg(g.reels), feed: avg(g.feed), nReels: g.reels.length, nFeed: g.feed.length };
+  }, [data, follower]); // eslint-disable-line
   const totalEng = useMemo(() => (data?.contents || []).reduce((t, x) => ({ n: t.n + 1, reach: t.reach + (Number(x.reach) || 0), like: t.like + (Number(x.like_n) || 0), kom: t.kom + (Number(x.komentar) || 0), share: t.share + (Number(x.share_n) || 0), save: t.save + (Number(x.save_n) || 0), views: t.views + (Number(x.view3) || 0), klik: t.klik + (Number(x.klik_bio) || 0) }), { n: 0, reach: 0, like: 0, kom: 0, share: 0, save: 0, views: 0, klik: 0 }), [data]);
   const polaJam = useMemo(() => {
     const g = {};
@@ -216,6 +236,8 @@ export default function MarcomPage() {
     if ((data.contents || []).length) {
       const fBest = polaFormat.find(r => r.er !== null);
       R.ringkas.push(`${data.contents.length} konten tercatat` + (fBest ? `; format dengan engagement tertinggi: ${fBest.format} (ER ${pct(fBest.er)}).` : '.'));
+      if (follower) R.ringkas.push(`Follower Instagram ${follower.toLocaleString('id-ID')}${data.igAkun.followersAwal !== null && data.igAkun.followersAwal !== undefined ? ` (${follower - data.igAkun.followersAwal >= 0 ? '+' : ''}${follower - data.igAkun.followersAwal} pada periode ini)` : ''}; reach rate rata-rata Reels ${rrRata.reels !== null ? pct(rrRata.reels) : '—'}, feed ${rrRata.feed !== null ? pct(rrRata.feed) : '—'} (patokan bagus: Reels ≥30%, feed ≥10%).`);
+      if (follower && rrRata.nReels >= 2 && rrRata.reels < 0.15) R.perbaiki.push(`Reach rate Reels baru ${pct(rrRata.reels)} dari follower (patokan minimal 15%) — Reels belum menjangkau di luar audiens lama. Perkuat 3 detik pertama (hook visual), pakai audio yang sedang ramai, dan unggah di jam dengan engagement terbaik.`);
       if (totalEng.n) R.ringkas.push(`Engagement ${totalEng.n} konten: ${totalEng.like.toLocaleString('id-ID')} like · ${totalEng.kom} komentar · ${totalEng.share} share · ${totalEng.save} save · ${totalEng.views.toLocaleString('id-ID')} views · ${totalEng.klik} klik bio.`);
     }
     const webOk = !fProj || /bio/i.test(fProj);
@@ -313,6 +335,21 @@ export default function MarcomPage() {
       if (klikWA >= 5 && leadWeb < klikWA * 0.3) R.perbaiki.push(`Website mencatat ${klikWA} klik WA, tapi lead bersumber Website di CRM hanya ${leadWeb}. Sebagian klik bisa berulang dari orang yang sama, tapi selisih sebesar ini menandakan ada chat dari website yang belum diinput.`);
     }
 
+    // Kecocokan lead terhadap persona target
+    {
+      const ft = data.fit?.total;
+      if (ft && ft.n) {
+        const dinilai = ft.n - ft.kurang;
+        R.ringkas.push(`Kecocokan target persona: ${dinilai ? pct(ft.cocok / dinilai) : '—'} cocok dari ${dinilai} lead yang datanya cukup (${ft.cocok} cocok · ${ft.sebagian} sebagian · ${ft.tidak} tidak); ${ft.kurang} lead datanya belum lengkap untuk dinilai.`);
+        if (ft.n >= 5 && ft.kurang / ft.n > 0.5) R.perbaiki.push(`${pct(ft.kurang / ft.n)} lead belum punya data kualifikasi yang cukup (domisili, budget, cara bayar, usia, tujuan) — kecocokan target tidak bisa dinilai. Wajibkan skrip 3 pertanyaan sebelum oper ke sales.`);
+        const srcs = Object.entries(data.fit.bySumber || {}).map(([k, r]) => ({ k, d: r.n - r.kurang, c: r.cocok })).filter(r => r.d >= 3);
+        const terburuk = srcs.filter(r => r.c / r.d < 0.3).sort((a, b) => a.c / a.d - b.c / b.d)[0];
+        const terbaik = srcs.sort((a, b) => b.c / b.d - a.c / a.d)[0];
+        if (dinilai >= 5 && ft.cocok / dinilai < 0.3) R.perbaiki.push(`Baru ${pct(ft.cocok / dinilai)} lead yang cocok target persona${terburuk ? ` (terendah: ${terburuk.k} ${terburuk.c}/${terburuk.d})` : ''} — perketat targeting lokasi & usia, dan tampilkan harga mulai di materi iklan.`);
+        if (terbaik && terbaik.c / terbaik.d >= 0.5) R.saran.push(`Sumber paling cocok target: ${terbaik.k} (${terbaik.c} dari ${terbaik.d} lead cocok persona) — prioritaskan budget & konten untuk kanal ini.`);
+      }
+    }
+
     // ---------- SARAN STRATEGI ----------
     const efektif = camp.filter(r => r.kunci !== '(tanpa data)' && (spendMap[r.kunci] || 0) > 0 && r.l2 > 0)
       .map(r => ({ ...r, cpql: spendMap[r.kunci] / r.l2 })).sort((a, b) => a.cpql - b.cpql);
@@ -344,7 +381,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, totalEng, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, totalEng, rrRata, follower, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -353,6 +390,75 @@ export default function MarcomPage() {
     const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('YANG HARUS DIPERBAIKI', resume.perbaiki.length ? resume.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI', resume.saran);
     try { await navigator.clipboard.writeText(teks); toast('Resume tersalin 📋'); } catch { window.prompt('Salin manual:', teks); }
   }
+
+  // ===== Rapor Marketing (Diagnosa): vonis 🟢🟡🔴 per indikator + saran =====
+  const rapor = useMemo(() => {
+    if (!data) return [];
+    const v = (n, bagus, cukup, kecilLebihBaik) => n === null || n === undefined || isNaN(n) ? '⚪' : kecilLebihBaik ? (n <= bagus ? '🟢' : n <= cukup ? '🟡' : '🔴') : (n >= bagus ? '🟢' : n >= cukup ? '🟡' : '🔴');
+    const rp0 = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+    const rows = [];
+    const add = (lapis, indikator, nilai, txt, patokan, vonis, saran) => rows.push({ lapis, indikator, nilai, txt, patokan, vonis, saran });
+    // Jangkauan
+    add('Jangkauan', 'Reach rate Reels', rrRata.reels, rrRata.reels !== null ? pct(rrRata.reels) : '—', 'bagus ≥30% · cukup ≥15% follower', v(rrRata.reels, 0.30, 0.15),
+      'Perkuat hook 3 detik pertama (gerak + teks besar), pakai audio yang sedang ramai, durasi 15–30 detik, unggah di jam engagement terbaik.');
+    add('Jangkauan', 'Reach rate feed (post & carousel)', rrRata.feed, rrRata.feed !== null ? pct(rrRata.feed) : '—', 'bagus ≥10% · cukup ≥5% follower', v(rrRata.feed, 0.10, 0.05),
+      'Perbanyak Carousel informatif (denah, simulasi cicilan, perbandingan tipe) dan boost konten dengan ER tertinggi.');
+    const fAwal = Number(data.igAkun?.followersAwal) || 0, fKini = Number(data.igAkun?.followers) || 0;
+    const tumbuh = fAwal && fKini ? (fKini - fAwal) / fAwal : null;
+    add('Jangkauan', 'Pertumbuhan follower', tumbuh, tumbuh !== null ? `${fKini - fAwal >= 0 ? '+' : ''}${fKini - fAwal} (${pct(tumbuh)})` : '—', 'bagus ≥2% · cukup ≥0,5% per periode', v(tumbuh, 0.02, 0.005),
+      'Ajak follow di akhir Reels, buat collab post dengan agent/akun lokal Serpong–BSD, dan jalankan konten seri mingguan yang membuat orang menunggu lanjutannya.');
+    // Algoritma
+    const erRata = totalEng.reach ? (totalEng.like + totalEng.kom + totalEng.share + totalEng.save) / totalEng.reach : null;
+    add('Algoritma & engagement', 'Engagement rate rata-rata', erRata, erRata !== null ? pct(erRata) : '—', 'bagus ≥6% · cukup ≥3%', v(erRata, 0.06, 0.03),
+      'Tutup caption dengan pertanyaan, balas setiap komentar dalam 1 jam pertama, pakai carousel untuk informasi detail.');
+    const ssRata = totalEng.reach ? (totalEng.share + totalEng.save) / totalEng.reach : null;
+    add('Algoritma & engagement', 'Rasio save + share terhadap reach', ssRata, ssRata !== null ? pct(ssRata) : '—', 'bagus ≥2% · cukup ≥1%', v(ssRata, 0.02, 0.01),
+      'Save & share paling diperhitungkan algoritma. Buat konten referensi yang layak disimpan: checklist KPR, rute ke St. Rawa Buntu, perbandingan tipe & cicilan.');
+    // Iklan
+    const meta = (data.ads || []).filter(x => x.sumber === 'meta-api');
+    const imp = meta.reduce((t, x) => t + (Number(x.impresi) || 0), 0), klk = meta.reduce((t, x) => t + (Number(x.klik) || 0), 0), spM = meta.reduce((t, x) => t + (Number(x.spend) || 0), 0);
+    const ctr = imp ? klk / imp : null, cpc = klk ? spM / klk : null;
+    add('Iklan', 'CTR iklan Meta (klik link ÷ impresi)', ctr, ctr !== null ? pct(ctr) : '—', 'bagus ≥1% · cukup ≥0,5%', v(ctr, 0.01, 0.005),
+      'Ganti materi: unit nyata + hadiah per tipe tampil di 1 detik pertama, harga "mulai Rp1,5 M" di visual; uji 2–3 variasi kreatif per ad set.');
+    add('Iklan', 'Biaya per klik iklan Meta', cpc, cpc !== null ? rp0(cpc) : '—', 'bagus ≤Rp1.500 · cukup ≤Rp3.000', v(cpc, 1500, 3000, true),
+      'Persempit lokasi ke area inti persona, matikan penempatan Audience Network, hentikan ad set dengan CTR terendah.');
+    // Niat → tercatat
+    const metaChat = Object.entries(data.hasilPlat || {}).filter(([k]) => ((data.campaigns || []).find(c => c.nama === k) || {}).sumber === 'meta-api').reduce((a, [, n]) => a + (Number(n) || 0), 0);
+    const leadMeta = (data.bySumber || []).filter(r => /facebook|instagram|whatsapp|meta/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
+    const rMeta = metaChat ? Math.min(1, leadMeta / metaChat) : null;
+    add('Niat beli', 'Chat iklan Meta yang tercatat jadi lead', rMeta, metaChat ? `${leadMeta} dari ${metaChat}` : '—', 'bagus ≥70% · cukup ≥40%', v(rMeta, 0.7, 0.4),
+      'Setiap chat iklan diinput hari itu juga; selesaikan sambungan WA otomatis ke CRM.');
+    const klikWA = (data.ga4 || []).reduce((t, r) => t + Number(r.key_events || 0), 0);
+    const leadWeb = (data.bySumber || []).filter(r => /website/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
+    const rWeb = klikWA ? Math.min(1, leadWeb / klikWA) : null;
+    add('Niat beli', 'Klik WA website yang tercatat jadi lead', rWeb, klikWA ? `${leadWeb} dari ${klikWA}` : '—', 'bagus ≥70% · cukup ≥40%', v(rWeb, 0.7, 0.4),
+      'Input setiap chat dari website; pastikan tombol WA website memakai pesan berkode agar asalnya terbaca.');
+    // Kualitas lead (persona)
+    const ft = data.fit?.total || { n: 0 };
+    const dinilai = ft.n - (ft.kurang || 0);
+    const pCocok = dinilai > 0 ? ft.cocok / dinilai : null, pLengkap = ft.n ? dinilai / ft.n : null;
+    const pr = data.persona?.[fProj || 'BIO DISTRICT'];
+    add('Kualitas lead', 'Lead cocok target persona', pCocok, pCocok !== null ? `${pct(pCocok)} (${ft.cocok} dari ${dinilai})` : '—', 'bagus ≥50% · cukup ≥30%', v(pCocok, 0.5, 0.3),
+      `Arahkan targeting iklan ke area inti persona${pr ? ` dan usia ${pr.usiaMin}–${pr.usiaMax}` : ''}; tampilkan harga "mulai Rp1,5 M" di materi agar calon pembeli di luar target tersaring sejak awal.`);
+    add('Kualitas lead', 'Data kualifikasi lead lengkap (≥3 kolom)', pLengkap, pLengkap !== null ? `${pct(pLengkap)} (${dinilai} dari ${ft.n})` : '—', 'bagus ≥70% · cukup ≥40%', v(pLengkap, 0.7, 0.4),
+      'Sebelum oper ke sales, marcom wajib menanyakan domisili, budget, cara bayar, usia, dan tujuan beli (skrip 3 pertanyaan) lalu mengisinya di CRM.');
+    const l2r = totFunnel.l0 ? totFunnel.l2 / totFunnel.l0 : null;
+    add('Kualitas lead', 'Lead berkualitas (L2 ÷ lead masuk)', l2r, l2r !== null ? pct(l2r) : '—', 'bagus ≥25% · cukup ≥15%', v(l2r, 0.25, 0.15),
+      'Ajak setiap lead yang membalas menjadwalkan kunjungan weekend; ubah status di setiap follow up agar pergerakan terbaca.');
+    const cpql = paidFunnel.l2 ? totSpend / paidFunnel.l2 : null;
+    add('Kualitas lead', 'Biaya per lead berkualitas (CPQL)', cpql, cpql !== null ? rp0(cpql) : '—', 'bagus ≤Rp1,5 jt · cukup ≤Rp2,5 jt', v(cpql, 1500000, 2500000, true),
+      'Geser budget ke campaign dengan CPQL & % cocok target terbaik (lihat tabel di bawah); hentikan campaign tanpa lead cocok setelah spend Rp1 jt.');
+    // Penjualan
+    const bd = data.bookingDetail || [];
+    const hari = (() => { const a1 = rentang[0] ? new Date(rentang[0]) : null; const a2 = rentang[1] ? new Date(rentang[1]) : new Date(); return a1 ? Math.round((a2 - a1) / 86400000) + 1 : 999; })();
+    add('Penjualan', 'Booking dari lead marketing', bd.length, `${bd.length} unit`, 'target Oktober: 2 unit in-house dari marketing', hari < 14 ? '⚪' : bd.length >= 2 ? '🟢' : bd.length === 1 ? '🟡' : '🔴',
+      'Fokus mengundang lead cocok target ke Grand Rewards Weekend dan tutup dengan pilihan reserved hari itu atau pengajuan KPR 3 hari.');
+    const hs = bd.map(b => Number(b.hari)).filter(n => !isNaN(n));
+    const lama = hs.length ? hs.reduce((a, n) => a + n, 0) / hs.length : null;
+    add('Penjualan', 'Lama lead masuk sampai booking', lama, lama !== null ? `${Math.round(lama)} hari` : '—', 'bagus ≤30 hari · cukup ≤60 hari', v(lama, 30, 60, true),
+      'Percepat dengan pra-persetujuan KPR sebelum kunjungan dan batas waktu promo hadiah yang jelas.');
+    return rows;
+  }, [data, rrRata, totalEng, totFunnel, paidFunnel, totSpend, fProj, rentang]); // eslint-disable-line
 
   if (!data) return <div className="loading">Memuat…</div>;
   const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
@@ -368,7 +474,7 @@ export default function MarcomPage() {
         <div className="stamp">Spend: <b>{fmtRp(totSpend)}</b></div></div>
 
       <div className="form-tabs" style={{ marginBottom: 10 }}>
-        {[['insight', '1 · Insight'], ['konten', '2 · Konten'], ['iklan', '3 · Iklan'], ['tim', '4 · Output Tim'], ['web', '5 · Website & SEO']].map(([key, t]) => (
+        {[['insight', '1 · Insight'], ['konten', '2 · Konten'], ['iklan', '3 · Iklan'], ['tim', '4 · Output Tim'], ['web', '5 · Website & SEO'], ['diagnosa', '6 · Diagnosa']].map(([key, t]) => (
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{t}</button>))}
       </div>
 
@@ -571,17 +677,19 @@ export default function MarcomPage() {
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Total Engagement Periode Ini <span className="hint">({totalEng.n} konten · ER = (like + komentar + share + save) ÷ reach)</span></h3>
           <div className="kpi-grid kpi-compact">
-            {[['Reach', totalEng.reach], ['Like', totalEng.like], ['Komentar', totalEng.kom], ['Share', totalEng.share], ['Save', totalEng.save], ['Views', totalEng.views], ['Klik Bio', totalEng.klik], ['ER rata-rata', totalEng.reach ? pct((totalEng.like + totalEng.kom + totalEng.share + totalEng.save) / totalEng.reach) : '—']].map(([l, v]) => (
+            {[['Follower IG', follower ? follower.toLocaleString('id-ID') + (data.igAkun.followersAwal !== null && data.igAkun.followersAwal !== undefined && follower - data.igAkun.followersAwal !== 0 ? ` (${follower - data.igAkun.followersAwal > 0 ? '+' : ''}${follower - data.igAkun.followersAwal})` : '') : '—'],
+              ['Reach rate Reels', rrRata.reels !== null ? pct(rrRata.reels) : '—'], ['Reach rate feed', rrRata.feed !== null ? pct(rrRata.feed) : '—'],
+              ['Reach', totalEng.reach], ['Like', totalEng.like], ['Komentar', totalEng.kom], ['Share', totalEng.share], ['Save', totalEng.save], ['Views', totalEng.views], ['Klik Bio', totalEng.klik], ['ER rata-rata', totalEng.reach ? pct((totalEng.like + totalEng.kom + totalEng.share + totalEng.save) / totalEng.reach) : '—']].map(([l, v]) => (
               <div className="kpi" key={l}><div className="kpi-label">{l}</div><div className="kpi-val">{typeof v === 'number' ? v.toLocaleString('id-ID') : v}</div></div>))}
           </div>
         </div>
         <div className="tbl-wrap tbl-compact"><table>
-          <thead><tr>{[['tgl', 'Tanggal'], ['platform', 'Platform'], ['format', 'Format'], ['topik', 'Topik / Hook'], ['jam', 'Jam'], ['reach', 'Reach'], ['like_n', 'Like'], ['komentar', 'Komentar'], ['share_n', 'Share'], ['save_n', 'Save'], ['view3', 'Views'], ['er', 'ER'], ['klik_bio', 'Klik Bio']].map(([k, t]) => (
-            <th key={k} className={['reach', 'like_n', 'komentar', 'share_n', 'save_n', 'view3', 'er', 'klik_bio'].includes(k) ? 'num' : ''} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="Klik untuk mengurutkan"
+          <thead><tr>{[['tgl', 'Tanggal'], ['platform', 'Platform'], ['format', 'Format'], ['topik', 'Topik / Hook'], ['jam', 'Jam'], ['reach', 'Reach'], ['rr', 'Reach Rate'], ['like_n', 'Like'], ['komentar', 'Komentar'], ['share_n', 'Share'], ['save_n', 'Save'], ['view3', 'Views'], ['er', 'ER'], ['klik_bio', 'Klik Bio']].map(([k, t]) => (
+            <th key={k} className={['reach', 'rr', 'like_n', 'komentar', 'share_n', 'save_n', 'view3', 'er', 'klik_bio'].includes(k) ? 'num' : ''} style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} title="Klik untuk mengurutkan"
               onClick={() => setKSort(s0 => ({ key: k, dir: s0.key === k && s0.dir === 'desc' ? 'asc' : 'desc' }))}>{t}{kSort.key === k ? (kSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}</th>))}<th>Aksi</th></tr></thead>
           <tbody>{(data.contents || []).length ? [...(data.contents || [])].sort((a, b) => {
             const k = kSort.key, d = kSort.dir === 'desc' ? -1 : 1;
-            const v = x => k === 'er' ? (er(x) ?? -1) : ['tgl', 'platform', 'format', 'topik', 'jam'].includes(k) ? String(x[k] || '') : (Number(x[k]) || 0);
+            const v = x => k === 'er' ? (er(x) ?? -1) : k === 'rr' ? (rr(x) ?? -1) : ['tgl', 'platform', 'format', 'topik', 'jam'].includes(k) ? String(x[k] || '') : (Number(x[k]) || 0);
             const va = v(a), vb = v(b);
             return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * d;
           }).map(x => (
@@ -592,6 +700,7 @@ export default function MarcomPage() {
               <td data-label="Topik"><b>{x.topik || '—'}</b>{x.hook ? <div className="hint">{x.hook}</div> : null}</td>
               <td data-label="Jam">{x.jam || '—'}</td>
               <td className="num" data-label="Reach">{Number(x.reach) ? Number(x.reach).toLocaleString('id-ID') : '—'}</td>
+              <td className="num" data-label="Reach Rate">{(() => { const v = rr(x), l = labelRR(v, x.format); return v === null ? '—' : <span style={{ color: l.c, fontWeight: l.w }} title={'Patokan ' + (jenisRR(x.format) === 'reels' ? 'Reels: biasa 15%, bagus 30%, sangat bagus 60%' : 'feed: biasa 5%, bagus 10%, sangat bagus 20%')}>{pct(v)}<div className="hint" style={{ color: l.c }}>{l.t}</div></span>; })()}</td>
               <td className="num" data-label="Like">{Number(x.like_n) ? Number(x.like_n).toLocaleString('id-ID') : '—'}</td>
               <td className="num" data-label="Komentar">{Number(x.komentar) || '—'}</td>
               <td className="num" data-label="Share">{Number(x.share_n) || '—'}</td>
@@ -604,7 +713,7 @@ export default function MarcomPage() {
                 {!(igAktif && x.platform === 'Instagram') && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>}
                 <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>
               </span></td>
-            </tr>)) : <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
+            </tr>)) : <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
         </table></div>
       </>)}
 
@@ -833,6 +942,79 @@ export default function MarcomPage() {
           )}
         </div>
       </>)}
+
+      {tab === 'diagnosa' && (() => {
+        const projP = fProj || 'BIO DISTRICT';
+        const pr = (data.persona || {})[projP];
+        const isMgr = data.me && data.me.role === 'manager';
+        const baris = obj => Object.entries(obj || {}).map(([k, r]) => ({ k, ...r, dinilai: r.n - r.kurang, pc: (r.n - r.kurang) > 0 ? r.cocok / (r.n - r.kurang) : null })).sort((a, b) => b.n - a.n);
+        const simpanPersona = async () => {
+          try {
+            await api('/api/marcom', { method: 'PATCH', body: JSON.stringify({ jenis: 'persona', project: personaEdit.project, data: personaEdit }) });
+            toast('Persona disimpan ✅'); setPersonaEdit(null); await muat();
+          } catch (e) { toast(e.message); }
+        };
+        const warna = { '🟢': 'var(--green)', '🟡': 'var(--brass)', '🔴': 'var(--red)', '⚪': 'var(--muted)' };
+        return (<>
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>🎯 Persona Target — {projP}</h3>
+              {isMgr && !personaEdit && <button className="sort-btn" onClick={() => setPersonaEdit({ project: projP, areaInti: (pr?.areaInti || []).join(', '), areaLuas: (pr?.areaLuas || []).join(', '), hargaMin: pr?.hargaMin || '', usiaMin: pr?.usiaMin || '', usiaMax: pr?.usiaMax || '', tujuan: pr?.tujuan || 'ditempati', catatan: pr?.catatan || '' })}>{pr ? 'Edit persona' : 'Buat persona'}</button>}
+            </div>
+            {!personaEdit && (pr ? (
+              <div className="hint" style={{ marginTop: 8, lineHeight: 1.7 }}>
+                <b>Area inti:</b> {pr.areaInti.join(', ')} · <b>Perluasan:</b> {pr.areaLuas.join(', ') || '—'}<br />
+                <b>Kemampuan beli:</b> ≥ {fmtRp(pr.hargaMin)} · <b>Usia:</b> {pr.usiaMin}–{pr.usiaMax} tahun · <b>Tujuan:</b> {pr.tujuan}<br />
+                <b>Skor kecocokan (0–100):</b> domisili inti 30 / perluasan 15 · budget ≥ harga min 30 (≥80%: 15) · cara bayar terisi 15 · usia dalam rentang 15 (±5 th: 7) · tujuan ditempati 10 / investasi 7. ≥70 cocok · 40–69 sebagian · &lt;40 tidak · &lt;3 kolom terisi = data kurang.
+                {pr.catatan ? <><br /><i>{pr.catatan}</i></> : null}
+              </div>) : <p className="hint">Belum ada persona untuk {projP}. Lead project ini belum dinilai kecocokannya.</p>)}
+            {personaEdit && (<>
+              <div className="form-grid" style={{ marginTop: 10 }}>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>Area inti (pisahkan dengan koma)</label><input value={personaEdit.areaInti} onChange={e => setPersonaEdit({ ...personaEdit, areaInti: e.target.value })} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>Area perluasan</label><input value={personaEdit.areaLuas} onChange={e => setPersonaEdit({ ...personaEdit, areaLuas: e.target.value })} /></div>
+                <div className="field"><label>Kemampuan beli minimal (Rp)</label><input type="number" value={personaEdit.hargaMin} onChange={e => setPersonaEdit({ ...personaEdit, hargaMin: e.target.value })} /></div>
+                <div className="field"><label>Usia dari</label><input type="number" value={personaEdit.usiaMin} onChange={e => setPersonaEdit({ ...personaEdit, usiaMin: e.target.value })} /></div>
+                <div className="field"><label>Usia sampai</label><input type="number" value={personaEdit.usiaMax} onChange={e => setPersonaEdit({ ...personaEdit, usiaMax: e.target.value })} /></div>
+                <div className="field"><label>Tujuan utama</label><input value={personaEdit.tujuan} onChange={e => setPersonaEdit({ ...personaEdit, tujuan: e.target.value })} /></div>
+                <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan</label><input value={personaEdit.catatan} onChange={e => setPersonaEdit({ ...personaEdit, catatan: e.target.value })} /></div>
+              </div>
+              <div className="form-foot"><button className="btn btn-primary" style={{ width: 'auto' }} onClick={simpanPersona}>Simpan Persona</button><button className="sort-btn" onClick={() => setPersonaEdit(null)}>Batal</button></div>
+            </>)}
+          </div>
+
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>📋 Rapor Marketing <span className="hint">(ikut filter project & periode · 🟢 bagus · 🟡 cukup · 🔴 perlu perbaikan · ⚪ data belum cukup)</span></h3>
+            <div className="tbl-wrap tbl-compact"><table>
+              <thead><tr><th>Lapisan</th><th>Indikator</th><th className="num">Hasil</th><th>Patokan</th><th>Vonis</th><th>Saran</th></tr></thead>
+              <tbody>{rapor.map((r, i) => (
+                <tr key={i}>
+                  <td data-label="Lapisan" className="hint">{i === 0 || rapor[i - 1].lapis !== r.lapis ? <b>{r.lapis}</b> : ''}</td>
+                  <td data-label="Indikator">{r.indikator}</td>
+                  <td className="num" data-label="Hasil"><b style={{ color: warna[r.vonis] }}>{r.txt}</b></td>
+                  <td data-label="Patokan" className="hint">{r.patokan}</td>
+                  <td data-label="Vonis" style={{ fontSize: 18 }}>{r.vonis}</td>
+                  <td data-label="Saran" className="hint">{r.vonis === '🟢' ? 'Pertahankan.' : r.vonis === '⚪' ? 'Data belum cukup untuk dinilai.' : r.saran}</td>
+                </tr>))}</tbody>
+            </table></div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Kualitas Lead terhadap Persona <span className="hint">(lead masuk pada periode · % cocok dihitung dari lead yang datanya cukup)</span></h3>
+            {[['Per sumber lead', baris(data.fit?.bySumber), false], ['Per campaign', baris(data.fit?.byCampaign), true], ['Per kreatif / kode iklan', baris(data.fit?.byKonten), false]].map(([judul, rows, pakaiSpend]) => rows.length ? (
+              <div key={judul} style={{ marginBottom: 12 }}>
+                <h4 style={{ margin: '6px 0' }}>{judul}</h4>
+                <div className="tbl-wrap tbl-compact"><table>
+                  <thead><tr><th>Asal</th><th className="num">Lead</th><th className="num">Cocok</th><th className="num">Sebagian</th><th className="num">Tidak</th><th className="num">Data kurang</th><th className="num">% cocok</th>{pakaiSpend ? <th className="num">Biaya per lead cocok</th> : null}</tr></thead>
+                  <tbody>{rows.map(r => (
+                    <tr key={r.k}><td data-label="Asal"><b>{r.k}</b></td><td className="num">{r.n}</td><td className="num" style={{ color: 'var(--green)' }}><b>{r.cocok}</b></td><td className="num">{r.sebagian}</td><td className="num" style={{ color: r.tidak ? 'var(--red)' : undefined }}>{r.tidak}</td><td className="num hint">{r.kurang}</td>
+                      <td className="num"><b>{r.pc !== null ? pct(r.pc) : '—'}</b></td>
+                      {pakaiSpend ? <td className="num">{spendMap[r.k] ? (r.cocok ? fmtRp(Math.round(spendMap[r.k] / r.cocok)) : <span style={{ color: 'var(--red)' }}>{fmtRp(spendMap[r.k])} · 0 cocok</span>) : '—'}</td> : null}</tr>))}</tbody>
+                </table></div>
+              </div>) : null)}
+            {!(data.fit?.total?.n) && <p className="hint">Belum ada lead dengan persona pada periode ini.</p>}
+          </div>
+        </>);
+      })()}
 
       {tab === 'web' && (<>
         <div className="card" style={{ marginBottom: 12 }}>

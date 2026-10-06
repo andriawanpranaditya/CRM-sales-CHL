@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
@@ -259,7 +259,7 @@ export default function FormPage() {
     setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
       kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
       budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
-      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' });
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || ''});
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
   }
@@ -513,6 +513,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
           {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
+          <div className="field"><label>Rentang Usia</label><select {...fl('usia')}>
+            {['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'].map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
           {!isMarkom && <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...fl('budget')} placeholder="contoh: 500000000" /></div>}
           {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
