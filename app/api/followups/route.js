@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +32,7 @@ export async function POST(req) {
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
   await siapkanBalas(sql);
+  await siapkanStatusLog(sql);
   const balas = b.balas === true ? true : b.balas === false ? false : null;
   if (b.next_action === 'Drop' && (b.objection || '').trim() && !String(b.detail || '').includes('Drop:')) b.detail = String(b.detail || '') + ' — Drop: ' + b.objection.trim();
   await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
@@ -40,10 +41,12 @@ export async function POST(req) {
   if (b.status && !['Drop', 'Reserved', 'Booking'].includes(b.next_action || '')) {
     await sql`UPDATE leads SET status = ${b.status}, updated_at = now() WHERE lead_code = ${b.lead_code} AND status IS DISTINCT FROM ${b.status}`;
   }
+  await tandaiOleh(sql, b.lead_code, user.username, b.objection || '');
   // Sinkron ke lead
   if (b.next_action === 'Drop') {
     // Drop: status lead jadi Drop & jadwal FU dihapus -> tidak muncul lagi di lonceng/reminder
     await sql`UPDATE leads SET status = 'Drop', next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;
+    await tandaiOleh(sql, b.lead_code, user.username, b.objection || '');
   } else if (b.next_action === 'Reserved' || b.next_action === 'Booking') {
     // Konsumen sudah reserved/booking: jadwal FU dihentikan (status & angka mengikuti transaksi di menu Booking)
     await sql`UPDATE leads SET next_fu = NULL, updated_at = now() WHERE lead_code = ${b.lead_code}`;

@@ -17,6 +17,7 @@ export default function Dashboard() {
       .catch(e => toast(e.message));
   }
   const [leads, setLeads] = useState(null);
+  const [sl, setSl] = useState(null); // ringkasan pergerakan status lead (ikut periode & project)
   const [fus, setFus] = useState([]);
   const [trx, setTrx] = useState([]);
   const [set, setSet] = useState({ status: [], project: [] });
@@ -46,6 +47,13 @@ export default function Dashboard() {
   const fFus = useMemo(() => proj ? fus.filter(f => codes.has(f.lead_code)) : fus, [fus, codes, proj]);
   const fTrx = useMemo(() => proj ? trx.filter(t => codes.has(t.lead_code)) : trx, [trx, codes, proj]);
 
+  // Ringkasan pergerakan status lead — ikut periode report (bila diisi) atau bulan berjalan; harus sebelum early return (aturan hook)
+  useEffect(() => {
+    const t = new Date(); const awalBln = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
+    const custom = !!(d1 || d2);
+    const q = '/api/status-log?d1=' + (custom ? (d1 || '') : awalBln) + '&d2=' + (custom ? (d2 || '') : '') + '&project=' + encodeURIComponent(proj || '');
+    api(q).then(setSl).catch(() => setSl(null));
+  }, [d1, d2, proj, lastUpd]); // eslint-disable-line
   if (!leads) return <div className="loading">Memuat data dari database…</div>;
 
   // ===== Periode Dashboard: mengikuti tanggal report bila diisi; bila kosong = BULAN BERJALAN (tgl 1 s/d hari ini) =====
@@ -565,6 +573,8 @@ export default function Dashboard() {
     // Data modul Analisa Marcom — bila akun tidak punya akses, bagian marcom dilewati
     let mi = null;
     try { mi = await api('/api/marcom?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
+    let slr = null;
+    try { slr = await api('/api/status-log?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
     const inPeriod = t => {
       if (!t) return !d1 && !d2;
       const x = String(t).slice(0, 10);
@@ -861,6 +871,12 @@ ${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
     }).join('')}
 </table>
 
+${slr ? `<h2>2B. PERGERAKAN STATUS LEAD PADA PERIODE <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(dihitung dari setiap perubahan status, bukan status akhir)</span></h2>
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th>Lead masuk</th><th>Dioper ke sales</th><th>Naik ke berkualitas</th><th>Site Visit</th><th>Reserved</th><th>Booking</th><th>Drop</th><th>Drop marcom / sales</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${slr.masuk}</td><td>${slr.oper}</td><td>${slr.naikKualitas}</td><td>${slr.transisi['Site Visit'] || 0}</td><td>${slr.transisi['Reserved'] || 0}</td><td>${(slr.transisi['Booking'] || 0) + (slr.transisi['Closing'] || 0)}</td><td style="color:#B3402F">${slr.drop.total}</td><td>${slr.drop.marcom} / ${slr.drop.sales}</td></tr></table>
+${slr.drop.alasan.length ? `<h3>Alasan drop terbanyak</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:80%">Alasan</th><th style="width:20%;text-align:center">Lead</th></tr>${slr.drop.alasan.slice(0, 6).map(a => `<tr><td>${esc(a.alasan)}</td><td style="text-align:center"><b>${a.n}</b></td></tr>`).join('')}</table>` : ''}
+${slr.perSales.length ? `<h3>Per sales (lead yang dipegang saat kejadian)</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:30%">Sales</th><th style="text-align:center">Dioper</th><th style="text-align:center">Berkualitas</th><th style="text-align:center">Site Visit</th><th style="text-align:center">Booking</th><th style="text-align:center">Drop</th></tr>${slr.perSales.map(r => `<tr><td><b>${esc(r.sales)}</b></td><td style="text-align:center">${r.oper}</td><td style="text-align:center">${r.kualitas}</td><td style="text-align:center">${r.visit}</td><td style="text-align:center"><b>${r.booking}</b></td><td style="text-align:center">${r.drop}</td></tr>`).join('')}</table>` : ''}
+<p class="muted" style="font-size:8.5pt">Lead New tanpa perkembangan: ${slr.aging.n7} lead > 7 hari (${slr.aging.n14} > 14 hari). Riwayat status dicatat otomatis sejak ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'update terpasang'}; periode sebelum itu hanya memiliki status akhir.</p>` : ''}
 <h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
 <table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
 ${salesNs.length ? salesNs.map(sn => {
@@ -1030,6 +1046,36 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
           </div>
         </div>
       </div>
+      {sl && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <h2>Pergerakan Status Lead <span className="hint">({periodeCustom ? bulanLabel : 'bulan berjalan'} · dihitung dari setiap perubahan status, bukan status akhir)</span></h2>
+          <div className="kpi-grid kpi-compact" style={{ marginBottom: 10 }}>
+            {[['Lead masuk', sl.masuk], ['Dioper ke sales', sl.oper], ['Naik ke berkualitas', sl.naikKualitas], ['Site Visit', sl.transisi['Site Visit'] || 0], ['Reserved', sl.transisi['Reserved'] || 0], ['Booking', (sl.transisi['Booking'] || 0) + (sl.transisi['Closing'] || 0)], ['Drop', sl.drop.total], ['Drop oleh marcom / sales', `${sl.drop.marcom} / ${sl.drop.sales}`]].map(([l, v]) => (
+              <div className="kpi" key={l}><div className="kpi-label">{l}</div><div className="kpi-val">{v}</div></div>))}
+          </div>
+          <div className="grid two-col">
+            <div>
+              <h3 style={{ margin: '0 0 6px' }}>Alasan drop terbanyak</h3>
+              {sl.drop.alasan.length ? <div className="tbl-wrap tbl-compact"><table><thead><tr><th>Alasan</th><th className="num">Lead</th></tr></thead>
+                <tbody>{sl.drop.alasan.slice(0, 6).map(a => <tr key={a.alasan}><td>{a.alasan}</td><td className="num"><b>{a.n}</b></td></tr>)}</tbody></table></div>
+                : <p className="hint">Belum ada lead yang di-drop pada periode ini.</p>}
+              <h3 style={{ margin: '12px 0 6px' }}>Lead aktif saat ini</h3>
+              <div className="hint">{Object.entries(sl.aktifAkhir).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
+              <h3 style={{ margin: '12px 0 6px' }}>Lead New tanpa perkembangan</h3>
+              <div className="hint">{sl.aging.n7} lead New &gt; 7 hari ({sl.aging.n14} di antaranya &gt; 14 hari){sl.aging.daftar.length ? ': ' + sl.aging.daftar.slice(0, 8).map(a => `${a.lead_code} (${a.hari} hr${a.sales ? ', ' + a.sales : ', marcom'})`).join(', ') : ''}</div>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px' }}>Per sales (lead yang dipegang saat kejadian)</h3>
+              <div className="tbl-wrap tbl-compact"><table>
+                <thead><tr><th>Sales</th><th className="num">Dioper</th><th className="num">Berkualitas</th><th className="num">Site Visit</th><th className="num">Booking</th><th className="num">Drop</th></tr></thead>
+                <tbody>{sl.perSales.length ? sl.perSales.map(r => <tr key={r.sales}><td><b>{r.sales}</b></td><td className="num">{r.oper}</td><td className="num">{r.kualitas}</td><td className="num">{r.visit}</td><td className="num"><b>{r.booking}</b></td><td className="num" style={{ color: r.drop ? 'var(--red)' : undefined }}>{r.drop}</td></tr>)
+                  : <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>Belum ada perubahan status tercatat pada periode ini.</td></tr>}</tbody>
+              </table></div>
+            </div>
+          </div>
+          <p className="hint" style={{ marginTop: 8 }}>Riwayat status dicatat otomatis sejak {sl.mulaiRiwayat ? fmtDate(sl.mulaiRiwayat) : 'update ini terpasang'}; periode sebelum itu hanya punya status akhir.</p>
+        </div>
+      )}
       <div className="card" style={{ marginBottom: 14 }}>
         <h2>Kegiatan Sales — {bulanLabel}</h2>
         {(() => {

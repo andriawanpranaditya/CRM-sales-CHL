@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +35,7 @@ export async function POST(req) {
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
+  await siapkanStatusLog(sql);
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
@@ -102,6 +103,7 @@ export async function PATCH(req) {
     campaign = ${m.campaign || ''}, konten = ${m.konten || ''},
     updated_at = now()
     WHERE id = ${b.id}`;
+  await tandaiOleh(sql, cur.lead_code, user.username, '');
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
   if (operKe) {
     try {
