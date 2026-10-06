@@ -44,6 +44,7 @@ export default function MarcomPage() {
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
   const [formManual, setFormManual] = useState(false);
+  const [showSpendManual, setShowSpendManual] = useState(false);
   const [gb, setGb] = useState(null); // { dari, ke }
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
   const [am, setAm] = useState(AM0);
@@ -740,6 +741,13 @@ export default function MarcomPage() {
           <span className="hint">Biaya hanya dihitung untuk bulan yang sudah berjalan, dan otomatis masuk ke kolom Spend, CPL, CPQL & report. Jangan input biaya yang sama lagi di Catat Performa Iklan — nanti terhitung dobel.</span>
         </div>
 
+        {!showSpendManual && (
+          <div className="card" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className="hint">Spend Meta ditarik otomatis, biaya offline lewat Biaya Berulang. Pencatatan manual hanya untuk Google Ads, TikTok & platform lain yang belum tersambung.</span>
+            <button className="sort-btn" onClick={() => setShowSpendManual(true)}>➕ Catat Spend Manual (Google / TikTok / lainnya)</button>
+          </div>
+        )}
+        {showSpendManual && (
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">{metaApi ? '(spend Meta ditarik otomatis tiap pagi — form ini untuk Google, TikTok & lainnya)' : '(mingguan per campaign/kreatif dari Ads Manager)'}</span></h3>
           <div className="form-grid">
@@ -756,9 +764,11 @@ export default function MarcomPage() {
           </div>
           <div className="form-foot">
             <button className="btn btn-primary" disabled={busy} onClick={() => simpan('iklan', a, aEdit, () => { setAEdit(null); setA({ ...A0, tgl: todayISO() }); })}>{aEdit ? 'Simpan Perubahan' : 'Simpan Entri'}</button>
+            <button className="sort-btn" onClick={() => { setShowSpendManual(false); setAEdit(null); }}>Tutup</button>
             {aEdit && <button className="sort-btn" onClick={() => { setAEdit(null); setA({ ...A0, tgl: todayISO() }); }}>Batal edit</button>}
           </div>
         </div>
+        )}
 
         <div className="two-col">
           <div className="card" style={{ marginBottom: 12 }}>
@@ -796,6 +806,7 @@ export default function MarcomPage() {
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
             </table></div>
           </div>
+          {(data.ads || []).some(x => x.sumber !== 'meta-api') && (
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Entri Performa Manual {metaApi ? <span className="hint">(data Meta Ads otomatis tidak ditampilkan di sini — lihat kolom Spend di Daftar Campaign)</span> : null}</h3>
             <div className="tbl-wrap tbl-compact"><table>
@@ -805,12 +816,13 @@ export default function MarcomPage() {
                   <td data-label="Tanggal">{fmtDate(x.tgl)}</td><td data-label="Campaign">{x.campaign}{(data.ads || []).some(y => y.sumber === 'meta-api' && String(y.campaign).toLowerCase() === String(x.campaign).toLowerCase()) ? <div className="hint" style={{ color: 'var(--brass)' }}>digantikan data API — tidak dihitung, boleh dihapus</div> : null}</td><td data-label="Kreatif">{x.kreatif || '—'}</td>
                   <td className="num" data-label="Spend">{fmtRp(x.spend)}</td><td className="num" data-label="Klik">{x.klik || 0}</td><td className="num" data-label="Hasil">{x.hasil || 0}</td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
-                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setAEdit(x.id); setA({ tgl: String(x.tgl || '').slice(0, 10), campaign: x.campaign || '', kreatif: x.kreatif || '', spend: x.spend || '', impresi: x.impresi || '', reach: x.reach || '', klik: x.klik || '', hasil: x.hasil || '', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
+                    <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setShowSpendManual(true); setAEdit(x.id); setA({ tgl: String(x.tgl || '').slice(0, 10), campaign: x.campaign || '', kreatif: x.kreatif || '', spend: x.spend || '', impresi: x.impresi || '', reach: x.reach || '', klik: x.klik || '', hasil: x.hasil || '', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('iklan', x.id, x.campaign + ' ' + fmtDate(x.tgl))}>Hapus</button>
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada entri performa iklan.</td></tr>}</tbody>
             </table></div>
           </div>
+          )}
         </div>
       </>)}
 
