@@ -141,22 +141,25 @@ export default function MarcomPage() {
   const polaFormat = useMemo(() => {
     const g = {};
     (data?.contents || []).forEach(x => {
-      const key = x.format || '-'; g[key] = g[key] || { n: 0, reach: 0, eng: 0, klik: 0 };
+      const key = x.format || '-'; g[key] = g[key] || { n: 0, reach: 0, eng: 0, klik: 0, like: 0, kom: 0, share: 0, save: 0, views: 0 };
       g[key].n++; g[key].reach += Number(x.reach) || 0; g[key].klik += Number(x.klik_bio) || 0;
+      g[key].like += Number(x.like_n) || 0; g[key].kom += Number(x.komentar) || 0; g[key].share += Number(x.share_n) || 0; g[key].save += Number(x.save_n) || 0; g[key].views += Number(x.view3) || 0;
       g[key].eng += (Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0);
     });
-    return Object.entries(g).map(([f, v]) => ({ format: f, n: v.n, reach: v.reach, er: v.reach ? v.eng / v.reach : null, klik: v.klik })).sort((x, y) => (y.er || 0) - (x.er || 0));
+    return Object.entries(g).map(([f, v]) => ({ format: f, ...v, er: v.reach ? v.eng / v.reach : null })).sort((x, y) => (y.er || 0) - (x.er || 0));
   }, [data]);
   const polaTopik = useMemo(() => {
     const g = {};
     (data?.contents || []).forEach(x => {
       const key = String(x.topik || '').trim(); if (!key) return;
-      g[key] = g[key] || { n: 0, reach: 0, eng: 0, klik: 0 };
+      g[key] = g[key] || { n: 0, reach: 0, eng: 0, klik: 0, like: 0, kom: 0, share: 0, save: 0, views: 0 };
       g[key].n++; g[key].reach += Number(x.reach) || 0; g[key].klik += Number(x.klik_bio) || 0;
+      g[key].like += Number(x.like_n) || 0; g[key].kom += Number(x.komentar) || 0; g[key].share += Number(x.share_n) || 0; g[key].save += Number(x.save_n) || 0; g[key].views += Number(x.view3) || 0;
       g[key].eng += (Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0);
     });
-    return Object.entries(g).map(([t, v]) => ({ topik: t, n: v.n, reach: v.reach, er: v.reach ? v.eng / v.reach : null, klik: v.klik })).sort((a, b) => (b.er || 0) - (a.er || 0));
+    return Object.entries(g).map(([t, v]) => ({ topik: t, ...v, er: v.reach ? v.eng / v.reach : null })).sort((a, b) => (b.er || 0) - (a.er || 0));
   }, [data]);
+  const totalEng = useMemo(() => (data?.contents || []).reduce((t, x) => ({ n: t.n + 1, reach: t.reach + (Number(x.reach) || 0), like: t.like + (Number(x.like_n) || 0), kom: t.kom + (Number(x.komentar) || 0), share: t.share + (Number(x.share_n) || 0), save: t.save + (Number(x.save_n) || 0), views: t.views + (Number(x.view3) || 0), klik: t.klik + (Number(x.klik_bio) || 0) }), { n: 0, reach: 0, like: 0, kom: 0, share: 0, save: 0, views: 0, klik: 0 }), [data]);
   const polaJam = useMemo(() => {
     const g = {};
     (data?.contents || []).forEach(x => {
@@ -211,6 +214,7 @@ export default function MarcomPage() {
     if ((data.contents || []).length) {
       const fBest = polaFormat.find(r => r.er !== null);
       R.ringkas.push(`${data.contents.length} konten tercatat` + (fBest ? `; format dengan engagement tertinggi: ${fBest.format} (ER ${pct(fBest.er)}).` : '.'));
+      if (totalEng.n) R.ringkas.push(`Engagement ${totalEng.n} konten: ${totalEng.like.toLocaleString('id-ID')} like · ${totalEng.kom} komentar · ${totalEng.share} share · ${totalEng.save} save · ${totalEng.views.toLocaleString('id-ID')} views · ${totalEng.klik} klik bio.`);
     }
     const webOk = !fProj || /bio/i.test(fProj);
     const ga4 = data.ga4 || [], gsc = data.gsc || [];
@@ -338,7 +342,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, totalEng, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -471,19 +475,21 @@ export default function MarcomPage() {
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Pola Konten yang Menang</h3>
             <div className="tbl-wrap tbl-compact"><table>
-              <thead><tr><th>Format</th><th className="num">Jml</th><th className="num">Total Reach</th><th className="num">ER</th><th className="num">Klik Bio</th></tr></thead>
+              <thead><tr><th>Format</th><th className="num">Jml</th><th className="num">Reach</th><th className="num">Like</th><th className="num">Komentar</th><th className="num">Share</th><th className="num">Save</th><th className="num">Views</th><th className="num">ER</th><th className="num">Klik Bio</th></tr></thead>
               <tbody>{polaFormat.map(r => (
                 <tr key={r.format}><td data-label="Format">{r.format}</td><td className="num" data-label="Jml">{r.n}</td>
                   <td className="num" data-label="Reach">{r.reach.toLocaleString('id-ID')}</td>
+                  <td className="num" data-label="Like">{r.like.toLocaleString('id-ID')}</td><td className="num" data-label="Komentar">{r.kom}</td><td className="num" data-label="Share">{r.share}</td><td className="num" data-label="Save">{r.save}</td><td className="num" data-label="Views">{r.views.toLocaleString('id-ID')}</td>
                   <td className="num" data-label="ER"><b>{pct(r.er)}</b></td><td className="num" data-label="Klik">{r.klik}</td></tr>))}</tbody>
             </table></div>
             {polaJam.length > 0 && <div className="hint" style={{ marginTop: 8 }}>Jam tayang terbaik (ER): {polaJam.map(j => `${j.jam} ${pct(j.er)}`).join(' · ')}</div>}
             {polaTopik.length > 0 && (
               <div className="tbl-wrap tbl-compact" style={{ marginTop: 10 }}><table>
-                <thead><tr><th>Topik</th><th className="num">Jml</th><th className="num">Total Reach</th><th className="num">ER</th><th className="num">Klik Bio</th></tr></thead>
+                <thead><tr><th>Topik</th><th className="num">Jml</th><th className="num">Reach</th><th className="num">Like</th><th className="num">Komentar</th><th className="num">Share</th><th className="num">Save</th><th className="num">Views</th><th className="num">ER</th><th className="num">Klik Bio</th></tr></thead>
                 <tbody>{polaTopik.map(r => (
                   <tr key={r.topik}><td data-label="Topik">{r.topik}</td><td className="num" data-label="Jml">{r.n}</td>
                     <td className="num" data-label="Reach">{r.reach.toLocaleString('id-ID')}</td>
+                    <td className="num" data-label="Like">{r.like.toLocaleString('id-ID')}</td><td className="num" data-label="Komentar">{r.kom}</td><td className="num" data-label="Share">{r.share}</td><td className="num" data-label="Save">{r.save}</td><td className="num" data-label="Views">{r.views.toLocaleString('id-ID')}</td>
                     <td className="num" data-label="ER"><b>{pct(r.er)}</b></td><td className="num" data-label="Klik">{r.klik}</td></tr>))}</tbody>
               </table></div>)}
           </div>
@@ -560,8 +566,15 @@ export default function MarcomPage() {
         </div>
         )}
 
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Total Engagement Periode Ini <span className="hint">({totalEng.n} konten · ER = (like + komentar + share + save) ÷ reach)</span></h3>
+          <div className="kpi-grid">
+            {[['Reach', totalEng.reach], ['Like', totalEng.like], ['Komentar', totalEng.kom], ['Share', totalEng.share], ['Save', totalEng.save], ['Views', totalEng.views], ['Klik Bio', totalEng.klik], ['ER rata-rata', totalEng.reach ? pct((totalEng.like + totalEng.kom + totalEng.share + totalEng.save) / totalEng.reach) : '—']].map(([l, v]) => (
+              <div className="kpi" key={l}><div className="kpi-label">{l}</div><div className="kpi-val">{typeof v === 'number' ? v.toLocaleString('id-ID') : v}</div></div>))}
+          </div>
+        </div>
         <div className="tbl-wrap tbl-compact"><table>
-          <thead><tr><th>Tanggal</th><th>Platform</th><th>Format</th><th>Topik / Hook</th><th>Jam</th><th className="num">Reach</th><th className="num">ER</th><th className="num">Klik Bio</th><th>Aksi</th></tr></thead>
+          <thead><tr><th>Tanggal</th><th>Platform</th><th>Format</th><th>Topik / Hook</th><th>Jam</th><th className="num">Reach</th><th className="num">Like</th><th className="num">Komentar</th><th className="num">Share</th><th className="num">Save</th><th className="num">Views</th><th className="num">ER</th><th className="num">Klik Bio</th><th>Aksi</th></tr></thead>
           <tbody>{(data.contents || []).length ? (data.contents || []).map(x => (
             <tr key={x.id}>
               <td data-label="Tanggal">{fmtDate(x.tgl)}</td>
@@ -570,6 +583,11 @@ export default function MarcomPage() {
               <td data-label="Topik"><b>{x.topik || '—'}</b>{x.hook ? <div className="hint">{x.hook}</div> : null}</td>
               <td data-label="Jam">{x.jam || '—'}</td>
               <td className="num" data-label="Reach">{Number(x.reach) ? Number(x.reach).toLocaleString('id-ID') : '—'}</td>
+              <td className="num" data-label="Like">{Number(x.like_n) ? Number(x.like_n).toLocaleString('id-ID') : '—'}</td>
+              <td className="num" data-label="Komentar">{Number(x.komentar) || '—'}</td>
+              <td className="num" data-label="Share">{Number(x.share_n) || '—'}</td>
+              <td className="num" data-label="Save">{Number(x.save_n) || '—'}</td>
+              <td className="num" data-label="Views">{Number(x.view3) ? Number(x.view3).toLocaleString('id-ID') : '—'}</td>
               <td className="num" data-label="ER"><b>{pct(er(x))}</b></td>
               <td className="num" data-label="Klik">{x.klik_bio || '—'}</td>
               <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
@@ -577,7 +595,7 @@ export default function MarcomPage() {
                 {!(igAktif && x.platform === 'Instagram') && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>}
                 <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>
               </span></td>
-            </tr>)) : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
+            </tr>)) : <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
         </table></div>
       </>)}
 
