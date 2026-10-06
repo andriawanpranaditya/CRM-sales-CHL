@@ -398,7 +398,7 @@ export default function MarcomPage() {
     if (!resume) return;
     const label = (fProj || 'Semua Project') + ' · ' + (periode === 'bulan' ? 'Bulan Ini' : periode === 'perbulan' ? (pilihanBulan.find(o => o.v === bln) || {}).t : periode === 'semua' ? 'Sejak Sep 2026' : (rentang[0] + ' s.d. ' + rentang[1]));
     const blok = (judul, arr) => judul + '\n' + arr.map(x => '• ' + x).join('\n');
-    const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('YANG HARUS DIPERBAIKI', resume.perbaiki.length ? resume.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI', resume.saran);
+    const teks = 'RESUME ANALISA MARKETING — ' + label + '\n\n' + blok('RINGKASAN', resume.ringkas) + '\n\n' + blok('PRIORITAS PERBAIKAN', resumeFinal.perbaiki.length ? resumeFinal.perbaiki : ['Tidak ada temuan kritis.']) + '\n\n' + blok('SARAN STRATEGI', resumeFinal.saran);
     try { await navigator.clipboard.writeText(teks); toast('Resume tersalin 📋'); } catch { window.prompt('Salin manual:', teks); }
   }
 
@@ -433,6 +433,19 @@ export default function MarcomPage() {
       'Ganti materi: unit nyata + hadiah per tipe tampil di 1 detik pertama, harga "mulai Rp1,5 M" di visual; uji 2–3 variasi kreatif per ad set.');
     add('Iklan', 'Biaya per klik iklan Meta', cpc, cpc !== null ? rp0(cpc) : '—', 'bagus ≤Rp1.500 · cukup ≤Rp3.000', v(cpc, 1500, 3000, true),
       'Persempit lokasi ke area inti persona, matikan penempatan Audience Network, hentikan ad set dengan CTR terendah.');
+    // Audiens organik & retensi Reels (Fase 3)
+    {
+      const prA = data.persona?.[fProj || 'BIO DISTRICT'];
+      const du = data.igDemo?.usia || [];
+      const totU = du.reduce((a, r) => a + (r.nilai || 0), 0);
+      const dalam = totU && prA ? du.filter(r => dalamUsiaPersona(String(r.kunci).replace('+', '-99').replace('-99', '+'), prA)).reduce((a, r) => a + r.nilai, 0) / totU : null;
+      add('Jangkauan', 'Follower dalam usia persona', dalam, dalam !== null ? pct(dalam) : '—', 'bagus ≥50% · cukup ≥30%', v(dalam, 0.5, 0.3),
+        'Audiens organik belum sesuai persona: angkat topik keluarga, KPR rumah pertama, dan rute kerja ke Jakarta; kolaborasi dengan akun lifestyle keluarga Serpong–BSD.');
+      const ret = (data.contents || []).filter(x => /reels|video/i.test(x.format || '') && Number(x.avg_watch) && parseFloat(x.durasi)).map(x => Number(x.avg_watch) / parseFloat(x.durasi));
+      const retR = ret.length ? ret.reduce((a, n) => a + n, 0) / ret.length : null;
+      add('Algoritma & engagement', 'Retensi Reels (rata-rata ditonton ÷ durasi)', retR, retR !== null ? pct(retR) : '—', 'bagus ≥50% · cukup ≥30% (isi Durasi di CRM)', v(retR, 0.5, 0.3),
+        'Penonton keluar sebelum pesan utama: taruh hal paling menarik di 3 detik pertama, potong pembuka yang lambat, tampilkan harga atau hadiah sebelum detik ke-5.');
+    }
     // Targeting iklan terhadap persona (Fase 2)
     {
       const prA = data.persona?.[fProj || 'BIO DISTRICT'];
@@ -487,6 +500,44 @@ export default function MarcomPage() {
     return rows;
   }, [data, rrRata, totalEng, totFunnel, paidFunnel, totSpend, fProj, rentang]); // eslint-disable-line
 
+  // ===== Brief Bulan Depan (Fase 3): disusun dari data yang terbukti, bukan template =====
+  const brief = useMemo(() => {
+    if (!data) return null;
+    const prB = data.persona?.[fProj || 'BIO DISTRICT'];
+    const L = { audiens: [], konten: [], iklan: [], tim: [] };
+    if (prB) L.audiens.push(`Persona: domisili ${prB.areaInti.slice(0, 6).join(', ')}${prB.areaLuas.length ? ' (perluasan ' + prB.areaLuas.slice(0, 3).join(', ') + ')' : ''}; usia ${prB.usiaMin}–${prB.usiaMax}; kemampuan beli ≥ ${fmtRp(prB.hargaMin)}; tujuan ${prB.tujuan}.`);
+    const usiaAds = ringkasDim(data.breakdown, 'usia_gender', r => r.k1).filter(x => x.hasil > 0 && dalamUsiaPersona(x.k, prB));
+    const bestAge = [...usiaAds].sort((a, b) => (a.cph || 1e18) - (b.cph || 1e18))[0];
+    if (bestAge) L.audiens.push(`Usia persona dengan biaya per chat termurah di iklan: ${bestAge.k} (${fmtRp(Math.round(bestAge.cph))} per chat).`);
+    const bestUl = [...(data.usiaLead || [])].sort((a, b) => b.cocok - a.cocok)[0];
+    if (bestUl && bestUl.cocok) L.audiens.push(`Usia penyumbang lead cocok terbanyak di CRM: ${bestUl.k} (${bestUl.cocok} lead).`);
+    if (data.igDemo?.kota?.length) L.audiens.push(`Kota follower Instagram teratas: ${data.igDemo.kota.slice(0, 4).map(k => k.kunci).join(', ')}.`);
+    const fB = polaFormat[0], tB = polaTopik.find(r => r.er !== null && r.n >= 2) || polaTopik[0], jB = polaJam[0];
+    if (fB) L.konten.push(`Format utama: ${fB.format} (ER ${pct(fB.er)})${polaFormat[1] ? `, pendamping ${polaFormat[1].format}` : ''}.`);
+    if (tB) L.konten.push(`Topik dengan engagement tertinggi: ${tB.topik} (ER ${pct(tB.er)}) — ulangi dengan sudut baru minimal 2× sebulan.`);
+    if (jB) L.konten.push(`Jam tayang terbaik: ${jB.jam}.`);
+    if (rrRata.reels !== null && rrRata.reels < 0.15) L.konten.push('Reels belum menjangkau di luar follower: buka dengan gerak dan teks besar di detik pertama, durasi 15–30 detik, audio yang sedang ramai.');
+    L.konten.push('Komposisi mingguan: 2 Reels (memperluas jangkauan) + 2 Carousel (memancing save & share); setiap konten diberi Topik dan Hook di CRM.');
+    const camp = Object.entries(data.fit?.byCampaign || {}).filter(([k]) => k !== '(tanpa data)' && spendMap[k]).map(([k, r]) => ({ k, sp: spendMap[k], cocok: r.cocok, bpc: r.cocok ? spendMap[k] / r.cocok : null }));
+    camp.filter(c => c.bpc !== null).sort((a, b) => a.bpc - b.bpc).slice(0, 2).forEach(c => L.iklan.push(`Naikkan budget: ${c.k} — ${fmtRp(Math.round(c.bpc))} per lead cocok persona.`));
+    camp.filter(c => !c.cocok && c.sp >= 1000000).forEach(c => L.iklan.push(`Hentikan atau ganti materi: ${c.k} — ${fmtRp(Math.round(c.sp))} tanpa satu pun lead cocok persona.`));
+    rapor.filter(r => r.lapis === 'Iklan' && r.vonis === '🔴').forEach(r => L.iklan.push(`${r.indikator} ${r.txt} → ${r.saran}`));
+    if (!L.iklan.length) L.iklan.push('Struktur iklan sudah sehat; uji 1 variasi kreatif baru per campaign setiap 2 minggu.');
+    rapor.filter(r => ['Kualitas lead', 'Niat beli', 'Penjualan'].includes(r.lapis) && r.vonis === '🔴').forEach(r => L.tim.push(`${r.indikator} ${r.txt} → ${r.saran}`));
+    if (!L.tim.length) L.tim.push('Pertahankan disiplin input: kualifikasi lead lengkap, status diperbarui di setiap follow up.');
+    return L;
+  }, [data, rapor, polaFormat, polaTopik, polaJam, rrRata, spendMap, fProj]); // eslint-disable-line
+
+  // Resume = ringkasan eksekutif; prioritas diambil dari vonis merah Diagnosa (satu sumber), lalu temuan operasional
+  const resumeFinal = useMemo(() => {
+    if (!resume) return null;
+    const URUT = ['Kualitas lead', 'Penjualan', 'Iklan', 'Niat beli', 'Algoritma & engagement', 'Jangkauan'];
+    const merah = rapor.filter(r => r.vonis === '🔴').sort((a, b) => URUT.indexOf(a.lapis) - URUT.indexOf(b.lapis)).map(r => `${r.indikator}: ${r.txt} (patokan ${r.patokan}) — ${r.saran}`);
+    const semua = [...merah, ...resume.perbaiki];
+    const saran = [...(brief?.iklan || []).slice(0, 2), ...resume.saran].filter((x, i, a) => a.indexOf(x) === i);
+    return { ringkas: resume.ringkas, perbaiki: semua.slice(0, 5), sisa: Math.max(0, semua.length - 5), saran: saran.slice(0, 5) };
+  }, [resume, rapor, brief]);
+
   if (!data) return <div className="loading">Memuat…</div>;
   const camps = (data.campaigns || []).filter(x => !fProj || x.project === fProj || !x.project);
   const metaApi = (data.ads || []).some(x => x.sumber === 'meta-api') || (data.campaigns || []).some(x => x.sumber === 'meta-api');
@@ -540,9 +591,10 @@ export default function MarcomPage() {
               <b style={{ color: 'var(--green)' }}>Ringkasan</b>
               <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.ringkas.map((x, i) => <li key={i}>{x}</li>)}</ul>
               <b style={{ color: 'var(--red)' }}>Yang Harus Diperbaiki</b>
-              <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resume.perbaiki.length ? resume.perbaiki.map((x, i) => <li key={i}>{x}</li>) : <li>Tidak ada temuan kritis — pertahankan disiplin input.</li>}</ul>
+              <ul style={{ margin: '4px 0 10px', paddingLeft: 20, lineHeight: 1.55 }}>{resumeFinal.perbaiki.length ? resumeFinal.perbaiki.map((x, i) => <li key={i}>{x}</li>) : <li>Tidak ada temuan kritis — pertahankan disiplin input.</li>}
+                {resumeFinal.sisa ? <li className="hint" style={{ listStyle: 'none', marginLeft: -20 }}>… dan {resumeFinal.sisa} poin lainnya — lihat detail di tab <b>6 · Diagnosa</b>.</li> : null}</ul>
               <b style={{ color: 'var(--brass)' }}>Saran Strategi</b>
-              <ul style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.55 }}>{resume.saran.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.55 }}>{resumeFinal.saran.map((x, i) => <li key={i}>{x}</li>)}</ul>
             </div>
           </div>
         )}
@@ -732,7 +784,7 @@ export default function MarcomPage() {
               <td className="num" data-label="Komentar">{Number(x.komentar) || '—'}</td>
               <td className="num" data-label="Share">{Number(x.share_n) || '—'}</td>
               <td className="num" data-label="Save">{Number(x.save_n) || '—'}</td>
-              <td className="num" data-label="Views">{Number(x.view3) ? Number(x.view3).toLocaleString('id-ID') : '—'}</td>
+              <td className="num" data-label="Views">{Number(x.view3) ? Number(x.view3).toLocaleString('id-ID') : '—'}{Number(x.avg_watch) ? <div className="hint" title="rata-rata waktu tonton Reels">⏱ {String(x.avg_watch).replace('.', ',')} dtk{parseFloat(x.durasi) ? ` (${Math.round(Number(x.avg_watch) / parseFloat(x.durasi) * 100)}%)` : ''}</div> : null}</td>
               <td className="num" data-label="ER"><b>{pct(er(x))}</b></td>
               <td className="num" data-label="Klik">{x.klik_bio || '—'}</td>
               <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1024,6 +1076,41 @@ export default function MarcomPage() {
                 </tr>))}</tbody>
             </table></div>
           </div>
+
+          <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--brass)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>🧭 Brief Bulan Depan <span className="hint">(disusun otomatis dari data yang terbukti membawa lead cocok persona)</span></h3>
+              <button className="sort-btn" onClick={async () => {
+                const t = 'BRIEF KONTEN & IKLAN — ' + projP + '\n\nAUDIENS\n' + brief.audiens.map(x => '• ' + x).join('\n') + '\n\nKONTEN\n' + brief.konten.map(x => '• ' + x).join('\n') + '\n\nIKLAN\n' + brief.iklan.map(x => '• ' + x).join('\n') + '\n\nTIM\n' + brief.tim.map(x => '• ' + x).join('\n');
+                try { await navigator.clipboard.writeText(t); toast('Brief tersalin 📋'); } catch { window.prompt('Salin manual:', t); }
+              }}>📋 Salin Brief</button>
+            </div>
+            {[['🎯 Audiens', brief.audiens], ['🎬 Konten', brief.konten], ['📣 Iklan', brief.iklan], ['👥 Tim marcom & sales', brief.tim]].map(([j, xs]) => xs.length ? (
+              <div key={j} style={{ marginTop: 10 }}><b>{j}</b>
+                <ul style={{ margin: '4px 0 0', paddingLeft: 20, lineHeight: 1.55 }}>{xs.map((x, i) => <li key={i}>{x}</li>)}</ul></div>) : null)}
+          </div>
+
+          {data.igDemo && (() => {
+            const totU = (data.igDemo.usia || []).reduce((a, r) => a + (r.nilai || 0), 0);
+            const totG = (data.igDemo.gender || []).reduce((a, r) => a + (r.nilai || 0), 0);
+            const totK = (data.igDemo.kota || []).reduce((a, r) => a + (r.nilai || 0), 0);
+            return (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <h3 style={{ marginTop: 0 }}>👥 Audiens Follower Instagram <span className="hint">(per {fmtDate(data.igDemo.tgl)} · dibandingkan dengan persona {projP})</span></h3>
+                <div className="grid two-col">
+                  <div><h4 style={{ margin: '4px 0' }}>Usia</h4>
+                    {(data.igDemo.usia || []).sort((a, b) => String(a.kunci).localeCompare(String(b.kunci))).map(r => (
+                      <div key={r.kunci} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '3px 0' }}>
+                        <span style={{ width: 50 }}>{r.kunci}</span>
+                        <div style={{ flex: 1, background: 'var(--line)', borderRadius: 4, height: 10 }}><div style={{ width: (totU ? r.nilai / totU * 100 : 0) + '%', height: 10, borderRadius: 4, background: dalamUsiaPersona(String(r.kunci), pr) ? 'var(--green)' : 'var(--muted)' }} /></div>
+                        <span className="hint" style={{ width: 46, textAlign: 'right' }}>{totU ? pct(r.nilai / totU) : '—'}</span></div>))}
+                    <span className="hint">Hijau = dalam rentang usia persona.</span></div>
+                  <div><h4 style={{ margin: '4px 0' }}>Gender & kota teratas</h4>
+                    <div className="hint">{(data.igDemo.gender || []).map(r => `${r.kunci === 'F' ? 'Wanita' : r.kunci === 'M' ? 'Pria' : r.kunci} ${totG ? pct(r.nilai / totG) : ''}`).join(' · ')}</div>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>{(data.igDemo.kota || []).slice(0, 8).map(r => <li key={r.kunci} className="hint">{r.kunci} — {totK ? pct(r.nilai / totK) : r.nilai}</li>)}</ul></div>
+                </div>
+              </div>);
+          })()}
 
           {(() => {
             const prA = pr;

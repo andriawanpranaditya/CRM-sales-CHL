@@ -141,7 +141,36 @@ async function insightMedia(id) {
     const bio = hasil.find(r => String(r.dimension_values?.[0] || '').toUpperCase() === 'BIO_LINK_CLICKED');
     if (bio) out.klik_bio = Number(bio.value) || 0;
   } catch {}
+  // Rata-rata waktu tonton Reels (detik) — hanya tersedia untuk Reels
+  try {
+    const j = await graph(`${id}/insights?metric=ig_reels_avg_watch_time`);
+    const ms = Number(j.data?.[0]?.values?.[0]?.value ?? j.data?.[0]?.total_value?.value);
+    if (ms) out.avg_watch = Math.round(ms / 100) / 10;
+  } catch {}
   return out;
+}
+// Demografi follower (usia, gender, kota) — butuh minimal 100 follower
+async function tarikDemografi(sql, igId) {
+  await sql`CREATE TABLE IF NOT EXISTS mi_ig_demografi (tgl date NOT NULL, dim text NOT NULL, kunci text NOT NULL, nilai integer, PRIMARY KEY (tgl, dim, kunci))`;
+  const hari = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+  let n = 0;
+  for (const [dim, bd] of [['usia', 'age'], ['gender', 'gender'], ['kota', 'city']]) {
+    let hasil = [];
+    for (const extra of ['', '&timeframe=this_month', '&timeframe=last_30_days']) {
+      try {
+        const j = await graph(`${igId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${bd}${extra}`);
+        hasil = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+        if (hasil.length) break;
+      } catch {}
+    }
+    for (const r of hasil.slice(0, 50)) {
+      const k = String(r.dimension_values?.[0] || '-');
+      await sql`INSERT INTO mi_ig_demografi (tgl, dim, kunci, nilai) VALUES (${hari}, ${dim}, ${k}, ${Number(r.value) || 0})
+        ON CONFLICT (tgl, dim, kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
+      n++;
+    }
+  }
+  return n;
 }
 async function tarikInstagram(sql) {
   if (!process.env.META_TOKEN) return { sumber: 'Instagram', status: 'dilewati', baris: 0, pesan: 'META_TOKEN belum diisi' };
@@ -163,6 +192,9 @@ async function tarikInstagram(sql) {
       VALUES ((now() + interval '7 hours')::date, ${igId}, ${akun.username || ''}, ${follower})
       ON CONFLICT (tgl) DO UPDATE SET followers = EXCLUDED.followers, username = EXCLUDED.username`;
   } catch (e) { console.error('ig followers', e); }
+  try { await sql`ALTER TABLE mi_content_metrics ADD COLUMN IF NOT EXISTS avg_watch numeric`; } catch {}
+  let nDemo = 0;
+  try { nDemo = await tarikDemografi(sql, igId); } catch (e) { console.error('ig demografi', e); }
   // Ambil postingan terbaru (maks 60, ±120 hari)
   let media = [], next = `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30`;
   const batas = Date.now() - 120 * 86400000;
@@ -214,14 +246,15 @@ async function tarikInstagram(sql) {
     // Metrik hari ini — view & klik bio (tidak tersedia per postingan di API) dipertahankan dari angka terakhir
     const lama = (await sql`SELECT view3, view_full, klik_bio FROM mi_content_metrics WHERE content_id = ${cid} ORDER BY tgl DESC LIMIT 1`)[0] || {};
     const it = ins[x.id] || {};
-    await sql`INSERT INTO mi_content_metrics (content_id, tgl, reach, like_n, komentar, share_n, save_n, view3, view_full, klik_bio)
+    await sql`INSERT INTO mi_content_metrics (content_id, tgl, reach, like_n, komentar, share_n, save_n, view3, view_full, klik_bio, avg_watch)
       VALUES (${cid}, ${hariIni}, ${it.reach || 0}, ${Number(x.like_count) || 0}, ${Number(x.comments_count) || 0}, ${it.shares || 0}, ${it.saved || 0},
               ${it.views !== undefined ? it.views : (Number(lama.view3) || 0)}, ${Number(lama.view_full) || 0},
-              ${it.klik_bio !== undefined ? it.klik_bio : (Number(lama.klik_bio) || 0)})
+              ${it.klik_bio !== undefined ? it.klik_bio : (Number(lama.klik_bio) || 0)}, ${it.avg_watch ?? null})
       ON CONFLICT (content_id, tgl) DO UPDATE SET reach = EXCLUDED.reach, like_n = EXCLUDED.like_n, komentar = EXCLUDED.komentar,
-        share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n, view3 = EXCLUDED.view3, klik_bio = EXCLUDED.klik_bio`;
+        share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n, view3 = EXCLUDED.view3, klik_bio = EXCLUDED.klik_bio,
+        avg_watch = COALESCE(EXCLUDED.avg_watch, mi_content_metrics.avg_watch)`;
   }
-  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` + (follower ? ` · ${follower.toLocaleString('id-ID')} follower` : '') };
+  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` + (follower ? ` · ${follower.toLocaleString('id-ID')} follower` : '') + (nDemo ? ` · demografi ${nDemo} baris` : '') };
 }
 
 // ===== Meta Ads (Marketing API, token & System User yang sama dengan Instagram) =====

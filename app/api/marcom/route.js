@@ -20,6 +20,7 @@ async function siapkanL2(sql) {
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS l2_at timestamptz`; } catch (e) { console.error('l2_at kolom', e); }
   try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
+  try { await sql`ALTER TABLE mi_content_metrics ADD COLUMN IF NOT EXISTS avg_watch numeric`; } catch {}
   try { await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
@@ -108,7 +109,7 @@ export async function GET(req) {
 
   const [campaigns, contents, ads] = await Promise.all([
     sql`SELECT * FROM mi_campaigns ORDER BY status, id DESC`,
-    sql`SELECT c.*, m.tgl AS m_tgl, m.reach, m.like_n, m.komentar, m.share_n, m.save_n, m.view3, m.view_full, m.klik_bio
+    sql`SELECT c.*, m.tgl AS m_tgl, m.reach, m.like_n, m.komentar, m.share_n, m.save_n, m.view3, m.view_full, m.klik_bio, m.avg_watch
         FROM mi_contents c
         LEFT JOIN LATERAL (SELECT * FROM mi_content_metrics WHERE content_id = c.id ORDER BY tgl DESC LIMIT 1) m ON true
         WHERE (${d1}::date IS NULL OR c.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR c.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR c.project = ${proj})
@@ -367,6 +368,15 @@ export async function GET(req) {
     usiaLead = Object.values(agg);
   } catch {}
 
+  // Demografi follower Instagram (tarikan terakhir)
+  let igDemo = null;
+  try {
+    const tg = await sql`SELECT max(tgl) AS t FROM mi_ig_demografi`;
+    if (tg[0]?.t) {
+      const rows = await sql`SELECT dim, kunci, nilai FROM mi_ig_demografi WHERE tgl = ${tg[0].t} ORDER BY nilai DESC`;
+      igDemo = { tgl: tg[0].t, usia: rows.filter(r => r.dim === 'usia'), gender: rows.filter(r => r.dim === 'gender'), kota: rows.filter(r => r.dim === 'kota').slice(0, 12) };
+    }
+  } catch {}
   // Follower Instagram: terbaru, dan posisi di awal periode (untuk pertumbuhan)
   let igAkun = null;
   try {
@@ -376,7 +386,7 @@ export async function GET(req) {
       igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
     }
   } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
