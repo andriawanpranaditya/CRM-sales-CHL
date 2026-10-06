@@ -18,6 +18,13 @@ async function isiRiwayatDropAwal(sql) {
       FROM leads l
       WHERE l.status = 'Drop' AND COALESCE(l.updated_at, now()) >= date_trunc('month', now() + interval '7 hours')
         AND NOT EXISTS (SELECT 1 FROM lead_status_log s WHERE s.lead_code = l.lead_code AND s.ke = 'Drop')`;
+    // Reserved/Booking/Closing: ambil dari tabel transaksi (tanggalnya pasti), untuk transaksi yang belum punya catatan riwayat
+    await sql`INSERT INTO lead_status_log (lead_code, jenis, dari, ke, sales_saat, oleh, alasan, tgl, created_at)
+      SELECT t.lead_code, 'status', NULL, t.jenis, COALESCE(l.sales, ''), t.created_by,
+        'Transaksi (riwayat dari data transaksi)', t.tgl, COALESCE(t.created_at, now())
+      FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis IN ('Reserved', 'Booking', 'Closing') AND t.tgl IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM lead_status_log s WHERE s.lead_code = t.lead_code AND s.ke = t.jenis AND s.tgl = t.tgl)`;
     dropAwalSiap = true;
   } catch (e) { console.error('isiRiwayatDropAwal', e); }
 }
@@ -45,7 +52,7 @@ export async function GET(req) {
     WHERE status = ANY(${AKTIF}::text[]) AND (${d2}::date IS NULL OR tgl <= ${d2}::date) AND (${proj}::text IS NULL OR project = ${proj}) GROUP BY status`;
   const agingRows = await sql`SELECT lead_code, nama, sales, created_by, tgl, (${hariIni}::date - tgl)::int AS hari FROM leads
     WHERE status = 'New' AND tgl <= ${hariIni}::date - 7 AND (${proj}::text IS NULL OR project = ${proj}) ORDER BY tgl ASC LIMIT 200`;
-  const awal = await sql`SELECT min(created_at) AS mulai FROM lead_status_log`;
+  const awal = await sql`SELECT min(created_at) AS mulai FROM lead_status_log WHERE COALESCE(alasan, '') NOT LIKE '%(riwayat%'`;
 
   const st = log.filter(r => r.jenis === 'status'), op = log.filter(r => r.jenis === 'oper');
   const transisi = {};

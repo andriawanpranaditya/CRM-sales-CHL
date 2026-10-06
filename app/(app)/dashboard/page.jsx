@@ -77,6 +77,7 @@ export default function Dashboard() {
     return Object.values(g);
   };
   const mTrx = statusAkhir(fTrx.filter(t => inMonth(t.tgl)));
+  const periodeKata = (d1 || d2) ? 'periode ini' : 'bulan ini';
   const bulanLabel = periodeCustom
     ? (d1 && d2 ? `${fmtTgl(d1)} – ${fmtTgl(d2)}` : d1 ? `sejak ${fmtTgl(d1)}` : `s.d. ${fmtTgl(d2)}`)
     : nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
@@ -581,7 +582,7 @@ export default function Dashboard() {
       return (!d1 || x >= d1) && (!d2 || x <= d2);
     };
     const pl = fLeads.filter(l => inPeriod(l.tgl));
-    const pf = fFus.filter(f => inPeriod(f.tgl));
+    const pf = fFus.filter(f => inPeriod(f.tgl) && f.created_by !== 'auto-wa');
     const pt = statusAkhir(fTrx.filter(t => inPeriod(t.tgl)));
     const projLabel = proj || 'Semua Project';
     const ST = set.status || [];
@@ -862,7 +863,7 @@ ${domRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><
 </table>`;
     })()}
 
-<h2>2. STATUS PIPELINE (posisi status lead saat ini; Reserved &amp; Booking dilaporkan dari transaksi pada Ringkasan)</h2>
+<h2>2. STATUS PIPELINE <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi status SAAT INI dari lead yang masuk pada periode; Reserved &amp; Booking dilaporkan dari transaksi pada Ringkasan; pergerakan status selama periode ada di 2B)</span></h2>
 <table><tr><th>Status</th><th>Jumlah</th></tr>
 ${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
       const val = st === 'Site Visit' ? svN : cnt(st);
@@ -1020,7 +1021,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
       </div>
       <div className="grid two-col">
         <div className="card">
-          <h2>Status Pipeline</h2>
+          <h2>Status Pipeline <span className="hint">(status saat ini dari lead yang masuk {periodeKata}; pergerakan selama periode ada di kartu di bawah)</span></h2>
           <div className="pipe">
             {pipeRows.map(r => (
               <div className={'pipe-row' + r.cls} key={r.label}>
@@ -1040,7 +1041,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
           </div>
           <div className="card">
             <h2>Nilai (Rp) — {bulanLabel}</h2>
-            <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget Warm & Hot bulan ini)</span></span><b>{fmtRp(pipeVal)}</b></div>
+            <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget Warm & Hot {periodeKata})</span></span><b>{fmtRp(pipeVal)}</b></div>
             <div className="money-line"><span>Nilai Reserved <span className="hint">(belum diakui penjualan)</span></span><b>{fmtRp(resVal)}</b></div>
             <div className="money-line"><span>Nilai Booking <span className="hint">(penjualan diakui)</span></span><b>{fmtRp(bookVal)}</b></div>
           </div>
@@ -1103,11 +1104,11 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
-        <h2>Lead dari Marcom — {bulanLabel}</h2>
+        <h2>Lead Diinput Marcom — {bulanLabel} <span className="hint">(berdasarkan akun yang menginput; hasil marketing yang lebih luas ada di Analisa Marcom)</span></h2>
         <div className="kpi-grid">
           <div className="kpi"><div className="kpi-label">Lead Masuk ke Marcom</div>
             <div className="kpi-val" style={{ color: 'var(--green)' }}>{mMarkom.length}</div>
-            <div className="hint">diinput oleh akun Marcom bulan ini</div></div>
+            <div className="hint">diinput oleh akun Marcom {periodeKata}</div></div>
           <div className="kpi"><div className="kpi-label">Sudah Diserahkan ke Sales</div>
             <div className="kpi-val" style={{ color: 'var(--brass)' }}>{mMarkomKeSales.length}</div>
             <div className="hint">{mMarkom.length ? Math.round(mMarkomKeSales.length / mMarkom.length * 100) + '% dari lead Marcom' : '—'}</div></div>
@@ -1132,7 +1133,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               </div>
             ))}
           </div>
-        ) : <div className="hint">Belum ada lead masuk bulan ini.</div>}
+        ) : <div className="hint">Belum ada lead masuk {periodeKata}.</div>}
         {walkDStr && <div className="hint" style={{ marginTop: 8 }}>Walk In via: {walkDStr}</div>}
       </div>
 
@@ -1155,9 +1156,9 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
                 <td className="num" data-label="Booking"><b>{bk}</b></td>
                 <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%')}</b></td>
               </tr>;
-            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead bulan ini.</td></tr>}
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead {periodeKata}.</td></tr>}
             {salesNames.length ? <tr><td colSpan={7} className="hint" style={{ padding: '6px 10px' }}>
-              Total/Warm/Hot dihitung dari lead yang MASUK bulan ini; Reserved &amp; Booking dari transaksi bulan ini (termasuk lead lama). Closing Rate = Booking ÷ total lead bulan ini, bertanda — bila sales belum punya lead baru bulan ini.
+              Total/Warm/Hot dihitung dari lead yang MASUK {periodeKata}; Reserved &amp; Booking dari transaksi {periodeKata} (termasuk lead lama). Closing Rate = Booking ÷ total lead {periodeKata}, bertanda — bila sales belum punya lead baru {periodeKata}.
             </td></tr> : null}
           </tbody>
         </table>
