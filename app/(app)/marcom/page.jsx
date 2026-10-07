@@ -115,12 +115,17 @@ export default function MarcomPage() {
   const [narik, setNarik] = useState(false);
   async function tarikSekarang() {
     setNarik(true);
-    try {
-      const r = await api('/api/mi-sync');
-      const ringkas = (r.hasil || []).map(h => `${h.sumber}: ${h.status} (${h.baris} baris)`).join(' · ');
-      toast(ringkas || 'Selesai');
-      await muat();
-    } catch (e) { toast(/504/.test(e.message) ? 'Tarikan melewati batas waktu server — data sebagian mungkin sudah tersimpan, klik Tarik lagi.' : e.message); await muat(); } finally { setNarik(false); }
+    const TAHAP = [['web', 'GA4 & Search Console'], ['instagram', 'Instagram'], ['meta', 'Meta Ads'], ['meta-rinci', 'Rincian Meta']];
+    const catatan = [];
+    for (const [k, label] of TAHAP) {
+      setNarik(label);
+      try {
+        const r = await api('/api/mi-sync?sumber=' + k);
+        (r.hasil || []).forEach(h => catatan.push(`${h.sumber}: ${h.status === 'sukses' ? '✓' : h.status}`));
+      } catch (e) { catatan.push(`${label}: ${/504/.test(e.message) ? 'melewati batas waktu' : 'gagal'}`); }
+    }
+    toast(catatan.join(' · '));
+    await muat(); setNarik(false);
   }
 
   async function gabungCampaign() {
@@ -1240,7 +1245,7 @@ export default function MarcomPage() {
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0 }}>Website & SEO <span className="hint">(otomatis dari GA4, Search Console & Instagram — cron harian 05.30 WIB)</span></h3>
-            <button className="btn btn-primary" style={{ width: 'auto' }} disabled={narik} onClick={tarikSekarang}>{narik ? 'Menarik data…' : '⟳ Tarik Data Sekarang'}</button>
+            <button className="btn btn-primary" style={{ width: 'auto' }} disabled={narik} onClick={tarikSekarang}>{narik ? `Menarik ${typeof narik === 'string' ? narik : 'data'}…` : '⟳ Tarik Data Sekarang'}</button>
           </div>
           {(!data.ga4 || !data.ga4.length) && (!data.gsc || !data.gsc.length) && (
             <p className="hint" style={{ marginBottom: 0 }}>Belum ada data. Pastikan environment variable Google (GOOGLE_SA_EMAIL, GOOGLE_SA_KEY, GA4_PROPERTY_ID, GSC_SITE_URL) sudah diisi di Vercel & /api/setup sudah dijalankan, lalu klik Tarik Data Sekarang.</p>

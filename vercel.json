@@ -1,6 +1,24 @@
 {
   "crons": [
-    { "path": "/api/cron/reminder", "schedule": "0 2 * * *" },
-    { "path": "/api/mi-sync", "schedule": "30 22 * * *" }
+    {
+      "path": "/api/cron/reminder",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/mi-sync/web",
+      "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/mi-sync/instagram",
+      "schedule": "34 22 * * *"
+    },
+    {
+      "path": "/api/mi-sync/meta",
+      "schedule": "38 22 * * *"
+    },
+    {
+      "path": "/api/mi-sync/meta-rinci",
+      "schedule": "42 22 * * *"
+    }
   ]
 }
