@@ -266,6 +266,10 @@ async function siapkanKolomAds(sql) {
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
   try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
   try { await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS views3 integer`; } catch {}
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS thruplay integer`; } catch {}
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ad_id text`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_ad_status (ad_id text PRIMARY KEY, nama text, campaign text, status text, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`CREATE TABLE IF NOT EXISTS mi_ads_breakdown (
     tgl date NOT NULL, campaign text NOT NULL, dim text NOT NULL, k1 text NOT NULL, k2 text NOT NULL DEFAULT '',
     spend numeric DEFAULT 0, impresi integer DEFAULT 0, klik integer DEFAULT 0, hasil integer DEFAULT 0,
@@ -376,9 +380,17 @@ async function tarikMetaAds(sql) {
   for (const acc of akun) {
     const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective&limit=200`);
     (cs.data || []).forEach(c => { statusCamp[c.name] = c.effective_status; objCamp[c.name] = c.objective; });
+    try {
+      let ua = `https://graph.facebook.com/${GV()}/act_${acc}/ads?fields=id,name,effective_status,campaign{name}&limit=300&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, h = 0;
+      while (ua && h < 10) {
+        const j = await graphUrl(ua); ua = j.paging?.next || null; h++;
+        for (const ad of j.data || []) await sql`INSERT INTO mi_ad_status (ad_id, nama, campaign, status) VALUES (${ad.id}, ${ad.name || ''}, ${ad.campaign?.name || ''}, ${ad.effective_status || ''})
+          ON CONFLICT (ad_id) DO UPDATE SET nama = EXCLUDED.nama, campaign = EXCLUDED.campaign, status = EXCLUDED.status, updated_at = now()`;
+      }
+    } catch (e) { console.error('status iklan', e); }
     let url = `https://graph.facebook.com/${GV()}/act_${acc}/insights?level=ad&time_increment=1`
       + `&time_range=${encodeURIComponent(JSON.stringify({ since, until: hariIni }))}`
-      + `&fields=campaign_name,ad_id,ad_name,spend,impressions,reach,inline_link_clicks,actions&limit=500`
+      + `&fields=campaign_name,ad_id,ad_name,spend,impressions,reach,inline_link_clicks,actions,video_thruplay_watched_actions&limit=500`
       + `&access_token=${encodeURIComponent(process.env.META_TOKEN)}`;
     let halaman = 0;
     while (url && halaman < 40) { const j = await graphUrl(url); rows.push(...(j.data || [])); url = j.paging?.next || null; halaman++; }
@@ -405,15 +417,18 @@ async function tarikMetaAds(sql) {
   // Simpan performa harian per iklan (upsert)
   const data = rows.filter(r => r.campaign_name).map(r => [
     'meta:' + r.ad_id + ':' + r.date_start, r.date_start, peta.get(r.campaign_name.toLowerCase()), String(r.ad_name || '').slice(0, 200),
-    Number(r.spend) || 0, Number(r.impressions) || 0, Number(r.reach) || 0, Number(r.inline_link_clicks) || 0, hasilMeta(r.actions)]);
+    Number(r.spend) || 0, Number(r.impressions) || 0, Number(r.reach) || 0, Number(r.inline_link_clicks) || 0, hasilMeta(r.actions),
+    Math.round(Number((r.actions || []).find(x => x.action_type === 'video_view')?.value) || 0),
+    Math.round((r.video_thruplay_watched_actions || []).reduce((t, x) => t + (Number(x.value) || 0), 0)), String(r.ad_id || '')]);
   for (let i = 0; i < data.length; i += 500) {
     const b = data.slice(i, i + 500);
-    await sql`INSERT INTO mi_ads (ext_key, tgl, campaign, kreatif, spend, impresi, reach, klik, hasil, sumber, created_by)
-      SELECT x.k, x.t, x.c, x.kr, x.sp, x.im, x.re, x.kl, x.ha, 'meta-api', 'auto-meta'
+    await sql`INSERT INTO mi_ads (ext_key, tgl, campaign, kreatif, spend, impresi, reach, klik, hasil, views3, thruplay, ad_id, sumber, created_by)
+      SELECT x.k, x.t, x.c, x.kr, x.sp, x.im, x.re, x.kl, x.ha, x.v3, x.tp, x.ai, 'meta-api', 'auto-meta'
       FROM unnest(${b.map(x => x[0])}::text[], ${b.map(x => x[1])}::date[], ${b.map(x => x[2])}::text[], ${b.map(x => x[3])}::text[],
-                  ${b.map(x => x[4])}::numeric[], ${b.map(x => x[5])}::int[], ${b.map(x => x[6])}::int[], ${b.map(x => x[7])}::int[], ${b.map(x => x[8])}::int[])
-        AS x(k, t, c, kr, sp, im, re, kl, ha)
-      ON CONFLICT (ext_key) DO UPDATE SET spend = EXCLUDED.spend, impresi = EXCLUDED.impresi, reach = EXCLUDED.reach,
+                  ${b.map(x => x[4])}::numeric[], ${b.map(x => x[5])}::int[], ${b.map(x => x[6])}::int[], ${b.map(x => x[7])}::int[], ${b.map(x => x[8])}::int[],
+                  ${b.map(x => x[9])}::int[], ${b.map(x => x[10])}::int[], ${b.map(x => x[11])}::text[])
+        AS x(k, t, c, kr, sp, im, re, kl, ha, v3, tp, ai)
+      ON CONFLICT (ext_key) DO UPDATE SET views3 = EXCLUDED.views3, thruplay = EXCLUDED.thruplay, ad_id = EXCLUDED.ad_id, spend = EXCLUDED.spend, impresi = EXCLUDED.impresi, reach = EXCLUDED.reach,
         klik = EXCLUDED.klik, hasil = EXCLUDED.hasil, campaign = EXCLUDED.campaign, kreatif = EXCLUDED.kreatif`;
   }
   const nBd = await tarikBreakdown(sql, akun, since, hariIni, peta);

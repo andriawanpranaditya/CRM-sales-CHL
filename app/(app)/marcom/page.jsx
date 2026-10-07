@@ -66,6 +66,8 @@ export default function MarcomPage() {
   const [a, setA] = useState(A0); const [aEdit, setAEdit] = useState(null);
   const [lk, setLk] = useState(null);
   const [formManual, setFormManual] = useState(false);
+  const [iSort, setISort] = useState({ key: 'hasil', dir: 'desc' }); // urutan tabel Performa per Iklan
+  const [iAktif, setIAktif] = useState(false); // hanya iklan yang sedang aktif
   const [personaEdit, setPersonaEdit] = useState(null); // { project, areaInti, areaLuas, hargaMin, usiaMin, usiaMax, tujuan, catatan }
   const [kSort, setKSort] = useState({ key: 'tgl', dir: 'desc' }); // urutan tabel konten
   const [showSpendManual, setShowSpendManual] = useState(false);
@@ -1002,6 +1004,57 @@ export default function MarcomPage() {
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
             </table></div>
           </div>
+          {(data.perIklan || []).length > 0 && (() => {
+            const lk = Object.fromEntries((data.leadKonten || []).map(r => [r.k, r]));
+            const fk = Object.fromEntries(Object.entries(data.fit?.byKonten || {}).map(([k, r]) => [k.toLowerCase(), r]));
+            const rows = (data.perIklan || []).map(r => {
+              const sp = Number(r.spend) || 0, k = String(r.kreatif || '').toLowerCase();
+              return { ...r, sp, ctr: r.impresi ? r.klik / r.impresi : null, cph: r.hasil ? sp / r.hasil : null, tpr: r.views3 ? r.thruplay / r.views3 : null,
+                lead: lk[k]?.n || 0, l2: lk[k]?.l2 || 0, cocok: fk[k]?.cocok || 0, aktif: r.status === 'ACTIVE' };
+            }).filter(r => !iAktif || r.aktif);
+            const juara = {};
+            const top = (key, syarat, kecil) => { const c = rows.filter(syarat).sort((a, b) => kecil ? a[key] - b[key] : b[key] - a[key])[0]; if (c) juara[key] = c; };
+            top('hasil', r => r.hasil > 0); top('cph', r => r.hasil >= 3, true); top('ctr', r => r.impresi >= 1000); top('views3', r => r.views3 > 0); top('tpr', r => r.views3 >= 100); top('cocok', r => r.cocok > 0);
+            const LBL = { hasil: 'chat terbanyak', cph: 'biaya/chat termurah', ctr: 'CTR tertinggi', views3: 'views terbanyak', tpr: 'ditonton tuntas terbaik', cocok: 'lead cocok terbanyak' };
+            const kol = [['kreatif', 'Iklan'], ['status', 'Status'], ['sp', 'Spend'], ['impresi', 'Impresi'], ['klik', 'Klik'], ['ctr', 'CTR'], ['hasil', 'Hasil (chat)'], ['cph', 'Biaya / hasil'],
+              ['views3', 'Views 3 dtk'], ['thruplay', 'ThruPlay'], ['tpr', '% tuntas'], ['lead', 'Lead CRM'], ['l2', 'Berkualitas'], ['cocok', 'Cocok persona']];
+            const NUM = new Set(['sp', 'impresi', 'klik', 'ctr', 'hasil', 'cph', 'views3', 'thruplay', 'tpr', 'lead', 'l2', 'cocok']);
+            const urut = [...rows].sort((a, b) => { const k = iSort.key, d = iSort.dir === 'desc' ? -1 : 1; const va = a[k] ?? (NUM.has(k) ? -1 : ''), vb = b[k] ?? (NUM.has(k) ? -1 : '');
+              return (typeof va === 'string' ? String(va).localeCompare(String(vb)) : va - vb) * d; });
+            const rpS = n => n === null || n === undefined ? '—' : fmtRp(Math.round(n));
+            const nf = n => Number(n || 0).toLocaleString('id-ID');
+            return (
+              <div className="card" style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0 }}>📊 Performa per Iklan — Meta Ads <span className="hint">(ikut periode & project · klik judul kolom untuk mengurutkan)</span></h3>
+                  <label className="hint" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={iAktif} onChange={e => setIAktif(e.target.checked)} /> hanya iklan yang sedang aktif</label>
+                </div>
+                {Object.keys(juara).length > 0 && <div className="hint" style={{ margin: '8px 0', lineHeight: 1.7 }}>🏆 {Object.entries(juara).map(([k, r]) => <span key={k} style={{ marginRight: 14 }}><b>{LBL[k]}:</b> {r.kreatif}</span>)}</div>}
+                <div className="tbl-wrap tbl-compact"><table>
+                  <thead><tr>{kol.map(([k, t]) => <th key={k} className={NUM.has(k) ? 'num' : ''} style={{ cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}
+                    onClick={() => setISort(s0 => ({ key: k, dir: s0.key === k && s0.dir === 'desc' ? 'asc' : 'desc' }))}>{t}{iSort.key === k ? (iSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}</th>)}</tr></thead>
+                  <tbody>{urut.map(r => (
+                    <tr key={r.campaign + '|' + r.kreatif}>
+                      <td data-label="Iklan" style={{ minWidth: 200 }}><b>{r.kreatif || '(tanpa nama)'}</b>{Object.entries(juara).filter(([, j]) => j === r).map(([k]) => <span key={k} title={LBL[k]}> 🏆</span>)}<div className="hint">{r.campaign}</div></td>
+                      <td data-label="Status">{r.status ? <span className={'badge ' + (r.aktif ? 'b-close' : 'b-cold')}>{r.aktif ? 'Aktif' : r.status === 'PAUSED' ? 'Jeda' : r.status.toLowerCase()}</span> : '—'}</td>
+                      <td className="num" data-label="Spend">{rpS(r.sp)}</td>
+                      <td className="num" data-label="Impresi">{nf(r.impresi)}</td>
+                      <td className="num" data-label="Klik">{nf(r.klik)}</td>
+                      <td className="num" data-label="CTR">{r.ctr !== null ? pct(r.ctr) : '—'}</td>
+                      <td className="num" data-label="Hasil"><b>{nf(r.hasil)}</b></td>
+                      <td className="num" data-label="Biaya/hasil">{rpS(r.cph)}</td>
+                      <td className="num" data-label="Views 3 dtk">{r.views3 ? nf(r.views3) : '—'}</td>
+                      <td className="num" data-label="ThruPlay">{r.thruplay ? nf(r.thruplay) : '—'}</td>
+                      <td className="num" data-label="% tuntas">{r.tpr !== null ? pct(r.tpr) : '—'}</td>
+                      <td className="num" data-label="Lead CRM">{r.lead || '—'}</td>
+                      <td className="num" data-label="Berkualitas">{r.l2 || '—'}</td>
+                      <td className="num" data-label="Cocok persona" style={{ color: r.cocok ? 'var(--green)' : undefined }}><b>{r.cocok || '—'}</b></td>
+                    </tr>))}</tbody>
+                </table></div>
+                <p className="hint" style={{ marginTop: 6 }}>Hasil = percakapan WA / lead versi Meta. Views 3 dtk & ThruPlay hanya untuk iklan video (ThruPlay = ditonton tuntas atau minimal 15 detik). Lead CRM, Berkualitas & Cocok persona dihitung dari lead yang kolom Konten-nya sama dengan nama iklan — pakai kode iklan WA dari panel 🔗 Link agar tercatat otomatis. Juara biaya/hasil minimal 3 hasil, juara CTR minimal 1.000 impresi.</p>
+              </div>);
+          })()}
+
           {(data.ads || []).some(x => x.sumber !== 'meta-api') && (
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Entri Performa Manual {metaApi ? <span className="hint">(data Meta Ads otomatis tidak ditampilkan di sini — lihat kolom Spend di Daftar Campaign)</span> : null}</h3>

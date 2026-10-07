@@ -21,6 +21,8 @@ async function siapkanL2(sql) {
   try { await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS balas boolean`; } catch {}
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   try { await sql`ALTER TABLE mi_content_metrics ADD COLUMN IF NOT EXISTS avg_watch numeric`; } catch {}
+  try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS views3 integer`; await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS thruplay integer`; await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ad_id text`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_ad_status (ad_id text PRIMARY KEY, nama text, campaign text, status text, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`CREATE TABLE IF NOT EXISTS mi_persona (project text PRIMARY KEY, data jsonb NOT NULL, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
@@ -368,6 +370,23 @@ export async function GET(req) {
     usiaLead = Object.values(agg);
   } catch {}
 
+  // Performa per iklan Meta (agregat periode) + status terkini + lead CRM per kreatif
+  let perIklan = [], leadKonten = [];
+  try {
+    perIklan = await sql`SELECT a.campaign, a.kreatif, max(a.ad_id) AS ad_id, sum(a.spend)::numeric AS spend, sum(a.impresi)::int AS impresi, sum(a.klik)::int AS klik,
+        sum(a.hasil)::int AS hasil, sum(COALESCE(a.views3, 0))::int AS views3, sum(COALESCE(a.thruplay, 0))::int AS thruplay, min(a.tgl) AS mulai, max(a.tgl) AS akhir,
+        (SELECT s.status FROM mi_ad_status s WHERE s.ad_id = max(a.ad_id)) AS status
+      FROM mi_ads a
+      WHERE a.sumber = 'meta-api' AND (${d1}::date IS NULL OR a.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR a.tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = a.campaign AND mc.project = ${proj}))
+      GROUP BY a.campaign, a.kreatif HAVING sum(a.spend) > 0 OR sum(a.impresi) > 0 ORDER BY sum(a.hasil) DESC, sum(a.spend) DESC LIMIT 300`;
+  } catch (e) { console.error('perIklan', e); }
+  try {
+    leadKonten = await sql`SELECT lower(konten) AS k, count(*)::int AS n, count(*) FILTER (WHERE l2_at IS NOT NULL OR status IN ('Warm', 'Hot', 'Appointment', 'Site Visit', 'Reserved', 'Booking', 'Closing'))::int AS l2
+      FROM leads WHERE COALESCE(konten, '') <> '' AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
+        AND (${proj}::text IS NULL OR project = ${proj}) GROUP BY lower(konten)`;
+  } catch {}
+
   // Demografi follower Instagram (tarikan terakhir)
   let igDemo = null;
   try {
@@ -386,7 +405,7 @@ export async function GET(req) {
       igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
     }
   } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
 export async function POST(req) {
