@@ -13,6 +13,10 @@
       "schedule": "34 22 * * *"
     },
     {
+      "path": "/api/mi-sync/instagram-lanjut",
+      "schedule": "52 22 * * *"
+    },
+    {
       "path": "/api/mi-sync/meta",
       "schedule": "38 22 * * *"
     },

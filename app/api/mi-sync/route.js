@@ -124,137 +124,243 @@ async function graph(path) {
 }
 const kodeIG = u => { const m = String(u || '').match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/); return m ? m[2] : null; };
 const FORMAT_IG = { REELS: 'Reels / Short Video', VIDEO: 'Reels / Short Video', CAROUSEL_ALBUM: 'Carousel', IMAGE: 'Single Post' };
-async function insightMedia(id, reel = false) {
-  // Metrik tiap tipe media berbeda — coba dari yang lengkap, turun bila ditolak
-  let out = {};
-  for (const set of ['reach,saved,shares,views', 'reach,saved,shares', 'reach,saved', 'reach']) {
-    try {
-      const j = await graph(`${id}/insights?metric=${set}`);
-      (j.data || []).forEach(d => { out[d.name] = Number(d.values?.[0]?.value ?? d.total_value?.value ?? 0) || 0; });
-      break;
-    } catch {}
-  }
-  // Klik link bio dari aktivitas profil yang dipicu postingan (tidak semua tipe media mendukung)
+// ----- Instagram versi cepat & dicicil -----
+// Batas fungsi Vercel Hobby = 60 detik. Versi lama meminta insights satu per satu per postingan dan menulis
+// ke database 3x per postingan secara berurutan, sehingga mentok batas waktu. Versi ini:
+//  • daftar postingan diambil sekali jalan (sudah termasuk like & komentar), berhenti di tanggal mulai analisa
+//  • insights dibundel lewat Graph Batch API (≤50 permintaan per panggilan, paralel)
+//  • insights hanya di-refresh untuk postingan ≤30 hari (atau yang belum pernah punya angka); sisanya like/komentar
+//  • penulisan database dilakukan massal (unnest), bukan per baris
+//  • ada jatah waktu: bila habis, sisa postingan dilanjutkan pada tarikan berikutnya (?lanjut=1) — tidak hilang
+const IG_JATAH_MS = 40000;      // sisakan waktu untuk simpan ke database & mencatat riwayat
+const IG_HARI_SEGAR = 30;
+const nTimeout = ms => AbortSignal.timeout(Math.max(3000, ms));
+async function graphT(path, ms = 15000) {
+  const sep = path.includes('?') ? '&' : '?';
+  let r;
   try {
-    const j = await graph(`${id}/insights?metric=profile_activity&breakdown=action_type`);
-    const hasil = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
-    const bio = hasil.find(r => String(r.dimension_values?.[0] || '').toUpperCase() === 'BIO_LINK_CLICKED');
-    if (bio) out.klik_bio = Number(bio.value) || 0;
-  } catch {}
-  // Rata-rata waktu tonton Reels (detik) — hanya tersedia untuk Reels
-  if (reel) try {
-    const j = await graph(`${id}/insights?metric=ig_reels_avg_watch_time`);
-    const ms = Number(j.data?.[0]?.values?.[0]?.value ?? j.data?.[0]?.total_value?.value);
-    if (ms) out.avg_watch = Math.round(ms / 100) / 10;
-  } catch {}
+    r = await fetch(`https://graph.facebook.com/${GV()}/${path}${sep}access_token=${encodeURIComponent(process.env.META_TOKEN)}`, { signal: nTimeout(ms) });
+  } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'Graph API tidak merespon (' + path.split('?')[0] + ')' : String(e.message || e)); }
+  const j = await r.json();
+  if (j.error) { const e = new Error(j.error.message || 'Graph error'); e.code = j.error.code; throw e; }
+  return j;
+}
+// Graph Batch API — hasil per item: objek JSON, atau null bila item itu ditolak/gagal
+async function graphBatch(paths, ms = 20000) {
+  const body = new URLSearchParams({
+    access_token: process.env.META_TOKEN, include_headers: 'false',
+    batch: JSON.stringify(paths.map(p => ({ method: 'GET', relative_url: p }))),
+  });
+  const r = await fetch(`https://graph.facebook.com/${GV()}/`, { method: 'POST', body, signal: nTimeout(ms) });
+  const j = await r.json();
+  if (!Array.isArray(j)) throw new Error(j.error?.message || 'Respon batch Graph tidak dikenal');
+  // null = item tidak sempat diproses (timeout) → dicoba lagi nanti; { __tolak } = ditolak Graph (mis. metrik tak didukung tipe media)
+  return j.map(x => { if (!x) return null; if (x.code !== 200) return { __tolak: true }; try { return JSON.parse(x.body); } catch { return { __tolak: true }; } });
+}
+async function batchSemua(paths, sisaMs) {
+  const potong = [];
+  for (let i = 0; i < paths.length; i += 50) potong.push(paths.slice(i, i + 50));
+  const hasil = await Promise.all(potong.map(p => graphBatch(p, Math.min(20000, sisaMs())).catch(() => p.map(() => null))));
+  return hasil.flat();
+}
+const nilaiInsight = d => Number(d?.values?.[0]?.value ?? d?.total_value?.value ?? 0) || 0;
+
+// Insights untuk sekumpulan postingan, dibundel. Mengembalikan { [mediaId]: {reach, saved, shares, views, klik_bio, avg_watch} }
+async function insightBundel(targets, sisaMs) {
+  const out = {};
+  if (!targets.length) return out;
+  // Putaran 1: set lengkap + klik link bio + rata-rata tonton (Reels)
+  const paths = [], peta = [];
+  for (const x of targets) {
+    out[x.id] = {};
+    paths.push(`${x.id}/insights?metric=reach,saved,shares,views`); peta.push([x.id, 'utama']);
+    paths.push(`${x.id}/insights?metric=profile_activity&breakdown=action_type`); peta.push([x.id, 'bio']);
+    if (x.media_product_type === 'REELS') { paths.push(`${x.id}/insights?metric=ig_reels_avg_watch_time`); peta.push([x.id, 'tonton']); }
+  }
+  const h1 = await batchSemua(paths, sisaMs);
+  const gagalUtama = [];
+  h1.forEach((j, i) => {
+    const [id, jenis] = peta[i];
+    if (jenis === 'utama') {
+      if (!j) return;                                   // terpotong waktu → tertunda
+      if (j.__tolak) { gagalUtama.push(id); return; }   // ditolak → coba set metrik lebih sedikit
+      (j.data || []).forEach(d => { out[id][d.name] = nilaiInsight(d); });
+      out[id]._ok = true;
+    } else if (jenis === 'bio' && j && !j.__tolak) {
+      const hasil = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+      const bio = hasil.find(r => String(r.dimension_values?.[0] || '').toUpperCase() === 'BIO_LINK_CLICKED');
+      if (bio) out[id].klik_bio = Number(bio.value) || 0;
+    } else if (jenis === 'tonton' && j && !j.__tolak) {
+      const ms = Number(j.data?.[0]?.values?.[0]?.value ?? j.data?.[0]?.total_value?.value);
+      if (ms) out[id].avg_watch = Math.round(ms / 100) / 10;
+    }
+  });
+  // Putaran 2 (hanya yang ditolak): metrik dikurangi — sebagian tipe media tidak mendukung semua metrik
+  if (gagalUtama.length && sisaMs() > 6000) {
+    const p2 = gagalUtama.flatMap(id => [`${id}/insights?metric=reach,saved,shares`, `${id}/insights?metric=reach`]);
+    const h2 = await batchSemua(p2, sisaMs);
+    gagalUtama.forEach((id, k) => {
+      const a = h2[k * 2], b = h2[k * 2 + 1];
+      const j = [a, b].find(z => z && !z.__tolak);
+      if (j) { (j.data || []).forEach(d => { out[id][d.name] = nilaiInsight(d); }); out[id]._ok = true; }
+      else if (a?.__tolak && b?.__tolak) out[id]._ok = true;   // memang tidak punya insights — angka lama dipertahankan, tidak diulang
+    });
+  }
   return out;
 }
-// Demografi follower (usia, gender, kota) — butuh minimal 100 follower
+
+// Demografi follower (usia, gender, kota) — cukup sekali sehari, 3 dimensi paralel, simpan massal
 async function tarikDemografi(sql, igId) {
-  await sql`CREATE TABLE IF NOT EXISTS mi_ig_demografi (tgl date NOT NULL, dim text NOT NULL, kunci text NOT NULL, nilai integer, PRIMARY KEY (tgl, dim, kunci))`;
   const hari = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-  let n = 0;
-  for (const [dim, bd] of [['usia', 'age'], ['gender', 'gender'], ['kota', 'city']]) {
-    let hasil = [];
+  const sudah = await sql`SELECT 1 FROM mi_ig_demografi WHERE tgl = ${hari} LIMIT 1`;
+  if (sudah.length) return 0;
+  const rows = [];
+  await Promise.all([['usia', 'age'], ['gender', 'gender'], ['kota', 'city']].map(async ([dim, bd]) => {
     for (const extra of ['', '&timeframe=this_month', '&timeframe=last_30_days']) {
       try {
-        const j = await graph(`${igId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${bd}${extra}`);
-        hasil = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
-        if (hasil.length) break;
+        const j = await graphT(`${igId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${bd}${extra}`, 10000);
+        const hasil = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+        if (hasil.length) { hasil.slice(0, 50).forEach(r => rows.push([dim, String(r.dimension_values?.[0] || '-'), Number(r.value) || 0])); break; }
       } catch {}
     }
-    for (const r of hasil.slice(0, 50)) {
-      const k = String(r.dimension_values?.[0] || '-');
-      await sql`INSERT INTO mi_ig_demografi (tgl, dim, kunci, nilai) VALUES (${hari}, ${dim}, ${k}, ${Number(r.value) || 0})
-        ON CONFLICT (tgl, dim, kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
-      n++;
-    }
-  }
-  return n;
+  }));
+  if (rows.length) await sql`INSERT INTO mi_ig_demografi (tgl, dim, kunci, nilai)
+    SELECT ${hari}::date, x.d, x.k, x.n FROM unnest(${rows.map(r => r[0])}::text[], ${rows.map(r => r[1])}::text[], ${rows.map(r => r[2])}::int[]) AS x(d, k, n)
+    ON CONFLICT (tgl, dim, kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
+  return rows.length;
 }
-async function tarikInstagram(sql) {
+
+async function tarikInstagram(sql, opsi = {}) {
   if (!process.env.META_TOKEN) return { sumber: 'Instagram', status: 'dilewati', baris: 0, pesan: 'META_TOKEN belum diisi' };
+  const t0 = Date.now();
+  const sisaMs = () => IG_JATAH_MS - (Date.now() - t0);
   let igId = process.env.IG_USER_ID;
   if (!igId) {
-    const pages = await graph('me/accounts?fields=name,instagram_business_account&limit=50');
+    const pages = await graphT('me/accounts?fields=name,instagram_business_account&limit=50');
     const pg = (pages.data || []).find(p => p.instagram_business_account);
     if (!pg) throw new Error('Tidak ada Facebook Page dengan akun Instagram terhubung pada token ini — cek aset Page & IG di System User');
     igId = pg.instagram_business_account.id;
   }
   const proj = process.env.IG_PROJECT || 'BIO DISTRICT';
-  // Jumlah follower harian (dasar reach rate) — gagal di sini tidak menghentikan tarikan konten
-  let follower = null;
-  try {
-    const akun = await graph(`${igId}?fields=followers_count,username`);
-    follower = Number(akun.followers_count) || null;
-    await sql`CREATE TABLE IF NOT EXISTS mi_ig_akun (tgl date PRIMARY KEY, ig_id text, username text, followers integer)`;
-    if (follower) await sql`INSERT INTO mi_ig_akun (tgl, ig_id, username, followers)
-      VALUES ((now() + interval '7 hours')::date, ${igId}, ${akun.username || ''}, ${follower})
-      ON CONFLICT (tgl) DO UPDATE SET followers = EXCLUDED.followers, username = EXCLUDED.username`;
-  } catch (e) { console.error('ig followers', e); }
-  try { await sql`ALTER TABLE mi_content_metrics ADD COLUMN IF NOT EXISTS avg_watch numeric`; } catch {}
-  let nDemo = 0;
-  try { nDemo = await tarikDemografi(sql, igId); } catch (e) { console.error('ig demografi', e); }
-  // Ambil postingan terbaru (maks 60, ±120 hari)
-  let media = [], next = `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30`;
-  const batas = Date.now() - 120 * 86400000;
-  while (next && media.length < 60) {
-    const j = await graph(next);
-    media = media.concat(j.data || []);
-    const after = j.paging?.cursors?.after;
-    const tua = (j.data || []).some(x => new Date(x.timestamp).getTime() < batas);
-    next = (j.paging?.next && after && !tua) ? `${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=30&after=${after}` : null;
-  }
-  media = media.filter(x => new Date(x.timestamp).getTime() >= batas);
-  // Insights paralel per 8
-  const ins = {};
-  for (let i = 0; i < media.length; i += 8) {
-    const part = media.slice(i, i + 8);
-    const hasil = await Promise.all(part.map(x => insightMedia(x.id, x.media_product_type === 'REELS')));
-    part.forEach((x, k) => { ins[x.id] = hasil[k]; });
-  }
-  const ada = await sql`SELECT id, tgl, format, link FROM mi_contents WHERE platform = 'Instagram'`;
+  const MULAI = process.env.MI_ANALISA_MULAI || '2026-09-01';
+  const batas = new Date(MULAI + 'T00:00:00+07:00').getTime();
   const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
-  let baru = 0, cocok = 0;
-  for (const x of media) {
+  const FIELDS = 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count';
+
+  // Tabel pendukung (aman diulang) — dijalankan paralel
+  await Promise.all([
+    sql`CREATE TABLE IF NOT EXISTS mi_ig_akun (tgl date PRIMARY KEY, ig_id text, username text, followers integer)`.catch(() => {}),
+    sql`CREATE TABLE IF NOT EXISTS mi_ig_demografi (tgl date NOT NULL, dim text NOT NULL, kunci text NOT NULL, nilai integer, PRIMARY KEY (tgl, dim, kunci))`.catch(() => {}),
+    sql`ALTER TABLE mi_content_metrics ADD COLUMN IF NOT EXISTS avg_watch numeric`.catch(() => {}),
+  ]);
+
+  // Follower, demografi & daftar postingan berjalan bersamaan
+  const tugasFollower = (async () => {
+    try {
+      const akun = await graphT(`${igId}?fields=followers_count,username`, 10000);
+      const f = Number(akun.followers_count) || null;
+      if (f) await sql`INSERT INTO mi_ig_akun (tgl, ig_id, username, followers) VALUES (${hariIni}, ${igId}, ${akun.username || ''}, ${f})
+        ON CONFLICT (tgl) DO UPDATE SET followers = EXCLUDED.followers, username = EXCLUDED.username`;
+      return f;
+    } catch (e) { console.error('ig followers', e); return null; }
+  })();
+  const tugasDemo = opsi.lanjut ? Promise.resolve(0) : tarikDemografi(sql, igId).catch(e => { console.error('ig demografi', e); return 0; });
+  const tugasMedia = (async () => {
+    let media = [], next = `${igId}/media?fields=${FIELDS}&limit=50`, hal = 0;
+    while (next && hal < 8 && sisaMs() > 15000) {
+      const j = await graphT(next, 15000); hal++;
+      media = media.concat(j.data || []);
+      const after = j.paging?.cursors?.after;
+      const tua = (j.data || []).some(x => new Date(x.timestamp).getTime() < batas);
+      next = (j.paging?.next && after && !tua) ? `${igId}/media?fields=${FIELDS}&limit=50&after=${after}` : null;
+    }
+    return media.filter(x => new Date(x.timestamp).getTime() >= batas);
+  })();
+  const [follower, nDemo, media] = await Promise.all([tugasFollower, tugasDemo, tugasMedia]);
+
+  // Cocokkan postingan dengan konten yang sudah ada (1: via link; 2: tanggal & format sama, link kosong, kandidat tunggal)
+  const ada = await sql`SELECT id, tgl, format, link FROM mi_contents WHERE platform = 'Instagram'`;
+  const info = media.map(x => {
     const wib = new Date(new Date(x.timestamp).getTime() + 7 * 3600000);
-    const tgl = wib.toISOString().slice(0, 10), jam = wib.toISOString().slice(11, 16);
     const format = FORMAT_IG[x.media_product_type === 'REELS' ? 'REELS' : x.media_type] || 'Lainnya';
-    const kode = kodeIG(x.permalink);
-    // 1) cocokkan via link; 2) cadangan: tanggal & format sama, link kosong, kandidat tunggal
-    let row = ada.find(c => kodeIG(c.link) && kodeIG(c.link) === kode);
+    const baris1 = String(x.caption || '').split('\n').map(t => t.trim()).find(Boolean) || '';
+    return { x, tgl: wib.toISOString().slice(0, 10), jam: wib.toISOString().slice(11, 16), format,
+      hook: format === 'Reels / Short Video' ? '' : baris1.slice(0, 200), kode: kodeIG(x.permalink) };
+  });
+  const upd = [], baruList = [];
+  for (const m of info) {
+    let row = ada.find(c => kodeIG(c.link) && kodeIG(c.link) === m.kode);
     if (!row) {
-      const kand = ada.filter(c => !kodeIG(c.link) && (c.tgl instanceof Date ? c.tgl.toISOString() : String(c.tgl)).slice(0, 10) === tgl && c.format === format);
+      const kand = ada.filter(c => !kodeIG(c.link) && (c.tgl instanceof Date ? c.tgl.toISOString() : String(c.tgl)).slice(0, 10) === m.tgl && c.format === m.format);
       if (kand.length === 1) row = kand[0];
     }
-    let cid;
-    if (row) {
-      cid = row.id; cocok++;
-      const cap1 = String(x.caption || '').split('\n').map(t => t.trim()).find(Boolean) || '';
-      const hookIsi = format === 'Reels / Short Video' ? '' : cap1.slice(0, 200);
-      await sql`UPDATE mi_contents SET tgl = ${tgl}, jam = ${jam}, format = ${format}, link = ${x.permalink},
-        hook = CASE WHEN COALESCE(hook, '') = '' THEN ${hookIsi} ELSE hook END WHERE id = ${cid}`;
-      row.link = x.permalink;
-    } else {
-      const baris1 = String(x.caption || '').split('\n').map(t => t.trim()).find(Boolean) || '';
-      const hook = format === 'Reels / Short Video' ? '' : baris1.slice(0, 200);
-      const r = await sql`INSERT INTO mi_contents (tgl, platform, project, format, topik, hook, jam, durasi, link, created_by)
-        VALUES (${tgl}, 'Instagram', ${proj}, ${format}, '', ${hook}, ${jam}, '', ${x.permalink}, 'auto-instagram') RETURNING id`;
-      cid = r[0].id; baru++;
-      ada.push({ id: cid, tgl, format, link: x.permalink });
-    }
-    // Metrik hari ini — view & klik bio (tidak tersedia per postingan di API) dipertahankan dari angka terakhir
-    const lama = (await sql`SELECT view3, view_full, klik_bio FROM mi_content_metrics WHERE content_id = ${cid} ORDER BY tgl DESC LIMIT 1`)[0] || {};
-    const it = ins[x.id] || {};
+    if (row) { m.cid = row.id; row.link = m.x.permalink; upd.push(m); }
+    else baruList.push(m);
+  }
+  if (upd.length) await sql`UPDATE mi_contents c SET tgl = u.tgl, jam = u.jam, format = u.format, link = u.link,
+      hook = CASE WHEN COALESCE(c.hook, '') = '' THEN u.hook ELSE c.hook END
+    FROM unnest(${upd.map(m => m.cid)}::int[], ${upd.map(m => m.tgl)}::date[], ${upd.map(m => m.jam)}::text[], ${upd.map(m => m.format)}::text[],
+                ${upd.map(m => m.x.permalink)}::text[], ${upd.map(m => m.hook)}::text[]) AS u(id, tgl, jam, format, link, hook)
+    WHERE c.id = u.id`;
+  if (baruList.length) {
+    const r = await sql`INSERT INTO mi_contents (tgl, platform, project, format, topik, hook, jam, durasi, link, created_by)
+      SELECT u.tgl, 'Instagram', ${proj}, u.format, '', u.hook, u.jam, '', u.link, 'auto-instagram'
+      FROM unnest(${baruList.map(m => m.tgl)}::date[], ${baruList.map(m => m.format)}::text[], ${baruList.map(m => m.hook)}::text[],
+                  ${baruList.map(m => m.jam)}::text[], ${baruList.map(m => m.x.permalink)}::text[]) AS u(tgl, format, hook, jam, link)
+      RETURNING id, link`;
+    const idLink = new Map(r.map(z => [z.link, z.id]));
+    baruList.forEach(m => { m.cid = idLink.get(m.x.permalink); });
+  }
+  const semua = info.filter(m => m.cid);
+
+  // Angka terakhir tiap konten (dipertahankan bila insights tidak di-refresh)
+  const ids = semua.map(m => m.cid);
+  const lamaRows = ids.length ? await sql`SELECT DISTINCT ON (content_id) content_id, tgl, reach, share_n, save_n, view3, view_full, klik_bio, avg_watch
+    FROM mi_content_metrics WHERE content_id = ANY(${ids}::int[]) ORDER BY content_id, tgl DESC` : [];
+  const lama = new Map(lamaRows.map(r => [r.content_id, { ...r, tglS: (r.tgl instanceof Date ? r.tgl.toISOString() : String(r.tgl)).slice(0, 10) }]));
+
+  // Pilih postingan yang perlu insights: ≤30 hari, atau belum pernah punya angka.
+  // ?lanjut=1 → lewati yang sudah ter-update hari ini (melanjutkan tarikan yang terpotong)
+  const segar = Date.now() - IG_HARI_SEGAR * 86400000;
+  let targets = semua.filter(m => new Date(m.x.timestamp).getTime() >= segar || !lama.has(m.cid));
+  if (opsi.lanjut) targets = targets.filter(m => lama.get(m.cid)?.tglS !== hariIni);
+  // Prioritas: belum pernah ditarik → paling lama tidak ter-update → terbaru
+  targets.sort((a, b) => {
+    const la = lama.get(a.cid)?.tglS || '', lb = lama.get(b.cid)?.tglS || '';
+    if (la !== lb) return la < lb ? -1 : 1;
+    return new Date(b.x.timestamp) - new Date(a.x.timestamp);
+  });
+  const ins = sisaMs() > 8000 ? await insightBundel(targets.map(m => m.x), sisaMs) : {};
+  const tertunda = targets.filter(m => !ins[m.x.id]?._ok);
+  const tundaSet = new Set(tertunda.map(m => m.cid));
+
+  // Tulis angka hari ini secara massal. Postingan yang insights-nya tertunda TIDAK ditulis dulu,
+  // supaya tarikan lanjutan memprioritaskannya.
+  const tulis = semua.filter(m => !tundaSet.has(m.cid) && !(opsi.lanjut && lama.get(m.cid)?.tglS === hariIni && !ins[m.x.id]));
+  if (tulis.length) {
+    const v = tulis.map(m => {
+      const l = lama.get(m.cid) || {}, it = ins[m.x.id] || {};
+      const pakai = (baru, lm) => baru !== undefined ? baru : (Number(lm) || 0);
+      return [m.cid, pakai(it.reach, l.reach), Number(m.x.like_count) || 0, Number(m.x.comments_count) || 0, pakai(it.shares, l.share_n), pakai(it.saved, l.save_n),
+        pakai(it.views, l.view3), Number(l.view_full) || 0, pakai(it.klik_bio, l.klik_bio), it.avg_watch ?? (l.avg_watch != null ? Number(l.avg_watch) : null)];
+    });
+    const col = i => v.map(r => r[i]);
     await sql`INSERT INTO mi_content_metrics (content_id, tgl, reach, like_n, komentar, share_n, save_n, view3, view_full, klik_bio, avg_watch)
-      VALUES (${cid}, ${hariIni}, ${it.reach || 0}, ${Number(x.like_count) || 0}, ${Number(x.comments_count) || 0}, ${it.shares || 0}, ${it.saved || 0},
-              ${it.views !== undefined ? it.views : (Number(lama.view3) || 0)}, ${Number(lama.view_full) || 0},
-              ${it.klik_bio !== undefined ? it.klik_bio : (Number(lama.klik_bio) || 0)}, ${it.avg_watch ?? null})
+      SELECT x.c, ${hariIni}::date, x.r, x.l, x.k, x.s, x.sv, x.v3, x.vf, x.kb, x.aw
+      FROM unnest(${col(0)}::int[], ${col(1)}::int[], ${col(2)}::int[], ${col(3)}::int[], ${col(4)}::int[], ${col(5)}::int[],
+                  ${col(6)}::int[], ${col(7)}::int[], ${col(8)}::int[], ${col(9)}::numeric[]) AS x(c, r, l, k, s, sv, v3, vf, kb, aw)
       ON CONFLICT (content_id, tgl) DO UPDATE SET reach = EXCLUDED.reach, like_n = EXCLUDED.like_n, komentar = EXCLUDED.komentar,
         share_n = EXCLUDED.share_n, save_n = EXCLUDED.save_n, view3 = EXCLUDED.view3, klik_bio = EXCLUDED.klik_bio,
         avg_watch = COALESCE(EXCLUDED.avg_watch, mi_content_metrics.avg_watch)`;
   }
-  return { sumber: 'Instagram', status: 'sukses', baris: media.length, pesan: `${media.length} postingan · ${cocok} dicocokkan · ${baru} konten baru` + (follower ? ` · ${follower.toLocaleString('id-ID')} follower` : '') + (nDemo ? ` · demografi ${nDemo} baris` : '') };
+  const detik = Math.round((Date.now() - t0) / 100) / 10;
+  const nIns = targets.length - tertunda.length;
+  return {
+    sumber: 'Instagram', status: tertunda.length ? 'sebagian' : 'sukses', baris: tulis.length, sisa: tertunda.length,
+    pesan: `${media.length} postingan sejak ${MULAI} · insights ${nIns} · ${upd.length} dicocokkan · ${baruList.length} konten baru`
+      + (follower ? ` · ${follower.toLocaleString('id-ID')} follower` : '') + (nDemo ? ` · demografi ${nDemo} baris` : '')
+      + (tertunda.length ? ` · ${tertunda.length} postingan menunggu tarikan lanjutan` : '') + ` · ${detik} dtk`,
+  };
 }
 
 // ===== Meta Ads (Marketing API, token & System User yang sama dengan Instagram) =====
@@ -486,20 +592,35 @@ export async function GET(req) {
     }
   }
   const sql = db();
+  const q = new URL(req.url).searchParams;
+  const opsi = { lanjut: q.get('lanjut') === '1' };
+  // Tarikan yang dulu terhenti paksa oleh server (status masih "berjalan" > 90 detik) ditandai gagal
+  try {
+    await sql`UPDATE mi_sync_log SET status = 'gagal', pesan = 'terhenti — melewati batas waktu 60 detik server'
+      WHERE status = 'berjalan' AND waktu < now() - interval '90 seconds'`;
+  } catch {}
   const jalankan = async (tarik, nama) => {
+    // Baris riwayat dicatat sejak awal ("berjalan"), lalu diperbarui — kegagalan karena batas waktu tidak lagi hilang dari riwayat
+    let logId = null;
+    try { logId = (await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${nama}, 'berjalan', 0, ${opsi.lanjut ? 'tarikan lanjutan…' : 'sedang menarik…'}) RETURNING id`)[0]?.id; } catch {}
+    const catat = async (h) => {
+      if (logId) await sql`UPDATE mi_sync_log SET sumber = ${h.sumber}, status = ${h.status}, baris = ${h.baris}, pesan = ${h.pesan}, waktu = now() WHERE id = ${logId}`;
+      else await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${h.sumber}, ${h.status}, ${h.baris}, ${h.pesan})`;
+    };
     try {
-      const h = await tarik(sql);
-      await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${h.sumber}, ${h.status}, ${h.baris}, ${h.pesan})`;
+      const h = await tarik(sql, opsi);
+      await catat(h);
       return h;
     } catch (e) {
       const pesan = String(e.message || e).slice(0, 400);
-      try { await sql`INSERT INTO mi_sync_log (sumber, status, baris, pesan) VALUES (${nama}, 'gagal', 0, ${pesan})`; } catch {}
+      try { await catat({ sumber: nama, status: 'gagal', baris: 0, pesan }); } catch {}
       return { sumber: nama, status: 'gagal', baris: 0, pesan };
     }
   };
   // Tarikan dipecah per sumber agar tiap tahap punya jatah waktu server sendiri (batas 60 detik):
   // ?sumber=web (GA4 + Search Console) · instagram · meta · meta-rinci. Tanpa ?sumber → semua (dipakai sebagai cadangan).
-  const sumber = new URL(req.url).searchParams.get('sumber') || '';
+  // Instagram: hasil membawa "sisa" bila sebagian postingan tertunda → panggil lagi dengan &lanjut=1.
+  const sumber = q.get('sumber') || '';
   const TAHAP = { web: [[tarikGA4, 'GA4'], [tarikGSC, 'Search Console']], instagram: [[tarikInstagram, 'Instagram']], meta: [[tarikMetaAds, 'Meta Ads']], 'meta-rinci': [[tarikMetaRinci, 'Meta Ads (rincian)']] };
   const daftar = TAHAP[sumber] || [...TAHAP.web, ...TAHAP.instagram, ...TAHAP.meta];
   const hasil = await Promise.all(daftar.map(([f, n]) => jalankan(f, n)));

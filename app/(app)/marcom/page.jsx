@@ -119,10 +119,16 @@ export default function MarcomPage() {
     const catatan = [];
     for (const [k, label] of TAHAP) {
       setNarik(label);
-      try {
-        const r = await api('/api/mi-sync?sumber=' + k);
-        (r.hasil || []).forEach(h => catatan.push(`${h.sumber}: ${h.status === 'sukses' ? '✓' : h.status}`));
-      } catch (e) { catatan.push(`${label}: ${/504/.test(e.message) ? 'melewati batas waktu' : 'gagal'}`); }
+      // Instagram dicicil: bila server melaporkan "sisa" postingan tertunda, panggil lanjutan (maks 4 putaran)
+      for (let putaran = 0; putaran < 5; putaran++) {
+        try {
+          const r = await api('/api/mi-sync?sumber=' + k + (putaran ? '&lanjut=1' : ''));
+          const sisa = (r.hasil || []).reduce((a, h) => a + (Number(h.sisa) || 0), 0);
+          if (sisa > 0 && putaran < 4) { setNarik(`${label} (lanjutan ${putaran + 1}, sisa ${sisa})`); continue; }
+          (r.hasil || []).forEach(h => catatan.push(`${h.sumber}: ${h.status === 'sukses' ? '✓' : h.status}`));
+        } catch (e) { catatan.push(`${label}: ${/504/.test(e.message) ? 'melewati batas waktu' : 'gagal'}`); }
+        break;
+      }
     }
     toast(catatan.join(' · '));
     await muat(); setNarik(false);
