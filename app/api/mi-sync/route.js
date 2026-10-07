@@ -376,10 +376,11 @@ async function tarikMetaAds(sql) {
   const adaApi = (await sql`SELECT 1 FROM mi_ads WHERE sumber = 'meta-api' LIMIT 1`).length > 0;
   const mundur = new Date(Date.now() + 7 * 3600000 - 37 * 86400000).toISOString().slice(0, 10);
   const since = adaApi ? (mundur > MULAI ? mundur : MULAI) : MULAI; // tarikan pertama: sejak titik mulai analisa
-  const rows = [], statusCamp = {}, objCamp = {};
+  const rows = [], statusCamp = {}, objCamp = {}, dibuatCamp = {};
   for (const acc of akun) {
-    const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective&limit=200`);
-    (cs.data || []).forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective; });
+    const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective,created_time&limit=200`);
+    (cs.data || []).forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective;
+      if (c.created_time && (!dibuatCamp[c.name] || c.created_time > dibuatCamp[c.name])) dibuatCamp[c.name] = c.created_time; });
     try {
       let ua = `https://graph.facebook.com/${GV()}/act_${acc}/ads?fields=id,name,effective_status,campaign{name}&limit=300&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, h = 0;
       while (ua && h < 10) {
@@ -415,10 +416,17 @@ async function tarikMetaAds(sql) {
   try {
     (await sql`SELECT lower(campaign) AS c, bool_or(status = 'ACTIVE') AS aktif FROM mi_ad_status GROUP BY lower(campaign)`).forEach(r => { adaInfoIklan.add(r.c); if (r.aktif) iklanAktif.add(r.c); });
   } catch {}
+  // + harus benar-benar mengeluarkan biaya dalam 3 hari terakhir (campaign "on" yang jadwal/budgetnya habis tidak dihitung tayang),
+  //   kecuali campaign baru dibuat ≤3 hari (belum sempat ada spend)
+  const batas3 = new Date(Date.now() + 7 * 3600000 - 3 * 86400000).toISOString().slice(0, 10);
+  const spend3 = {};
+  rows.forEach(r => { if (r.campaign_name && r.date_start >= batas3) spend3[r.campaign_name.toLowerCase()] = (spend3[r.campaign_name.toLowerCase()] || 0) + (Number(r.spend) || 0); });
   for (const [nm, ef] of Object.entries(statusCamp)) {
-    const crm = peta.get(nm.toLowerCase());
-    const tayang = ef === 'ACTIVE' && (!adaInfoIklan.has(nm.toLowerCase()) || iklanAktif.has(nm.toLowerCase()));
-    if (crm) await sql`UPDATE mi_campaigns SET status = ${tayang || iklanAktif.has(nm.toLowerCase()) ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
+    const crm = peta.get(nm.toLowerCase()), k = nm.toLowerCase();
+    const menyala = ef === 'ACTIVE' && (!adaInfoIklan.has(k) || iklanAktif.has(k));
+    const baru = dibuatCamp[nm] && (Date.now() - new Date(dibuatCamp[nm]).getTime()) < 3 * 86400000;
+    const tayang = menyala && ((spend3[k] || 0) > 0 || baru);
+    if (crm) await sql`UPDATE mi_campaigns SET status = ${tayang ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
   }
   // Simpan performa harian per iklan (upsert)
   const data = rows.filter(r => r.campaign_name).map(r => [
