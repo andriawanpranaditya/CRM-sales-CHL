@@ -35,6 +35,7 @@ export async function GET(req) {
   return Response.json({
     ktp: rows.some(r => r.jenis === 'ktp'),
     transfer: rows.some(r => r.jenis === 'transfer'),
+    npwp: rows.some(r => r.jenis === 'npwp'),
     lain: rows.some(r => r.jenis === 'lain'),
     adaTrxSebelumnya: trxAda.length > 0,
   });
@@ -45,7 +46,7 @@ export async function POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || !b.lead_code) return Response.json({ error: 'Pilih lead, project & unit dulu' }, { status: 400 });
-  if (!['ktp', 'transfer', 'lain'].includes(b.jenis)) return Response.json({ error: 'Jenis berkas tidak valid' }, { status: 400 });
+  if (!['ktp', 'transfer', 'npwp', 'lain'].includes(b.jenis)) return Response.json({ error: 'Jenis berkas tidak valid' }, { status: 400 });
   if (!b.data) return Response.json({ error: 'File kosong' }, { status: 400 });
   if (b.data.length > 3_500_000) return Response.json({ error: 'File terlalu besar (maks ± 2,5 MB). Gunakan foto/PDF yang lebih kecil.' }, { status: 400 });
   const sql = db();

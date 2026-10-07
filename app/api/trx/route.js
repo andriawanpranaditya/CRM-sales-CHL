@@ -40,9 +40,20 @@ export async function POST(req) {
       if (!ada.includes('ktp')) {
         return Response.json({ error: 'Upload KTP dulu untuk transaksi pertama di unit ini.' }, { status: 400 });
       }
+      if (!ada.includes('npwp')) {
+        return Response.json({ error: 'Upload NPWP dulu untuk transaksi pertama di unit ini.' }, { status: 400 });
+      }
     }
   }
 
+  // Identitas konsumen (dipakai pada formulir pemesanan & diverifikasi Admin Sales) — wajib untuk Reserved/Booking
+  const idn = b.identitas || null;
+  if (b.jenis !== 'Batal') {
+    if (!idn || !String(idn.nama_ktp || '').trim()) return Response.json({ error: 'Nama sesuai KTP wajib diisi' }, { status: 400 });
+    if (!/^\d{16}$/.test(String(idn.nik || '').replace(/\D/g, ''))) return Response.json({ error: 'NIK wajib 16 digit' }, { status: 400 });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(idn.email || '').trim())) return Response.json({ error: 'Email konsumen wajib diisi dengan benar' }, { status: 400 });
+    if (!String(idn.alamat_domisili || '').trim()) return Response.json({ error: 'Alamat domisili wajib diisi' }, { status: 400 });
+  }
   // Pengaman: unit yang sudah Terjual/Reserved tidak bisa diambil lead lain (kecuali transaksi Batal oleh pemiliknya)
   if (b.unit && b.project && b.jenis !== 'Batal') {
     const last = await sql`
@@ -82,6 +93,17 @@ export async function POST(req) {
   await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
+  if (idn && b.jenis !== 'Batal') {
+    await sql`CREATE TABLE IF NOT EXISTS konsumen (lead_code text PRIMARY KEY, nama_ktp text, nik text, npwp text, email text, alamat text, rt_rw text,
+      kel_desa text, kecamatan text, kota_kab text, provinsi text, alamat_domisili text, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
+    const v = k => String(idn[k] || '').trim();
+    await sql`INSERT INTO konsumen (lead_code, nama_ktp, nik, npwp, email, alamat, rt_rw, kel_desa, kecamatan, kota_kab, provinsi, alamat_domisili, updated_by)
+      VALUES (${b.lead_code}, ${v('nama_ktp')}, ${v('nik').replace(/\D/g, '')}, ${v('npwp')}, ${v('email')}, ${v('alamat')}, ${v('rt_rw')}, ${v('kel_desa')},
+              ${v('kecamatan')}, ${v('kota_kab')}, ${v('provinsi')}, ${v('alamat_domisili')}, ${user.username})
+      ON CONFLICT (lead_code) DO UPDATE SET nama_ktp = EXCLUDED.nama_ktp, nik = EXCLUDED.nik, npwp = EXCLUDED.npwp, email = EXCLUDED.email, alamat = EXCLUDED.alamat,
+        rt_rw = EXCLUDED.rt_rw, kel_desa = EXCLUDED.kel_desa, kecamatan = EXCLUDED.kecamatan, kota_kab = EXCLUDED.kota_kab, provinsi = EXCLUDED.provinsi,
+        alamat_domisili = EXCLUDED.alamat_domisili, updated_by = EXCLUDED.updated_by, updated_at = now()`;
+  }
   // Booking/Closing: tanda manual (mis. kuning Reserved) dilepas supaya peta mengikuti transaksi -> merah
   if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
     await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;

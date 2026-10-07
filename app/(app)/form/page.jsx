@@ -143,6 +143,11 @@ export default function FormPage() {
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
+  const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
+  const [idn, setIdn] = useState(IDN0);
+  const [idnInfo, setIdnInfo] = useState(''); // keterangan asal data identitas
+  const [ocrBusy, setOcrBusy] = useState('');
+  const fi = k => ({ value: idn[k] || '', onChange: e => setIdn(x => ({ ...x, [k]: e.target.value })) });
   const [stok, setStok] = useState([]);
   const [berkas, setBerkas] = useState(null);
   const [upBusy, setUpBusy] = useState('');
@@ -209,8 +214,9 @@ export default function FormPage() {
         method: 'POST',
         body: JSON.stringify({ project: trx.project, unit: trx.unit, lead_code: trx.lead_code, jenis: jenisB, filename: file.name, mime, data }),
       });
-      toast((jenisB === 'ktp' ? 'KTP' : 'Bukti Transfer') + ' terupload ✔');
+      toast(({ ktp: 'KTP', npwp: 'NPWP', transfer: 'Bukti Transfer', lain: 'Dokumen' })[jenisB] + ' terupload ✔');
       setBerkas(b => ({ ...(b || {}), [jenisB]: true }));
+      bacaOtomatis(jenisB, file);
     } catch (e) { toast(e.message); } finally { setUpBusy(''); }
   }
 
@@ -446,6 +452,28 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
     } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
   }
+  useEffect(() => {
+    if (!trx.lead_code) { setIdn(IDN0); setIdnInfo(''); return; }
+    api('/api/konsumen?lead_code=' + encodeURIComponent(trx.lead_code)).then(d => {
+      if (d && d.lead_code) { setIdn({ ...IDN0, ...Object.fromEntries(Object.keys(IDN0).map(k => [k, d[k] || ''])) }); setIdnInfo('Terisi dari transaksi sebelumnya konsumen ini — periksa kembali.'); }
+      else { setIdn({ ...IDN0, email: (d && d.email) || '' }); setIdnInfo(''); }
+    }).catch(() => {});
+  }, [trx.lead_code]); // eslint-disable-line
+
+  // Baca KTP / NPWP otomatis — OCR gratis di browser (Tesseract + pembersihan foto + aturan KTP); hanya mengisi kolom yang masih kosong
+  async function bacaOtomatis(jenisB, file) {
+    if (!['ktp', 'npwp'].includes(jenisB) || !file || !/^image\//.test(file.type)) return;
+    setOcrBusy(jenisB);
+    try {
+      const { bacaKartu } = await import('@/lib/ocr-ktp');
+      const out = await bacaKartu(file, jenisB);
+      const isi = Object.entries(out || {}).filter(([k, v]) => k in IDN0 && v);
+      if (!isi.length) { toast((jenisB === 'ktp' ? 'KTP' : 'NPWP') + ' kurang jelas terbaca — isi identitas manual, atau unggah ulang foto yang lebih tajam & tidak silau'); return; }
+      setIdn(x => { const y = { ...x }; isi.forEach(([k, v]) => { if (!String(y[k] || '').trim()) y[k] = v; }); return y; });
+      toast(`${jenisB === 'ktp' ? 'KTP' : 'NPWP'} terbaca (${isi.length} kolom) — periksa kembali isian identitas ✔`);
+    } catch (e) { toast(e.message); } finally { setOcrBusy(''); }
+  }
+
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
     if (!Number(trx.nilai)) return toast('Nilai (Rp) wajib diisi angka');
@@ -455,11 +483,21 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.transfer) {
       return toast('Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.');
     }
+    if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.npwp) {
+      return toast('Upload NPWP dulu untuk transaksi pertama di unit ini.');
+    }
+    if (trx.jenis !== 'Batal') {
+      if (!idn.nama_ktp.trim()) return toast('Nama sesuai KTP wajib diisi');
+      if (!/^\d{16}$/.test(idn.nik.replace(/\D/g, ''))) return toast('NIK wajib 16 digit');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(idn.email.trim())) return toast('Email konsumen wajib diisi dengan benar');
+      if (!idn.alamat_domisili.trim()) return toast('Alamat domisili wajib diisi');
+    }
     setBusy(true);
     try {
-      await api('/api/trx', { method: 'POST', body: JSON.stringify(trx) });
+      await api('/api/trx', { method: 'POST', body: JSON.stringify({ ...trx, identitas: trx.jenis !== 'Batal' ? idn : null }) });
       toast('Transaksi tersimpan — status pipeline ter-update');
       setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
+      setIdn(IDN0); setIdnInfo('');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
 
@@ -717,12 +755,13 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           })()}
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
-            <label>Berkas Transaksi — Bukti Transfer &amp; KTP Wajib</label>
+            <div className="sec-head">1 · Berkas Transaksi — Bukti Transfer, KTP &amp; NPWP Wajib</div>
+            <span className="hint">Unggah dulu: NIK, nama, dan alamat di bagian berikutnya terisi otomatis dari foto KTP / NPWP. Tips: foto lurus, penuh satu kartu, tidak silau; PDF tidak dibaca otomatis.</span>
             {!(trx.lead_code && trx.project && trx.unit) ? (
               <span className="hint">Pilih ID Lead, Project &amp; Blok/Unit dulu untuk mengelola berkas.</span>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
-                {[['transfer', 'Bukti Transfer', true], ['ktp', 'KTP', true], ['lain', 'Dokumen Lain', false]].map(([kd, judul, wajib]) => (
+                {[['transfer', 'Bukti Transfer', true], ['ktp', 'KTP', true], ['npwp', 'NPWP', true], ['lain', 'Dokumen Lain', false]].map(([kd, judul, wajib]) => (
                   <div key={kd} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                     <b style={{ fontSize: 12.5, minWidth: 115 }}>{judul}{wajib ? <span className="req"> *</span> : null}</b>
                     {berkas && berkas[kd] ? (<>
@@ -745,12 +784,33 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                         onChange={e => uploadBerkas(kd, e.target.files[0])} />
                     )}
                     {upBusy === kd && <span className="hint">Mengunggah…</span>}
+                    {ocrBusy === kd && <span className="hint">🔎 Membaca {judul}… (±5–15 detik)</span>}
                   </div>
                 ))}
-                <span className="hint">Bukti Transfer dan KTP wajib diunggah pada transaksi pertama unit ini. Slot Dokumen Lain untuk NPWP, kartu keluarga, surat nikah, atau berkas pendukung lain. Foto dikompres otomatis; PDF maks 2 MB.</span>
+                <span className="hint">Bukti Transfer, KTP, dan NPWP wajib diunggah pada transaksi pertama unit ini. Slot Dokumen Lain untuk kartu keluarga, surat nikah, atau berkas pendukung lain. Foto dikompres otomatis; PDF maks 2 MB.</span>
               </div>
             )}
           </div>
+          {trx.jenis !== 'Batal' && <>
+            <div className="field" style={{ gridColumn: '1 / -1', marginBottom: -4 }}><div className="sec-head">2 · Identitas Konsumen — Tercetak pada Formulir Pemesanan Unit</div></div>
+            <div className="field"><label>Nama Sesuai KTP <span className="req">*</span></label><input {...fi('nama_ktp')} placeholder="terisi otomatis dari foto KTP / NPWP" /></div>
+            <div className="field"><label>NIK (No. KTP) <span className="req">*</span></label><input {...fi('nik')} inputMode="numeric" maxLength={16} placeholder="16 digit — terisi otomatis dari foto KTP" /></div>
+            <div className="field"><label>No. NPWP</label><input {...fi('npwp')} placeholder="00.000.000.0-000.000 — terisi otomatis dari NPWP" /></div>
+            <div className="field"><label>Email <span className="req">*</span></label><input type="email" {...fi('email')} placeholder="nama@email.com" /></div>
+            <div className="field" style={{ gridColumn: '1 / -1', marginBottom: -6 }}><span className="sec-sub">Alamat Sesuai KTP — susunan seperti di kartu</span></div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}><label>Alamat</label><input {...fi('alamat')} placeholder="mis. PERUM KORPRI AE/19" /></div>
+            <div className="field"><label>RT/RW</label><input {...fi('rt_rw')} placeholder="006/004" /></div>
+            <div className="field"><label>Kel/Desa</label><input {...fi('kel_desa')} placeholder="KEDAUNG WETAN" /></div>
+            <div className="field"><label>Kecamatan</label><input {...fi('kecamatan')} placeholder="NEGLASARI" /></div>
+            <div className="field"><label>Kota/Kabupaten</label><input {...fi('kota_kab')} placeholder="KOTA TANGERANG" /></div>
+            <div className="field"><label>Provinsi</label><input {...fi('provinsi')} placeholder="BANTEN" /></div>
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Alamat Domisili <span className="req">*</span>
+                <button type="button" className="sort-btn" style={{ padding: '2px 10px' }} onClick={() => setIdn(x => ({ ...x, alamat_domisili: [x.alamat, x.rt_rw && 'RT/RW ' + x.rt_rw, x.kel_desa, x.kecamatan, x.kota_kab, x.provinsi].filter(Boolean).join(', ') }))}>⇩ Sama dengan KTP</button></label>
+              <textarea rows={2} {...fi('alamat_domisili')} placeholder="alamat lengkap tempat tinggal saat ini — bila sama dengan KTP, tekan tombol di atas" />
+              <span className="hint">{idnInfo || 'Terisi otomatis bila konsumen ini pernah bertransaksi.'} Periksa kembali sebelum menyimpan — data ini yang dipakai pada dokumen resmi.</span>
+            </div>
+          </>}
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>

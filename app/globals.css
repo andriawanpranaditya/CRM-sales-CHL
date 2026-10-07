@@ -251,3 +251,7 @@ th.num{text-align:right}
 .busy-logo{width:22px;height:22px;background:url('/logo.png') center/contain no-repeat;animation:chl-bloom 1.2s ease-in-out infinite}
 @keyframes busy-in{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
 @media(max-width:600px){.busy-chip{top:auto;bottom:76px;font-size:12px}}
+
+/* Judul seksi form transaksi */
+.sec-head{font-size:12.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--green);margin:6px 0 4px}
+.sec-sub{font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
