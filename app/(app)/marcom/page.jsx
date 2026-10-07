@@ -1036,7 +1036,9 @@ export default function MarcomPage() {
                   <tbody>{urut.map(r => (
                     <tr key={r.campaign + '|' + r.kreatif}>
                       <td data-label="Iklan" style={{ minWidth: 200 }}><b>{r.kreatif || '(tanpa nama)'}</b>{Object.entries(juara).filter(([, j]) => j === r).map(([k]) => <span key={k} title={LBL[k]}> 🏆</span>)}<div className="hint">{r.campaign}</div></td>
-                      <td data-label="Status">{r.status ? <span className={'badge ' + (r.aktif ? 'b-close' : 'b-cold')}>{r.aktif ? 'Aktif' : r.status === 'PAUSED' ? 'Jeda' : r.status.toLowerCase()}</span> : '—'}</td>
+                      <td data-label="Status">{r.status ? (() => { const ST = { ACTIVE: ['Tayang', 'b-close'], PAUSED: ['Iklan dijeda', 'b-cold'], CAMPAIGN_PAUSED: ['Campaign dijeda', 'b-cold'], ADSET_PAUSED: ['Ad set dijeda', 'b-cold'],
+                        PENDING_REVIEW: ['Ditinjau Meta', 'b-warm'], IN_PROCESS: ['Diproses', 'b-warm'], WITH_ISSUES: ['Bermasalah', 'b-overdue'], DISAPPROVED: ['Ditolak Meta', 'b-overdue'], ARCHIVED: ['Diarsipkan', 'b-cold'], DELETED: ['Dihapus', 'b-cold'] };
+                        const [t, c] = ST[r.status] || [r.status.toLowerCase().replace(/_/g, ' '), 'b-cold']; return <span className={'badge ' + c} title={'Status Meta: ' + r.status}>{t}</span>; })() : '—'}</td>
                       <td className="num" data-label="Spend">{rpS(r.sp)}</td>
                       <td className="num" data-label="Impresi">{nf(r.impresi)}</td>
                       <td className="num" data-label="Klik">{nf(r.klik)}</td>

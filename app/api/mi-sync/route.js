@@ -379,7 +379,7 @@ async function tarikMetaAds(sql) {
   const rows = [], statusCamp = {}, objCamp = {};
   for (const acc of akun) {
     const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective&limit=200`);
-    (cs.data || []).forEach(c => { statusCamp[c.name] = c.effective_status; objCamp[c.name] = c.objective; });
+    (cs.data || []).forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective; });
     try {
       let ua = `https://graph.facebook.com/${GV()}/act_${acc}/ads?fields=id,name,effective_status,campaign{name}&limit=300&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, h = 0;
       while (ua && h < 10) {
@@ -409,10 +409,16 @@ async function tarikMetaAds(sql) {
       ON CONFLICT (nama) DO NOTHING`;
     peta.set(nm.toLowerCase(), nm); baru++;
   }
-  // Status campaign mengikuti Ads Manager
+  // Status campaign mengikuti Ads Manager — Aktif hanya bila ada minimal satu IKLAN yang benar-benar tayang
+  // (menangani campaign bernama sama hasil duplikat, dan campaign "aktif" yang semua iklannya berhenti)
+  let iklanAktif = new Set(), adaInfoIklan = new Set();
+  try {
+    (await sql`SELECT lower(campaign) AS c, bool_or(status = 'ACTIVE') AS aktif FROM mi_ad_status GROUP BY lower(campaign)`).forEach(r => { adaInfoIklan.add(r.c); if (r.aktif) iklanAktif.add(r.c); });
+  } catch {}
   for (const [nm, ef] of Object.entries(statusCamp)) {
     const crm = peta.get(nm.toLowerCase());
-    if (crm) await sql`UPDATE mi_campaigns SET status = ${ef === 'ACTIVE' ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
+    const tayang = ef === 'ACTIVE' && (!adaInfoIklan.has(nm.toLowerCase()) || iklanAktif.has(nm.toLowerCase()));
+    if (crm) await sql`UPDATE mi_campaigns SET status = ${tayang || iklanAktif.has(nm.toLowerCase()) ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
   }
   // Simpan performa harian per iklan (upsert)
   const data = rows.filter(r => r.campaign_name).map(r => [
