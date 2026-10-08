@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { createSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { catat } from '@/lib/log';
+import { siapkanKolomTema, pasangCookieTema } from '@/lib/tema';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,8 @@ export async function POST(req) {
     return Response.json({ error: 'Username atau password salah' }, { status: 401 });
   }
   await createSession(u);
+  // Tema tampilan tersimpan di akun ikut terbawa ke perangkat yang dipakai login
+  try { await siapkanKolomTema(sql); const t = (await sql`SELECT tema FROM users WHERE id = ${u.id}`)[0]?.tema || ''; pasangCookieTema(t); } catch {}
   await catat(sql, { user: u, aksi: 'Login', modul: 'Akses', detail: 'masuk aplikasi', req });
   return Response.json({ ok: true, user: { id: u.id, username: u.username, name: u.name, role: u.role } });
 }

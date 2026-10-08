@@ -4,7 +4,7 @@ import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, todayISO } from '@/components/util';
 
 const JENIS = ['Kanvasing', 'Open Table', 'Product Knowledge / Agent Gathering', 'Pameran & Event', 'Lainnya'];
-const WARNA = { 'Kanvasing': '#23694A', 'Open Table': '#C9922E', 'Product Knowledge / Agent Gathering': '#28527A', 'Pameran & Event': '#B3402F', 'Lainnya': '#6B7A70' };
+const WARNA = { 'Kanvasing': 'var(--green)', 'Open Table': 'var(--brass)', 'Product Knowledge / Agent Gathering': 'var(--blue)', 'Pameran & Event': 'var(--red)', 'Lainnya': 'var(--muted)' };
 const KOSONG = { tgl: todayISO(), jenis: 'Kanvasing', project: '', lokasi: '', pic: '', jml_lead: '', biaya: '', catatan: '' };
 
 export default function KegiatanPage() {
@@ -123,7 +123,7 @@ export default function KegiatanPage() {
             {daftar.length ? daftar.map(k => (
               <tr key={k.id}>
                 <td data-label="Tanggal">{fmtDate(k.tgl)}</td>
-                <td data-label="Jenis"><span className="badge" style={{ background: (WARNA[k.jenis] || '#6B7A70') + '22', color: WARNA[k.jenis] || '#6B7A70' }}>{k.jenis}</span></td>
+                <td data-label="Jenis"><span className="badge" style={{ background: `color-mix(in srgb, ${WARNA[k.jenis] || 'var(--muted)'} 16%, transparent)`, color: WARNA[k.jenis] || 'var(--muted)' }}>{k.jenis}</span></td>
                 <td data-label="Lokasi"><b>{k.lokasi}</b></td>
                 <td data-label="Project">{k.project || '—'}</td>
                 <td data-label="PIC">{k.pic || '—'}</td>

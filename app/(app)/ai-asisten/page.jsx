@@ -65,12 +65,12 @@ export default function AsistenAI() {
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
         <h2>Simulasi Percakapan <span className="hint">(uji jawaban AI tanpa WhatsApp — memakai pengetahuan di kiri, termasuk yang belum disimpan)</span></h2>
-        <div style={{ flex: 1, minHeight: 320, maxHeight: 460, overflowY: 'auto', background: 'var(--bg)', borderRadius: 10, padding: 10 }}>
+        <div style={{ flex: 1, minHeight: 320, maxHeight: 460, overflowY: 'auto', background: 'var(--paper)', borderRadius: 10, padding: 10 }}>
           {!chat.length && <div className="hint" style={{ textAlign: 'center', padding: 30 }}>Ketik pesan sebagai calon pembeli, mis. <i>"Halo, mau info rumah Bio District dong"</i></div>}
           {chat.map((x, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: x.peran === 'user' ? 'flex-end' : 'flex-start', margin: '6px 0' }}>
               <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 12, whiteSpace: 'pre-wrap', fontSize: 14,
-                background: x.peran === 'user' ? '#DCF8C6' : 'var(--card)', border: '1px solid var(--line)' }}>
+                background: x.peran === 'user' ? 'var(--green-soft)' : 'var(--card)', border: '1px solid var(--line)' }}>
                 {x.isi}
                 {x.info && (x.info.siap_oper || x.info.eskalasi) && <div className="hint" style={{ marginTop: 4, color: x.info.eskalasi ? 'var(--red)' : 'var(--green)' }}>{x.info.eskalasi ? '⚠ Eskalasi ke tim' : '✓ Siap dioper ke sales'}</div>}
               </div></div>))}

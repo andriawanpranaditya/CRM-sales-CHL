@@ -62,7 +62,7 @@ export default function SettingsPage() {
 
       <div className="card" style={{ marginTop: 18, borderColor: 'var(--red-soft)' }}>
         <h2 style={{ color: 'var(--red)' }}>Zona Berbahaya</h2>
-        <div className="note" style={{ background: 'var(--red-soft)', borderColor: '#EAC2BA', color: 'var(--red)' }}>
+        <div className="note" style={{ background: 'var(--red-soft)', borderColor: 'var(--red)', color: 'var(--red)' }}>
           Menghapus SEMUA lead, follow up, dan transaksi dari database secara permanen. Akun pengguna &amp; settings tidak ikut terhapus. Sebaiknya <b>Download Excel</b> dulu di Dashboard sebagai arsip.
         </div>
         <button className="btn btn-danger" style={{ width: 'auto' }} onClick={async () => {
@@ -109,8 +109,8 @@ function UkuranDatabase() {
         {d.tabel.map(t => (
           <div key={t.nama} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,220px) 1fr 90px', gap: 10, alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 13 }}>{NAMA_TABEL[t.nama] || t.nama}<span className="hint"> · ±{t.perkiraan_baris > 0 ? t.perkiraan_baris.toLocaleString('id-ID') : '0'} baris</span></span>
-            <div style={{ background: '#EDEBE3', borderRadius: 6, height: 10, overflow: 'hidden' }}>
-              <div style={{ width: Math.max(2, t.bytes / maks * 100) + '%', height: '100%', background: t.nama === 'trx_files' ? '#C9922E' : '#23694A', borderRadius: 6 }} /></div>
+            <div style={{ background: 'var(--gray-soft)', borderRadius: 6, height: 10, overflow: 'hidden' }}>
+              <div style={{ width: Math.max(2, t.bytes / maks * 100) + '%', height: '100%', background: t.nama === 'trx_files' ? 'var(--brass)' : 'var(--green)', borderRadius: 6 }} /></div>
             <b style={{ fontSize: 13, textAlign: 'right' }}>{ukuran(t.bytes)}</b>
           </div>))}
         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

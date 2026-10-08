@@ -91,7 +91,7 @@ export default function BookingPage() {
           <th>Ringkasan{per ? ' — ' + labelPeriode(per) : ''}{proj ? ' · ' + proj : ''}</th>
           <th className="num">Transaksi</th><th className="num">Unit</th><th className="num">Nilai Reserved / Booking</th><th className="num">Nilai Transaksi</th>
         </tr></thead><tbody>
-          {[['Reserved', '#C9922E'], ['Booking', '#B3402F'], ['Batal', '#8a8f8a']].map(([j, warna]) => {
+          {[['Reserved', 'var(--brass)'], ['Booking', 'var(--red)'], ['Batal', 'var(--muted)']].map(([j, warna]) => {
             const r2 = rows.filter(t => t.jenis === j);
             return <tr key={j}>
               <td data-label="Jenis"><b style={{ color: warna }}>{j}</b></td>

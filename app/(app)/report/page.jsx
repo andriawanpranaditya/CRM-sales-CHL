@@ -34,8 +34,8 @@ export default function ReportPage() {
       <div className="tbl-wrap"><table>
         <thead><tr><th>Sales / PIC</th><th className="num">Total</th>
           {ST.map(s => <th className="num" key={s}>{s}</th>)}
-          <th className="num" style={{ color: '#C9922E' }}>Reserved</th>
-          <th className="num" style={{ color: '#B3402F' }}>Booking</th>
+          <th className="num" style={{ color: 'var(--brass)' }}>Reserved</th>
+          <th className="num" style={{ color: 'var(--red)' }}>Booking</th>
           <th className="num">Closing Rate</th></tr></thead>
         <tbody>
           {salesNames.length ? salesNames.map(s => {
@@ -48,8 +48,8 @@ export default function ReportPage() {
               <td data-label="Sales"><b>{s}</b></td>
               <td className="num" data-label="Total">{mine.length}</td>
               {ST.map(st => <td className="num" key={st} data-label={st}>{c(st)}</td>)}
-              <td className="num" data-label="Reserved"><b style={{ color: '#C9922E' }}>{resSet.size}</b></td>
-              <td className="num" data-label="Booking"><b style={{ color: '#B3402F' }}>{bookSet.size}</b></td>
+              <td className="num" data-label="Reserved"><b style={{ color: 'var(--brass)' }}>{resSet.size}</b></td>
+              <td className="num" data-label="Booking"><b style={{ color: 'var(--red)' }}>{bookSet.size}</b></td>
               <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bookSet.size / mine.length * 100) + '%' : '0%'}</b></td>
             </tr>;
           }) : <tr><td colSpan={12} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada sales / lead.</td></tr>}

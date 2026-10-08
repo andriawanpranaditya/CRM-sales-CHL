@@ -78,7 +78,7 @@ export default function UsersPage() {
                   catch (er) { toast(er.message); }
                 }}>✎</button></td>
               <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
-              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: '#E5EEF6', color: '#28527A' } : u.role === 'ceo' ? { background: '#F3E9D6', color: '#7A5A28' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role === 'ceo' ? 'CEO Project' : u.role}</span></td>
+              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: 'var(--blue-soft)', color: 'var(--blue)' } : u.role === 'ceo' ? { background: 'var(--brass-soft)', color: 'var(--brass-deep)' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role === 'ceo' ? 'CEO Project' : u.role}</span></td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">

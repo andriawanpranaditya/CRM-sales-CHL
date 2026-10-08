@@ -233,7 +233,7 @@ export default function SimulasiCaraBayar() {
       ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Di bawah batas 30%, sesuai ketentuan KPR subsidi.' }
       : { w: 'var(--red)', t: `Melebihi batas — DBR ${Math.round(dbrAkt)}%`, s: 'Di atas 30%: perpanjang tenor atau ajukan dengan penghasilan gabungan.' })
     : dbrAkt <= 40 ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Rasio cicilan sehat, peluang disetujui besar.' }
-    : dbrAkt <= 50 ? { w: '#C9922E', t: `Masih mungkin — DBR ${Math.round(dbrAkt)}%`, s: 'Butuh penghasilan tetap, SLIK bersih, cicilan lain minim; bisa joint income pasangan.' }
+    : dbrAkt <= 50 ? { w: 'var(--brass)', t: `Masih mungkin — DBR ${Math.round(dbrAkt)}%`, s: 'Butuh penghasilan tetap, SLIK bersih, cicilan lain minim; bisa joint income pasangan.' }
     : { w: 'var(--red)', t: `Perlu penyesuaian — DBR ${Math.round(dbrAkt)}%`, s: 'Perpanjang tenor, tambah uang muka, atau ajukan dengan penghasilan gabungan.' };
 
   const labelHarga = isPermai ? 'Harga' : hargaMode === 'manual' ? 'Harga manual' : hargaMode === 'allin' ? 'Harga All In' : 'Harga Standar';
@@ -377,9 +377,9 @@ export default function SimulasiCaraBayar() {
       </div>
 
       {isBio && (
-        <div className="note" style={{ marginTop: 10, background: U.irreg ? '#FBF1DC' : undefined, borderColor: U.irreg ? '#C9922E' : undefined }}>
+        <div className="note" style={{ marginTop: 10, background: U.irreg ? 'var(--brass-soft)' : undefined, borderColor: U.irreg ? 'var(--brass-line)' : undefined }}>
           <b>{blok || 'Simulasi per tipe'}</b> · Tipe {U.tipe}
-          {U.irreg ? <> · <b style={{ color: '#8a5f14' }}>IRREGULER</b> ({U.ket})</> : ' · Standar'}
+          {U.irreg ? <> · <b style={{ color: 'var(--brass-deep)' }}>IRREGULER</b> ({U.ket})</> : ' · Standar'}
           {' '}— Harga Jual <b>{fmtRp(U.standar)}</b> · Harga All In <b>{fmtRp(U.allin)}</b>
         </div>
       )}
@@ -455,7 +455,7 @@ export default function SimulasiCaraBayar() {
               <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th>{!isPermai && <th className="num">DBR 50%</th>}</tr></thead>
               <tbody>{TENOR.map(t => {
                 const a = anuitas(plafon, Number(bunga), t * 12);
-                return <tr key={t} style={Number(tenor) === t ? { background: '#E4EFE8' } : undefined}>
+                return <tr key={t} style={Number(tenor) === t ? { background: 'var(--green-soft)' } : undefined}>
                   <td data-label="Tenor"><b>{t} tahun</b></td>
                   <td className="num" data-label="Angsuran"><b>{fmtRp(Math.round(a))}</b></td>
                   <td className="num" data-label="DBR">{fmtRp(Math.round((a + lain) / (dbr / 100)))}</td>
@@ -508,7 +508,7 @@ export default function SimulasiCaraBayar() {
                       <thead><tr><th>Bulan</th>{!isPermai && <th>Masa</th>}<th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
                       <tbody>
                         {amort.baris.map(r => (
-                          <tr key={r.b} style={!isPermai && amort.tahap.some(t => t.dari === r.b && r.b > 1) ? { borderTop: '2px solid #C9922E' } : undefined}>
+                          <tr key={r.b} style={!isPermai && amort.tahap.some(t => t.dari === r.b && r.b > 1) ? { borderTop: '2px solid var(--brass)' } : undefined}>
                             <td data-label="Bulan">{r.b}</td>
                             {!isPermai && <td data-label="Masa">{r.fix ? <span className="badge b-close">{r.tahap}</span> : <span className="badge b-warm">Floating</span>}</td>}
                             <td className="num" data-label="Angsuran">{fmtRp(Math.round(r.a))}</td>

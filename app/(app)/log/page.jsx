@@ -8,9 +8,9 @@ const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta
 const geserHari = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const PERAN = { manager: 'Manager', ceo: 'CEO Project', admin: 'Admin', markom: 'Marcom', sales: 'Sales' };
 const WARNA_AKSI = {
-  Login: '#23694A', Logout: '#6B7A70', 'Login gagal': '#B3402F', Akses: '#28527A', Input: '#C9922E', Upload: '#C9922E', Impor: '#C9922E',
-  Update: '#7A5A28', 'Oper ke Sales': '#7A5A28', 'Ganti password': '#7A5A28', Nonaktifkan: '#B3402F', 'Uji coba': '#6B7A70',
-  Hapus: '#B3402F', 'Hapus SEMUA data': '#B3402F', Unduh: '#28527A',
+  Login: 'var(--green)', Logout: 'var(--muted)', 'Login gagal': 'var(--red)', Akses: 'var(--blue)', Input: 'var(--brass)', Upload: 'var(--brass)', Impor: 'var(--brass)',
+  Update: 'var(--brown)', 'Oper ke Sales': 'var(--brown)', 'Ganti password': 'var(--brown)', Nonaktifkan: 'var(--red)', 'Uji coba': 'var(--muted)',
+  Hapus: 'var(--red)', 'Hapus SEMUA data': 'var(--red)', Unduh: 'var(--blue)',
 };
 const KATEGORI = [['', 'Semua aktivitas'], ['login', 'Login / Logout'], ['gagal', 'Login gagal'], ['akses', 'Akses halaman'], ['unduh', 'Unduh data'],
   ['input', 'Input data'], ['update', 'Update data'], ['hapus', 'Hapus data']];
@@ -103,7 +103,7 @@ export default function LogPage() {
         <div className="kpi-grid kpi-compact" style={{ marginBottom: 12 }}>
           <div className="kpi"><div className="kpi-label">Pengguna Aktif</div><div className="kpi-val" style={{ color: 'var(--green)' }}>{tot.user}</div></div>
           <div className="kpi"><div className="kpi-label">Login</div><div className="kpi-val">{tot.login}</div></div>
-          <div className="kpi"><div className="kpi-label">Akses Halaman</div><div className="kpi-val" style={{ color: '#28527A' }}>{tot.akses}</div></div>
+          <div className="kpi"><div className="kpi-label">Akses Halaman</div><div className="kpi-val" style={{ color: 'var(--blue)' }}>{tot.akses}</div></div>
           <div className="kpi"><div className="kpi-label">Input</div><div className="kpi-val" style={{ color: 'var(--brass)' }}>{tot.input}</div></div>
           <div className="kpi"><div className="kpi-label">Update</div><div className="kpi-val">{tot.update}</div></div>
           <div className="kpi"><div className="kpi-label">Hapus</div><div className="kpi-val" style={{ color: 'var(--red)' }}>{tot.hapus}</div></div>
@@ -141,7 +141,7 @@ export default function LogPage() {
               <tr key={r.id}>
                 <td data-label="Waktu" style={{ whiteSpace: 'nowrap' }}>{jam(r.waktu)}</td>
                 <td data-label="Pengguna"><b>{r.nama || r.username || '—'}</b><div className="hint">{PERAN[r.role] || r.role || ''}</div></td>
-                <td data-label="Aktivitas"><span className="badge" style={{ background: (WARNA_AKSI[r.aksi] || '#6B7A70') + '22', color: WARNA_AKSI[r.aksi] || '#6B7A70' }}>{r.aksi}</span></td>
+                <td data-label="Aktivitas"><span className="badge" style={{ background: `color-mix(in srgb, ${WARNA_AKSI[r.aksi] || 'var(--muted)'} 16%, transparent)`, color: WARNA_AKSI[r.aksi] || 'var(--muted)' }}>{r.aksi}</span></td>
                 <td data-label="Modul">{r.modul || '—'}</td>
                 <td data-label="Keterangan" style={{ maxWidth: 420 }}>{r.detail || '—'}</td>
                 <td data-label="Perangkat"><span className="hint">{r.perangkat || '—'}{r.ip ? ' · ' + r.ip : ''}</span></td>

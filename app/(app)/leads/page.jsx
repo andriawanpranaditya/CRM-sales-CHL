@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
-const SEL = { New: ['#E5EEF6', '#2D5D8E'], Cold: ['#E8EAEE', '#5A6675'], Warm: ['#FBF1DC', '#8A6415'], Hot: ['#F6E3C0', '#8A5F14'], Appointment: ['#E5EEF6', '#2D5D8E'], 'Site Visit': ['#E5EEF6', '#2D5D8E'], Booking: ['#E4EFE8', '#23694A'], Closing: ['#23694A', '#FFFFFF'], Lost: ['#F9E7E3', '#B3402F'], Drop: ['#F9E7E3', '#B3402F'] };
+const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState(null);
@@ -40,7 +40,7 @@ export default function LeadsPage() {
     if (m < 0) return null;
     if (m < 60) return { t: m + ' menit', w: 'var(--green)' };
     const j = Math.round(m / 60);
-    if (j < 24) return { t: j + ' jam', w: j <= 1 ? 'var(--green)' : '#C9922E' };
+    if (j < 24) return { t: j + ' jam', w: j <= 1 ? 'var(--green)' : 'var(--brass)' };
     return { t: Math.round(j / 24) + ' hari', w: 'var(--red)' };
   };
   useEffect(() => { load(); }, []);
@@ -183,11 +183,11 @@ export default function LeadsPage() {
           <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(l => {
-            const c = SEL[l.status] || ['#EFEEE8', '#1C2B23'];
+            const c = SEL[l.status] || ['var(--gray-soft)', 'var(--ink)'];
             const r = reminder(l.next_fu);
             return <React.Fragment key={l.id}>
               <tr onClick={() => bukaLead(l.lead_code)}
-              style={{ cursor: 'pointer', background: sel === l.lead_code ? '#E4EFE8' : undefined }}>
+              style={{ cursor: 'pointer', background: sel === l.lead_code ? 'var(--green-soft)' : undefined }}>
               <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
                 <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
@@ -209,7 +209,7 @@ export default function LeadsPage() {
                 : <span className="hint">—</span>}</td>
               </tr>
               {sel === l.lead_code && (
-                <tr className="row-detail"><td colSpan={10} style={{ background: '#FAF9F5', borderTop: '2px solid var(--green)' }}>
+                <tr className="row-detail"><td colSpan={10} style={{ background: 'var(--detail-bg)', borderTop: '2px solid var(--green)' }}>
                   {panelRiwayat()}
                 </td></tr>)}
             </React.Fragment>;

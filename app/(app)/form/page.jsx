@@ -569,8 +569,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {editId && <button className="btn btn-ghost" onClick={batalEdit}>Batal</button>}
           <span className="hint">{editId ? 'Perubahan langsung tersimpan ke database.' : 'ID Lead dibuat otomatis oleh sistem.'}</span>
           {dup && (
-            <div style={{ flexBasis: '100%', background: '#F9E7E3', border: '1px solid #B3402F', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
-              <b style={{ color: '#B3402F' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
+            <div style={{ flexBasis: '100%', background: 'var(--red-soft)', border: '1px solid var(--red)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+              <b style={{ color: 'var(--red)' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
               <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {leads.find(x => x.lead_code === dup.lead_code)
                   ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu({ ...fu, lead_code: dup.lead_code, wa_pesan: l ? templateSales(l) : '' }); setDup(null); }}>↻ Buka di Follow Up</button>
@@ -596,8 +596,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             const rec = rekomendasiFU(lSel, riw);
             if (!rec.length) return null;
             return (
-              <div style={{ gridColumn: '1/-1', background: '#FBF1DC', border: '1px solid #C9922E', borderRadius: 10, padding: '10px 14px' }}>
-                <b style={{ color: '#8a5f14' }}>💡 Rekomendasi Follow Up{riw[0] ? ' — analisa FU terakhir ' + fmtDate(riw[0].tgl) : ' — lead belum pernah di-FU'}</b>
+              <div style={{ gridColumn: '1/-1', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px' }}>
+                <b style={{ color: 'var(--brass-deep)' }}>💡 Rekomendasi Follow Up{riw[0] ? ' — analisa FU terakhir ' + fmtDate(riw[0].tgl) : ' — lead belum pernah di-FU'}</b>
                 <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
                   {rec.map((r, i) => <li key={i} style={{ marginBottom: 5, fontSize: 13.5 }}><b>{r[0]}:</b> {r[1]}</li>)}
                 </ul>

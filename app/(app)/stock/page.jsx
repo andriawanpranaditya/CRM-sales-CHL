@@ -236,11 +236,11 @@ export default function StockPage() {
       </div>
 
       {tumpuk.length > 0 && (
-        <div className="note" style={{ background: '#FBF1DC', borderColor: '#C9922E', marginBottom: 10 }}>
+        <div className="note" style={{ marginBottom: 10 }}>
           ⚠ <b>{tumpuk.length} titik menumpuk di peta</b> — dua unit tertempel di posisi hampir sama, sehingga di PDF terlihat seperti tanda ganda:
           <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {tumpuk.slice(0, 6).map((pair, i) => (
-              <span key={i} style={{ background: '#fff', border: '1px solid #C9922E', borderRadius: 8, padding: '3px 8px', fontSize: 12.5 }}>
+              <span key={i} style={{ background: 'var(--card)', border: '1px solid var(--brass-line)', borderRadius: 8, padding: '3px 8px', fontSize: 12.5 }}>
                 <b>{pair[0]}</b> ↔ <b>{pair[1]}</b>
                 {isMgr && <> <button className="sort-btn" style={{ padding: '1px 7px', marginLeft: 6 }}
                   onClick={() => { setPlacing(pair[1]); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Klik posisi yang benar untuk ' + pair[1]); }}>Pindahkan</button></>}
@@ -249,7 +249,7 @@ export default function StockPage() {
         </div>
       )}
       {asing.length > 0 && (
-        <div className="note" style={{ background: '#F9E7E3', borderColor: '#B3402F', marginBottom: 10 }}>
+        <div className="note" style={{ background: 'var(--red-soft)', borderColor: 'var(--red)', color: 'var(--red)', marginBottom: 10 }}>
           ⚠ <b>{asing.length} unit bertanda tidak ada di daftar unit {proj}</b> — kemungkinan penamaan lama: {asing.slice(0, 6).map(u => u.unit).join(', ')}{asing.length > 6 ? ', …' : ''}.
           Tanda ini tidak ditampilkan di peta &amp; PDF. Manager dapat merapikannya lewat panel Update Stok Manual atau menu Booking.
         </div>
@@ -320,7 +320,7 @@ export default function StockPage() {
         </div>
       </div>}
 
-      {isMgr && placing && <div className="note" style={{ background: 'var(--blue-soft)', borderColor: '#BFD4E8', color: 'var(--blue)' }}>
+      {isMgr && placing && <div className="note" style={{ background: 'var(--blue-soft)', borderColor: 'var(--blue)', color: 'var(--blue)' }}>
         📍 Klik lokasi <b>{placing}</b> pada peta. Zoom dulu supaya akurat. <button className="sort-btn" style={{ marginLeft: 8 }} onClick={() => setPlacing(null)}>Batal</button>
       </div>}
 
@@ -358,7 +358,7 @@ export default function StockPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {unmapped.map(u => (
               <button key={u.unit} className="sort-btn"
-                style={{ borderColor: COLOR[u.warna], color: COLOR[u.warna], fontWeight: 700 }}
+                style={{ borderColor: u.warna === 'merah' ? 'var(--red)' : 'var(--brass)', color: u.warna === 'merah' ? 'var(--red)' : 'var(--brass)', fontWeight: 700 }}
                 onClick={() => { setPlacing(u.unit); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                 {u.warna === 'merah' ? '🔴' : '🟡'} {u.unit} — Tandai
               </button>

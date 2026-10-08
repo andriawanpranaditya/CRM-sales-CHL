@@ -976,11 +976,11 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
           </button>
           {srcOpen && (<>
             <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setSrcOpen(false)} />
-            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50, background: '#fff', border: '1px solid #D8D6CC', borderRadius: 10, boxShadow: '0 10px 28px rgba(28,43,35,.16)', padding: '10px 12px', minWidth: 240, maxHeight: 300, overflowY: 'auto' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 10px 28px rgba(28,43,35,.16)', padding: '10px 12px', minWidth: 240, maxHeight: 300, overflowY: 'auto' }}>
               <label style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer', fontWeight: 700 }}>
                 <input type="checkbox" checked={!srcSel.length} onChange={() => setSrcSel([])} /> Semua Sumber
               </label>
-              <div style={{ borderTop: '1px solid #EDEBE3', margin: '4px 0' }} />
+              <div style={{ borderTop: '1px solid var(--line)', margin: '4px 0' }} />
               {(set.sumber || []).map(sm => (
                 <label key={sm} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer' }}>
                   <input type="checkbox" checked={srcSel.includes(sm)}
@@ -992,7 +992,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
             </div>
           </>)}
         </div>
-        <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: '#8a5f14', fontWeight: 700 }}
+        <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: 'var(--brass-deep)', fontWeight: 700 }}
           onClick={() => setPanelFoto(v => !v)} title="Lampirkan foto kegiatan ke report Word/PDF">
           📸 Foto Kegiatan{Object.values(fotoKeg).reduce((a, x) => a + x.length, 0) ? ` (${Object.values(fotoKeg).reduce((a, x) => a + x.length, 0)})` : ''}
         </button>
@@ -1000,11 +1000,11 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>
         <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
         {panelFoto && (
-          <div style={{ flexBasis: '100%', background: '#FBF1DC', border: '1px solid #C9922E', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
-            <b style={{ color: '#8a5f14' }}>📸 Lampirkan foto kegiatan</b>
+          <div style={{ flexBasis: '100%', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+            <b style={{ color: 'var(--brass-deep)' }}>📸 Lampirkan foto kegiatan</b>
             <div className="hint" style={{ marginBottom: 6 }}>Foto diperkecil di perangkat ini lalu ditempel ke report — <b>tidak disimpan di aplikasi</b> dan hilang saat halaman ditutup.</div>
             {kegPeriode().length ? kegPeriode().map(k => (
-              <div key={k.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid #EDD9AE' }}>
+              <div key={k.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid var(--brass-line)' }}>
                 <span style={{ minWidth: 230, fontSize: 13 }}>📅 {fmtDate(k.tgl)} · <b>{k.jenis}</b> · {k.lokasi}</span>
                 <label className="sort-btn" style={{ padding: '3px 10px', cursor: 'pointer' }}>Pilih Foto
                   <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => pilihFoto(k.id, e.target.files)} /></label>

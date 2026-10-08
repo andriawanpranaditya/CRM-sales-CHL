@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import BusyIndicator from '@/components/BusyIndicator';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
@@ -22,10 +22,47 @@ const MENUS = [
   { href: '/log', ico: '🕘', label: 'Log Aktivitas', roles: ['manager'] },
 ];
 
+const IkonMatahari = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>);
+const IkonBulan = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></svg>);
+
+// Tema aktif: pilihan user (data-theme di <html>) atau, bila belum memilih, setelan terang/gelap perangkat
+function temaAktif() {
+  const t = document.documentElement.dataset.theme;
+  if (t === 'light' || t === 'dark') return t;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export default function Shell({ user, children }) {
   const path = usePathname();
   const router = useRouter();
   const menus = MENUS.filter(m => m.roles.includes(user.role));
+
+  // ===== Mode terang / gelap — per user, tersimpan di akun =====
+  const [tema, setTema] = useState('light');
+  useEffect(() => {
+    setTema(temaAktif());
+    // Selaraskan dengan pilihan yang tersimpan di akun (mis. baru diganti dari perangkat lain)
+    fetch('/api/tema', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d) return;
+      const sekarang = document.documentElement.dataset.theme || '';
+      if ((d.tema || '') !== sekarang) {
+        if (d.tema) document.documentElement.dataset.theme = d.tema; else delete document.documentElement.dataset.theme;
+        document.cookie = d.tema ? `crm_tema=${d.tema}; path=/; max-age=31536000; samesite=lax` : 'crm_tema=; path=/; max-age=0';
+        setTema(temaAktif());
+      }
+    }).catch(() => {});
+    // Belum memilih → ikut perubahan setelan perangkat secara langsung
+    const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    const ikut = () => { if (!document.documentElement.dataset.theme) setTema(temaAktif()); };
+    mq && mq.addEventListener && mq.addEventListener('change', ikut);
+    return () => { mq && mq.removeEventListener && mq.removeEventListener('change', ikut); };
+  }, []);
+  function pilihTema(t) {
+    document.documentElement.dataset.theme = t;
+    document.cookie = `crm_tema=${t}; path=/; max-age=31536000; samesite=lax`;
+    setTema(t);
+    fetch('/api/tema', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tema: t }) }).catch(() => {});
+  }
 
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
@@ -94,6 +131,9 @@ export default function Shell({ user, children }) {
         <div className="m-logo">CRM<span> SALES</span></div>
         <img src="/logo.png" alt="" />
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button className="theme-btn" onClick={() => pilihTema(tema === 'dark' ? 'light' : 'dark')}
+            aria-label={tema === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'} title={tema === 'dark' ? 'Mode terang' : 'Mode gelap'}>
+            {tema === 'dark' ? <IkonMatahari /> : <IkonBulan />}</button>
           <ReminderBell user={user} />
           <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
           <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
@@ -113,6 +153,12 @@ export default function Shell({ user, children }) {
             </Link>
           ))}
         </nav>
+        <div className="side-theme">
+          <div className="theme-switch" role="group" aria-label="Tema tampilan">
+            <button aria-pressed={tema === 'light'} onClick={() => pilihTema('light')}><IkonMatahari />Terang</button>
+            <button aria-pressed={tema === 'dark'} onClick={() => pilihTema('dark')}><IkonBulan />Gelap</button>
+          </div>
+        </div>
         <div className="side-foot">
           <span><span className="u-name">{user.name}</span>
             <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
