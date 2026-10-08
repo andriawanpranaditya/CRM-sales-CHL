@@ -488,6 +488,15 @@ async function _PATCH(req) {
     const l = await sql`UPDATE leads SET campaign = ${b.ke}, updated_at = now() WHERE campaign = ${b.dari} RETURNING id`;
     const a = await sql`UPDATE mi_ads SET campaign = ${b.ke} WHERE campaign = ${b.dari} RETURNING id`;
     try { await sql`UPDATE mi_amort SET campaign = ${b.ke} WHERE campaign = ${b.dari}`; } catch {}
+    try { await sql`UPDATE mi_ads_breakdown SET campaign = ${b.ke} WHERE campaign = ${b.dari}`; } catch {}
+    try { await sql`UPDATE mi_adset_targeting SET campaign = ${b.ke} WHERE campaign = ${b.dari}`; } catch {}
+    // Ingat nama lama sebagai alias: tarikan Meta berikutnya memetakan campaign Meta ini ke campaign tujuan,
+    // bukan mendaftarkannya ulang (dulu spend yang sudah digabung pindah balik setiap tarikan)
+    try {
+      await sql`CREATE TABLE IF NOT EXISTS mi_campaign_alias (alias text PRIMARY KEY, nama text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`;
+      await sql`UPDATE mi_campaign_alias SET nama = ${b.ke} WHERE nama = ${b.dari}`;
+      await sql`INSERT INTO mi_campaign_alias (alias, nama) VALUES (${b.dari}, ${b.ke}) ON CONFLICT (alias) DO UPDATE SET nama = EXCLUDED.nama`;
+    } catch (e) { console.error('alias campaign', e); }
     await sql`DELETE FROM mi_campaigns WHERE nama = ${b.dari}`;
     return Response.json({ ok: true, lead: l.length, entri: a.length });
   }

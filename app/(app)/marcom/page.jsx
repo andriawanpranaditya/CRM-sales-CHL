@@ -1002,7 +1002,7 @@ export default function MarcomPage() {
               <thead><tr><th>Nama</th><th>Platform</th><th>Project</th><th className="num">Budget</th><th className="num">Spend</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>{camps.length ? camps.map(x => (
                 <tr key={x.id}>
-                  <td data-label="Nama"><b>{x.nama}</b>{x.sumber === 'meta-api' ? <div className="hint">⚡ otomatis dari Meta Ads</div> : null}</td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
+                  <td data-label="Nama"><b>{x.nama}</b>{x.sumber === 'meta-api' ? <div className="hint">⚡ otomatis dari Meta Ads</div> : null}{x.meta_info ? <div className="hint" style={{ color: /^Belum tersambung/.test(x.meta_info) ? 'var(--red)' : undefined }}>{x.meta_info}</div> : null}</td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
                   <td className="num" data-label="Budget">{Number(x.budget) ? fmtRp(x.budget) : '—'}</td>
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>

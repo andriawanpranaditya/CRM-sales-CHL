@@ -372,6 +372,8 @@ async function siapkanKolomAds(sql) {
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ext_key text`; } catch {}
   try { await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_mi_ads_ext ON mi_ads (ext_key)`; } catch {}
   try { await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS sumber text`; } catch {}
+  try { await sql`ALTER TABLE mi_campaigns ADD COLUMN IF NOT EXISTS meta_info text`; } catch {}
+  try { await sql`CREATE TABLE IF NOT EXISTS mi_campaign_alias (alias text PRIMARY KEY, nama text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS views3 integer`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS thruplay integer`; } catch {}
   try { await sql`ALTER TABLE mi_ads ADD COLUMN IF NOT EXISTS ad_id text`; } catch {}
@@ -384,6 +386,16 @@ async function siapkanKolomAds(sql) {
     adset_id text PRIMARY KEY, campaign text, nama text, status text, usia_min integer, usia_max integer, gender text,
     lokasi text, minat text, penempatan text, advantage boolean, updated_at timestamptz NOT NULL DEFAULT now())`; } catch {}
   kolomAdsSiap = true;
+}
+// Peta nama campaign Meta (huruf kecil) -> nama campaign di CRM, termasuk nama lama hasil "Gabungkan"
+// (tanpa alias, campaign yang sudah digabung akan terdaftar ulang & spend-nya pindah balik pada tarikan berikutnya)
+async function petaCampaign(sql) {
+  const peta = new Map((await sql`SELECT nama FROM mi_campaigns`).map(c => [String(c.nama).toLowerCase(), c.nama]));
+  try {
+    (await sql`SELECT a.alias, a.nama FROM mi_campaign_alias a JOIN mi_campaigns c ON c.nama = a.nama`)
+      .forEach(x => { if (!peta.has(String(x.alias).toLowerCase())) peta.set(String(x.alias).toLowerCase(), x.nama); });
+  } catch {}
+  return peta;
 }
 async function graphUrl(url) {
   const r = await fetch(url);
@@ -479,7 +491,7 @@ async function tarikMetaRinci(sql) {
   const sudahAda = (await sql`SELECT 1 FROM mi_ads_breakdown LIMIT 1`).length > 0;
   const mundur = new Date(Date.now() + 7 * 3600000 - 10 * 86400000).toISOString().slice(0, 10);
   const since = sudahAda ? (mundur > MULAI ? mundur : MULAI) : MULAI; // pertama kali: sejak titik mulai; selanjutnya 10 hari terakhir
-  const peta = new Map((await sql`SELECT nama FROM mi_campaigns`).map(c => [String(c.nama).toLowerCase(), c.nama]));
+  const peta = await petaCampaign(sql);
   const nTg = await tarikTargeting(sql, akun, peta);
   const nBd = await tarikBreakdown(sql, akun, since, hariIni, peta);
   return { sumber: 'Meta Ads (rincian)', status: 'sukses', baris: nBd, pesan: `${since} s.d. ${hariIni} · ${nBd} baris rincian usia/wilayah/penempatan · ${nTg} ad set` };
@@ -501,8 +513,18 @@ async function tarikMetaAds(sql) {
   const since = adaApi ? (mundur > MULAI ? mundur : MULAI) : MULAI; // tarikan pertama: sejak titik mulai analisa
   const rows = [], statusCamp = {}, objCamp = {}, dibuatCamp = {};
   for (const acc of akun) {
-    const cs = await graph(`act_${acc}/campaigns?fields=name,effective_status,objective,created_time&limit=200`);
-    (cs.data || []).forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective;
+    // Semua status — termasuk ARCHIVED/DELETED. Bawaan Graph API menyembunyikan campaign yang diarsipkan/dihapus,
+    // akibatnya status campaign itu di CRM tidak pernah diperbarui & tertahan "Aktif".
+    const daftarCamp = [];
+    const STATUS_SEMUA = encodeURIComponent(JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED', 'IN_PROCESS', 'WITH_ISSUES']));
+    try {
+      let uc = `https://graph.facebook.com/${GV()}/act_${acc}/campaigns?fields=name,effective_status,objective,created_time&effective_status=${STATUS_SEMUA}&limit=200&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, hc = 0;
+      while (uc && hc < 10) { const j = await graphUrl(uc); daftarCamp.push(...(j.data || [])); uc = j.paging?.next || null; hc++; }
+    } catch (e) {
+      console.error('campaign semua status', e);
+      daftarCamp.push(...((await graph(`act_${acc}/campaigns?fields=name,effective_status,objective,created_time&limit=200`)).data || []));
+    }
+    daftarCamp.forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective;
       if (c.created_time && (!dibuatCamp[c.name] || c.created_time > dibuatCamp[c.name])) dibuatCamp[c.name] = c.created_time; });
     try {
       let ua = `https://graph.facebook.com/${GV()}/act_${acc}/ads?fields=id,name,effective_status,campaign{name}&limit=300&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, h = 0;
@@ -523,8 +545,7 @@ async function tarikMetaAds(sql) {
     while (url && halaman < 40) { const j = await graphUrl(url); rows.push(...(j.data || [])); url = j.paging?.next || null; halaman++; }
   }
   // Petakan nama campaign Meta ke daftar campaign CRM (tidak peka huruf besar/kecil); yang belum ada didaftarkan otomatis
-  const camps = await sql`SELECT nama FROM mi_campaigns`;
-  const peta = new Map(camps.map(c => [String(c.nama).toLowerCase(), c.nama]));
+  const peta = await petaCampaign(sql);
   const proj = process.env.IG_PROJECT || 'BIO DISTRICT';
   let baru = 0;
   const semuaNama = new Set([...rows.map(r => r.campaign_name).filter(Boolean)]);
@@ -547,12 +568,43 @@ async function tarikMetaAds(sql) {
   const batas3 = new Date(Date.now() + 7 * 3600000 - 3 * 86400000).toISOString().slice(0, 10);
   const spend3 = {};
   rows.forEach(r => { if (r.campaign_name && r.date_start >= batas3) spend3[r.campaign_name.toLowerCase()] = (spend3[r.campaign_name.toLowerCase()] || 0) + (Number(r.spend) || 0); });
+  // Satu campaign CRM bisa mewakili beberapa campaign Meta (nama sama / hasil Gabungkan): Aktif bila salah satunya tayang
+  const rp = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+  const STATUS_ID = { PAUSED: 'dijeda (off)', ARCHIVED: 'diarsipkan', DELETED: 'dihapus', CAMPAIGN_PAUSED: 'dijeda', IN_PROCESS: 'sedang diproses', WITH_ISSUES: 'bermasalah' };
+  const hasilCRM = new Map();
   for (const [nm, ef] of Object.entries(statusCamp)) {
     const crm = peta.get(nm.toLowerCase()), k = nm.toLowerCase();
-    const menyala = ef === 'ACTIVE' && (!adaInfoIklan.has(k) || iklanAktif.has(k));
+    if (!crm) continue;
+    const adaIklanAktif = !adaInfoIklan.has(k) || iklanAktif.has(k);
+    const menyala = ef === 'ACTIVE' && adaIklanAktif;
     const baru = dibuatCamp[nm] && (Date.now() - new Date(dibuatCamp[nm]).getTime()) < 3 * 86400000;
     const tayang = menyala && ((spend3[k] || 0) > 0 || baru);
-    if (crm) await sql`UPDATE mi_campaigns SET status = ${tayang ? 'Aktif' : 'Selesai'}, tujuan = ${tujuanMeta(objCamp[nm])}, sumber = COALESCE(sumber, 'meta-api') WHERE nama = ${crm}`;
+    const ket = tayang ? ((spend3[k] || 0) > 0 ? `tayang · spend 3 hari ${rp(spend3[k])}` : 'baru dibuat, belum ada spend')
+      : ef !== 'ACTIVE' ? (STATUS_ID[ef] || String(ef || 'tidak aktif').toLowerCase())
+      : !adaIklanAktif ? 'campaign menyala tapi semua iklannya berhenti'
+      : 'menyala tapi tidak ada spend 3 hari terakhir (jadwal/budget habis atau belum lolos review)';
+    const h = hasilCRM.get(crm) || { tayang: false, ket: [], tujuan: tujuanMeta(objCamp[nm]) };
+    h.tayang = h.tayang || tayang; h.ket.push(ket);
+    hasilCRM.set(crm, h);
+  }
+  for (const [crm, h] of hasilCRM) {
+    const ket = 'Meta: ' + [...new Set(h.ket)].slice(0, 3).join(' / ');
+    await sql`UPDATE mi_campaigns SET status = ${h.tayang ? 'Aktif' : 'Selesai'}, tujuan = ${h.tujuan}, sumber = COALESCE(sumber, 'meta-api'),
+      meta_info = ${ket} WHERE nama = ${crm}`;
+  }
+  // Campaign Meta di CRM yang tidak ada padanannya di Ads Manager:
+  //  • terdaftar otomatis (⚡) → sudah tidak ada di Ads Manager → Selesai
+  //  • dibuat manual → status dibiarkan (keputusan tim), diberi keterangan agar disambungkan lewat Gabungkan
+  const tersambung = new Set(hasilCRM.keys());
+  const yatim = (await sql`SELECT nama, sumber, status FROM mi_campaigns WHERE platform ILIKE '%meta%'`).filter(c => !tersambung.has(c.nama));
+  let nYatim = 0;
+  for (const c of yatim) {
+    if (c.sumber === 'meta-api') {
+      await sql`UPDATE mi_campaigns SET status = 'Selesai', meta_info = 'Meta: tidak ditemukan lagi di Ads Manager — otomatis Selesai' WHERE nama = ${c.nama}`;
+      if (c.status === 'Aktif') nYatim++;
+    } else {
+      await sql`UPDATE mi_campaigns SET meta_info = 'Belum tersambung ke Meta Ads — namanya tidak sama dengan campaign mana pun di Ads Manager, jadi spend & hasilnya tidak masuk. Gabungkan campaign ⚡ dari Meta ke campaign ini.' WHERE nama = ${c.nama}`;
+    }
   }
   // Simpan performa harian per iklan (upsert)
   const data = rows.filter(r => r.campaign_name).map(r => [
@@ -573,7 +625,7 @@ async function tarikMetaAds(sql) {
   }
   const totalSpend = data.reduce((a, x) => a + x[4], 0);
   return { sumber: 'Meta Ads', status: 'sukses', baris: data.length,
-    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') };
+    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') + (nYatim ? ` · ${nYatim} campaign tak ada lagi di Ads Manager → Selesai` : '') };
 }
 
 // Colokan konektor berikutnya — aktif otomatis saat env-nya diisi (tanpa ubah kode):
