@@ -6,7 +6,7 @@ import { api } from '@/components/util';
 // Log Aktivitas — siapa login, siapa membuka halaman apa, siapa input/update/hapus data apa (khusus manager)
 const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 const geserHari = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const PERAN = { manager: 'Manager', admin: 'Admin', markom: 'Marcom', sales: 'Sales' };
+const PERAN = { manager: 'Manager', ceo: 'CEO Project', admin: 'Admin', markom: 'Marcom', sales: 'Sales' };
 const WARNA_AKSI = {
   Login: '#23694A', Logout: '#6B7A70', 'Login gagal': '#B3402F', Akses: '#28527A', Input: '#C9922E', Upload: '#C9922E', Impor: '#C9922E',
   Update: '#7A5A28', 'Oper ke Sales': '#7A5A28', 'Ganti password': '#7A5A28', Nonaktifkan: '#B3402F', 'Uji coba': '#6B7A70',

@@ -803,7 +803,7 @@ export default function MarcomPage() {
               <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                 <button className="sort-btn" style={{ padding: '3px 9px', ...(igAktif && x.platform === 'Instagram' && !x.topik ? { color: 'var(--brass)', fontWeight: 700 } : {}) }} onClick={() => { setKEdit(x.id); setK({ tgl: String(x.tgl || '').slice(0, 10), platform: x.platform || 'Instagram', project: x.project || '', format: x.format || FORMAT[0], topik: x.topik || '', hook: x.hook || '', jam: x.jam || '', durasi: x.durasi || '', link: x.link || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{igAktif && x.platform === 'Instagram' ? 'Lengkapi' : 'Edit'}</button>
                 {!(igAktif && x.platform === 'Instagram') && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { isiAngka(x.id); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('Angka terakhir sudah terisi — ubah yang berubah saja, lalu Simpan Angka'); }}>Angka</button>}
-                <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>
+                {data.me?.role !== 'ceo' && <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('konten', x.id, x.topik || x.format)}>Hapus</button>}
               </span></td>
             </tr>)) : <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada konten tercatat pada periode ini.</td></tr>}</tbody>
         </table></div>
@@ -943,7 +943,7 @@ export default function MarcomPage() {
                   <td className="num" data-label="Total">{fmtRp(x.total)}</td><td data-label="Mulai">{mulai}</td>
                   <td className="num" data-label="Masa">{x.bulan} bln</td><td className="num" data-label="Per Bulan">{fmtRp(Math.round(Number(x.total) / Number(x.bulan)))}</td>
                   <td className="num" data-label="Berjalan">{jalan}/{x.bulan} bln</td>
-                  <td data-label="Aksi"><button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('amort', x.id, (x.keterangan || x.campaign))}>Hapus</button></td>
+                  <td data-label="Aksi">{data.me?.role !== 'ceo' && <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('amort', x.id, (x.keterangan || x.campaign))}>Hapus</button>}</td>
                 </tr>); })}</tbody>
             </table></div>
           )}
@@ -1010,7 +1010,7 @@ export default function MarcomPage() {
                     <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--brass)' }} onClick={() => { setLk({ id: x.id, project: x.project || fProj || '', mode: String(x.platform || '').startsWith('Meta') ? 'wa' : 'web', noWa: 1, wa: '6281385237865', teks: 'Halo ' + (x.project ? x.project.replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) : 'Bio District') + ', saya mau info rumahnya', nama: x.nama, url: 'https://', format: 'reels', no: 1, source: ({ 'Meta (FB+IG)': 'meta', Facebook: 'facebook', Instagram: 'instagram', Tiktok: 'tiktok', Google: 'google', Youtube: 'youtube', Website: 'website' })[x.platform] || 'meta', medium: x.platform === 'Website' ? 'referral' : 'cpc' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>🔗 Link</button>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setCEdit(x.id); setC({ nama: x.nama, platform: x.platform || 'Meta (FB+IG)', project: x.project || '', tujuan: x.tujuan || 'leads', bulan: bulanIni, extra: '', budget: x.budget || '', status: x.status || 'Aktif', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
                     {data.me && data.me.role === 'manager' && <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setGb({ dari: x.nama, ke: '' }); setTimeout(() => { const el = document.getElementById('panel-gabung'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50); }}>Gabungkan</button>}
-                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>
+                    {data.me?.role !== 'ceo' && <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('campaign', x.id, x.nama)}>Hapus</button>}
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada campaign — daftarkan dulu di form atas.</td></tr>}</tbody>
             </table></div>
@@ -1079,7 +1079,7 @@ export default function MarcomPage() {
                   <td className="num" data-label="Spend">{fmtRp(x.spend)}</td><td className="num" data-label="Klik">{x.klik || 0}</td><td className="num" data-label="Hasil">{x.hasil || 0}</td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setShowSpendManual(true); setAEdit(x.id); setA({ tgl: String(x.tgl || '').slice(0, 10), campaign: x.campaign || '', kreatif: x.kreatif || '', spend: x.spend || '', impresi: x.impresi || '', reach: x.reach || '', klik: x.klik || '', hasil: x.hasil || '', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
-                    <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('iklan', x.id, x.campaign + ' ' + fmtDate(x.tgl))}>Hapus</button>
+                    {data.me?.role !== 'ceo' && <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)' }} onClick={() => hapus('iklan', x.id, x.campaign + ' ' + fmtDate(x.tgl))}>Hapus</button>}
                   </span></td>
                 </tr>)) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum ada entri performa iklan.</td></tr>}</tbody>
             </table></div>
@@ -1091,7 +1091,7 @@ export default function MarcomPage() {
       {tab === 'diagnosa' && (() => {
         const projP = fProj || 'BIO DISTRICT';
         const pr = (data.persona || {})[projP];
-        const isMgr = data.me && data.me.role === 'manager';
+        const isMgr = data.me && (data.me.role === 'manager' || data.me.role === 'ceo');
         const baris = obj => Object.entries(obj || {}).map(([k, r]) => ({ k, ...r, dinilai: r.n - r.kurang, pc: (r.n - r.kurang) > 0 ? r.cocok / (r.n - r.kurang) : null })).sort((a, b) => b.n - a.n);
         const simpanPersona = async () => {
           try {

@@ -17,7 +17,7 @@ export default function FollowUpPage() {
       .then(([f, s, u]) => { setFus(f); setSet(s); setMe(u); }).catch(e => toast(e.message));
   }, []);
   if (!fus || !me) return <div className="loading">Memuat…</div>;
-  const isMgr = me.role === 'manager';
+  const isMgr = me.role === 'manager' || me.role === 'ceo';
 
   let rows = fus.filter(f =>
     (!proj || f.project === proj) &&

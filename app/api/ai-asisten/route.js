@@ -14,7 +14,7 @@ async function bacaSettings(sql) {
 
 export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
-  if (!['manager', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
+  if (!['manager', 'ceo', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
   const sql = db(); await siapkanAI(sql);
   const set = await bacaSettings(sql);
   const projects = set.project || ['BIO DISTRICT', 'PERMAI INDAH'];
@@ -40,7 +40,7 @@ async function _PUT(req) {
 // Uji coba percakapan tanpa WhatsApp (simulasi)
 async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
-  if (!['manager', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
+  if (!['manager', 'ceo', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
   const b = await req.json();
   const sql = db(); await siapkanAI(sql);
   const cfg = await konfigAI(sql, b.project || 'BIO DISTRICT');

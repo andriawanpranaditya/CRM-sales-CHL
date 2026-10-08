@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 async function akses() {
   const { user, err } = await requireUser();
   if (err) return { err };
-  if (!['manager', 'markom'].includes(user.role)) {
+  if (!['manager', 'ceo', 'markom'].includes(user.role)) {
     return { err: Response.json({ error: 'Menu ini khusus Marcom & Manager' }, { status: 403 }) };
   }
   return { user };
@@ -469,7 +469,7 @@ async function _PATCH(req) {
   const b = await req.json();
   const sql = db();
   if (b.jenis === 'persona') {
-    if (user.role !== 'manager') return Response.json({ error: 'Hanya manager yang boleh mengubah persona' }, { status: 403 });
+    if (!['manager', 'ceo'].includes(user.role)) return Response.json({ error: 'Hanya manager / CEO yang boleh mengubah persona' }, { status: 403 });
     if (!b.project || !b.data) return Response.json({ error: 'Project & data persona wajib' }, { status: 400 });
     const bersih = d => String(d || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
     const data = { areaInti: bersih(b.data.areaInti), areaLuas: bersih(b.data.areaLuas), hargaMin: Number(b.data.hargaMin) || 0,

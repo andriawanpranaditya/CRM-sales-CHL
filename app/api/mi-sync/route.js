@@ -587,7 +587,7 @@ export async function GET(req) {
   const dariCron = process.env.CRON_SECRET && auth === 'Bearer ' + process.env.CRON_SECRET;
   if (!dariCron) {
     const user = await getUser();
-    if (!user || !['manager', 'markom'].includes(user.role)) {
+    if (!user || !['manager', 'ceo', 'markom'].includes(user.role)) {
       return Response.json({ error: 'Tidak berizin' }, { status: 401 });
     }
   }

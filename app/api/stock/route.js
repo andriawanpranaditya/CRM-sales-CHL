@@ -49,9 +49,9 @@ export async function GET() {
   return Response.json({ positions, manual, status });
 }
 
-// POST: simpan/pindah posisi unit — khusus manager
+// POST: simpan/pindah posisi unit — manager & CEO Project
 async function _POST(req) {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || typeof b.x !== 'number' || typeof b.y !== 'number') {
     return Response.json({ error: 'project, unit, x, y wajib' }, { status: 400 });
@@ -63,9 +63,9 @@ async function _POST(req) {
   return Response.json({ ok: true });
 }
 
-// PUT: status manual (Terjual/Reserved/Kosong; null = ikut transaksi) — khusus manager
+// PUT: status manual (Terjual/Reserved/Kosong; null = ikut transaksi) — manager & CEO Project
 async function _PUT(req) {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit) return Response.json({ error: 'project & unit wajib' }, { status: 400 });
   const sql = db();

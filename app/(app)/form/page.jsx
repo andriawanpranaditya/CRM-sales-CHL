@@ -247,7 +247,7 @@ export default function FormPage() {
     } catch (e) {
       if (e.status === 409 && e.data && e.data.dup) {
         setDup(e.data.dup);
-        if (me?.role === 'manager' && confirm(e.message + '\n\nTetap simpan sebagai lead TERPISAH? (khusus manager)')) {
+        if (['manager', 'ceo'].includes(me?.role) && confirm(e.message + '\n\nTetap simpan sebagai lead TERPISAH? (khusus manager / CEO)')) {
           try {
             const d2 = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, force: true }) });
             toast('Lead tersimpan (dipaksa) — ' + d2.lead_code); setDup(null);
@@ -277,7 +277,7 @@ export default function FormPage() {
   const isMarkom = me && me.role === 'markom';
   useEffect(() => { if (isMarkom) api('/api/users').then(setSalesWA).catch(() => {}); }, [isMarkom]);
   const [camps, setCamps] = useState([]);
-  const bolehCampaign = me && (me.role === 'markom' || me.role === 'manager');
+  const bolehCampaign = me && ['markom', 'manager', 'ceo'].includes(me.role);
   useEffect(() => { if (bolehCampaign) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [bolehCampaign]);
   useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
 

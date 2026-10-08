@@ -53,6 +53,7 @@ export default function UsersPage() {
               <option value="sales">Sales — Form Input saja</option>
               <option value="admin">Admin — Dashboard, Booking, Master Stock</option>
               <option value="markom">Marcom — Lead digital, Follow Up, Leads to Sales</option>
+              <option value="ceo">CEO Project — semua menu kecuali Settings/Pengguna/Log, tanpa hapus</option>
               <option value="manager">Manager — akses penuh</option>
             </select></div>
           <div className="field"><label>Password</label><input value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div>
@@ -77,7 +78,7 @@ export default function UsersPage() {
                   catch (er) { toast(er.message); }
                 }}>✎</button></td>
               <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
-              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: '#E5EEF6', color: '#28527A' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role}</span></td>
+              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: '#E5EEF6', color: '#28527A' } : u.role === 'ceo' ? { background: '#F3E9D6', color: '#7A5A28' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role === 'ceo' ? 'CEO Project' : u.role}</span></td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">
@@ -86,10 +87,10 @@ export default function UsersPage() {
                   <button className="sort-btn" onClick={() => resetPw(u)}>Reset Password</button>
                   <button className={'sort-btn'} onClick={() => toggle(u)}>{u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>
                   <button className="sort-btn" onClick={async () => {
-                    const r = prompt('Peran baru untuk ' + u.name + ' — ketik salah satu: sales / admin / marcom / manager', u.role === 'markom' ? 'marcom' : u.role);
+                    const r = prompt('Peran baru untuk ' + u.name + ' — ketik salah satu: sales / admin / marcom / ceo / manager', u.role === 'markom' ? 'marcom' : u.role);
                     if (!r) return;
                     const role = r.trim().toLowerCase().replace('marcom', 'markom');
-                    if (!['sales', 'admin', 'markom', 'manager'].includes(role)) return toast('Peran tidak dikenal: ' + r);
+                    if (!['sales', 'admin', 'markom', 'ceo', 'manager'].includes(role)) return toast('Peran tidak dikenal: ' + r);
                     try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, role }) }); toast('Peran ' + u.name + ' → ' + role); load(); }
                     catch (er) { toast(er.message); }
                   }}>⇄ Peran</button>

@@ -19,7 +19,7 @@ export async function GET(req) {
     id serial PRIMARY KEY,
     username text UNIQUE NOT NULL,
     name text NOT NULL,
-    role text NOT NULL CHECK (role IN ('manager','admin','markom','sales')),
+    role text NOT NULL CHECK (role IN ('manager','ceo','admin','markom','sales')),
     password_hash text NOT NULL,
     active boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now()
@@ -73,7 +73,7 @@ export async function GET(req) {
   await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS wa_pesan text`;
   // Role baru: admin (akses lihat Dashboard, Booking, Master Stock)
   await coba(() => sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
-  await coba(() => sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','admin','markom','sales'))`);
+  await coba(() => sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','ceo','admin','markom','sales'))`);
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wa text`;
   await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS nilai_jual numeric`;
   // Index performa — mempercepat kueri saat data ribuan baris

@@ -110,7 +110,7 @@ const MASTER63 = [
 const PROJ = 'BIO DISTRICT';
 
 async function _POST() {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const sql = db();
 
   // 1) Setel master unit BIO DISTRICT ke daftar resmi 63 unit

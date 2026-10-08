@@ -19,7 +19,7 @@ export default function BookingPage() {
       .then(([t, s, u]) => { setTrx(t); setSet(s); setMe(u); }).catch(e => toast(e.message));
   }, []);
   if (!trx || !me) return <div className="loading">Memuat…</div>;
-  const isMgr = me.role === 'manager';
+  const isMgr = me.role === 'manager' || me.role === 'ceo'; // ceo: bisa edit, tidak bisa hapus
   const BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   const labelPeriode = v => v === 'bulan-ini' ? 'Bulan Ini' : v === 'tahun-ini' ? 'Tahun Ini'
     : (BLN[Number(String(v).slice(5, 7)) - 1] || '') + ' ' + String(v).slice(0, 4);
@@ -175,7 +175,7 @@ export default function BookingPage() {
               <td data-label="Catatan">{t._riwayat ? <span className="hint" style={{ display: 'block' }}>{t._riwayat} → {t.jenis}</span> : null}{t.catatan}</td>
               {isMgr && <td data-label="Aksi" style={{ whiteSpace: 'nowrap' }}>
                 <button className="sort-btn" style={{ padding: '4px 9px' }} onClick={() => setEdit({ ...t, tgl: (t.tgl || '').slice(0, 10) })}>Edit</button>{' '}
-                <button className="sort-btn" style={{ padding: '4px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(t)}>Hapus</button>
+                {me.role !== 'ceo' && <button className="sort-btn" style={{ padding: '4px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(t)}>Hapus</button>}
               </td>}
             </tr>
           )) : <tr><td colSpan={isMgr ? 12 : 11} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi.</td></tr>}

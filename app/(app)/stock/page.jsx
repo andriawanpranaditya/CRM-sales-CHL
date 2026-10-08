@@ -35,7 +35,7 @@ export default function StockPage() {
   }, []);
 
   if (!status || !me) return <div className="loading">Memuat…</div>;
-  const isMgr = me.role === 'manager';
+  const isMgr = me.role === 'manager' || me.role === 'ceo'; // ceo: kelola stok, tanpa hapus titik
 
   const posMap = {}; pos.forEach(p => { posMap[p.project + '|' + p.unit] = p; });
   const manMap = {}; manual.forEach(x => { manMap[x.project + '|' + x.unit] = x.status; });

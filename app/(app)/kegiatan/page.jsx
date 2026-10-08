@@ -26,7 +26,7 @@ export default function KegiatanPage() {
     .catch(e => toast(e.message));
   useEffect(() => { muat(); }, []); // eslint-disable-line
 
-  const bisaInput = me && ['manager', 'markom', 'sales'].includes(me.role);
+  const bisaInput = me && ['manager', 'ceo', 'markom', 'sales'].includes(me.role);
   const ff = k => ({ value: f[k], onChange: e => setF({ ...f, [k]: e.target.value }) });
 
   async function simpan() {
@@ -131,10 +131,10 @@ export default function KegiatanPage() {
                 <td className="num" data-label="Biaya">{Number(k.biaya) ? fmtRp(k.biaya) : '—'}</td>
                 <td data-label="Catatan">{k.catatan || '—'}</td>
                 <td data-label="Aksi">
-                  {me && (me.role === 'manager' || k.created_by === me.username || k.bisa_ubah) ? (
+                  {me && (me.role === 'manager' || me.role === 'ceo' || k.created_by === me.username || k.bisa_ubah) ? (
                     <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                       <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => mulaiEdit(k)}>Edit</button>
-                      <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(k)}>Hapus</button>
+                      {me.role !== 'ceo' && <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(k)}>Hapus</button>}
                     </span>) : <span className="hint">—</span>}
                 </td>
               </tr>)) : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada kegiatan pada filter ini.</td></tr>}

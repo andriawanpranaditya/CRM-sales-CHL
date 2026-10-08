@@ -136,9 +136,9 @@ async function sinkronStatus(sql, lead_code) {
   // Bila hanya tersisa Reserved / tidak ada transaksi: status dibiarkan — manager bisa atur di Database Lead
 }
 
-// Edit transaksi — khusus manager. Status pipeline lead disinkronkan otomatis.
+// Edit transaksi — manager & CEO Project. Status pipeline lead disinkronkan otomatis.
 async function _PATCH(req) {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   if (!['Reserved', 'Booking', 'Closing', 'Batal'].includes(b.jenis)) return Response.json({ error: 'Jenis transaksi tidak valid' }, { status: 400 });

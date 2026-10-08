@@ -43,7 +43,7 @@ async function _POST(req) {
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
   if (waN.startsWith('0')) waN = '62' + waN.slice(1); else if (waN.startsWith('8')) waN = '62' + waN;
-  if (waN.length >= 9 && !(user.role === 'manager' && b.force)) {
+  if (waN.length >= 9 && !(['manager', 'ceo'].includes(user.role) && b.force)) {
     const dup = await sql`SELECT l.lead_code, l.nama, l.sales, l.project, l.status, u.name AS pembuat, u.role AS pembuat_role
       FROM leads l LEFT JOIN users u ON u.username = l.created_by
       WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(l.wa,''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${waN}
@@ -92,7 +92,7 @@ async function _PATCH(req) {
   for (const k of FIELDS) if (k in b) m[k] = b[k];
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!m.campaign) m.campaign = pk.campaign; if (!m.konten) m.konten = pk.konten; } }
   let operKe = null;
-  if ((user.role === 'manager' || user.role === 'markom') && 'sales' in b && b.sales) {
+  if (['manager', 'ceo', 'markom'].includes(user.role) && 'sales' in b && b.sales) {
     if ((cur.sales || '') !== b.sales) operKe = b.sales;
     m.sales = b.sales;
   }

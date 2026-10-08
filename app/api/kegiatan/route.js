@@ -23,7 +23,7 @@ export async function GET() {
 
 async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
-  if (!['manager', 'markom', 'sales'].includes(user.role)) {
+  if (!['manager', 'ceo', 'markom', 'sales'].includes(user.role)) {
     return Response.json({ error: 'Peran ini tidak bisa menginput kegiatan' }, { status: 403 });
   }
   const b = await req.json();

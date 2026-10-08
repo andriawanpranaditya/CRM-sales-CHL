@@ -6,17 +6,17 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
-  { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'admin', 'markom'] },
-  { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'sales', 'markom'] },
-  { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'markom', 'sales'] },
+  { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'ceo', 'admin', 'markom'] },
+  { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'ceo', 'sales', 'markom'] },
+  { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
-  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'admin', 'markom'] },
-  { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager'] },
-  { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'markom'] },
-  { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'admin', 'markom', 'sales'] },
-  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'admin', 'markom', 'sales'] },
-  { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'admin', 'markom', 'sales'] },
-  { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'markom'] },
+  { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
+  { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager', 'ceo'] },
+  { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
+  { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
+  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
+  { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
+  { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'ceo', 'markom'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
   { href: '/log', ico: '🕘', label: 'Log Aktivitas', roles: ['manager'] },
@@ -31,6 +31,8 @@ export default function Shell({ user, children }) {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
     if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/form');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
+    // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
+    if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log'))) router.replace('/dashboard');
     if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom')) router.replace('/form');
   }, [path, user.role, router]);
 
@@ -113,7 +115,7 @@ export default function Shell({ user, children }) {
         </nav>
         <div className="side-foot">
           <span><span className="u-name">{user.name}</span>
-            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
+            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
           <span style={{ display: 'flex', gap: 4 }}>
             <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
             <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
