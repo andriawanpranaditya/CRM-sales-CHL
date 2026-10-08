@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { ringkasStok } from '@/lib/stok';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ function spendAmort(amort, d1, d2, hariIni) {
 async function berandaMarcom(sql, user, hariIni) {
   const awalBulan = hariIni.slice(0, 8) + '01';
   const d1 = awalBulan < MULAI ? MULAI : awalBulan;
-  const [funnel, spendRows, amort, camp, siap, siapN, due, selesai] = await Promise.all([
+  const [funnel, spendRows, amort, camp, siap, siapN, due, selesai, stok] = await Promise.all([
     sql`SELECT count(*)::int AS l0,
         count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa'))::int AS l1,
         count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
@@ -72,6 +73,7 @@ async function berandaMarcom(sql, user, hariIni) {
     sql`SELECT count(DISTINCT f.lead_code)::int AS n FROM followups f
       JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom'
       WHERE (f.created_at AT TIME ZONE 'Asia/Jakarta')::date = ${hariIni}::date AND COALESCE(f.created_by, '') <> 'auto-wa'`,
+    ringkasStok(sql).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
   const F = funnel[0] || {};
   const spend = Math.round(Number(spendRows[0]?.spend || 0) + spendAmort(amort, d1, hariIni, hariIni));
@@ -80,7 +82,7 @@ async function berandaMarcom(sql, user, hariIni) {
     funnel: { l0: F.l0 || 0, l1: F.l1 || 0, l2: F.l2 || 0, p0: F.p0 || 0, p2: F.p2 || 0, hariIni: F.hari_ini || 0 },
     spend, cpl: F.p0 ? Math.round(spend / F.p0) : null, cpql: F.p2 ? Math.round(spend / F.p2) : null,
     campaign: camp[0] || { tayang: 0, belum: 0 },
-    siapOper: siap, siapOperTotal: siapN[0]?.n || 0,
+    siapOper: siap, siapOperTotal: siapN[0]?.n || 0, stok,
     fu: { selesai: selesai[0]?.n || 0, sisa: due.length, terlambat: due.filter(r => r.next_fu < hariIni).length,
       daftar: due.slice(0, 6).map(r => ({ ...r, terlambat: r.next_fu < hariIni, milikSaya: r.created_by === user.username })) },
   };
@@ -89,7 +91,7 @@ async function berandaMarcom(sql, user, hariIni) {
 async function berandaSales(sql, user, hariIni, semua) {
   const awalBulan = hariIni.slice(0, 8) + '01';
   const nama = semua ? null : user.name;
-  const [baru, due, selesai, status, reserved, jual, trx, manual, pos] = await Promise.all([
+  const [baru, due, selesai, status, reserved, jual, stok] = await Promise.all([
     // Lead yang dioper ke saya (bukan input saya sendiri) dan belum saya hubungi sejak dioper
     sql`SELECT l.id, l.lead_code, l.nama, l.wa, l.project, l.status, a.created_at AS dioper, COALESCE(u.name, a.oleh) AS oleh
       FROM leads l
@@ -118,20 +120,9 @@ async function berandaSales(sql, user, hariIni, semua) {
       JOIN leads l ON l.lead_code = t.lead_code
       JOIN LATERAL (SELECT COALESCE(t.nilai_jual, t.nilai, 0) AS nilai) x ON true
       WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date`,
-    // Stok unit (sama dengan peta Master Stock): transaksi terakhir per unit + penandaan manual
-    sql`SELECT t.jenis, t.unit, COALESCE(NULLIF(t.project, ''), l.project, '') AS project FROM transactions t
-      LEFT JOIN leads l ON l.lead_code = t.lead_code WHERE t.unit IS NOT NULL AND t.unit <> '' ORDER BY t.id`.catch(() => []),
-    sql`SELECT project, unit, status FROM unit_manual`.catch(() => []),
-    sql`SELECT project, unit FROM unit_positions`.catch(() => []),
+    // Stok unit: perhitungan yang sama persis dengan halaman Master Stock (lib/stok.js)
+    ringkasStok(sql).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
-  const m = {};
-  trx.forEach(t => { if (!t.project) return; const k = t.project + '|' + t.unit; m[k] = t.jenis === 'Batal' ? null : t.jenis === 'Reserved' ? 'reserved' : 'terjual'; });
-  manual.forEach(x => { const k = x.project + '|' + x.unit; m[k] = x.status === 'Terjual' ? 'terjual' : x.status === 'Reserved' ? 'reserved' : null; });
-  const stok = {};
-  pos.forEach(p => {
-    const s = stok[p.project] || (stok[p.project] = { project: p.project, total: 0, terjual: 0, reserved: 0 });
-    s.total++; const st = m[p.project + '|' + p.unit]; if (st === 'terjual') s.terjual++; else if (st === 'reserved') s.reserved++;
-  });
   return {
     peran: 'sales', hariIni,
     baruDioper: baru.map(r => ({ ...r, menit: Math.max(0, Math.round((Date.now() - new Date(r.dioper).getTime()) / 60000)) })),
@@ -139,7 +130,7 @@ async function berandaSales(sql, user, hariIni, semua) {
       daftar: due.slice(0, 6).map(r => ({ ...r, terlambat: r.next_fu < hariIni })) },
     status: Object.fromEntries(status.map(r => [r.status, r.n])), reserved: reserved[0]?.n || 0,
     jual: { n: jual[0]?.n || 0, nilai: Number(jual[0]?.nilai || 0) },
-    stok: Object.values(stok).sort((a, b) => b.total - a.total),
+    stok,
   };
 }
 

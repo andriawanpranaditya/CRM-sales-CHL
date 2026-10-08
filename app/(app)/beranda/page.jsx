@@ -54,6 +54,22 @@ function BarisFU({ r, hariIni, tombol, catatan }) {
   );
 }
 
+// Sisa unit per project — angka sama dengan halaman Master Stock (daftar master unit di Settings)
+function KartuStok({ stok }) {
+  if (!stok || !stok.length) return null;
+  return (
+    <section className="bd-card bd-span2">
+      <div className="bd-head"><h2>Unit tersedia</h2><Link href="/stock" className="bd-more">Buka peta siteplan</Link></div>
+      {stok.map(x => (
+        <div key={x.project} className="bd-stok">
+          <div className="bd-head"><b>{x.project}</b><span><b className="bd-gold">{x.tersedia}</b> <span className="hint">tersedia dari {x.total} unit</span></span></div>
+          <div className="bd-bar tipis"><div style={{ width: Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100) + '%' }} /></div>
+          <span className="hint">{x.terjual} terjual · {x.reserved} reserved</span>
+        </div>))}
+    </section>
+  );
+}
+
 function Marcom({ d }) {
   const f = d.fu, totalFU = f.selesai + f.sisa;
   const judul = d.siapOperTotal ? `${d.siapOperTotal} lead hangat siap dioper ke sales`
@@ -101,6 +117,7 @@ function Marcom({ d }) {
             tombol={<Link className="bd-btn ghost" href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)}>Follow up</Link>} />))
           : <p className="bd-empty">Tidak ada follow up yang jatuh tempo.</p>}
       </section>
+      <KartuStok stok={d.stok} />
     </div>
   </>);
 }
@@ -146,15 +163,7 @@ function Sales({ d }) {
             tombol={<Link className="bd-btn" href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)}>Follow up</Link>} />))
           : <p className="bd-empty">Tidak ada follow up yang jatuh tempo. Cek lead Warm dan Hot di Database Lead.</p>}
       </section>
-      {d.stok.length > 0 && <section className="bd-card bd-span2">
-        <div className="bd-head"><h2>Unit tersedia</h2><Link href="/stock" className="bd-more">Buka peta siteplan</Link></div>
-        {d.stok.map(x => { const sisa = x.total - x.terjual - x.reserved; return (
-          <div key={x.project} className="bd-stok">
-            <div className="bd-head"><b>{x.project}</b><span><b className="bd-gold">{sisa}</b> <span className="hint">dari {x.total} unit</span></span></div>
-            <div className="bd-bar tipis"><div style={{ width: Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100) + '%' }} /></div>
-            <span className="hint">{x.terjual} terjual · {x.reserved} reserved</span>
-          </div>); })}
-      </section>}
+      <KartuStok stok={d.stok} />
     </div>
   </>);
 }
