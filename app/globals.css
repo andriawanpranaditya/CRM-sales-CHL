@@ -301,3 +301,76 @@ th.num{text-align:right}
 .theme-btn{width:36px;height:36px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .side-theme{padding:10px 16px 0;display:flex;justify-content:center}
 @media(max-width:760px){.side-theme{display:none}}
+
+/* ===== Beranda Marcom & Sales ===== */
+.bd{max-width:1080px}
+.bd-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bd-hello{margin:6px 0 2px;color:var(--muted);font-weight:600}
+.bd-title{font-size:28px;font-weight:800;letter-spacing:-.6px;line-height:1.15;margin:0 0 16px;max-width:30ch}
+.bd-quick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.bd-quick a{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:700;font-size:13.5px}
+.bd-quick a:hover{border-color:var(--brass)}
+.bd-quick a.utama{background:var(--side-active-bg);border-color:var(--side-active-bg);color:var(--side-active-fg)}
+.bd-quick .ico{display:inline-flex;color:inherit}
+.bd-quick a:not(.utama) .ico{color:var(--brass)}
+.bd-quick a:focus-visible,.bd-btn:focus-visible,.bd-tile:focus-visible,.bd-more:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.bd-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.bd-span2{grid-column:span 2}
+.bd-card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px 20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;min-width:0}
+.bd-hero{background:var(--gold);color:var(--on-gold);border-radius:28px;padding:22px 24px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.bd-hero-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:700}
+.bd-chip-dark{padding:5px 12px;border-radius:999px;background:#12302A;color:#E2BE7A;font-size:12px;font-weight:800}
+.bd-hero-num{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bd-hero-num b{font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1}
+.bd-hero-num span{font-size:17px;font-weight:700}
+.bd-bar{height:10px;border-radius:999px;background:rgba(11,31,25,.15);overflow:hidden}
+.bd-bar>div{height:100%;border-radius:999px;background:#12302A}
+.bd-card .bd-bar{background:var(--gray-soft)}
+.bd-card .bd-bar>div{background:var(--red)}
+.bd-bar.tipis{height:8px}
+.bd-chips{display:flex;gap:8px;flex-wrap:wrap}
+.bd-chips span{padding:7px 12px;border-radius:999px;background:rgba(11,31,25,.1);font-size:13px;font-weight:600}
+.bd-label{font-size:13px;color:var(--muted);font-weight:600}
+.bd-num{font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.bd-gold{color:var(--brass);font-size:20px}
+.bd-warn{color:var(--red);font-weight:700;font-size:13px;text-decoration:none}
+.bd-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.bd-head h2{font-size:17px;font-weight:800;margin:0;letter-spacing:-.2px}
+.bd-row{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:16px;background:var(--paper)}
+.bd-row.telat{box-shadow:inset 3px 0 0 var(--red)}
+.bd-row-main{flex:1;min-width:0}
+.bd-row-main b{font-size:14px}
+.bd-row-sub{font-size:12px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-row-sub.merah{color:var(--red);font-weight:700}
+.bd-btn{flex:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border-radius:999px;background:var(--side-active-bg);color:var(--side-active-fg);font-weight:700;font-size:13px;text-decoration:none}
+.bd-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.bd-btn.gold{background:var(--gold);color:var(--on-gold)}
+.bd-more{font-size:13px;font-weight:700;color:var(--brass);text-decoration:none}
+.bd-empty{color:var(--muted);font-size:13px;margin:4px 0}
+.bd-fu-top{display:flex;align-items:center;gap:14px;font-size:14px;font-weight:600}
+.bd-ring{width:72px;height:72px;flex:none;border-radius:999px;display:flex;align-items:center;justify-content:center}
+.bd-ring-in{width:54px;height:54px;border-radius:999px;background:var(--card);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
+.bd-hero .bd-ring-in{background:var(--gold);color:var(--on-gold)}
+.bd-alert{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:10px;border-radius:20px;background:#12302A;color:#EEF3EE}
+.bd-alert .bd-row-sub{color:#C9D8D0}
+.bd-alert .dot{width:10px;height:10px;flex:none;border-radius:999px;background:#F08A6B;box-shadow:0 0 0 4px rgba(240,138,107,.2)}
+.bd-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.bd-tile{display:flex;flex-direction:column;align-items:center;gap:1px;padding:10px 4px;border-radius:14px;background:var(--paper);text-decoration:none;color:var(--ink)}
+.bd-tile b{font-size:20px;font-weight:800}
+.bd-tile span{font-size:10.5px;font-weight:700;color:var(--muted);text-align:center;line-height:1.2}
+.bd-tile .t-Warm{color:var(--brass)}.bd-tile .t-Hot{color:var(--red)}.bd-tile .t-SiteVisit,.bd-tile .t-Appointment{color:var(--blue)}
+.bd-stok{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+@media(max-width:980px){.bd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){
+  .bd-title{font-size:22px;margin-bottom:12px}
+  .bd-grid{grid-template-columns:1fr;gap:12px}
+  .bd-span2{grid-column:auto}
+  .bd-quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .bd-quick a,.bd-quick a.utama{flex-direction:column;gap:6px;padding:0;background:none;border:0;color:var(--ink);font-size:10.5px;text-align:center;line-height:1.2}
+  .bd-quick .ico{width:52px;height:52px;border-radius:18px;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--line);color:var(--brass)}
+  .bd-quick a.utama .ico{background:var(--side-active-bg);border-color:var(--side-active-bg);color:var(--side-active-fg)}
+  .bd-hero-num b{font-size:46px}
+  .bd-hero,.bd-card{border-radius:22px;padding:16px}
+  .bd-row{padding:10px}
+  .bd-btn{padding:0 13px}
+}

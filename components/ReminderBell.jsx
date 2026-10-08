@@ -86,7 +86,7 @@ export default function ReminderBell({ user }) {
   }
 
   const Item = ({ r, late }) => (
-    <a href="/form" className="rem-item" style={late ? { borderLeftColor: 'var(--red)' } : {}}>
+    <a href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)} className="rem-item" style={late ? { borderLeftColor: 'var(--red)' } : {}}>
       <span>
         <b>{r.nama}</b> <span className="hint">({r.lead_code}{r.project ? ' · ' + r.project : ''})</span>
         {user.role !== 'sales' && (r.sales || r.markom)

@@ -53,6 +53,8 @@ const jamBucket = (j) => { const h = parseInt(String(j || '').split(/[:.]/)[0], 
 
 export default function MarcomPage() {
   const [tab, setTab] = useState('insight');
+  // Tautan dari Beranda: /marcom?tab=konten|iklan
+  useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['insight', 'konten', 'iklan', 'tim', 'web', 'diagnosa'].includes(t)) setTab(t); }, []);
   const [data, setData] = useState(null);
   const [set, setSet] = useState({ project: [] });
   const [busy, setBusy] = useState(false);

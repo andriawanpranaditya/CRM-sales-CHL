@@ -12,6 +12,8 @@ export default function LeadsPage() {
   const [fDate, setFDate] = useState('');
   const [fSales, setFSales] = useState('');
   const [fStatus, setFStatus] = useState('');
+  // Tautan dari Beranda: /leads?status=Warm
+  useEffect(() => { const st = new URLSearchParams(window.location.search).get('status'); if (st) setFStatus(st); }, []);
   const [fAsal, setFAsal] = useState('');
   const asalLead = l => l.creator_role === 'markom' ? (l.sales ? 'Marcom → Sales' : 'Marcom (belum diserahkan)') : 'Non-Marcom'; // asal lead: marcom belum diserahkan / marcom → sales / non-marcom
   const [sortBy, setSortBy] = useState('terbaru');

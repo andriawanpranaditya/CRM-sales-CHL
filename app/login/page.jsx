@@ -20,7 +20,7 @@ export default function LoginPage() {
     });
     const d = await res.json(); setBusy(false);
     if (!res.ok) { setErr(d.error || 'Gagal login'); return; }
-    r.push(d.user.role === 'sales' ? '/form' : '/dashboard');
+    r.push(['sales', 'markom'].includes(d.user.role) ? '/beranda' : '/dashboard');
     r.refresh();
   }
 

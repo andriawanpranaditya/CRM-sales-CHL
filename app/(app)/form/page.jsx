@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 
@@ -280,6 +280,25 @@ export default function FormPage() {
   const bolehCampaign = me && ['markom', 'manager', 'ceo'].includes(me.role);
   useEffect(() => { if (bolehCampaign) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [bolehCampaign]);
   useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
+
+  // Tautan langsung dari Beranda / lonceng: /form?tab=fu|l2s|trx|lead&lead=KODE — dijalankan sekali setelah data siap
+  const tautanDiproses = useRef(false);
+  useEffect(() => {
+    if (tautanDiproses.current || !me || !leads.length) return;
+    tautanDiproses.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('tab'), kode = q.get('lead');
+    const sah = me.role === 'markom' ? ['lead', 'fu', 'l2s'] : ['lead', 'fu', 'trx'];
+    const tujuan = sah.includes(t) ? t : (kode ? 'fu' : null);
+    if (tujuan) setTab(tujuan);
+    const l = kode ? leads.find(x => x.lead_code === kode) : null;
+    if (!l) return;
+    if (tujuan === 'l2s') setL2s(v => ({ ...v, lead_code: kode }));
+    else if (tujuan === 'fu') {
+      if (me.role === 'markom') setFu(v => ({ ...v, lead_code: kode }));
+      else setFu(v => ({ ...v, lead_code: kode, status: l.status || '', balas: null, wa_pesan: templateSales(l) }));
+    }
+  }, [me, leads]); // eslint-disable-line
 
   // Template FU markom sesuai project & day
   function templateDayFU(day, l) {

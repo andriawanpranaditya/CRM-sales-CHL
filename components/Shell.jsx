@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
+  { href: '/beranda', ico: '⌂', label: 'Beranda', roles: ['markom', 'sales'] },
   { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
@@ -66,11 +67,11 @@ export default function Shell({ user, children }) {
 
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
-    if (user.role === 'sales' && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/form');
+    if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
     if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log'))) router.replace('/dashboard');
-    if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom')) router.replace('/form');
+    if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten')) router.replace('/beranda');
   }, [path, user.role, router]);
 
   // Log akses: setiap halaman yang dibuka dicatat (server menghitung halaman sama dalam 10 menit sekali).
