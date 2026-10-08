@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -8,6 +8,9 @@ export default function LoginPage() {
   const [password, setP] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get('nonaktif')) setErr('Sesi berakhir — akun ini sudah dinonaktifkan. Hubungi manager bila perlu akses.'); } catch {}
+  }, []);
 
   async function submit(e) {
     e.preventDefault(); setErr(''); setBusy(true);

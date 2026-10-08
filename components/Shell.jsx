@@ -19,6 +19,7 @@ const MENUS = [
   { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'markom'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
+  { href: '/log', ico: '🕘', label: 'Log Aktivitas', roles: ['manager'] },
 ];
 
 export default function Shell({ user, children }) {
@@ -32,6 +33,16 @@ export default function Shell({ user, children }) {
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     if (user.role === 'markom' && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom')) router.replace('/form');
   }, [path, user.role, router]);
+
+  // Log akses: setiap halaman yang dibuka dicatat (server menghitung halaman sama dalam 10 menit sekali).
+  // Bila akun sudah dinonaktifkan manager, sesi diakhiri dan user diarahkan ke halaman login.
+  useEffect(() => {
+    let pwa = false;
+    try { pwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch {}
+    fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ halaman: path, pwa }) })
+      .then(r => { if (r.status === 401) { router.push('/login?nonaktif=1'); router.refresh(); } })
+      .catch(() => {});
+  }, [path]); // eslint-disable-line
 
   // Bersih otomatis: penanda notifikasi/suara harian yang berumur > 7 hari
   useEffect(() => {
@@ -65,11 +76,11 @@ export default function Shell({ user, children }) {
   async function gantiPassword() {
     const lama = prompt('Password lama:');
     if (lama === null || lama === '') return;
-    const baru = prompt('Password baru (min. 6 karakter):');
+    const baru = prompt('Password baru (min. 5 karakter):');
     if (baru === null || baru === '') return;
-    const res = await fetch('/api/auth/password', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lama, baru }),
+    const res = await fetch('/api/users', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword: lama, newPassword: baru }),
     });
     const d = await res.json().catch(() => ({}));
     alert(res.ok ? 'Password berhasil diganti. Gunakan password baru saat login berikutnya.' : (d.error || 'Gagal mengganti password'));

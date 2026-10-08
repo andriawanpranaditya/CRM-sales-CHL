@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog, bolehUbah } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,12 +86,12 @@ export async function GET(req) {
   if (url.searchParams.get('list') === 'untagged') {
     const pj = url.searchParams.get('project') || null;
     const a1 = url.searchParams.get('d1') || null, a2 = url.searchParams.get('d2') || null;
-    const own = user.role === 'markom' ? user.username : null;
-    const rows = await sql`SELECT id, lead_code, nama, tgl, sumber, project, status FROM leads
+    const tim = user.role === 'markom'; // marcom: seluruh lead tim marcom
+    const rows = await sql`SELECT id, lead_code, nama, tgl, sumber, project, status FROM leads l
       WHERE COALESCE(campaign, '') = ''
         AND (${pj}::text IS NULL OR project = ${pj})
         AND (${a1}::date IS NULL OR tgl >= ${a1}::date) AND (${a2}::date IS NULL OR tgl <= ${a2}::date)
-        AND (${own}::text IS NULL OR created_by = ${own})
+        AND (NOT ${tim}::boolean OR EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom'))
       ORDER BY tgl DESC NULLS LAST, id DESC LIMIT 500`;
     return Response.json(rows);
   }
@@ -408,7 +409,7 @@ export async function GET(req) {
   return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await akses(); if (err) return err;
   const b = await req.json();
   const sql = db();
@@ -463,7 +464,7 @@ export async function POST(req) {
   return Response.json({ error: 'Jenis data tidak dikenal' }, { status: 400 });
 }
 
-export async function PATCH(req) {
+async function _PATCH(req) {
   const { user, err } = await akses(); if (err) return err;
   const b = await req.json();
   const sql = db();
@@ -496,10 +497,11 @@ export async function PATCH(req) {
     if (!b.campaign) return Response.json({ error: 'Pilih campaign tujuan' }, { status: 400 });
     const ada = await sql`SELECT 1 FROM mi_campaigns WHERE nama = ${b.campaign}`;
     if (!ada.length) return Response.json({ error: 'Campaign tidak terdaftar' }, { status: 400 });
-    const own = user.role === 'markom' ? user.username : null;
-    const r = await sql`UPDATE leads SET campaign = ${b.campaign},
+    const tim = user.role === 'markom';
+    const r = await sql`UPDATE leads l SET campaign = ${b.campaign},
         konten = CASE WHEN ${b.konten || ''} = '' THEN konten ELSE ${b.konten || ''} END, updated_at = now()
-      WHERE id = ANY(${ids}::int[]) AND (${own}::text IS NULL OR created_by = ${own}) RETURNING id`;
+      WHERE id = ANY(${ids}::int[])
+        AND (NOT ${tim}::boolean OR EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom')) RETURNING id`;
     return Response.json({ ok: true, jumlah: r.length });
   }
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -522,7 +524,7 @@ export async function PATCH(req) {
   return Response.json({ error: 'Jenis data tidak dikenal' }, { status: 400 });
 }
 
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { user, err } = await akses(); if (err) return err;
   const url = new URL(req.url);
   const jenis = url.searchParams.get('jenis');
@@ -532,29 +534,34 @@ export async function DELETE(req) {
   if (jenis === 'amort') {
     const r = await sql`SELECT created_by FROM mi_amort WHERE id = ${id}`;
     if (!r.length) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
-    if (user.role !== 'manager' && r[0].created_by !== user.username) return Response.json({ error: 'Hanya manager / pembuatnya yang boleh menghapus' }, { status: 403 });
+    if (!(await bolehUbah(sql, user, r[0].created_by))) return Response.json({ error: 'Hanya manager / tim Marcom yang boleh menghapus' }, { status: 403 });
     await sql`DELETE FROM mi_amort WHERE id = ${id}`;
     return Response.json({ ok: true });
   }
   const tabel = { campaign: 'mi_campaigns', konten: 'mi_contents', iklan: 'mi_ads' }[jenis];
   if (!tabel) return Response.json({ error: 'Jenis data tidak dikenal' }, { status: 400 });
-  // Marcom hanya boleh menghapus data yang ia input sendiri; manager bebas
+  // Marcom boleh menghapus data milik tim marcom (semua akun berperan marcom); manager bebas
   if (jenis === 'campaign') {
     const r = await sql`SELECT created_by FROM mi_campaigns WHERE id = ${id}`;
     if (!r.length) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
-    if (user.role !== 'manager' && r[0].created_by !== user.username) return Response.json({ error: 'Hanya manager / pembuatnya yang boleh menghapus' }, { status: 403 });
+    if (!(await bolehUbah(sql, user, r[0].created_by))) return Response.json({ error: 'Hanya manager / tim Marcom yang boleh menghapus' }, { status: 403 });
     await sql`DELETE FROM mi_campaigns WHERE id = ${id}`;
   } else if (jenis === 'konten') {
     const r = await sql`SELECT created_by FROM mi_contents WHERE id = ${id}`;
     if (!r.length) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
-    if (user.role !== 'manager' && r[0].created_by !== user.username) return Response.json({ error: 'Hanya manager / pembuatnya yang boleh menghapus' }, { status: 403 });
+    if (!(await bolehUbah(sql, user, r[0].created_by))) return Response.json({ error: 'Hanya manager / tim Marcom yang boleh menghapus' }, { status: 403 });
     await sql`DELETE FROM mi_content_metrics WHERE content_id = ${id}`;
     await sql`DELETE FROM mi_contents WHERE id = ${id}`;
   } else {
     const r = await sql`SELECT created_by FROM mi_ads WHERE id = ${id}`;
     if (!r.length) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
-    if (user.role !== 'manager' && r[0].created_by !== user.username) return Response.json({ error: 'Hanya manager / pembuatnya yang boleh menghapus' }, { status: 403 });
+    if (!(await bolehUbah(sql, user, r[0].created_by))) return Response.json({ error: 'Hanya manager / tim Marcom yang boleh menghapus' }, { status: 403 });
     await sql`DELETE FROM mi_ads WHERE id = ${id}`;
   }
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Analisa Marcom', _POST);
+export const PATCH = denganLog('Analisa Marcom', _PATCH);
+export const DELETE = denganLog('Analisa Marcom', _DELETE);

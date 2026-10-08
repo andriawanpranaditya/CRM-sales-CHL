@@ -11,11 +11,13 @@ export async function GET() {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
   const rows = user.role === 'markom'
-    ? await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
-        FROM leads
-        WHERE created_by = ${user.username} AND next_fu IS NOT NULL AND next_fu::date <= ${today}
-          AND status NOT IN ('Closing', 'Drop', 'Lost')
-        ORDER BY next_fu`
+    // Marcom: pengingat FU seluruh lead tim marcom (nama penginput ikut ditampilkan)
+    ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
+          CASE WHEN l.created_by <> ${user.username} THEN u.name ELSE NULL END AS markom
+        FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
+        WHERE l.next_fu IS NOT NULL AND l.next_fu::date <= ${today}
+          AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+        ORDER BY l.next_fu`
     : user.role !== 'sales'
     ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
           CASE WHEN u.role = 'markom' THEN u.name ELSE NULL END AS markom

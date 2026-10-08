@@ -1,5 +1,6 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +18,12 @@ export async function GET(req) {
   const semua = new URL(req.url).searchParams.get('all') === '1';
   let rows;
   if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
-  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.created_by = ${user.username} ORDER BY f.tgl DESC, f.id DESC`;
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY f.tgl DESC, f.id DESC`;
   else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`;
   return Response.json(rows);
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.lead_code || !b.detail) return Response.json({ error: 'ID Lead dan Detail Komunikasi wajib diisi' }, { status: 400 });
@@ -55,3 +56,6 @@ export async function POST(req) {
   }
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Follow Up', _POST);

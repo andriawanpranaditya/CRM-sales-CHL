@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function GET(req) {
 }
 
 // POST upload/replace berkas: { project, unit, lead_code, jenis, filename, mime, data(base64) }
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || !b.lead_code) return Response.json({ error: 'Pilih lead, project & unit dulu' }, { status: 400 });
@@ -58,7 +59,7 @@ export async function POST(req) {
 }
 
 // DELETE: hapus berkas yang salah unggah (selama transaksi belum terkunci)
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { err } = await requireUser(); if (err) return err;
   const { searchParams } = new URL(req.url);
   const project = searchParams.get('project'), unit = searchParams.get('unit');
@@ -70,3 +71,7 @@ export async function DELETE(req) {
   await sql`DELETE FROM trx_files WHERE project = ${project} AND unit = ${unit} AND lead_code = ${lead} AND jenis = ${jenis}`;
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Berkas Transaksi', _POST, ({ body }) => ({ aksi: 'Upload', detail: [body.lead_code, body.jenis, body.project, body.unit].filter(Boolean).join(' · ') }));
+export const DELETE = denganLog('Berkas Transaksi', _DELETE, ({ url }) => ({ detail: ['lead_code', 'jenis', 'project', 'unit'].map(k => url.searchParams.get(k)).filter(Boolean).join(' · ') }));

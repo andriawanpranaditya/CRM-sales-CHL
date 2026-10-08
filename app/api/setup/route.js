@@ -1,5 +1,7 @@
 import { db, siapkanStatusLog, DEFAULT_SETTINGS } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { siapkanLog } from '@/lib/log';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -251,9 +253,30 @@ export async function GET(req) {
     seeded = true;
   }
 
+  // Log aktivitas pengguna
+  await siapkanLog(sql);
+
+  // Pemulihan data tim Marcom: lead/FU dari akun marcom yang DULU dihapus permanen kehilangan label "Marcom"
+  // (pembuatnya tak lagi ada di tabel users). Akun arsip NONAKTIF dibuat untuk penginput yatim bernama mirip
+  // marcom/markom agar datanya kembali terbaca sebagai data tim Marcom. Akun arsip tidak bisa dipakai login.
+  let arsipMarcom = [];
+  try {
+    const yatim = await sql`SELECT DISTINCT l.created_by AS u FROM leads l
+      WHERE COALESCE(l.created_by, '') <> '' AND l.created_by !~ '^auto-'
+        AND NOT EXISTS (SELECT 1 FROM users x WHERE x.username = l.created_by)
+        AND l.created_by ~* 'mar[ck]om'`;
+    for (const r of yatim) {
+      const h = await bcrypt.hash(randomUUID(), 10);
+      await sql`INSERT INTO users (username, name, role, password_hash, active)
+        VALUES (${r.u}, ${r.u + ' (arsip)'}, 'markom', ${h}, false) ON CONFLICT DO NOTHING`;
+      arsipMarcom.push(r.u);
+    }
+  } catch (e) { console.error('arsip marcom', e); }
+
   return Response.json({
     ok: true,
     message: 'Database siap.',
+    arsip_marcom: arsipMarcom.length ? 'Data akun marcom lama dipulihkan sebagai akun arsip nonaktif: ' + arsipMarcom.join(', ') : 'Tidak ada data marcom yatim.',
     akun_pertama: seeded
       ? 'Akun manager dibuat — username: manager, password: manager123 (SEGERA ganti setelah login).'
       : 'Akun sudah ada, tidak dibuat ulang.',

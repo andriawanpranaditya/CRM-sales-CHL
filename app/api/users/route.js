@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export async function GET() {
   return Response.json({ error: 'Hanya manager' }, { status: 403 });
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.username || !b.name || !b.password) return Response.json({ error: 'Username, nama, dan password wajib diisi' }, { status: 400 });
@@ -33,7 +34,7 @@ export async function POST(req) {
   return Response.json({ ok: true });
 }
 
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { user, err } = await requireUser('manager'); if (err) return err;
   const { searchParams } = new URL(req.url);
   const id = Number(searchParams.get('id'));
@@ -46,12 +47,27 @@ export async function DELETE(req) {
     const mgr = await sql`SELECT count(*)::int AS n FROM users WHERE role = 'manager' AND active = true AND id <> ${id}`;
     if (!mgr[0].n) return Response.json({ error: 'Tidak bisa menghapus manager terakhir' }, { status: 400 });
   }
+  // Akun Marcom yang sudah punya data TIDAK dihapus permanen, melainkan dinonaktifkan:
+  // laporan & Analisa Marcom mengenali "lead dari Marcom" lewat peran akun penginputnya — bila akunnya
+  // dihapus, lead-lead tsb kehilangan label Marcom dan hilang dari akses tim marcom.
+  if (t[0].role === 'markom') {
+    const u = t[0].username;
+    const ada = await sql`SELECT (SELECT count(*) FROM leads WHERE created_by = ${u})::int
+      + (SELECT count(*) FROM followups WHERE created_by = ${u})::int AS n`;
+    let n = ada[0]?.n || 0;
+    try { n += (await sql`SELECT (SELECT count(*) FROM mi_contents WHERE created_by = ${u})::int + (SELECT count(*) FROM mi_ads WHERE created_by = ${u})::int AS n`)[0]?.n || 0; } catch {}
+    if (n > 0) {
+      await sql`UPDATE users SET active = false WHERE id = ${id}`;
+      return Response.json({ ok: true, dinonaktifkan: true, nama: t[0].name,
+        pesan: `Akun ${t[0].name} punya ${n} data (lead/FU/konten/iklan) sehingga DINONAKTIFKAN, bukan dihapus — tidak bisa login lagi, tetapi datanya tetap terhubung sebagai data tim Marcom.` });
+    }
+  }
   await sql`DELETE FROM users WHERE id = ${id}`;
   // Catatan: riwayat lead/FU/transaksi atas nama user ini TETAP tersimpan (nama tersimpan sbg teks)
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, nama: t[0].name });
 }
 
-export async function PATCH(req) {
+async function _PATCH(req) {
   const { user, err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -77,11 +93,12 @@ export async function PATCH(req) {
     const plain = t[0] && t[0].role !== 'manager' ? b.password : null;
     await sql`UPDATE users SET password_hash = ${hash}, password_plain = ${plain} WHERE id = ${b.id}`;
   }
-  return Response.json({ ok: true });
+  const nm = await sql`SELECT name FROM users WHERE id = ${b.id}`;
+  return Response.json({ ok: true, nama: nm[0]?.name || '' });
 }
 
 // Ganti password SENDIRI (semua role, termasuk sales dari Form Input)
-export async function PUT(req) {
+async function _PUT(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.oldPassword || !b.newPassword) return Response.json({ error: 'Password lama dan baru wajib diisi' }, { status: 400 });
@@ -96,3 +113,9 @@ export async function PUT(req) {
   await sql`UPDATE users SET password_hash = ${hash}, password_plain = ${u.role === 'sales' ? b.newPassword : null} WHERE id = ${user.id}`;
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Pengguna', _POST, ({ body }) => ({ aksi: 'Input', detail: `akun baru ${body.username} (${body.name}) · peran ${body.role || 'sales'}` }));
+export const DELETE = denganLog('Pengguna', _DELETE, ({ out }) => ({ aksi: out.dinonaktifkan ? 'Nonaktifkan' : 'Hapus', detail: `akun ${out.nama || ''}` + (out.dinonaktifkan ? ' · punya data, dinonaktifkan agar data tetap terhubung' : '') }));
+export const PATCH = denganLog('Pengguna', _PATCH, ({ body, out }) => ({ detail: [`akun ${out.nama || ('id ' + body.id)}`, typeof body.active === 'boolean' ? (body.active ? 'diaktifkan' : 'dinonaktifkan') : '', body.role ? 'peran → ' + body.role : '', body.password ? 'reset password' : '', typeof body.email === 'string' ? 'email' : '', typeof body.wa === 'string' ? 'no. WA' : ''].filter(Boolean).join(' · ') }));
+export const PUT = denganLog('Pengguna', _PUT, () => ({ aksi: 'Ganti password', detail: 'password sendiri' }));

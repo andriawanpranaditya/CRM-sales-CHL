@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api } from '@/components/util';
+import { api, catatUnduh } from '@/components/util';
 
 const IMG = p => /BIO/i.test(p) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
 const COLOR = { merah: '#B3402F', kuning: '#C9922E' };
@@ -59,6 +59,7 @@ export default function StockPage() {
 
   // ===== Unduh Master Stock sebagai PDF (peta bertanda + rekap unit) =====
   async function downloadPDF() {
+    catatUnduh('Master Stock', 'PDF Master Stock');
     setPdfBusy(true);
     try {
       const { jsPDF } = await import('jspdf');

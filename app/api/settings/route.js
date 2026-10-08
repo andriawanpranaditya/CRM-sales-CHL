@@ -1,5 +1,6 @@
 import { db, DEFAULT_SETTINGS, DEFAULT_UNITS } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export async function GET() {
   return Response.json(out);
 }
 
-export async function PUT(req) {
+async function _PUT(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   const sql = db();
@@ -31,3 +32,6 @@ export async function PUT(req) {
   }
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const PUT = denganLog('Settings', _PUT, ({ body }) => ({ detail: 'daftar: ' + Object.keys(body).join(', ') }));

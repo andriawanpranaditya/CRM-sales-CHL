@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export async function GET() {
 }
 
 // POST: simpan/pindah posisi unit — khusus manager
-export async function POST(req) {
+async function _POST(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || typeof b.x !== 'number' || typeof b.y !== 'number') {
@@ -63,7 +64,7 @@ export async function POST(req) {
 }
 
 // PUT: status manual (Terjual/Reserved/Kosong; null = ikut transaksi) — khusus manager
-export async function PUT(req) {
+async function _PUT(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit) return Response.json({ error: 'project & unit wajib' }, { status: 400 });
@@ -83,7 +84,7 @@ export async function PUT(req) {
   return Response.json({ ok: true });
 }
 
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit) return Response.json({ error: 'project & unit wajib' }, { status: 400 });
@@ -91,3 +92,8 @@ export async function DELETE(req) {
   await sql`DELETE FROM unit_positions WHERE project = ${b.project} AND unit = ${b.unit}`;
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Master Stock', _POST, ({ body }) => ({ aksi: 'Update', detail: [body.project, body.unit, 'posisi titik di peta'].join(' · ') }));
+export const PUT = denganLog('Master Stock', _PUT, ({ body }) => ({ aksi: 'Update', detail: [body.project, body.unit, 'tanda: ' + (body.status || 'dilepas'), body.nama].filter(Boolean).join(' · ') }));
+export const DELETE = denganLog('Master Stock', _DELETE);

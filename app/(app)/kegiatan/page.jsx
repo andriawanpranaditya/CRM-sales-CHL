@@ -131,7 +131,7 @@ export default function KegiatanPage() {
                 <td className="num" data-label="Biaya">{Number(k.biaya) ? fmtRp(k.biaya) : '—'}</td>
                 <td data-label="Catatan">{k.catatan || '—'}</td>
                 <td data-label="Aksi">
-                  {me && (me.role === 'manager' || k.created_by === me.username) ? (
+                  {me && (me.role === 'manager' || k.created_by === me.username || k.bisa_ubah) ? (
                     <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                       <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => mulaiEdit(k)}>Edit</button>
                       <button className="sort-btn" style={{ padding: '3px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(k)}>Hapus</button>

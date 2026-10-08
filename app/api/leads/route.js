@@ -1,5 +1,6 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,13 @@ export async function GET(req) {
   let rows;
   // creator_role: peran pembuat lead — dipakai laporan "lead dari Marcom"
   if (user.role === 'sales') rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by WHERE l.sales = ${user.name} ORDER BY l.id`;
-  else if (user.role === 'markom' && !semua) rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by WHERE l.created_by = ${user.username} ORDER BY l.id`;
+  // Marcom: satu tim berbagi data — semua lead yang diinput akun berperan marcom (aktif maupun nonaktif)
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY l.id`;
   else rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by ORDER BY l.id`;
   return Response.json(rows);
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
@@ -73,7 +75,7 @@ export async function POST(req) {
   return Response.json({ ok: true, id, lead_code: code });
 }
 
-export async function PATCH(req) {
+async function _PATCH(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -112,11 +114,16 @@ export async function PATCH(req) {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
   }
-  return Response.json({ ok: true });
+  // Untuk log aktivitas: field yang benar-benar berubah
+  const teks = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '');
+  const sama = (k, a, c) => k === 'budget' ? Number(a || 0) === Number(c || 0)
+    : (k === 'tgl' || k === 'next_fu') ? teks(a).slice(0, 10) === teks(c).slice(0, 10) : String(a ?? '') === String(c ?? '');
+  const berubah = FIELDS.filter(k => k in b && !sama(k, b[k], cur[k]));
+  return Response.json({ ok: true, lead_code: cur.lead_code, nama: m.nama, berubah, oper: operKe || undefined });
 }
 
 // Hapus lead (beserta follow up & transaksinya) atau CLEAR SEMUA data — khusus manager
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   const sql = db();
@@ -128,11 +135,16 @@ export async function DELETE(req) {
     return Response.json({ ok: true, terhapus: { lead: l.length, followup: f.length, transaksi: t.length } });
   }
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
-  const rows = await sql`SELECT lead_code FROM leads WHERE id = ${b.id}`;
+  const rows = await sql`SELECT lead_code, nama FROM leads WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const code = rows[0].lead_code;
   await sql`DELETE FROM transactions WHERE lead_code = ${code}`;
   await sql`DELETE FROM followups WHERE lead_code = ${code}`;
   await sql`DELETE FROM leads WHERE id = ${b.id}`;
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, lead_code: code, nama: rows[0].nama });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Lead', _POST, ({ body, out }) => ({ aksi: 'Input', detail: [out.lead_code, body.nama, body.sumber, body.project, body.sales ? 'PIC ' + body.sales : 'belum ada PIC'].filter(Boolean).join(' · ') }));
+export const PATCH = denganLog('Lead', _PATCH, ({ body, out }) => ({ aksi: out.oper ? 'Oper ke Sales' : 'Update', detail: [out.lead_code, out.nama, out.oper ? 'ke ' + out.oper : '', out.berubah && out.berubah.length ? 'ubah: ' + out.berubah.join(', ') : 'tanpa perubahan'].filter(Boolean).join(' · ') }));
+export const DELETE = denganLog('Lead', _DELETE, ({ body, out }) => body.all === true ? { aksi: 'Hapus SEMUA data', detail: out.terhapus ? `lead ${out.terhapus.lead} · FU ${out.terhapus.followup} · transaksi ${out.terhapus.transaksi}` : '' } : { detail: [out.lead_code, out.nama, 'beserta FU & transaksinya'].filter(Boolean).join(' · ') });

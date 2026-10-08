@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, fmtRp, fmtDate, reminder } from '@/components/util';
+import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
 
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
 
@@ -122,6 +122,7 @@ export default function Dashboard() {
   const walkDStr = Object.entries(walkD).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
 
   async function downloadExcel() {
+    catatUnduh('Dashboard', 'Excel data CRM');
     const ExcelJS = (await import('exceljs')).default;
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
     const potong = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
@@ -564,6 +565,7 @@ export default function Dashboard() {
   });
 
   async function downloadWord(mode = 'word') {
+    catatUnduh('Dashboard', 'Report Sales & Marketing (' + (mode === 'pdf' ? 'PDF' : 'Word') + ')');
     // Ambil logo sebagai base64 agar tertanam di dokumen Word
     let logoTag = '';
     try {

@@ -81,3 +81,10 @@ async function apiInti(url, opts) {
   }
   return d;
 }
+
+// Log aktivitas: catat unduhan data (Excel / report / PDF) — tidak pernah menghalangi proses unduh
+export function catatUnduh(modul, detail) {
+  try {
+    fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unduh: true, modul, detail }) }).catch(() => {});
+  } catch {}
+}

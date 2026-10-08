@@ -19,7 +19,8 @@ export async function GET(req) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
   if (user.role === 'markom' && lead.created_by !== user.username) {
-    return Response.json({ error: 'Lead ini bukan input Anda' }, { status: 403 });
+    const tim = await sql`SELECT 1 FROM users WHERE username = ${lead.created_by || ''} AND role = 'markom' LIMIT 1`;
+    if (!tim.length) return Response.json({ error: 'Lead ini bukan input tim Marcom' }, { status: 403 });
   }
 
   const [assigns, fus, trx] = await Promise.all([

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,7 +109,7 @@ const MASTER63 = [
 ];
 const PROJ = 'BIO DISTRICT';
 
-export async function POST() {
+async function _POST() {
   const { err } = await requireUser('manager'); if (err) return err;
   const sql = db();
 
@@ -175,3 +176,6 @@ export async function POST() {
     dihormati,
   });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Master Stock', _POST, () => ({ aksi: 'Impor', detail: 'Weekly Report' }));

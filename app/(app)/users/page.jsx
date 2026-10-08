@@ -95,7 +95,7 @@ export default function UsersPage() {
                   }}>⇄ Peran</button>
                   <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red)' }} onClick={async () => {
                     if (!confirm('Hapus akun ' + u.name + ' (' + u.username + ')?\n\nAkun tidak bisa login lagi. Riwayat lead, follow up, dan transaksi atas nama ini TETAP tersimpan.')) return;
-                    try { await api('/api/users?id=' + u.id, { method: 'DELETE' }); toast('Akun ' + u.name + ' dihapus'); load(); }
+                    try { const r = await api('/api/users?id=' + u.id, { method: 'DELETE' }); toast(r.dinonaktifkan ? r.pesan : 'Akun ' + u.name + ' dihapus'); load(); }
                     catch (er) { toast(er.message); }
                   }}>🗑 Hapus</button>
                 </span>

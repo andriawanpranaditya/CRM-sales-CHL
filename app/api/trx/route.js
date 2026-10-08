@@ -1,5 +1,6 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ export async function GET() {
   return Response.json(rows);
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.lead_code || !b.nilai) return Response.json({ error: 'ID Lead dan Nilai (Rp) wajib diisi' }, { status: 400 });
@@ -136,7 +137,7 @@ async function sinkronStatus(sql, lead_code) {
 }
 
 // Edit transaksi — khusus manager. Status pipeline lead disinkronkan otomatis.
-export async function PATCH(req) {
+async function _PATCH(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -173,7 +174,7 @@ export async function PATCH(req) {
 }
 
 // Hapus transaksi — khusus manager. Status lead & stok otomatis mengikuti transaksi tersisa.
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -183,3 +184,8 @@ export async function DELETE(req) {
   await sinkronStatus(sql, rows[0].lead_code);
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Transaksi', _POST);
+export const PATCH = denganLog('Transaksi', _PATCH);
+export const DELETE = denganLog('Transaksi', _DELETE);

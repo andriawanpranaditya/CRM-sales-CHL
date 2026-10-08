@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
+import { denganLog, bolehUbah } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +13,15 @@ export async function GET() {
   const rows = user.role === 'sales'
     ? await sql`SELECT * FROM kegiatan WHERE created_by = ${user.username} OR pic ILIKE ${'%' + user.name + '%'} ORDER BY tgl DESC, id DESC`
     : await sql`SELECT * FROM kegiatan ORDER BY tgl DESC, id DESC`;
+  // Penanda boleh edit/hapus: marcom boleh mengubah kegiatan yang diinput sesama tim marcom
+  if (user.role === 'markom') {
+    const tim = new Set((await sql`SELECT username FROM users WHERE role = 'markom'`).map(u => u.username));
+    rows.forEach(k => { k.bisa_ubah = tim.has(k.created_by); });
+  }
   return Response.json(rows);
 }
 
-export async function POST(req) {
+async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   if (!['manager', 'markom', 'sales'].includes(user.role)) {
     return Response.json({ error: 'Peran ini tidak bisa menginput kegiatan' }, { status: 403 });
@@ -31,7 +37,7 @@ export async function POST(req) {
   return Response.json({ ok: true, id: ins[0].id });
 }
 
-export async function PATCH(req) {
+async function _PATCH(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
@@ -39,8 +45,8 @@ export async function PATCH(req) {
   const cur = await sql`SELECT * FROM kegiatan WHERE id = ${b.id}`;
   if (!cur.length) return Response.json({ error: 'Kegiatan tidak ditemukan' }, { status: 404 });
   // Manager bebas; peran lain hanya kegiatan yang ia input sendiri
-  if (user.role !== 'manager' && cur[0].created_by !== user.username) {
-    return Response.json({ error: 'Hanya manager atau penginput yang bisa mengubah' }, { status: 403 });
+  if (!(await bolehUbah(sql, user, cur[0].created_by))) {
+    return Response.json({ error: 'Hanya manager, penginput, atau sesama tim Marcom yang bisa mengubah' }, { status: 403 });
   }
   const m = { ...cur[0] };
   ['tgl', 'jenis', 'project', 'lokasi', 'pic', 'catatan'].forEach(k => { if (k in b) m[k] = b[k]; });
@@ -51,16 +57,21 @@ export async function PATCH(req) {
   return Response.json({ ok: true });
 }
 
-export async function DELETE(req) {
+async function _DELETE(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const id = Number(new URL(req.url).searchParams.get('id'));
   if (!id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
   const cur = await sql`SELECT created_by FROM kegiatan WHERE id = ${id}`;
   if (!cur.length) return Response.json({ error: 'Kegiatan tidak ditemukan' }, { status: 404 });
-  if (user.role !== 'manager' && cur[0].created_by !== user.username) {
-    return Response.json({ error: 'Hanya manager atau penginput yang bisa menghapus' }, { status: 403 });
+  if (!(await bolehUbah(sql, user, cur[0].created_by))) {
+    return Response.json({ error: 'Hanya manager, penginput, atau sesama tim Marcom yang bisa menghapus' }, { status: 403 });
   }
   await sql`DELETE FROM kegiatan WHERE id = ${id}`;
   return Response.json({ ok: true });
 }
+
+// Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
+export const POST = denganLog('Kegiatan', _POST);
+export const PATCH = denganLog('Kegiatan', _PATCH);
+export const DELETE = denganLog('Kegiatan', _DELETE);
