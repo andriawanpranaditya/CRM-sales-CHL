@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { db } from '@/lib/db';
+import { db, DEFAULT_SETTINGS } from '@/lib/db';
 import { getUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -497,21 +497,47 @@ async function tarikMetaRinci(sql) {
   return { sumber: 'Meta Ads (rincian)', status: 'sukses', baris: nBd, pesan: `${since} s.d. ${hariIni} · ${nBd} baris rincian usia/wilayah/penempatan · ${nTg} ad set` };
 }
 
+// ===== Project campaign baru dari Meta = project pemilik akun iklannya =====
+// Urutan: (1) env META_AKUN_PROJECT "idAkun:PROJECT,idAkun:PROJECT" bila diisi; (2) nama akun iklan cocok dengan
+// nama project di Settings (mis. akun "Permai Indah" → PERMAI INDAH); (3) awalan nama campaign (bio_ / permai_);
+// (4) bila tetap tidak ketemu: IG_PROJECT (default BIO DISTRICT)
+const rapat = t => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function tentukanProject(akunId, namaAkun, namaCampaign, daftarProject, peta, cadangan) {
+  if (peta[akunId]) return peta[akunId];
+  const na = rapat(namaAkun);
+  if (na) {
+    const cocok = daftarProject.find(p => rapat(p) && (na.includes(rapat(p)) || rapat(p).includes(na)))
+      || daftarProject.find(p => { const w = rapat(String(p).split(/\s+/)[0]); return w.length >= 3 && na.includes(w); });
+    if (cocok) return cocok;
+  }
+  const awal = rapat(String(namaCampaign || '').split(/[_\s-]/)[0]);
+  if (awal.length >= 3) {
+    const cocok = daftarProject.find(p => rapat(String(p).split(/\s+/)[0]) === awal || rapat(p).startsWith(awal));
+    if (cocok) return cocok;
+  }
+  return cadangan;
+}
+
 async function tarikMetaAds(sql) {
   if (!process.env.META_TOKEN) return { sumber: 'Meta Ads', status: 'dilewati', baris: 0, pesan: 'META_TOKEN belum diisi' };
   await siapkanKolomAds(sql);
   let akun = (process.env.META_AD_ACCOUNT || '').split(',').map(x => x.trim().replace(/^act_/, '')).filter(Boolean);
+  const namaAkun = {};
   if (!akun.length) {
     const j = await graph('me/adaccounts?fields=account_id,name&limit=50');
     akun = (j.data || []).map(a => a.account_id);
+    (j.data || []).forEach(a => { namaAkun[a.account_id] = a.name || ''; });
   }
   if (!akun.length) throw new Error('Token tidak bisa membaca akun iklan mana pun — cek aset Ad account di System User & izin ads_read');
+  for (const acc of akun) {
+    if (namaAkun[acc] === undefined) { try { namaAkun[acc] = (await graph(`act_${acc}?fields=name`)).name || ''; } catch { namaAkun[acc] = ''; } }
+  }
   const MULAI = process.env.MI_ANALISA_MULAI || '2026-09-01';
   const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
   const adaApi = (await sql`SELECT 1 FROM mi_ads WHERE sumber = 'meta-api' LIMIT 1`).length > 0;
   const mundur = new Date(Date.now() + 7 * 3600000 - 37 * 86400000).toISOString().slice(0, 10);
   const since = adaApi ? (mundur > MULAI ? mundur : MULAI) : MULAI; // tarikan pertama: sejak titik mulai analisa
-  const rows = [], statusCamp = {}, objCamp = {}, dibuatCamp = {};
+  const rows = [], statusCamp = {}, objCamp = {}, dibuatCamp = {}, akunCamp = {};
   for (const acc of akun) {
     // Semua status — termasuk ARCHIVED/DELETED. Bawaan Graph API menyembunyikan campaign yang diarsipkan/dihapus,
     // akibatnya status campaign itu di CRM tidak pernah diperbarui & tertahan "Aktif".
@@ -525,6 +551,7 @@ async function tarikMetaAds(sql) {
       daftarCamp.push(...((await graph(`act_${acc}/campaigns?fields=name,effective_status,objective,created_time&limit=200`)).data || []));
     }
     daftarCamp.forEach(c => { if (statusCamp[c.name] !== 'ACTIVE') statusCamp[c.name] = c.effective_status; objCamp[c.name] = objCamp[c.name] || c.objective;
+      if (!akunCamp[c.name]) akunCamp[c.name] = acc;
       if (c.created_time && (!dibuatCamp[c.name] || c.created_time > dibuatCamp[c.name])) dibuatCamp[c.name] = c.created_time; });
     try {
       let ua = `https://graph.facebook.com/${GV()}/act_${acc}/ads?fields=id,name,effective_status,campaign{name}&limit=300&access_token=${encodeURIComponent(process.env.META_TOKEN)}`, h = 0;
@@ -542,21 +569,37 @@ async function tarikMetaAds(sql) {
       + `&fields=campaign_name,ad_id,ad_name,spend,impressions,reach,inline_link_clicks,actions,video_thruplay_watched_actions&limit=500`
       + `&access_token=${encodeURIComponent(process.env.META_TOKEN)}`;
     let halaman = 0;
-    while (url && halaman < 40) { const j = await graphUrl(url); rows.push(...(j.data || [])); url = j.paging?.next || null; halaman++; }
+    while (url && halaman < 40) { const j = await graphUrl(url); (j.data || []).forEach(x => { if (x.campaign_name && !akunCamp[x.campaign_name]) akunCamp[x.campaign_name] = acc; }); rows.push(...(j.data || [])); url = j.paging?.next || null; halaman++; }
   }
   // Petakan nama campaign Meta ke daftar campaign CRM (tidak peka huruf besar/kecil); yang belum ada didaftarkan otomatis
   const peta = await petaCampaign(sql);
-  const proj = process.env.IG_PROJECT || 'BIO DISTRICT';
-  let baru = 0;
+  const projCadangan = process.env.IG_PROJECT || 'BIO DISTRICT';
+  let daftarProject = DEFAULT_SETTINGS.project || [];
+  try { const sp = await sql`SELECT items FROM settings WHERE key = 'project'`; if (Array.isArray(sp[0]?.items) && sp[0].items.length) daftarProject = sp[0].items; } catch {}
+  const petaAkun = Object.fromEntries((process.env.META_AKUN_PROJECT || '').split(',').map(x => x.split(':').map(y => y.trim()))
+    .filter(([a, p]) => a && p).map(([a, p]) => [a.replace(/^act_/, ''), p]));
+  const projectUntuk = nm => tentukanProject(akunCamp[nm], namaAkun[akunCamp[nm]], nm, daftarProject, petaAkun, projCadangan);
+  let baru = 0, dikoreksi = 0;
   const semuaNama = new Set([...rows.map(r => r.campaign_name).filter(Boolean)]);
   for (const nm of semuaNama) {
     if (peta.has(nm.toLowerCase())) continue;
     const st = statusCamp[nm] === 'ACTIVE' ? 'Aktif' : 'Selesai';
     await sql`INSERT INTO mi_campaigns (nama, platform, project, tujuan, budget, status, catatan, created_by, sumber)
-      VALUES (${nm}, 'Meta (FB+IG)', ${proj}, ${tujuanMeta(objCamp[nm])}, 0, ${st}, 'Terdaftar otomatis dari Meta Ads', 'auto-meta', 'meta-api')
+      VALUES (${nm}, 'Meta (FB+IG)', ${projectUntuk(nm)}, ${tujuanMeta(objCamp[nm])}, 0, ${st}, 'Terdaftar otomatis dari Meta Ads', 'auto-meta', 'meta-api')
       ON CONFLICT (nama) DO NOTHING`;
     peta.set(nm.toLowerCase(), nm); baru++;
   }
+  // Koreksi campaign otomatis yang dulu terdaftar dengan project default padahal akun iklannya milik project lain.
+  // Hanya campaign ⚡ yang project-nya masih bawaan — project yang sudah diubah manual tidak disentuh.
+  try {
+    const otomatis = await sql`SELECT nama, project FROM mi_campaigns WHERE created_by = 'auto-meta' AND project = ${projCadangan}`;
+    for (const c of otomatis) {
+      const asli = Object.keys(akunCamp).find(k => k.toLowerCase() === String(c.nama).toLowerCase());
+      if (!asli) continue;
+      const p = projectUntuk(asli);
+      if (p && p !== c.project) { await sql`UPDATE mi_campaigns SET project = ${p} WHERE nama = ${c.nama}`; dikoreksi++; }
+    }
+  } catch (e) { console.error('koreksi project campaign', e); }
   // Status campaign mengikuti Ads Manager — Aktif hanya bila ada minimal satu IKLAN yang benar-benar tayang
   // (menangani campaign bernama sama hasil duplikat, dan campaign "aktif" yang semua iklannya berhenti)
   let iklanAktif = new Set(), adaInfoIklan = new Set();
@@ -625,7 +668,7 @@ async function tarikMetaAds(sql) {
   }
   const totalSpend = data.reduce((a, x) => a + x[4], 0);
   return { sumber: 'Meta Ads', status: 'sukses', baris: data.length,
-    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') + (nYatim ? ` · ${nYatim} campaign tak ada lagi di Ads Manager → Selesai` : '') };
+    pesan: `${since} s.d. ${hariIni} · ${semuaNama.size} campaign · spend Rp${Math.round(totalSpend).toLocaleString('id-ID')}` + (baru ? ` · ${baru} campaign baru terdaftar` : '') + (dikoreksi ? ` · ${dikoreksi} campaign dipindah ke project akun iklannya` : '') + ` · ${akun.length} akun iklan` + (nYatim ? ` · ${nYatim} campaign tak ada lagi di Ads Manager → Selesai` : '') };
 }
 
 // Colokan konektor berikutnya — aktif otomatis saat env-nya diisi (tanpa ubah kode):
