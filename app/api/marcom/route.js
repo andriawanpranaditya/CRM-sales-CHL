@@ -93,13 +93,16 @@ export async function GET(req) {
     const pj = url.searchParams.get('project') || null;
     const a1 = url.searchParams.get('d1') || null, a2 = url.searchParams.get('d2') || null;
     const tim = user.role === 'markom'; // marcom: seluruh lead tim marcom
-    const rows = await sql`SELECT id, lead_code, nama, tgl, sumber, project, status FROM leads l
+    // + siapa penginputnya (nama & peran) dan sales PIC — supaya jelas lead ini milik project/tim mana sebelum ditandai
+    const rows = await sql`SELECT l.id, l.lead_code, l.nama, l.tgl, l.sumber, l.project, l.status, l.sales,
+        COALESCE(ui.name, l.created_by, '') AS penginput, COALESCE(ui.role, '') AS penginput_role
+      FROM leads l LEFT JOIN users ui ON ui.username = l.created_by
       WHERE COALESCE(campaign, '') = ''
-        AND (${pj}::text IS NULL OR project = ${pj})
-        AND (${a1}::date IS NULL OR tgl >= ${a1}::date) AND (${a2}::date IS NULL OR tgl <= ${a2}::date)
+        AND (${pj}::text IS NULL OR l.project = ${pj})
+        AND (${a1}::date IS NULL OR l.tgl >= ${a1}::date) AND (${a2}::date IS NULL OR l.tgl <= ${a2}::date)
         AND (NOT ${tim}::boolean OR EXISTS (SELECT 1 FROM users u WHERE u.username = l.created_by AND u.role = 'markom'))
-      ORDER BY tgl DESC NULLS LAST, id DESC LIMIT 500`;
-    return Response.json(rows);
+      ORDER BY l.tgl DESC NULLS LAST, l.id DESC LIMIT 500`;
+    return Response.json(user.projects ? rows.filter(r => !r.project || user.projects.includes(r.project)) : rows);
   }
 
   // Ringkas: daftar campaign aktif untuk dropdown Form Input (dipakai juga oleh manager)

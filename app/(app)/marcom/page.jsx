@@ -76,7 +76,7 @@ export default function MarcomPage() {
   const [gb, setGb] = useState(null); // { dari, ke }
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
   const [am, setAm] = useState(AM0);
-  const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', campaign: '', konten: '' });
+  const [tg, setTg] = useState({ d1: '', d2: '', sumber: '', proj: '', campaign: '', konten: '' });
   const [tgRows, setTgRows] = useState(null);
   const [tgPick, setTgPick] = useState({});
 
@@ -157,6 +157,10 @@ export default function MarcomPage() {
     const ids = Object.keys(tgPick).filter(k => tgPick[k]).map(Number);
     if (!ids.length) return toast('Centang lead yang mau ditandai');
     if (!tg.campaign) return toast('Pilih campaign tujuan');
+    // Cegah salah tandai lintas project (mis. lead Bio District ke campaign Permai)
+    const cp = (camps.find(x => x.nama === tg.campaign) || {}).project;
+    const beda = cp ? (tgRows || []).filter(r => tgPick[r.id] && r.project && r.project !== cp) : [];
+    if (beda.length && !confirm(`⚠️ ${beda.length} lead yang dicentang ber-project ${[...new Set(beda.map(r => r.project))].join(', ')}, sedangkan campaign "${tg.campaign}" milik ${cp}.\n\nTetap lanjutkan? (Batal untuk mengecek ulang)`)) return;
     if (!confirm(`Tandai ${ids.length} lead ke campaign "${tg.campaign}"${tg.konten ? ' dengan kreatif ' + tg.konten : ''}?`)) return;
     setBusy(true);
     try {
@@ -895,20 +899,31 @@ export default function MarcomPage() {
           </div>
           {tgRows && tgRows.length > 0 && (() => {
             const sumberOpts = [...new Set(tgRows.map(r => r.sumber || '(kosong)'))];
-            const tampil = tgRows.filter(r => !tg.sumber || (r.sumber || '(kosong)') === tg.sumber);
+            const projOpts = [...new Set(tgRows.map(r => r.project || '(tanpa project)'))];
+            const tampil = tgRows.filter(r => (!tg.sumber || (r.sumber || '(kosong)') === tg.sumber) && (!tg.proj || (r.project || '(tanpa project)') === tg.proj));
+            const projCamp = (camps.find(x => x.nama === tg.campaign) || {}).project || '';
             const nPick = tampil.filter(r => tgPick[r.id]).length;
             return (<>
               <div className="fu-toolbar" style={{ margin: '10px 0' }}>
                 <button className={'sort-btn' + (!tg.sumber ? ' active' : '')} onClick={() => setTg({ ...tg, sumber: '' })}>Semua Sumber ({tgRows.length})</button>
                 {sumberOpts.map(o => <button key={o} className={'sort-btn' + (tg.sumber === o ? ' active' : '')} onClick={() => setTg({ ...tg, sumber: o })}>{o} ({tgRows.filter(r => (r.sumber || '(kosong)') === o).length})</button>)}
               </div>
+              {projOpts.length > 1 && <div className="fu-toolbar" style={{ margin: '0 0 10px' }}>
+                <span className="hint" style={{ alignSelf: 'center' }}>Project:</span>
+                <button className={'sort-btn' + (!tg.proj ? ' active' : '')} onClick={() => setTg({ ...tg, proj: '' })}>Semua</button>
+                {projOpts.map(o => <button key={o} className={'sort-btn' + (tg.proj === o ? ' active' : '')} onClick={() => setTg({ ...tg, proj: o })}>{o} ({tgRows.filter(r => (r.project || '(tanpa project)') === o).length})</button>)}
+              </div>}
               <div className="tbl-wrap tbl-compact" style={{ maxHeight: 340, overflowY: 'auto' }}><table>
-                <thead><tr><th style={{ width: 36 }}><input type="checkbox" checked={tampil.length > 0 && nPick === tampil.length} onChange={e => { const n = { ...tgPick }; tampil.forEach(r => { n[r.id] = e.target.checked; }); setTgPick(n); }} /></th><th>Tgl Masuk</th><th>ID</th><th>Nama</th><th>Sumber</th><th>Status</th></tr></thead>
+                <thead><tr><th style={{ width: 36 }}><input type="checkbox" checked={tampil.length > 0 && nPick === tampil.length} onChange={e => { const n = { ...tgPick }; tampil.forEach(r => { n[r.id] = e.target.checked; }); setTgPick(n); }} /></th><th>Tgl Masuk</th><th>ID</th><th>Nama</th><th>Project</th><th>Sumber</th><th>Diinput oleh</th><th>Sales</th><th>Status</th></tr></thead>
                 <tbody>{tampil.map(r => (
                   <tr key={r.id} onClick={() => setTgPick({ ...tgPick, [r.id]: !tgPick[r.id] })} style={{ cursor: 'pointer' }}>
                     <td><input type="checkbox" checked={!!tgPick[r.id]} readOnly /></td>
                     <td data-label="Tgl">{fmtDate(r.tgl)}</td><td data-label="ID">{r.lead_code}</td><td data-label="Nama"><b>{r.nama}</b></td>
-                    <td data-label="Sumber">{r.sumber || '—'}</td><td data-label="Status">{r.status}</td></tr>))}</tbody>
+                    <td data-label="Project">{r.project || '—'}{projCamp && r.project && r.project !== projCamp ? <div className="hint" style={{ color: 'var(--red)', fontWeight: 700 }}>beda project dgn campaign</div> : null}</td>
+                    <td data-label="Sumber">{r.sumber || '—'}</td>
+                    <td data-label="Diinput oleh">{r.penginput || '—'}{r.penginput_role ? <span className="hint"> · {r.penginput_role === 'markom' ? 'Marcom' : r.penginput_role === 'sales' ? 'Sales' : r.penginput_role === 'ceo' ? 'CEO' : r.penginput_role}</span> : null}</td>
+                    <td data-label="Sales">{r.sales || <span className="hint">belum ada</span>}</td>
+                    <td data-label="Status">{r.status}</td></tr>))}</tbody>
               </table></div>
               <div className="form-grid" style={{ marginTop: 10 }}>
                 <div className="field"><label>Tandai ke Campaign <span className="req">*</span></label>
