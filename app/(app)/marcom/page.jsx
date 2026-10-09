@@ -17,6 +17,7 @@ const bulanIni = (() => { const d = new Date(); return BULAN_ID[d.getMonth()] + 
 const slugP = pr => (String(pr || '').trim().split(/\s+/)[0] || '').toLowerCase();
 const sanitEx = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 const KODE_FORMAT = ['reels', 'carousel', 'single', 'story', 'video', 'search', 'pmax', 'display', 'banner', 'live'];
+const OTOMATIS = s => s === 'meta-api' || s === 'google-api'; // data iklan yang ditarik otomatis (Meta API / Google Ads Script)
 const PLATFORM_C = ['Meta (FB+IG)', 'Google', 'Tiktok', 'Youtube', 'Website', 'Offline (Event/Banner/Kanvasing)', 'Lainnya'];
 const UTM_SRC = ['meta', 'facebook', 'instagram', 'tiktok', 'google', 'youtube', 'website', 'whatsapp'];
 const UTM_MED = ['cpc', 'social', 'banner', 'email', 'referral'];
@@ -327,7 +328,7 @@ export default function MarcomPage() {
     if (atas.length) R.ringkas.push(`${atas.length} campaign funnel atas (traffic/awareness/engagement) menghabiskan ${rp(atas.reduce((a, [, v]) => a + v, 0))} — tugasnya mendatangkan kunjungan & jangkauan, jadi dinilai dari klik/biaya per klik, bukan jumlah lead.`);
     if (ditahan) R.ringkas.push(`Penilaian ${ditahan} campaign ditahan dulu — periode baru berjalan ${hariPeriode} hari dan spend-nya masih kecil. Penilaian muncul setelah periode ≥ 14 hari atau spend campaign ≥ Rp500 rb (atau campaign sudah selesai: biayanya tetap dihitung, tanpa peringatan).`);
     // Campaign aktif tanpa spend: hanya untuk campaign yang spend-nya dicatat manual (Meta ditarik otomatis)
-    (data.campaigns || []).filter(c => c.status === 'Aktif' && c.sumber !== 'meta-api' && !(spendMap[c.nama] > 0) && hariPeriode >= 7).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
+    (data.campaigns || []).filter(c => c.status === 'Aktif' && !OTOMATIS(c.sumber) && !(spendMap[c.nama] > 0) && hariPeriode >= 7).slice(0, 3).forEach(c => R.perbaiki.push(`Campaign aktif ${c.nama} belum punya entri spend pada periode ini — catat performanya di tab Iklan agar CPQL bisa dihitung.`));
     sumber.filter(r => r.l0 >= 5 && r.l2 / r.l0 < 0.1).forEach(r => R.perbaiki.push(`Sumber ${r.kunci}: ${r.l0} lead tapi hanya ${r.l2} berkualitas (${pc(r.l2 / r.l0)}) — volume tinggi, kualitas rendah. Perketat targeting/kualifikasi di sumber ini.`));
     if (F.l0 >= 5 && F.l1 / F.l0 < 0.7) R.perbaiki.push(`Hanya ${pc(F.l1 / F.l0)} lead yang sudah di-follow up — ${F.l0 - F.l1} lead belum disentuh sama sekali. Lead yang dibiarkan cepat dingin; koordinasikan kecepatan respon dengan tim sales.`);
     if (F.l2 >= 3 && F.l3 === 0) R.perbaiki.push(`${F.l2} lead berkualitas belum ada yang Booking — dorong site visit & penawaran khusus bersama sales.`);
@@ -817,7 +818,7 @@ export default function MarcomPage() {
 
       {tab === 'iklan' && (<>
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">{metaApi ? '(campaign Meta terdaftar otomatis dari Ads Manager — daftarkan manual untuk Google, TikTok & Offline)' : '(nama HARUS sama dengan utm_campaign & nama di platform iklan)'}</span></h3>
+          <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">{metaApi ? '(campaign Meta & Google Ads terdaftar otomatis — daftarkan manual untuk TikTok & Offline, atau lebih dulu agar namanya seragam)' : '(nama HARUS sama dengan utm_campaign & nama di platform iklan)'}</span></h3>
           <div className="form-grid">
             {cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign (terkunci)</label><input value={c.nama} disabled style={{ fontFamily: 'monospace', fontWeight: 700 }} /></div>}
             <div className="field"><label>Project <span className="req">*</span></label><select {...fc('project')}><option value="">— pilih —</option>{(set.project || []).map(p => <option key={p}>{p}</option>)}</select></div>
@@ -969,13 +970,13 @@ export default function MarcomPage() {
 
         {!showSpendManual && (
           <div className="card" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="hint">Spend Meta ditarik otomatis, biaya offline lewat Biaya Berulang. Pencatatan manual hanya untuk Google Ads, TikTok & platform lain yang belum tersambung.</span>
-            <button className="sort-btn" onClick={() => setShowSpendManual(true)}>➕ Catat Spend Manual (Google / TikTok / lainnya)</button>
+            <span className="hint">Spend Meta & Google Ads masuk otomatis, biaya offline lewat Biaya Berulang. Pencatatan manual hanya untuk TikTok & platform lain yang belum tersambung.</span>
+            <button className="sort-btn" onClick={() => setShowSpendManual(true)}>➕ Catat Spend Manual (TikTok / lainnya)</button>
           </div>
         )}
         {showSpendManual && (
         <div className="card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">{metaApi ? '(spend Meta ditarik otomatis tiap pagi — form ini untuk Google, TikTok & lainnya)' : '(mingguan per campaign/kreatif dari Ads Manager)'}</span></h3>
+          <h3 style={{ marginTop: 0 }}>Catat Performa Iklan <span className="hint">{metaApi ? '(spend Meta & Google Ads masuk otomatis — form ini untuk TikTok & platform lain yang belum tersambung)' : '(mingguan per campaign/kreatif dari Ads Manager)'}</span></h3>
           <div className="form-grid">
             <div className="field"><label>Tanggal</label><input type="date" {...fa('tgl')} /></div>
             <div className="field"><label>Campaign <span className="req">*</span></label>
@@ -1006,7 +1007,7 @@ export default function MarcomPage() {
               <div className="field"><label>Campaign yang digabungkan (akan dihapus)</label><input value={gb.dari} readOnly style={{ fontWeight: 700 }} /></div>
               <div className="field"><label>Gabungkan ke <span className="req">*</span></label>
                 <select value={gb.ke} onChange={e => setGb({ ...gb, ke: e.target.value })}><option value="">— pilih campaign tujuan —</option>
-                  {(data.campaigns || []).filter(c => c.nama !== gb.dari).map(c => <option key={c.id} value={c.nama}>{c.nama}{c.sumber === 'meta-api' ? ' (Meta)' : ''}</option>)}</select></div>
+                  {(data.campaigns || []).filter(c => c.nama !== gb.dari).map(c => <option key={c.id} value={c.nama}>{c.nama}{c.sumber === 'meta-api' ? ' (Meta)' : c.sumber === 'google-api' ? ' (Google)' : ''}</option>)}</select></div>
             </div>
             <div className="form-foot">
               <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !gb.ke} onClick={gabungCampaign}>Gabungkan</button>
@@ -1019,7 +1020,7 @@ export default function MarcomPage() {
               <thead><tr><th>Nama</th><th>Platform</th><th>Project</th><th className="num">Budget</th><th className="num">Spend</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>{camps.length ? camps.map(x => (
                 <tr key={x.id}>
-                  <td data-label="Nama"><b>{x.nama}</b>{x.sumber === 'meta-api' ? <div className="hint">⚡ otomatis dari Meta Ads</div> : null}{x.meta_info ? <div className="hint" style={{ color: /^Belum tersambung/.test(x.meta_info) ? 'var(--red)' : undefined }}>{x.meta_info}</div> : null}</td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
+                  <td data-label="Nama"><b>{x.nama}</b>{x.sumber === 'meta-api' ? <div className="hint">⚡ otomatis dari Meta Ads</div> : x.sumber === 'google-api' ? <div className="hint">⚡ otomatis dari Google Ads</div> : null}{x.meta_info ? <div className="hint" style={{ color: /^Belum tersambung/.test(x.meta_info) ? 'var(--red)' : undefined }}>{x.meta_info}</div> : null}</td><td data-label="Platform">{x.platform}</td><td data-label="Project">{x.project || '—'}</td>
                   <td className="num" data-label="Budget">{Number(x.budget) ? fmtRp(x.budget) : '—'}</td>
                   <td className="num" data-label="Spend">{spendMap[x.nama] ? fmtRp(spendMap[x.nama]) : '—'}</td>
                   <td data-label="Status"><span className={'badge ' + (x.status === 'Aktif' ? 'b-warm' : 'b-cold')}>{x.status}</span></td>
@@ -1085,14 +1086,14 @@ export default function MarcomPage() {
               </div>);
           })()}
 
-          {(data.ads || []).some(x => x.sumber !== 'meta-api') && (
+          {(data.ads || []).some(x => !OTOMATIS(x.sumber)) && (
           <div className="card" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginTop: 0 }}>Entri Performa Manual {metaApi ? <span className="hint">(data Meta Ads otomatis tidak ditampilkan di sini — lihat kolom Spend di Daftar Campaign)</span> : null}</h3>
+            <h3 style={{ marginTop: 0 }}>Entri Performa Manual {metaApi ? <span className="hint">(data Meta & Google Ads otomatis tidak ditampilkan di sini — lihat kolom Spend di Daftar Campaign)</span> : null}</h3>
             <div className="tbl-wrap tbl-compact"><table>
               <thead><tr><th>Tanggal</th><th>Campaign</th><th>Kreatif</th><th className="num">Spend</th><th className="num">Klik</th><th className="num">Hasil</th><th>Aksi</th></tr></thead>
-              <tbody>{(data.ads || []).filter(x => x.sumber !== 'meta-api').length ? (data.ads || []).filter(x => x.sumber !== 'meta-api').slice(0, 60).map(x => (
+              <tbody>{(data.ads || []).filter(x => !OTOMATIS(x.sumber)).length ? (data.ads || []).filter(x => !OTOMATIS(x.sumber)).slice(0, 60).map(x => (
                 <tr key={x.id}>
-                  <td data-label="Tanggal">{fmtDate(x.tgl)}</td><td data-label="Campaign">{x.campaign}{(data.ads || []).some(y => y.sumber === 'meta-api' && String(y.campaign).toLowerCase() === String(x.campaign).toLowerCase()) ? <div className="hint" style={{ color: 'var(--brass)' }}>digantikan data API — tidak dihitung, boleh dihapus</div> : null}</td><td data-label="Kreatif">{x.kreatif || '—'}</td>
+                  <td data-label="Tanggal">{fmtDate(x.tgl)}</td><td data-label="Campaign">{x.campaign}{(data.ads || []).some(y => OTOMATIS(y.sumber) && String(y.campaign).toLowerCase() === String(x.campaign).toLowerCase()) ? <div className="hint" style={{ color: 'var(--brass)' }}>digantikan data API — tidak dihitung, boleh dihapus</div> : null}</td><td data-label="Kreatif">{x.kreatif || '—'}</td>
                   <td className="num" data-label="Spend">{fmtRp(x.spend)}</td><td className="num" data-label="Klik">{x.klik || 0}</td><td className="num" data-label="Hasil">{x.hasil || 0}</td>
                   <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                     <button className="sort-btn" style={{ padding: '3px 9px' }} onClick={() => { setShowSpendManual(true); setAEdit(x.id); setA({ tgl: String(x.tgl || '').slice(0, 10), campaign: x.campaign || '', kreatif: x.kreatif || '', spend: x.spend || '', impresi: x.impresi || '', reach: x.reach || '', klik: x.klik || '', hasil: x.hasil || '', catatan: x.catatan || '' }); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Edit</button>
@@ -1313,7 +1314,7 @@ export default function MarcomPage() {
                 <td data-label="Ket" style={{ maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.pesan}</td></tr>))
               : <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Belum pernah menarik data.</td></tr>}</tbody>
           </table></div>
-          <span className="hint">Instagram ikut ditarik di sini (hasilnya masuk ke tab Konten). Konektor Meta Ads, Google Ads & TikTok aktif otomatis begitu token masing-masing terpasang di Vercel.</span>
+          <span className="hint">Instagram ikut ditarik di sini (hasilnya masuk ke tab Konten). Meta Ads ditarik CRM tiap pagi; Google Ads dikirim oleh Google Ads Script terjadwal di tiap akun Google Ads (baris "Google Ads" muncul di sini setiap kali script berjalan).</span>
         </div>
       </>)}
 

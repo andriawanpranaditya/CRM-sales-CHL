@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { db, DEFAULT_SETTINGS } from '@/lib/db';
 import { getUser } from '@/lib/auth';
+import { tentukanProject } from '@/lib/proyek';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -495,27 +496,6 @@ async function tarikMetaRinci(sql) {
   const nTg = await tarikTargeting(sql, akun, peta);
   const nBd = await tarikBreakdown(sql, akun, since, hariIni, peta);
   return { sumber: 'Meta Ads (rincian)', status: 'sukses', baris: nBd, pesan: `${since} s.d. ${hariIni} · ${nBd} baris rincian usia/wilayah/penempatan · ${nTg} ad set` };
-}
-
-// ===== Project campaign baru dari Meta = project pemilik akun iklannya =====
-// Urutan: (1) env META_AKUN_PROJECT "idAkun:PROJECT,idAkun:PROJECT" bila diisi; (2) nama akun iklan cocok dengan
-// nama project di Settings (mis. akun "Permai Indah" → PERMAI INDAH); (3) awalan nama campaign (bio_ / permai_);
-// (4) bila tetap tidak ketemu: IG_PROJECT (default BIO DISTRICT)
-const rapat = t => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-function tentukanProject(akunId, namaAkun, namaCampaign, daftarProject, peta, cadangan) {
-  if (peta[akunId]) return peta[akunId];
-  const na = rapat(namaAkun);
-  if (na) {
-    const cocok = daftarProject.find(p => rapat(p) && (na.includes(rapat(p)) || rapat(p).includes(na)))
-      || daftarProject.find(p => { const w = rapat(String(p).split(/\s+/)[0]); return w.length >= 3 && na.includes(w); });
-    if (cocok) return cocok;
-  }
-  const awal = rapat(String(namaCampaign || '').split(/[_\s-]/)[0]);
-  if (awal.length >= 3) {
-    const cocok = daftarProject.find(p => rapat(String(p).split(/\s+/)[0]) === awal || rapat(p).startsWith(awal));
-    if (cocok) return cocok;
-  }
-  return cadangan;
 }
 
 async function tarikMetaAds(sql) {
