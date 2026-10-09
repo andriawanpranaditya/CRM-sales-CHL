@@ -37,7 +37,9 @@ export async function GET(req) {
   await isiRiwayatDropAwal(sql);
   const url = new URL(req.url);
   const d1 = url.searchParams.get('d1') || null, d2 = url.searchParams.get('d2') || null;
-  const proj = url.searchParams.get('project') || null;
+  let proj = url.searchParams.get('project') || null;
+  // Akun per project: dipaksa ke project yang diizinkan
+  if (user.projects && (!proj || !user.projects.includes(proj))) proj = user.projects[0];
   const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 
   const log = await sql`

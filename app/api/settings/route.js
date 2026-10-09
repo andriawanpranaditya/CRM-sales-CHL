@@ -5,14 +5,24 @@ import { denganLog } from '@/lib/log';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { err } = await requireUser(); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const rows = await sql`SELECT key, items FROM settings`;
   const out = { ...DEFAULT_SETTINGS };
   rows.forEach(r => { out[r.key] = r.items; });
-  const sales = await sql`SELECT name FROM users WHERE role = 'sales' AND active = true ORDER BY name`;
-  out.sales = sales.map(s => s.name);
+  let sales;
+  try { sales = await sql`SELECT name, projects FROM users WHERE role = 'sales' AND active = true ORDER BY name`; }
+  catch { sales = await sql`SELECT name FROM users WHERE role = 'sales' AND active = true ORDER BY name`; }
   if (!out.units) out.units = DEFAULT_UNITS;
+  // Akun per project: daftar project, unit & sales dibatasi — semua dropdown (form lead, FU, Reserved/Booking,
+  // Master Stock, Simulasi) otomatis hanya menampilkan project yang diizinkan
+  if (user.projects) {
+    out.project = (out.project || []).filter(p => user.projects.includes(p));
+    out.units = Object.fromEntries(Object.entries(out.units || {}).filter(([p]) => user.projects.includes(p)));
+    sales = sales.filter(s => !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => user.projects.includes(p)));
+  }
+  out.sales = sales.map(s => s.name);
+  out.sales_project = Object.fromEntries(sales.map(s => [s.name, Array.isArray(s.projects) && s.projects.length ? s.projects : null]));
   return Response.json(out);
 }
 

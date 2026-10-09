@@ -135,6 +135,7 @@ th.num{text-align:right}
 
 /* ===== Forms ===== */
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.form-grid .field.full{grid-column:1/-1}
 .field label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
 .field label .req{color:var(--red)}
 .field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:13.5px;background:var(--input-bg);color:var(--ink)}

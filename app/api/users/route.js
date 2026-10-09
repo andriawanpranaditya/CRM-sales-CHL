@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, hapusCacheAkun } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { denganLog } from '@/lib/log';
 
@@ -20,12 +20,18 @@ export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   if (user.role === 'manager') {
-    const rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at FROM users ORDER BY role, name`;
+    let rows;
+    try { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at, projects FROM users ORDER BY role, name`; }
+    catch { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at FROM users ORDER BY role, name`; }
     return Response.json(rows);
   }
   if (user.role === 'markom') {
     // Markom hanya butuh daftar sales + nomor WA (utk Leads to Sales) — tanpa data sensitif
-    const rows = await sql`SELECT id, name, role, wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`;
+    let rows;
+    try { rows = await sql`SELECT id, name, role, wa, projects FROM users WHERE role = 'sales' AND active = true ORDER BY name`; }
+    catch { rows = await sql`SELECT id, name, role, wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`; }
+    // Marcom per project hanya melihat sales yang memegang project yang sama
+    if (user.projects) rows = rows.filter(s => !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => user.projects.includes(p)));
     return Response.json(rows);
   }
   return Response.json({ error: 'Hanya manager' }, { status: 403 });
@@ -43,6 +49,11 @@ async function _POST(req) {
   if (role === 'ceo') await siapkanPeran(sql);
   await sql`INSERT INTO users (username, name, role, password_hash, password_plain, email, wa)
     VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role !== 'manager' ? b.password : null}, ${b.email || ''}, ${b.wa || ''})`;
+  const pp = Array.isArray(b.projects) ? b.projects.map(String).filter(Boolean) : [];
+  if (pp.length && role !== 'manager') {
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS projects text[]`; } catch {}
+    await sql`UPDATE users SET projects = ${pp} WHERE lower(username) = ${String(b.username).toLowerCase()}`;
+  }
   return Response.json({ ok: true });
 }
 
@@ -106,7 +117,14 @@ async function _PATCH(req) {
     const plain = t[0] && t[0].role !== 'manager' ? b.password : null;
     await sql`UPDATE users SET password_hash = ${hash}, password_plain = ${plain} WHERE id = ${b.id}`;
   }
-  const nm = await sql`SELECT name FROM users WHERE id = ${b.id}`;
+  // Akses per project: [] / null = semua project
+  if (Array.isArray(b.projects)) {
+    const pp = b.projects.map(String).filter(Boolean);
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS projects text[]`; } catch {}
+    await sql`UPDATE users SET projects = ${pp.length ? pp : null} WHERE id = ${b.id}`;
+  }
+  const nm = await sql`SELECT name, username FROM users WHERE id = ${b.id}`;
+  hapusCacheAkun(nm[0]?.username);
   return Response.json({ ok: true, nama: nm[0]?.name || '' });
 }
 
@@ -128,7 +146,7 @@ async function _PUT(req) {
 }
 
 // Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
-export const POST = denganLog('Pengguna', _POST, ({ body }) => ({ aksi: 'Input', detail: `akun baru ${body.username} (${body.name}) · peran ${body.role || 'sales'}` }));
+export const POST = denganLog('Pengguna', _POST, ({ body }) => ({ aksi: 'Input', detail: `akun baru ${body.username} (${body.name}) · peran ${body.role || 'sales'}` + (Array.isArray(body.projects) && body.projects.length ? ' · project ' + body.projects.join(', ') : '') }));
 export const DELETE = denganLog('Pengguna', _DELETE, ({ out }) => ({ aksi: out.dinonaktifkan ? 'Nonaktifkan' : 'Hapus', detail: `akun ${out.nama || ''}` + (out.dinonaktifkan ? ' · punya data, dinonaktifkan agar data tetap terhubung' : '') }));
-export const PATCH = denganLog('Pengguna', _PATCH, ({ body, out }) => ({ detail: [`akun ${out.nama || ('id ' + body.id)}`, typeof body.active === 'boolean' ? (body.active ? 'diaktifkan' : 'dinonaktifkan') : '', body.role ? 'peran → ' + body.role : '', body.password ? 'reset password' : '', typeof body.email === 'string' ? 'email' : '', typeof body.wa === 'string' ? 'no. WA' : ''].filter(Boolean).join(' · ') }));
+export const PATCH = denganLog('Pengguna', _PATCH, ({ body, out }) => ({ detail: [`akun ${out.nama || ('id ' + body.id)}`, typeof body.active === 'boolean' ? (body.active ? 'diaktifkan' : 'dinonaktifkan') : '', body.role ? 'peran → ' + body.role : '', body.password ? 'reset password' : '', typeof body.email === 'string' ? 'email' : '', typeof body.wa === 'string' ? 'no. WA' : '', Array.isArray(body.projects) ? 'project → ' + (body.projects.length ? body.projects.join(', ') : 'semua') : ''].filter(Boolean).join(' · ') }));
 export const PUT = denganLog('Pengguna', _PUT, () => ({ aksi: 'Ganti password', detail: 'password sendiri' }));

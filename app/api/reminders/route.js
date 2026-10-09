@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, lihatBaris } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +10,7 @@ export async function GET() {
   const sql = db();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
-  const rows = user.role === 'markom'
+  let rows = user.role === 'markom'
     // Marcom: pengingat FU seluruh lead tim marcom (nama penginput ikut ditampilkan)
     ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
           CASE WHEN l.created_by <> ${user.username} THEN u.name ELSE NULL END AS markom
@@ -32,6 +32,7 @@ export async function GET() {
           AND status NOT IN ('Closing', 'Drop', 'Lost')
         ORDER BY next_fu`;
 
+  if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
   const hariIni = rows.filter(r => r.next_fu === today);
   const terlambat = rows.filter(r => r.next_fu < today);
 
@@ -108,5 +109,6 @@ export async function GET() {
         ORDER BY (ai_status = 'eskalasi') DESC, updated_at DESC LIMIT 20`;
     } catch {}
   }
+  if (user.projects) { stok = stok.filter(x => user.projects.includes(x.project)); aiSiap = aiSiap.filter(x => lihatBaris(user, x)); }
   return Response.json({ today, hariIni, terlambat, stok, celah, aiSiap, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: rows.length + stok.length + celah.length + aiSiap.length });
 }

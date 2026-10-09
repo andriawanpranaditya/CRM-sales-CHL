@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog, bolehUbah } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,8 @@ export async function GET() {
   const rows = user.role === 'sales'
     ? await sql`SELECT * FROM kegiatan WHERE created_by = ${user.username} OR pic ILIKE ${'%' + user.name + '%'} ORDER BY tgl DESC, id DESC`
     : await sql`SELECT * FROM kegiatan ORDER BY tgl DESC, id DESC`;
+  // Akun per project: kegiatan project lain disembunyikan (kegiatan tanpa project tetap tampil)
+  if (user.projects) { const ok = rows.filter(k => !k.project || user.projects.includes(k.project)); rows.length = 0; rows.push(...ok); }
   // Penanda boleh edit/hapus: marcom boleh mengubah kegiatan yang diinput sesama tim marcom
   if (user.role === 'markom') {
     const tim = new Set((await sql`SELECT username FROM users WHERE role = 'markom'`).map(u => u.username));
@@ -27,6 +29,7 @@ async function _POST(req) {
     return Response.json({ error: 'Peran ini tidak bisa menginput kegiatan' }, { status: 403 });
   }
   const b = await req.json();
+  if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.jenis || !JENIS.includes(b.jenis)) return Response.json({ error: 'Jenis kegiatan wajib dipilih' }, { status: 400 });
   if (!b.lokasi) return Response.json({ error: 'Lokasi / tempat wajib diisi' }, { status: 400 });
   const sql = db();

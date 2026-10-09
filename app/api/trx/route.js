@@ -1,5 +1,5 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ export async function GET() {
         FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.id DESC`
     : await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
         FROM transactions t JOIN leads l ON l.lead_code = t.lead_code WHERE l.sales = ${user.name} ORDER BY t.id DESC`;
-  return Response.json(rows);
+  return Response.json(user.projects ? rows.filter(r => lihatBaris(user, r)) : rows);
 }
 
 async function _POST(req) {
@@ -24,6 +24,11 @@ async function _POST(req) {
   if (user.role === 'sales') {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
+  }
+  if (user.projects) {
+    if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+    const l = await sql`SELECT project, sales, created_by FROM leads WHERE lead_code = ${b.lead_code}`;
+    if (l.length && !lihatBaris(user, l[0])) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   }
   // Wajib bukti transfer pada transaksi PERTAMA lead di unit tsb (transaksi lanjutan bebas)
   if (b.unit && b.project && b.jenis !== 'Batal') {
@@ -138,13 +143,18 @@ async function sinkronStatus(sql, lead_code) {
 
 // Edit transaksi — manager & CEO Project. Status pipeline lead disinkronkan otomatis.
 async function _PATCH(req) {
-  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
+  const { user, err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   if (!['Reserved', 'Booking', 'Closing', 'Batal'].includes(b.jenis)) return Response.json({ error: 'Jenis transaksi tidak valid' }, { status: 400 });
   const sql = db();
   const rows = await sql`SELECT lead_code, jenis, tgl::text AS tgl FROM transactions WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+  if (user.projects) {
+    const p = await sql`SELECT COALESCE(NULLIF(t.project, ''), l.project, '') AS project, l.sales, l.created_by FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code WHERE t.id = ${b.id}`;
+    if (p.length && !lihatBaris(user, p[0])) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+    if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+  }
   let catatan = b.catatan || '';
   if (b.jenis === 'Booking' || b.jenis === 'Closing') {
     // Baris Reserved lain di unit yang sama dilebur; bila baris ini sendiri yang naik dari Reserved, tanggalnya dicatat

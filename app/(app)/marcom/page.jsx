@@ -90,7 +90,7 @@ export default function MarcomPage() {
   const muat = () => Promise.all([
     api('/api/marcom?d1=' + rentang[0] + '&d2=' + rentang[1] + '&project=' + encodeURIComponent(fProj)),
     api('/api/settings'),
-  ]).then(([d, s]) => { setData(d); setSet(s); }).catch(e => toast(e.message));
+  ]).then(([d, s]) => { setData(d); setSet(s); if (!fProj && (s.project || []).length === 1) setFProj(s.project[0]); }).catch(e => toast(e.message));
   useEffect(() => { muat(); }, [rentang[0], rentang[1], fProj]); // eslint-disable-line
 
   const fk = key => ({ value: k[key], onChange: e => setK({ ...k, [key]: e.target.value }) });
@@ -572,7 +572,7 @@ export default function MarcomPage() {
       </div>
 
       <div className="fu-toolbar" style={{ marginBottom: 8 }}>
-        <button className={'sort-btn' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>
+        {(set.project || []).length !== 1 && <button className={'sort-btn' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>}
         {(set.project || []).map(p => <button key={p} className={'sort-btn' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
       </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>

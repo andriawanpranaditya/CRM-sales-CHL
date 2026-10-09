@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { statusUnit } from '@/lib/stok';
 
@@ -8,19 +8,21 @@ export const dynamic = 'force-dynamic';
 // GET: posisi + status efektif SEMUA unit (dihitung di server, sehingga sales pun
 // melihat peta stok lengkap tanpa akses ke data transaksi penuh)
 export async function GET() {
-  const { err } = await requireUser(); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const positions = await sql`SELECT project, unit, x, y FROM unit_positions`;
   const manual = await sql`SELECT project, unit, status, nama, sales, nilai FROM unit_manual`;
   const status = await statusUnit(sql, manual);
-
-  return Response.json({ positions, manual, status });
+  // Akun per project: hanya peta & status unit project yang diizinkan
+  const ok = r => bolehProyek(user, r.project);
+  return Response.json({ positions: positions.filter(ok), manual: manual.filter(ok), status: status.filter(ok) });
 }
 
 // POST: simpan/pindah posisi unit — manager & CEO Project
 async function _POST(req) {
-  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
+  const { user, err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
+  if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.project || !b.unit || typeof b.x !== 'number' || typeof b.y !== 'number') {
     return Response.json({ error: 'project, unit, x, y wajib' }, { status: 400 });
   }
@@ -33,8 +35,9 @@ async function _POST(req) {
 
 // PUT: status manual (Terjual/Reserved/Kosong; null = ikut transaksi) — manager & CEO Project
 async function _PUT(req) {
-  const { err } = await requireUser(['manager', 'ceo']); if (err) return err;
+  const { user, err } = await requireUser(['manager', 'ceo']); if (err) return err;
   const b = await req.json();
+  if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.project || !b.unit) return Response.json({ error: 'project & unit wajib' }, { status: 400 });
   const sql = db();
   if (b.status === null || b.status === undefined || b.status === '') {

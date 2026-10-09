@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ export async function GET(req) {
   if (!l.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const lead = l[0];
 
+  if (!lihatBaris(user, lead)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   // Sales hanya boleh melihat timeline lead miliknya; markom lead yang ia input
   if (user.role === 'sales' && lead.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });

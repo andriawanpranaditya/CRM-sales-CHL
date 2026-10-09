@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic';
 // GET status berkas: ?project&unit&lead_code  ->  { ktp, transfer, adaTrxSebelumnya }
 // GET lihat berkas : ?view=1&project&unit&lead_code&jenis  ->  file
 export async function GET(req) {
-  const { err } = await requireUser(); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
   const q = new URL(req.url).searchParams;
   const project = q.get('project') || '', unit = q.get('unit') || '', lead = q.get('lead_code') || '';
   if (!project || !unit || !lead) return Response.json({ error: 'project, unit, lead_code wajib' }, { status: 400 });
+  if (!bolehProyek(user, project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
 
   if (q.get('view') === '1') {
     const jenis = q.get('jenis');
@@ -47,6 +48,7 @@ async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.project || !b.unit || !b.lead_code) return Response.json({ error: 'Pilih lead, project & unit dulu' }, { status: 400 });
+  if (!bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!['ktp', 'transfer', 'npwp', 'lain'].includes(b.jenis)) return Response.json({ error: 'Jenis berkas tidak valid' }, { status: 400 });
   if (!b.data) return Response.json({ error: 'File kosong' }, { status: 400 });
   if (b.data.length > 3_500_000) return Response.json({ error: 'File terlalu besar (maks ± 2,5 MB). Gunakan foto/PDF yang lebih kecil.' }, { status: 400 });
@@ -60,9 +62,10 @@ async function _POST(req) {
 
 // DELETE: hapus berkas yang salah unggah (selama transaksi belum terkunci)
 async function _DELETE(req) {
-  const { err } = await requireUser(); if (err) return err;
+  const { user, err } = await requireUser(); if (err) return err;
   const { searchParams } = new URL(req.url);
   const project = searchParams.get('project'), unit = searchParams.get('unit');
+  if (project && !bolehProyek(user, project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   const lead = searchParams.get('lead_code'), jenis = searchParams.get('jenis');
   if (!project || !unit || !lead || !['ktp', 'transfer', 'lain'].includes(jenis)) {
     return Response.json({ error: 'Parameter tidak lengkap' }, { status: 400 });

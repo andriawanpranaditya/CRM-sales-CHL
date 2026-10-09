@@ -33,6 +33,7 @@ function spendAmort(amort, d1, d2, hariIni) {
 }
 
 async function berandaMarcom(sql, user, hariIni) {
+  const pp = user.projects; // akun per project (null = semua)
   const awalBulan = hariIni.slice(0, 8) + '01';
   const d1 = awalBulan < MULAI ? MULAI : awalBulan;
   const [funnel, spendRows, amort, camp, siap, siapN, due, selesai, stok] = await Promise.all([
@@ -44,39 +45,40 @@ async function berandaMarcom(sql, user, hariIni) {
         count(*) FILTER (WHERE COALESCE(l.campaign, '') <> '' AND ((l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
           OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing'))))::int AS p2,
         count(*) FILTER (WHERE l.tgl = ${hariIni}::date)::int AS hari_ini
-      FROM leads l WHERE l.tgl >= ${d1}::date AND l.tgl <= ${hariIni}::date`.catch(async () =>
+      FROM leads l WHERE l.tgl >= ${d1}::date AND l.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(async () =>
       // l2_at belum ada (Analisa Marcom belum pernah dibuka) — hitung tanpa jejak l2_at
       sql`SELECT count(*)::int AS l0, 0 AS l1, count(*) FILTER (WHERE l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.sumber ILIKE '%walk%')::int AS l2,
         count(*) FILTER (WHERE COALESCE(l.campaign, '') <> '')::int AS p0, 0 AS p2, count(*) FILTER (WHERE l.tgl = ${hariIni}::date)::int AS hari_ini
-        FROM leads l WHERE l.tgl >= ${d1}::date AND l.tgl <= ${hariIni}::date`),
-    sql`SELECT COALESCE(sum(spend), 0)::numeric AS spend FROM mi_ads WHERE tgl >= ${d1}::date AND tgl <= ${hariIni}::date`.catch(() => [{ spend: 0 }]),
-    sql`SELECT * FROM mi_amort`.catch(() => []),
+        FROM leads l WHERE l.tgl >= ${d1}::date AND l.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`),
+    sql`SELECT COALESCE(sum(spend), 0)::numeric AS spend FROM mi_ads WHERE tgl >= ${d1}::date AND tgl <= ${hariIni}::date
+      AND (${pp}::text[] IS NULL OR EXISTS (SELECT 1 FROM mi_campaigns mc WHERE mc.nama = mi_ads.campaign AND mc.project = ANY(${pp}::text[])))`.catch(() => [{ spend: 0 }]),
+    sql`SELECT a.*, c.project FROM mi_amort a LEFT JOIN mi_campaigns c ON c.nama = a.campaign`.catch(() => []),
     sql`SELECT count(*) FILTER (WHERE status = 'Aktif')::int AS tayang,
         count(*) FILTER (WHERE COALESCE(meta_info, '') LIKE 'Belum tersambung%' AND status <> 'Selesai')::int AS belum
-      FROM mi_campaigns`.catch(() => sql`SELECT count(*) FILTER (WHERE status = 'Aktif')::int AS tayang, 0 AS belum FROM mi_campaigns`.catch(() => [{ tayang: 0, belum: 0 }])),
+      FROM mi_campaigns WHERE (${pp}::text[] IS NULL OR project = ANY(${pp}::text[]))`.catch(() => sql`SELECT count(*) FILTER (WHERE status = 'Aktif')::int AS tayang, 0 AS belum FROM mi_campaigns WHERE (${pp}::text[] IS NULL OR project = ANY(${pp}::text[]))`.catch(() => [{ tayang: 0, belum: 0 }])),
     // Lead tim Marcom yang sudah hangat tetapi belum punya sales (PIC)
     sql`SELECT l.id, l.lead_code, l.nama, l.project, l.status, COALESCE(l.tipe, '') AS tipe,
         (SELECT f.detail FROM followups f WHERE f.lead_code = l.lead_code ORDER BY f.id DESC LIMIT 1) AS fu_terakhir,
         (SELECT COALESCE(u2.name, f.created_by) FROM followups f LEFT JOIN users u2 ON u2.username = f.created_by
           WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa' ORDER BY f.id DESC LIMIT 1) AS fu_oleh
       FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-      WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm')
+      WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       ORDER BY CASE l.status WHEN 'Hot' THEN 0 WHEN 'Site Visit' THEN 1 WHEN 'Appointment' THEN 2 ELSE 3 END, l.updated_at DESC
       LIMIT 6`,
     sql`SELECT count(*)::int AS n FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-      WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm')`,
+      WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
     // Follow up jatuh tempo (hari ini & terlambat) seluruh lead tim Marcom
     sql`SELECT l.lead_code, l.nama, l.status, l.next_fu::text AS next_fu, COALESCE(u.name, l.created_by) AS penginput, l.created_by
       FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-      WHERE l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+      WHERE l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       ORDER BY l.next_fu, l.id`,
     sql`SELECT count(DISTINCT f.lead_code)::int AS n FROM followups f
       JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-      WHERE (f.created_at AT TIME ZONE 'Asia/Jakarta')::date = ${hariIni}::date AND COALESCE(f.created_by, '') <> 'auto-wa'`,
-    ringkasStok(sql).catch(e => { console.error('stok beranda', e); return []; }),
+      WHERE (f.created_at AT TIME ZONE 'Asia/Jakarta')::date = ${hariIni}::date AND COALESCE(f.created_by, '') <> 'auto-wa' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
+    ringkasStok(sql).then(r => pp ? r.filter(x => pp.includes(x.project)) : r).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
   const F = funnel[0] || {};
-  const spend = Math.round(Number(spendRows[0]?.spend || 0) + spendAmort(amort, d1, hariIni, hariIni));
+  const spend = Math.round(Number(spendRows[0]?.spend || 0) + spendAmort(pp ? amort.filter(a => pp.includes(a.project)) : amort, d1, hariIni, hariIni));
   return {
     peran: 'markom', d1, hariIni,
     funnel: { l0: F.l0 || 0, l1: F.l1 || 0, l2: F.l2 || 0, p0: F.p0 || 0, p2: F.p2 || 0, hariIni: F.hari_ini || 0 },
@@ -89,6 +91,7 @@ async function berandaMarcom(sql, user, hariIni) {
 }
 
 async function berandaSales(sql, user, hariIni, semua) {
+  const pp = user.projects;
   const awalBulan = hariIni.slice(0, 8) + '01';
   const nama = semua ? null : user.name;
   const [baru, due, selesai, status, reserved, jual, stok] = await Promise.all([
@@ -98,30 +101,30 @@ async function berandaSales(sql, user, hariIni, semua) {
       JOIN LATERAL (SELECT created_at, oleh FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
       LEFT JOIN users u ON u.username = a.oleh
       WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Closing', 'Drop', 'Lost')
-        AND a.created_at > now() - interval '14 days'
+        AND a.created_at > now() - interval '14 days' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
         AND NOT EXISTS (SELECT 1 FROM followups f JOIN users s ON s.username = f.created_by AND s.name = l.sales
           WHERE f.lead_code = l.lead_code AND f.created_at > a.created_at)
       ORDER BY a.created_at DESC LIMIT 5`.catch(() => []),
     sql`SELECT l.lead_code, l.nama, l.wa, l.status, l.project, l.next_fu::text AS next_fu
       FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama})
-        AND l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+        AND l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       ORDER BY l.next_fu, CASE l.status WHEN 'Hot' THEN 0 WHEN 'Site Visit' THEN 1 WHEN 'Appointment' THEN 2 WHEN 'Warm' THEN 3 ELSE 4 END`,
     sql`SELECT count(DISTINCT f.lead_code)::int AS n FROM followups f JOIN leads l ON l.lead_code = f.lead_code
       WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (f.created_at AT TIME ZONE 'Asia/Jakarta')::date = ${hariIni}::date
-        AND COALESCE(f.created_by, '') <> 'auto-wa'
+        AND COALESCE(f.created_by, '') <> 'auto-wa' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND (${nama}::text IS NULL OR f.created_by IN (SELECT username FROM users WHERE name = ${nama}))`,
-    sql`SELECT status, count(*)::int AS n FROM leads WHERE (${nama}::text IS NULL OR sales = ${nama}) AND status NOT IN ('Closing', 'Drop', 'Lost', 'Booking') GROUP BY status`,
+    sql`SELECT status, count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Booking') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY l.status`,
     // Reserved aktif: transaksi terakhir lead adalah Reserved
-    sql`SELECT count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama})
+    sql`SELECT count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       AND (SELECT t.jenis FROM transactions t WHERE t.lead_code = l.lead_code ORDER BY t.id DESC LIMIT 1) = 'Reserved'`,
     // Penjualan diakui pada tanggal Booking (bulan berjalan), satu lead dihitung sekali
     sql`SELECT count(DISTINCT t.lead_code)::int AS n, COALESCE(sum(x.nilai), 0)::numeric AS nilai FROM transactions t
       JOIN leads l ON l.lead_code = t.lead_code
       JOIN LATERAL (SELECT COALESCE(t.nilai_jual, t.nilai, 0) AS nilai) x ON true
-      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date`,
+      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
     // Stok unit: perhitungan yang sama persis dengan halaman Master Stock (lib/stok.js)
-    ringkasStok(sql).catch(e => { console.error('stok beranda', e); return []; }),
+    ringkasStok(sql).then(r => pp ? r.filter(x => pp.includes(x.project)) : r).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
   return {
     peran: 'sales', hariIni,

@@ -12,6 +12,7 @@ export default function Dashboard() {
       .then(([l, f, t, s, st, kg]) => {
         setKeg(kg || []);
         setLeads(l); setFus(f); setTrx(t); setSet(s); setStock(st.status || []); setPosisi(st.positions || []);
+        if ((s.project || []).length === 1) setProj(p => p || s.project[0]); // akun satu project: langsung terkunci ke project-nya
         setLastUpd(new Date());
       })
       .catch(e => toast(e.message));
@@ -961,7 +962,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
       </div>
       <div className="fu-toolbar">
         <span className="hint" style={{ fontWeight: 600 }}>Filter project:</span>
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
+        {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
         {(set.project || []).map(p => (
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>

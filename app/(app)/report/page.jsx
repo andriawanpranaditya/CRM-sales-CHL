@@ -10,7 +10,7 @@ export default function ReportPage() {
   const [proj, setProj] = useState('');
   useEffect(() => {
     Promise.all([api('/api/leads'), api('/api/trx'), api('/api/settings')])
-      .then(([l, t, s]) => { setLeads(l); setTrx(t); setSet(s); }).catch(e => toast(e.message));
+      .then(([l, t, s]) => { setLeads(l); setTrx(t); setSet(s); if ((s.project || []).length === 1) setProj(p => p || s.project[0]); }).catch(e => toast(e.message));
   }, []);
   if (!leads) return <div className="loading">Memuat…</div>;
 
@@ -27,7 +27,7 @@ export default function ReportPage() {
       <div className="page-head"><div><h1>Report per Sales</h1>
         <div className="sub">Status dari Database Lead · Reserved &amp; Booking dihitung dari transaksi · Closing Rate = Booking ÷ Total Lead</div></div></div>
       <div className="fu-toolbar">
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
+        {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>}
         {(set.project || []).map(p => (
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>

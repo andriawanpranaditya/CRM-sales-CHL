@@ -1,5 +1,5 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,7 @@ export async function GET(req) {
   if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
   else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY f.tgl DESC, f.id DESC`;
   else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`;
+  if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
   return Response.json(rows);
 }
 
@@ -31,6 +32,10 @@ async function _POST(req) {
   if (user.role === 'sales') {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;
     if (!own.length) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
+  }
+  if (user.projects) {
+    const l = await sql`SELECT project, sales, created_by FROM leads WHERE lead_code = ${b.lead_code}`;
+    if (l.length && !lihatBaris(user, l[0])) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   }
   await siapkanBalas(sql);
   await siapkanStatusLog(sql);

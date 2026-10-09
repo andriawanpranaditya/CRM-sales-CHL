@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog, bolehUbah } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -81,6 +81,12 @@ export async function GET(req) {
   const sql = db();
   const url = new URL(req.url);
   await siapkanL2(sql);
+  // Akun per project: project yang diminta harus diizinkan; tanpa pilihan project → dikunci ke project-nya (bila satu)
+  const pjMinta = url.searchParams.get('project');
+  if (user.projects) {
+    if (pjMinta && !bolehProyek(user, pjMinta)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+    if (!pjMinta && user.projects.length === 1) url.searchParams.set('project', user.projects[0]);
+  }
 
   // Daftar lead tanpa campaign — bahan alat Tandai Lead Massal (marcom hanya lead yang ia input)
   if (url.searchParams.get('list') === 'untagged') {
@@ -99,7 +105,7 @@ export async function GET(req) {
   // Ringkas: daftar campaign aktif untuk dropdown Form Input (dipakai juga oleh manager)
   if (url.searchParams.get('list') === 'campaign') {
     const rows = await sql`SELECT id, nama, platform, project FROM mi_campaigns WHERE status = 'Aktif' ORDER BY nama`;
-    return Response.json(rows);
+    return Response.json(user.projects ? rows.filter(r => !r.project || user.projects.includes(r.project)) : rows);
   }
 
   // Periode analisa (opsional) — membatasi leads, iklan, dan konten berdasarkan tanggal

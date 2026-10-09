@@ -281,6 +281,9 @@ export default function FormPage() {
   useEffect(() => { if (bolehCampaign) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [bolehCampaign]);
   useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
 
+  // Akun satu project: project langsung terisi di form lead baru
+  useEffect(() => { if ((set?.project || []).length === 1 && !lead.project && !editId) setLead(v => ({ ...v, project: set.project[0] })); }, [set, lead.project, editId]); // eslint-disable-line
+
   // Tautan langsung dari Beranda / lonceng: /form?tab=fu|l2s|trx|lead&lead=KODE — dijalankan sekali setelah data siap
   const tautanDiproses = useRef(false);
   useEffect(() => {
@@ -577,7 +580,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />
-              : <select {...fl('sales')}>{opsi('sales')}</select>}
+              : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}</select>}
           </div>}
           {!isMarkom && <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>}
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
@@ -699,7 +702,11 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               setL2s({ ...l2s, sales: e.target.value, pesan: (oto && l) ? templateL2S(l, e.target.value, l2s.konteks) : l2s.pesan });
             }}>
               <option value="">— pilih sales —</option>
-              {salesWA.map(u2 => <option key={u2.id} value={u2.name}>{u2.name}{u2.wa ? '' : ' (belum ada No. WA)'}</option>)}
+              {salesWA.filter(u2 => {
+                // hanya sales yang memegang project lead ini (sales tanpa batasan project tampil untuk semua)
+                const lp = (leads.find(x => x.lead_code === l2s.lead_code) || {}).project;
+                return !lp || !Array.isArray(u2.projects) || !u2.projects.length || u2.projects.includes(lp);
+              }).map(u2 => <option key={u2.id} value={u2.name}>{u2.name}{u2.wa ? '' : ' (belum ada No. WA)'}</option>)}
             </select></div>
           <div className="field" style={{ gridColumn: '1/-1' }}><label>Yang Ditanyakan / Diminati Lead <span className="req">*</span> <span className="hint">(konteks agar sales melanjutkan obrolan, bukan mulai dari awal)</span></label>
             <input value={l2s.konteks} onChange={e => {

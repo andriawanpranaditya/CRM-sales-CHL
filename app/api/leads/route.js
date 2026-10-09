@@ -1,5 +1,5 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -26,12 +26,15 @@ export async function GET(req) {
   // Marcom: satu tim berbagi data — semua lead yang diinput akun berperan marcom (aktif maupun nonaktif)
   else if (user.role === 'markom' && !semua) rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY l.id`;
   else rows = await sql`SELECT l.*, u.role AS creator_role FROM leads l LEFT JOIN users u ON u.username = l.created_by ORDER BY l.id`;
+  // Akun per project: hanya lead project yang diizinkan
+  if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
   return Response.json(rows);
 }
 
 async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
+  if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
   const sales = user.role === 'sales' ? user.name : (b.sales || '');
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
@@ -87,6 +90,8 @@ async function _PATCH(req) {
   if (user.role === 'sales' && cur.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
+  if (!lihatBaris(user, cur)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+  if ('project' in b && b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten', 'usia'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
@@ -97,6 +102,14 @@ async function _PATCH(req) {
     m.sales = b.sales;
   }
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
+  // Oper hanya ke sales yang memegang project lead ini (bila sales tsb dibatasi per project)
+  if (operKe && m.project) {
+    try {
+      const t = await sql`SELECT projects FROM users WHERE name = ${operKe} AND role = 'sales' LIMIT 1`;
+      const pp = t[0]?.projects;
+      if (Array.isArray(pp) && pp.length && !pp.includes(m.project)) return Response.json({ error: `${operKe} hanya memegang project ${pp.join(', ')} — pilih sales ${m.project}` }, { status: 400 });
+    } catch {}
+  }
   await sql`UPDATE leads SET
     tgl = ${m.tgl || null}, nama = ${m.nama}, wa = ${m.wa || ''}, email = ${m.email || ''},
     domisili = ${m.domisili || ''}, kerja = ${m.kerja || ''}, sumber = ${m.sumber || ''},
