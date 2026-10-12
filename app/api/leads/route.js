@@ -78,9 +78,45 @@ async function _POST(req) {
   return Response.json({ ok: true, id, lead_code: code });
 }
 
+// ===== Pindah Massal (khusus manager): banyak lead sekaligus ke satu sales tujuan =====
+// Lead yang sudah Reserved/Booking dilewati kecuali diminta (nama Sales/Agent pada transaksi mengikuti pemilik lead).
+async function pindahMassal(sql, user, b) {
+  if (user.role !== 'manager') return Response.json({ error: 'Pindah massal hanya untuk manager' }, { status: 403 });
+  const ids = [...new Set((b.ids || []).map(Number).filter(Boolean))];
+  const ke = String(b.sales || '').trim();
+  if (!ids.length) return Response.json({ error: 'Pilih minimal satu lead' }, { status: 400 });
+  if (!ke) return Response.json({ error: 'Pilih sales tujuan' }, { status: 400 });
+  let t;
+  try { t = await sql`SELECT name, projects FROM users WHERE name = ${ke} AND role = 'sales' AND active = true LIMIT 1`; }
+  catch { t = await sql`SELECT name, NULL AS projects FROM users WHERE name = ${ke} AND role = 'sales' LIMIT 1`; }
+  if (!t.length) return Response.json({ error: 'Sales tujuan tidak ditemukan atau tidak aktif' }, { status: 400 });
+  const pp = Array.isArray(t[0].projects) && t[0].projects.length ? t[0].projects : null;
+  const rows = await sql`SELECT l.id, l.lead_code, l.nama, l.sales, l.project, l.status,
+      EXISTS (SELECT 1 FROM transactions x WHERE x.lead_code = l.lead_code AND x.jenis IN ('Reserved', 'Booking', 'Closing')) AS ada_trx
+    FROM leads l WHERE l.id = ANY(${ids}::int[])`;
+  const dipindah = [], dilewati = [];
+  for (const l of rows) {
+    if (!lihatBaris(user, l)) { dilewati.push({ lead_code: l.lead_code, alasan: 'di luar project akun' }); continue; }
+    if ((l.sales || '') === ke) { dilewati.push({ lead_code: l.lead_code, alasan: 'sudah milik ' + ke }); continue; }
+    if (pp && l.project && !pp.includes(l.project)) { dilewati.push({ lead_code: l.lead_code, alasan: `${ke} tidak memegang ${l.project}` }); continue; }
+    if (l.ada_trx && !b.ikutTrx) { dilewati.push({ lead_code: l.lead_code, alasan: 'sudah Reserved/Booking' }); continue; }
+    dipindah.push(l);
+  }
+  if (dipindah.length) {
+    await sql`UPDATE leads SET sales = ${ke}, updated_at = now() WHERE id = ANY(${dipindah.map(l => l.id)}::int[])`;
+    try {
+      await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh)
+        SELECT * FROM unnest(${dipindah.map(l => l.lead_code)}::text[], ${dipindah.map(l => l.sales || '')}::text[], ${dipindah.map(() => ke)}::text[], ${dipindah.map(() => user.username)}::text[])`;
+    } catch (e) { /* tabel riwayat belum ada — lewati */ }
+    for (const l of dipindah) await tandaiOleh(sql, l.lead_code, user.username, 'Pindah massal');
+  }
+  return Response.json({ ok: true, massal: true, ke, dipindah: dipindah.map(l => ({ lead_code: l.lead_code, nama: l.nama, project: l.project, status: l.status, dari: l.sales || '' })), dilewati });
+}
+
 async function _PATCH(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
+  if (b.bulk) return pindahMassal(db(), user, b);
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
@@ -159,5 +195,5 @@ async function _DELETE(req) {
 
 // Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
 export const POST = denganLog('Lead', _POST, ({ body, out }) => ({ aksi: 'Input', detail: [out.lead_code, body.nama, body.sumber, body.project, body.sales ? 'PIC ' + body.sales : 'belum ada PIC'].filter(Boolean).join(' · ') }));
-export const PATCH = denganLog('Lead', _PATCH, ({ body, out }) => ({ aksi: out.oper ? 'Oper ke Sales' : 'Update', detail: [out.lead_code, out.nama, out.oper ? 'ke ' + out.oper : '', out.berubah && out.berubah.length ? 'ubah: ' + out.berubah.join(', ') : 'tanpa perubahan'].filter(Boolean).join(' · ') }));
+export const PATCH = denganLog('Lead', _PATCH, ({ body, out }) => out.massal ? { aksi: 'Pindah Massal', detail: `${(out.dipindah || []).length} lead ke ${out.ke}: ` + (out.dipindah || []).map(l => l.lead_code).join(', ').slice(0, 400) + ((out.dilewati || []).length ? ` · ${out.dilewati.length} dilewati` : '') } : ({ aksi: out.oper ? 'Oper ke Sales' : 'Update', detail: [out.lead_code, out.nama, out.oper ? 'ke ' + out.oper : '', out.berubah && out.berubah.length ? 'ubah: ' + out.berubah.join(', ') : 'tanpa perubahan'].filter(Boolean).join(' · ') }));
 export const DELETE = denganLog('Lead', _DELETE, ({ body, out }) => body.all === true ? { aksi: 'Hapus SEMUA data', detail: out.terhapus ? `lead ${out.terhapus.lead} · FU ${out.terhapus.followup} · transaksi ${out.terhapus.transaksi}` : '' } : { detail: [out.lead_code, out.nama, 'beserta FU & transaksinya'].filter(Boolean).join(' · ') });
