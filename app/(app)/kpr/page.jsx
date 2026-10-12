@@ -50,9 +50,18 @@ const CARA = [
   ['keras', 'Cash Keras'],
   ['bertahap', 'Cash Bertahap'],
 ];
+// Permai Indah: KPR Subsidi (aturan price list, SBUM tidak disimulasikan) · KPR non-subsidi · Cash Keras · Cash Bertahap (aturan sama dgn BIO)
+const CARA_PERMAI = [
+  ['subsidi', 'KPR Subsidi'],
+  ['kpr', 'KPR'],
+  ['keras', 'Cash Keras'],
+  ['bertahap', 'Cash Bertahap'],
+];
+const PILIHAN_CICILAN = [3, 6, 12, 24, 36];
+const persenID = p => String(Math.round(Number(p) * 100) / 100).replace('.', ',');
 const BF_DEFAULT = 5000000;
 const TENOR_KPR = [25, 20, 15, 10];
-// Price list Permai Indah — KPR BTN Subsidi (SBUM Rp4 jt dari pemerintah tidak disimulasikan)
+// Price list Permai Indah — KPR Subsidi (SBUM Rp4 jt dari pemerintah tidak disimulasikan)
 const PERMAI = { harga: 185000000, bf: 500000, um: 1350000, plafon: 179150000, bunga: 5, lb: '22,5 m²', lt: '60 m²', tenor: [20, 15, 10] };
 function susunPermai(tglBF, bf, um, plafon) {
   if (!tglBF) return [];
@@ -60,7 +69,17 @@ function susunPermai(tglBF, bf, um, plafon) {
   return [
     { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
     { ket: 'Uang Muka', tgl: tUM, nominal: um },
-    { ket: 'Akad KPR BTN Subsidi (plafon)', tgl: plusBulan(tUM, 1), nominal: plafon }, // sebulan setelah uang muka
+    { ket: 'Akad KPR Subsidi (plafon)', tgl: plusBulan(tUM, 1), nominal: plafon }, // sebulan setelah uang muka
+  ];
+}
+// KPR biasa Permai: BF & uang muka bisa diisi manual; plafon = harga − BF − uang muka (tidak dikunci)
+function susunPermaiKPR(tglBF, bf, um, harga) {
+  if (!tglBF) return [];
+  const tUM = plusHari(tglBF, 14);
+  return [
+    { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
+    { ket: 'Uang Muka', tgl: tUM, nominal: um },
+    { ket: 'Akad KPR (plafon)', tgl: plusBulan(tUM, 1), nominal: harga - bf - um },
   ];
 }
 
@@ -78,7 +97,7 @@ const tglID = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { d
 function anuitas(p, b, n) { if (!p || !n) return 0; const i = b / 100 / 12; return i === 0 ? p / n : (p * i) / (1 - Math.pow(1 + i, -n)); }
 
 // ===== Penyusun jadwal pembayaran =====
-function susunJadwal(cara, harga, tglBF, bf, nCicil) {
+function susunJadwal(cara, harga, tglBF, bf, nCicil, dpP = 10) {
   if (!harga || !tglBF) return [];
   if (cara === 'kpr') {
     // Ketentuan price list: subsidi DP 10% → DP 0% hari ke-14, akad 100% − BF sebulan setelah DP
@@ -89,16 +108,17 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil) {
       { ket: 'Akad / pelunasan via KPR (100% − BF)', tgl: plusBulan(tDP, 1), nominal: harga - bf },
     ];
   }
-  const dp = Math.round(harga * 0.10); // DP 10% sudah termasuk Booking Fee
+  const dp = Math.round(harga * (Number(dpP) || 0) / 100); // DP (default 10%) sudah termasuk Booking Fee
+  const lbl = `DP ${persenID(dpP)}%`;
   const tDP = plusHari(tglBF, 14);
   if (cara === 'keras') {
     return [
       { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
-      { ket: `Sisa DP (DP 10% = ${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+      { ket: `Sisa DP (${lbl} = ${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
       { ket: 'Pelunasan', tgl: plusHari(tglBF, 30), nominal: harga - dp },
     ];
   }
-  // Cash bertahap: DP 10% = cicilan ke-1 (hari ke-14 dari BF);
+  // Cash bertahap: DP = cicilan ke-1 (hari ke-14 dari BF);
   // cicilan ke-2 jatuh 30 hari setelah cicilan ke-1, lalu tiap bulan sampai lunas
   const n = Math.max(2, nCicil);                 // jumlah cicilan TERMASUK DP
   const sisa = harga - dp;
@@ -106,7 +126,7 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil) {
   const t2 = plusHari(tDP, 30);
   const rows = [
     { ket: `Booking Fee (bagian dari Cicilan 1)`, tgl: tglBF, nominal: bf },
-    { ket: `Cicilan 1 dari ${n} — DP 10% (${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+    { ket: `Cicilan 1 dari ${n} — ${lbl} (${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
   ];
   for (let k = 2; k <= n; k++) {
     rows.push({ ket: `Cicilan ${k} dari ${n}${k === n ? ' (terakhir)' : ''}`, tgl: plusBulan(t2, k - 2), nominal: k === n ? sisa - cic * (n - 2) : cic });
@@ -131,6 +151,9 @@ export default function SimulasiCaraBayar() {
   const [tglBF, setTglBF] = useState(iso(new Date()));
   const [bf, setBf] = useState(BF_DEFAULT);
   const [nCicil, setNCicil] = useState(12);
+  const [dpPilih, setDpPilih] = useState('10');   // '10' | '20' | '30' | 'manual'
+  const [dpManual, setDpManual] = useState('');
+  const [umKpr, setUmKpr] = useState(PERMAI.um);    // uang muka KPR biasa Permai (default = price list, bisa diubah)
   const [rows, setRows] = useState([]);
   // KPR
   const [tenor, setTenor] = useState(25);
@@ -163,16 +186,23 @@ export default function SimulasiCaraBayar() {
   useEffect(() => { setBunga(U.bunga); setTenor(U.tenor); }, [proj]); // eslint-disable-line
 
   const isPermai = /permai/i.test(proj);
+  const isSubsidi = isPermai && cara === 'subsidi';     // aturan KPR subsidi (bunga tetap 5%, DBR 30%, SBUM tidak disimulasikan)
+  const isKPR = cara === 'kpr' || cara === 'subsidi';
+  const daftarCara = isPermai ? CARA_PERMAI : CARA;
+  const dpPersen = dpPilih === 'manual' ? (Number(dpManual) || 0) : Number(dpPilih);
   const harga = isPermai ? PERMAI.harga : (hargaMode === 'manual' ? (Number(hargaManual) || 0) : (hargaMode === 'allin' ? U.allin : U.standar));
-  // Total yang dijadwalkan: Permai = BF + uang muka + plafon (SBUM tidak disimulasikan)
-  const targetTotal = isPermai ? (Number(bf) || 0) + PERMAI.um + PERMAI.plafon : harga;
-  useEffect(() => { if (isPermai) { setCara('kpr'); setBf(PERMAI.bf); setTenor(20); setBunga(PERMAI.bunga); setDbr(30); } else { setBf(BF_DEFAULT); } }, [isPermai]); // eslint-disable-line
+  // Total yang dijadwalkan: KPR Subsidi = BF + uang muka + plafon (SBUM tidak disimulasikan); lainnya = harga penuh
+  const targetTotal = isSubsidi ? (Number(bf) || 0) + PERMAI.um + PERMAI.plafon : harga;
+  useEffect(() => { if (isPermai) { setCara('subsidi'); setBf(PERMAI.bf); setTenor(20); setBunga(PERMAI.bunga); setDbr(30); } else { setBf(BF_DEFAULT); setCara(c => c === 'subsidi' ? 'kpr' : c); } }, [isPermai]); // eslint-disable-line
+  // Permai: KPR Subsidi mengunci bunga 5% & DBR 30%; KPR biasa memakai aturan bank umum (DBR 40%)
+  useEffect(() => { if (!isPermai) return; if (cara === 'subsidi') { setBunga(PERMAI.bunga); setDbr(30); setTenor(20); } else if (cara === 'kpr') setDbr(40); }, [cara, isPermai]); // eslint-disable-line
 
+  const nCic = PILIHAN_CICILAN.includes(Number(nCicil)) ? Number(nCicil) : 12;
+  const jadwalStandar = () => isSubsidi ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon)
+    : isPermai && cara === 'kpr' ? susunPermaiKPR(tglBF, Number(bf) || 0, Number(umKpr) || 0, PERMAI.harga)
+    : susunJadwal(cara, harga, tglBF, Number(bf) || 0, nCic, dpPersen);
   // Susun ulang jadwal setiap kali dasar perhitungan berubah
-  useEffect(() => {
-    setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon)
-      : susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Math.max(1, Number(nCicil) || 12))));
-  }, [cara, harga, tglBF, bf, nCicil, isPermai]);
+  useEffect(() => { setRows(jadwalStandar()); }, [cara, harga, tglBF, bf, nCic, isPermai, dpPersen, umKpr]); // eslint-disable-line
 
   // Edit manual: termin terakhir menyeimbangkan otomatis
   const ubahBaris = (i, k, v) => {
@@ -187,7 +217,8 @@ export default function SimulasiCaraBayar() {
   const cocok = Math.round(total) === Math.round(targetTotal);
 
   // ===== KPR =====
-  const plafon = isPermai ? PERMAI.plafon : harga;
+  // Plafon: KPR Subsidi dikunci sesuai price list; KPR biasa Permai = harga − BF − uang muka; BIO = harga (plafon price list)
+  const plafon = isSubsidi ? PERMAI.plafon : isPermai ? PERMAI.harga - (Number(bf) || 0) - (Number(umKpr) || 0) : harga;
   const TENOR = isPermai ? PERMAI.tenor : TENOR_KPR;
   const angs = useMemo(() => anuitas(plafon, Number(bunga) || 0, (Number(tenor) || 0) * 12), [plafon, bunga, tenor]);
   // Proyeksi setelah masa fix + rincian anuitas (pokok & bunga per bulan)
@@ -196,7 +227,7 @@ export default function SimulasiCaraBayar() {
     const nB = (Number(tenor) || 0) * 12;
     if (!plafon || !nB) return null;
     let tahapList;
-    if (isPermai) tahapList = [{ nama: 'Fix', bulan: nB, bunga: Number(bunga) || 0 }]; // Permai: bunga tetap sepanjang tenor
+    if (isSubsidi) tahapList = [{ nama: 'Fix', bulan: nB, bunga: Number(bunga) || 0 }]; // KPR Subsidi: bunga tetap sepanjang tenor
     else {
       const t1 = Math.max(0, Number(tahunFix) || 0) * 12, t2 = Math.max(0, Number(tahap2.tahun) || 0) * 12, t3 = Math.max(0, Number(tahap3.tahun) || 0) * 12;
       tahapList = [
@@ -224,12 +255,12 @@ export default function SimulasiCaraBayar() {
     const fixTerakhir = tahap.filter(t => !t.floating).slice(-1)[0];
     const floating = tahap.find(t => t.floating);
     return { nB, tahap, baris, totBunga, totBayar, nFix: fixTerakhir ? fixTerakhir.sampai : nB, sisaFix: fixTerakhir ? fixTerakhir.sisaAkhir : 0, aLanjut: floating ? floating.a : 0 };
-  }, [plafon, bunga, tenor, tahunFix, tahap2, tahap3, bungaLanjut, isPermai]);
+  }, [plafon, bunga, tenor, tahunFix, tahap2, tahap3, bungaLanjut, isSubsidi]);
   const lain = Number(cicilanLain) || 0;
   const butuh = angs ? (angs + lain) / (dbr / 100) : 0;
   const dbrAkt = Number(penghasilan) ? ((angs + lain) / Number(penghasilan)) * 100 : null;
   const kel = dbrAkt == null ? null
-    : isPermai ? (dbrAkt <= 30
+    : isSubsidi ? (dbrAkt <= 30
       ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Di bawah batas 30%, sesuai ketentuan KPR subsidi.' }
       : { w: 'var(--red)', t: `Melebihi batas — DBR ${Math.round(dbrAkt)}%`, s: 'Di atas 30%: perpanjang tenor atau ajukan dengan penghasilan gabungan.' })
     : dbrAkt <= 40 ? { w: 'var(--green)', t: `Aman — DBR ${Math.round(dbrAkt)}%`, s: 'Rasio cicilan sehat, peluang disetujui besar.' }
@@ -237,14 +268,14 @@ export default function SimulasiCaraBayar() {
     : { w: 'var(--red)', t: `Perlu penyesuaian — DBR ${Math.round(dbrAkt)}%`, s: 'Perpanjang tenor, tambah uang muka, atau ajukan dengan penghasilan gabungan.' };
 
   const labelHarga = isPermai ? 'Harga' : hargaMode === 'manual' ? 'Harga manual' : hargaMode === 'allin' ? 'Harga All In' : 'Harga Standar';
-  const namaCara = CARA.find(c => c[0] === cara)[1] + (cara === 'bertahap' ? ` ${Math.min(12, Number(nCicil) || 12)} bulan` : '');
+  const namaCara = ((daftarCara.find(c => c[0] === cara) || CARA[0])[1]) + (cara === 'bertahap' ? ` ${nCic} bulan` : '') + (['keras', 'bertahap'].includes(cara) ? ` · DP ${persenID(dpPersen)}%` : '');
 
   function teksWA() {
     let t = `*SIMULASI CARA BAYAR*\n*${namaProyek}* — ${unit}\n${namaCara} · ${labelHarga}: *${fmtRp(harga)}*\n\n`;
     rows.forEach(r => { t += `${tglID(r.tgl)} — ${r.ket}: ${fmtRp(r.nominal) === '—' ? 'Rp0' : fmtRp(r.nominal)}\n`; });
-    if (cara === 'kpr') {
+    if (isKPR) {
       t += `\n*Angsuran KPR* (bunga ${bunga}%):\n` + TENOR.map(n => `${n} th: ${fmtRp(Math.round(anuitas(plafon, Number(bunga), n * 12)))}/bln`).join('\n');
-      if (amort && !isPermai && amort.tahap.length > 1) t += `\n\n*Skema bunga berjenjang (tenor ${tenor} th)*:\n` + amort.tahap.map(x => `${x.floating ? 'Floating' : x.nama} (th ${Math.ceil(x.dari / 12)}–${Math.ceil(x.sampai / 12)}, ${x.bunga}%${x.floating ? '*' : ''}): ${fmtRp(Math.round(x.a))}/bln`).join('\n') + `\n_*floating = perkiraan, mengikuti bunga bank saat itu_`;
+      if (amort && !isSubsidi && amort.tahap.length > 1) t += `\n\n*Skema bunga berjenjang (tenor ${tenor} th)*:\n` + amort.tahap.map(x => `${x.floating ? 'Floating' : x.nama} (th ${Math.ceil(x.dari / 12)}–${Math.ceil(x.sampai / 12)}, ${x.bunga}%${x.floating ? '*' : ''}): ${fmtRp(Math.round(x.a))}/bln`).join('\n') + `\n_*floating = perkiraan, mengikuti bunga bank saat itu_`;
       t += `\nPenghasilan minimal ± ${fmtRp(Math.round(butuh))}/bln (DBR ${dbr}%).`;
     }
     t += `\n\nPembayaran ke: ${REK.pt} · BCA ${REK.no} (${REK.cab}).\n_Simulasi; mengikuti ketentuan price list yang berlaku._`;
@@ -286,17 +317,17 @@ export default function SimulasiCaraBayar() {
         doc.text(r.nominal ? fmtRp(r.nominal) : 'Rp 0', PW - M - 3, y + 4.8, { align: 'right' });
         y += 7;
       });
-      if (!isPermai) { doc.setFont('helvetica', 'bold'); doc.text('Total', M + 38, y + 5); doc.text(fmtRp(total), PW - M - 3, y + 5, { align: 'right' }); y += 12; } else { y += 6; }
-      if (cara === 'kpr') {
+      if (!isSubsidi) { doc.setFont('helvetica', 'bold'); doc.text('Total', M + 38, y + 5); doc.text(fmtRp(total), PW - M - 3, y + 5, { align: 'right' }); y += 12; } else { y += 6; }
+      if (isKPR) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text('Ilustrasi Angsuran KPR — bunga ' + bunga + '%', M, y); y += 6;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
-        TENOR_KPR.forEach(n => {
+        TENOR.forEach(n => {
           const a = anuitas(plafon, Number(bunga), n * 12);
           doc.text(n + ' tahun', M + 3, y); doc.text(fmtRp(Math.round(a)) + ' / bulan', M + 40, y);
           doc.text('penghasilan min. ' + fmtRp(Math.round((a + lain) / (dbr / 100))) + ' (DBR ' + dbr + '%)', M + 95, y);
           y += 6;
         });
-        if (amort && !isPermai && amort.tahap.length > 1) {
+        if (amort && !isSubsidi && amort.tahap.length > 1) {
           y += 2; doc.setFont('helvetica', 'bold'); doc.text('Skema bunga berjenjang — tenor ' + tenor + ' tahun', M, y); y += 5; doc.setFont('helvetica', 'normal');
           amort.tahap.forEach(x => {
             doc.text((x.floating ? 'Floating' : x.nama) + ' (tahun ' + Math.ceil(x.dari / 12) + '-' + Math.ceil(x.sampai / 12) + ', ' + x.bunga + '%' + (x.floating ? '*' : '') + ')', M + 3, y);
@@ -347,13 +378,14 @@ export default function SimulasiCaraBayar() {
               {['A', 'B', 'C'].map(t => <option key={t} value={t}>Tipe {t} — standar {fmtRp(BIO_TIPE[t].standar)}</option>)}
             </select></div>}
           <div className="field"><label>Cara Bayar</label>
-            <select value={cara} onChange={e => setCara(e.target.value)} disabled={isPermai}>
-              {(isPermai ? [['kpr', 'KPR BTN Subsidi']] : CARA).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            <select value={cara} onChange={e => setCara(e.target.value)}>
+              {daftarCara.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
-            {isPermai && <span className="hint">Permai Indah hanya melalui KPR subsidi.</span>}</div>
+            {isPermai && <span className="hint">{cara === 'subsidi' ? 'KPR Subsidi sesuai price list — SBUM Rp4 jt dari pemerintah tidak disimulasikan.'
+              : cara === 'kpr' ? 'KPR biasa: Booking Fee & uang muka bisa diubah, plafon = harga − BF − uang muka.' : 'Aturan sama dengan Cash BIO District.'}</span>}</div>
           {isPermai ? <div className="field"><label>Harga</label>
             <input value={fmtRp(PERMAI.harga)} disabled />
-            <span className="hint">LB {PERMAI.lb} · LT {PERMAI.lt} · plafon KPR {fmtRp(PERMAI.plafon)}</span></div> :
+            <span className="hint">LB {PERMAI.lb} · LT {PERMAI.lt}{isKPR ? ' · plafon KPR ' + fmtRp(plafon) + (isSubsidi ? ' (sesuai price list)' : ' (harga − BF − uang muka)') : ''}</span></div> :
           <div className="field"><label>Harga</label>
             <select value={hargaMode} onChange={e => setHargaMode(e.target.value)}>
               <option value="standar">Harga Standar — {fmtRp(U.standar)}</option>
@@ -367,12 +399,22 @@ export default function SimulasiCaraBayar() {
             <input type="date" value={tglBF} onChange={e => setTglBF(e.target.value)} /></div>
           <div className="field"><label>Booking Fee (Rp)</label>
             <input type="number" min="0" value={bf} onChange={e => setBf(e.target.value)} />
-            <span className="hint">{cara === 'kpr' ? 'Pelunasan via KPR = 100% − BF.' : 'Sudah termasuk dalam DP 10%.'}</span></div>
-          {cara === 'bertahap' && <div className="field"><label>Jumlah Cicilan (bulan)</label>
-            <select value={nCicil} onChange={e => setNCicil(Number(e.target.value))}>
-              {[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2].map(n => <option key={n} value={n}>{n}× cicilan{n === 12 ? ' (standar)' : ''}</option>)}
+            <span className="hint">{isKPR ? (isPermai ? 'Bagian dari pembayaran awal sebelum akad KPR.' : 'Pelunasan via KPR = 100% − BF.') : `Sudah termasuk dalam DP ${persenID(dpPersen)}%.`}</span></div>
+          {isPermai && cara === 'kpr' && <div className="field"><label>Uang Muka (Rp)</label>
+            <input type="number" min="0" value={umKpr} onChange={e => setUmKpr(e.target.value)} />
+            <span className="hint">Default {fmtRp(PERMAI.um)} sesuai price list. Plafon KPR otomatis = {fmtRp(plafon)}{plafon <= 0 ? ' — ⚠ BF + uang muka melebihi harga' : ''}.</span></div>}
+          {['keras', 'bertahap'].includes(cara) && <div className="field"><label>Uang Muka (DP)</label>
+            <select value={dpPilih} onChange={e => setDpPilih(e.target.value)}>
+              {['10', '20', '30'].map(p => <option key={p} value={p}>DP {p}%{p === '10' ? ' (standar)' : ''}</option>)}
+              <option value="manual">Isi manual (%)</option>
             </select>
-            <span className="hint">Termasuk DP 10% sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
+            {dpPilih === 'manual' && <input type="number" min="1" max="99" step="0.5" style={{ marginTop: 6 }} value={dpManual} onChange={e => setDpManual(e.target.value)} placeholder="mis. 15" />}
+            <span className="hint">DP {persenID(dpPersen)}% = {fmtRp(Math.round(harga * dpPersen / 100))}, termasuk Booking Fee{Math.round(harga * dpPersen / 100) < (Number(bf) || 0) ? ' — ⚠ DP lebih kecil dari Booking Fee' : ''}.</span></div>}
+          {cara === 'bertahap' && <div className="field"><label>Jumlah Cicilan</label>
+            <select value={nCic} onChange={e => setNCicil(Number(e.target.value))}>
+              {PILIHAN_CICILAN.map(n => <option key={n} value={n}>{n}× cicilan{n === 12 ? ' (standar)' : ''}</option>)}
+            </select>
+            <span className="hint">Termasuk DP {persenID(dpPersen)}% sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
         </div>
       </div>
 
@@ -389,7 +431,7 @@ export default function SimulasiCaraBayar() {
           <h2>Jadwal Pembayaran — {namaCara}</h2>
           <div className="hint" style={{ marginBottom: 8 }}>{unit} · {labelHarga}: <b>{fmtRp(harga)}</b> · tanggal &amp; nominal bisa diubah langsung; termin terakhir menyesuaikan otomatis.</div>
           <div className="tbl-wrap"><table className="tbl-compact">
-            <thead><tr><th style={{ width: 40 }}>#</th><th>Tanggal</th><th>Termin</th><th className="num">Nominal</th>{!isPermai && <th className="num">Kumulatif</th>}</tr></thead>
+            <thead><tr><th style={{ width: 40 }}>#</th><th>Tanggal</th><th>Termin</th><th className="num">Nominal</th>{!isSubsidi && <th className="num">Kumulatif</th>}</tr></thead>
             <tbody>
               {rows.map((r, i) => {
                 const kum = rows.slice(0, i + 1).reduce((a, x) => a + x.nominal, 0);
@@ -401,36 +443,36 @@ export default function SimulasiCaraBayar() {
                   <td className="num" data-label="Nominal">{akhir
                     ? <b title="Menyesuaikan otomatis">{fmtRp(r.nominal) === '—' ? 'Rp 0' : fmtRp(r.nominal)}</b>
                     : <input type="number" min="0" value={r.nominal} onChange={e => ubahBaris(i, 'nominal', e.target.value)} style={{ maxWidth: 160, textAlign: 'right' }} />}</td>
-                  {!isPermai && <td className="num" data-label="Kumulatif">{fmtRp(kum) === '—' ? 'Rp 0' : fmtRp(kum)}</td>}
+                  {!isSubsidi && <td className="num" data-label="Kumulatif">{fmtRp(kum) === '—' ? 'Rp 0' : fmtRp(kum)}</td>}
                 </tr>;
               })}
-              {!isPermai && <tr><td></td><td></td><td><b>Total</b></td>
+              {!isSubsidi && <tr><td></td><td></td><td><b>Total</b></td>
                 <td className="num"><b>{fmtRp(total)}</b></td>
                 <td className="num">{cocok ? <b style={{ color: 'var(--green)' }}>Total cocok ✓</b> : <b style={{ color: 'var(--red)' }}>Selisih {fmtRp(targetTotal - total)}</b>}</td></tr>}
             </tbody>
           </table></div>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="sort-btn" onClick={() => setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon) : susunJadwal(cara, harga, tglBF, Number(bf) || 0, Math.min(12, Number(nCicil) || 12)))}>↺ Kembalikan jadwal standar</button>
+            <button className="sort-btn" onClick={() => setRows(jadwalStandar())}>↺ Kembalikan jadwal standar</button>
             <button className="sort-btn" onClick={() => navigator.clipboard.writeText(teksWA()).then(() => toast('Disalin — tinggal tempel di WhatsApp 📋')).catch(() => toast('Gagal menyalin'))}>📋 Salin untuk WhatsApp</button>
             <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
           </div>
           <p className="hint" style={{ marginTop: 8 }}>Pembayaran ke {REK.pt} · BCA {REK.no} ({REK.cab}).</p>
         </div>
 
-        {cara === 'kpr' && (
+        {isKPR && (
           <div className="card" style={{ marginTop: 14 }}>
             <h2>Simulasi Angsuran KPR — plafon {fmtRp(plafon)}</h2>
             <div className="form-grid">
               <div className="field"><label>Bunga (% / tahun)</label>
-                <input type="number" step="0.05" min="0" value={bunga} onChange={e => setBunga(e.target.value)} disabled={isPermai} />
-                {isPermai && <span className="hint">KPR BTN subsidi — bunga tetap 5%.</span>}</div>
+                <input type="number" step="0.05" min="0" value={bunga} onChange={e => setBunga(e.target.value)} disabled={isSubsidi} />
+                {isSubsidi ? <span className="hint">KPR subsidi — bunga tetap 5%.</span> : isPermai ? <span className="hint">KPR non-subsidi — sesuaikan dengan program bank.</span> : null}</div>
               <div className="field"><label>Tenor</label>
                 <select value={tenor} onChange={e => setTenor(Number(e.target.value))}>{TENOR.map(t => <option key={t} value={t}>{t} tahun</option>)}</select></div>
               <div className="field"><label>Batas DBR</label>
-                <select value={dbr} onChange={e => setDbr(Number(e.target.value))} disabled={isPermai}>
+                <select value={dbr} onChange={e => setDbr(Number(e.target.value))} disabled={isSubsidi}>
                   <option value={30}>30% — sangat aman</option>
-                  {!isPermai && <option value={40}>40% — umum dipakai bank</option>}
-                  {!isPermai && <option value={50}>50% — maksimal, syarat tertentu</option>}
+                  {!isSubsidi && <option value={40}>40% — umum dipakai bank</option>}
+                  {!isSubsidi && <option value={50}>50% — maksimal, syarat tertentu</option>}
                 </select></div>
               <div className="field"><label>Cicilan Lain / Bulan (Rp)</label>
                 <input type="number" min="0" value={cicilanLain} onChange={e => setCicilanLain(e.target.value)} placeholder="opsional" /></div>
@@ -444,7 +486,7 @@ export default function SimulasiCaraBayar() {
               <div className="kpi"><div className="kpi-label">Penghasilan Minimal</div>
                 <div className="kpi-val" style={{ color: 'var(--brass)' }}>{fmtRp(Math.round(butuh))}</div>
                 <div className="hint">pada DBR {dbr}%</div></div>
-              {!isPermai && <div className="kpi"><div className="kpi-label">Penghasilan Min. (DBR 50%)</div>
+              {!isSubsidi && <div className="kpi"><div className="kpi-label">Penghasilan Min. (DBR 50%)</div>
                 <div className="kpi-val">{fmtRp(Math.round((angs + lain) / 0.5))}</div>
                 <div className="hint">batas maksimal, syarat tertentu</div></div>}
               <div className="kpi"><div className="kpi-label">Kelayakan Konsumen</div>
@@ -452,20 +494,20 @@ export default function SimulasiCaraBayar() {
                   : <div className="hint">Isi penghasilan untuk melihat kelayakan.</div>}</div>
             </div>
             <div className="tbl-wrap" style={{ marginTop: 10 }}><table className="tbl-compact">
-              <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th>{!isPermai && <th className="num">DBR 50%</th>}</tr></thead>
+              <thead><tr><th>Tenor</th><th className="num">Angsuran / Bulan</th><th className="num">Penghasilan Min. (DBR {dbr}%)</th>{!isSubsidi && <th className="num">DBR 50%</th>}</tr></thead>
               <tbody>{TENOR.map(t => {
                 const a = anuitas(plafon, Number(bunga), t * 12);
                 return <tr key={t} style={Number(tenor) === t ? { background: 'var(--green-soft)' } : undefined}>
                   <td data-label="Tenor"><b>{t} tahun</b></td>
                   <td className="num" data-label="Angsuran"><b>{fmtRp(Math.round(a))}</b></td>
                   <td className="num" data-label="DBR">{fmtRp(Math.round((a + lain) / (dbr / 100)))}</td>
-                  {!isPermai && <td className="num" data-label="DBR 50%">{fmtRp(Math.round((a + lain) / 0.5))}</td>}
+                  {!isSubsidi && <td className="num" data-label="DBR 50%">{fmtRp(Math.round((a + lain) / 0.5))}</td>}
                 </tr>;
               })}</tbody>
             </table></div>
             <p className="hint">Angsuran anuitas atas plafon sesuai price list. Belum termasuk biaya provisi, administrasi, asuransi, notaris/AJB &amp; BPHTB. Persetujuan akhir oleh bank.</p>
 
-            {amort && !isPermai && (
+            {amort && !isSubsidi && (
               <div style={{ marginTop: 14 }}>
                 <h3 style={{ margin: '0 0 6px' }}>Skema Bunga Berjenjang <span className="hint">(fix bertahap sampai 3 tahap, sisanya floating — isi 0 tahun bila tahap tidak dipakai)</span></h3>
                 <div className="form-grid">
@@ -493,8 +535,8 @@ export default function SimulasiCaraBayar() {
                 <p className="hint">Angsuran tiap tahap dihitung ulang dari sisa pokok dan sisa tenor dengan bunga tahap itu. * Bunga floating mengikuti suku bunga bank saat itu — angkanya hanya perkiraan, bisa disiasati dengan take over atau pelunasan sebagian.</p>
               </div>
             )}
-            {amort && isPermai && (
-              <p className="hint" style={{ marginTop: 10 }}>KPR BTN Subsidi: bunga tetap {bunga}% sepanjang tenor — angsuran tidak berubah hingga lunas. Total bunga s/d lunas {fmtRp(Math.round(amort.totBunga))}.</p>
+            {amort && isSubsidi && (
+              <p className="hint" style={{ marginTop: 10 }}>KPR Subsidi: bunga tetap {bunga}% sepanjang tenor — angsuran tidak berubah hingga lunas. Total bunga s/d lunas {fmtRp(Math.round(amort.totBunga))}.</p>
             )}
 
             {amort && (
@@ -505,12 +547,12 @@ export default function SimulasiCaraBayar() {
                 {lihatTabel && (
                   <div className="tbl-wrap" style={{ maxHeight: 420, overflowY: 'auto', marginTop: 8 }}>
                     <table className="tbl-compact">
-                      <thead><tr><th>Bulan</th>{!isPermai && <th>Masa</th>}<th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
+                      <thead><tr><th>Bulan</th>{!isSubsidi && <th>Masa</th>}<th className="num">Angsuran</th><th className="num">Pokok</th><th className="num">Bunga</th><th className="num">Sisa Pokok</th></tr></thead>
                       <tbody>
                         {amort.baris.map(r => (
-                          <tr key={r.b} style={!isPermai && amort.tahap.some(t => t.dari === r.b && r.b > 1) ? { borderTop: '2px solid var(--brass)' } : undefined}>
+                          <tr key={r.b} style={!isSubsidi && amort.tahap.some(t => t.dari === r.b && r.b > 1) ? { borderTop: '2px solid var(--brass)' } : undefined}>
                             <td data-label="Bulan">{r.b}</td>
-                            {!isPermai && <td data-label="Masa">{r.fix ? <span className="badge b-close">{r.tahap}</span> : <span className="badge b-warm">Floating</span>}</td>}
+                            {!isSubsidi && <td data-label="Masa">{r.fix ? <span className="badge b-close">{r.tahap}</span> : <span className="badge b-warm">Floating</span>}</td>}
                             <td className="num" data-label="Angsuran">{fmtRp(Math.round(r.a))}</td>
                             <td className="num" data-label="Pokok">{fmtRp(Math.round(r.pk))}</td>
                             <td className="num" data-label="Bunga">{fmtRp(Math.round(r.bg))}</td>
