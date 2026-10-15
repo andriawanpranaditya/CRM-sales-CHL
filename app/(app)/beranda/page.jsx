@@ -168,21 +168,142 @@ function Sales({ d }) {
   </>);
 }
 
+
+// ===== Beranda Manager & CEO Project =====
+const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', ditolak: 'kp-no' };
+const tglPendek = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
+const labelKpr = k => k.status.kategori === 'akad' ? `SP3K · akad ${tglPendek(k.akad_tgl)}` : k.status.label;
+function LangkahKpr({ n, kategori }) {
+  return <div className="kp-steps sm">{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= n ? (kategori === 'ditolak' ? 'f no' : kategori === 'akad' || kategori === 'sp3k' ? 'f ok' : 'f') : ''} />)}</div>;
+}
+function TabelKpr({ rows, lengkap }) {
+  if (!rows.length) return <p className="bd-empty">Belum ada proses KPR berjalan.</p>;
+  return (
+    <div className="bd-tbl"><table>
+      <thead><tr><th>Konsumen · unit</th>{lengkap && <th>Sales</th>}<th>Bank</th><th>Status terakhir</th><th>Kendala</th><th className="num">Update</th></tr></thead>
+      <tbody>{rows.map(k => (
+        <tr key={k.id}>
+          <td><Link href={'/kpr-proses?id=' + k.id}><b>{k.nama}</b></Link><div className="hint">{[k.project, k.unit, lengkap ? '' : k.sales].filter(Boolean).join(' · ')}</div></td>
+          {lengkap && <td>{k.sales || '—'}</td>}
+          <td>{k.banks.join(', ') || '—'}{k.akadBank ? <div className="hint">akad di {k.akadBank}{k.tidakLanjut.length ? ' · ' + k.tidakLanjut.join(', ') + ' tidak dilanjutkan' : ''}</div> : null}</td>
+          <td><span className={'kp-pill sm ' + (KELAS_KPR[k.status.kategori] || 'kp-run')}>{labelKpr(k)}</span><LangkahKpr n={k.status.langkah} kategori={k.status.kategori} /></td>
+          <td>{k.kendala || '—'}</td>
+          <td className={'num ' + ((k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k') && k.diam > 5 ? 'merah' : 'hint')}>{k.diam <= 0 ? 'hari ini' : k.diam === 1 ? 'kemarin' : k.diam + ' hari lalu'}</td>
+        </tr>))}</tbody>
+    </table></div>
+  );
+}
+
+function Pimpinan({ d, me, proj, setProj, daftarProj }) {
+  const j = d.jual, f = d.funnel, pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+  const naik = j.n - j.laluN;
+  const judul = d.perhatian.length ? `${d.perhatian.length} hal perlu perhatian hari ini` : 'Semua terkendali hari ini';
+  const isCeo = me?.role === 'ceo';
+  return (<>
+    <div className="bd-head" style={{ alignItems: 'flex-end', marginBottom: 14 }}>
+      <h1 className="bd-title" style={{ margin: 0 }}>{judul}</h1>
+      {daftarProj.length > 1 && <div className="theme-switch" role="group" aria-label="Pilih project">
+        <button aria-pressed={!proj} onClick={() => setProj('')}>{isCeo ? 'Semua project saya' : 'Semua'}</button>
+        {daftarProj.map(p => <button key={p} aria-pressed={proj === p} onClick={() => setProj(p)}>{p}</button>)}
+      </div>}
+    </div>
+    <div className="bd-grid">
+      <section className="bd-hero bd-span2">
+        <div className="bd-hero-top"><span>Penjualan &amp; reservasi bulan ini</span><span className="bd-chip-dark">diakui saat Booking</span></div>
+        <div className="bd-duo">
+          <div><span>Booking</span><b>{j.n}</b><em>unit · {rpRingkas(j.nilai)}</em></div>
+          <div><span>Reserved</span><b>{j.reservedN}</b><em>unit{j.reservedNilai ? ' · ' + rpRingkas(j.reservedNilai) + ' tanda jadi' : ''}</em></div>
+        </div>
+        <div className="bd-chips"><span>{naik > 0 ? '▲' : naik < 0 ? '▼' : '•'} Booking bulan lalu periode sama: {j.laluN} unit</span>
+          {j.perProject.length > 1 && <span>{j.perProject.map(p => `${p.project || '-'} ${p.n}`).join(' · ')}</span>}</div>
+      </section>
+      <section className="bd-card">
+        <span className="bd-label">Stok unit</span>
+        {d.stok.map(x => (<div key={x.project}>
+          <div className="bd-head"><b style={{ fontSize: 13 }}>{x.project}</b><span><b className="bd-gold">{x.tersedia}</b> <span className="hint">tersedia / {x.total}</span></span></div>
+          <div className="bd-bar tipis"><div style={{ width: Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100) + '%' }} /></div>
+        </div>))}
+        <Link href="/stock" className="bd-more">Master Stock</Link>
+      </section>
+      <section className="bd-card">
+        <span className="bd-label">Biaya marketing bulan ini</span>
+        <b className="bd-num">{rpRingkas(d.biaya.spend)}</b>
+        <span className="hint">Per lead berkualitas <b>{d.biaya.cpql != null ? rpRingkas(d.biaya.cpql) : '—'}</b></span>
+        <span className="hint">Per booking <b>{d.biaya.perBooking != null ? rpRingkas(d.biaya.perBooking) : '—'}</b></span>
+      </section>
+
+      <section className="bd-card bd-span2">
+        <h2 className="bd-h2">Corong lead bulan ini</h2>
+        {[['L0 Lead masuk', f.l0, 100, 'var(--ink)'], ['L1 Tersentuh FU', f.l1, pct(f.l1, f.l0), 'var(--green)'], ['L2 Lead berkualitas', f.l2, pct(f.l2, f.l0), 'var(--brass)'], ['L3 Booking', f.l3, pct(f.l3, f.l0), 'var(--red)']].map(([l, n, p, c], i) => (
+          <div key={l}><div className="bd-head" style={{ fontSize: 13 }}><span>{l}</span><b>{n}{i ? ` · ${p}%` : ''}</b></div>
+            <div className="bd-bar"><div style={{ width: Math.max(2, Math.min(100, p)) + '%', background: c }} /></div></div>))}
+      </section>
+      <section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Campaign aktif bulan ini</h2><span className="hint">urut biaya per lead berkualitas termurah</span></div>
+        {d.campaign.length ? <div className="bd-tbl"><table>
+          <thead><tr><th>Campaign</th><th>Project</th><th className="num">Lead L2</th><th className="num">CPQL</th><th className="num">Booking</th></tr></thead>
+          <tbody>{d.campaign.slice(0, 8).map(c => (<tr key={c.nama}><td><b>{c.nama}</b><div className="hint">{c.platform}</div></td><td>{c.project}</td>
+            <td className="num">{c.l2}</td><td className="num">{c.cpql != null ? rpRingkas(c.cpql) : '—'}</td><td className="num"><b>{c.booking}</b></td></tr>))}</tbody>
+        </table></div> : <p className="bd-empty">Tidak ada campaign yang sedang tayang.</p>}
+      </section>
+
+      <section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Perlu perhatian</h2><span className="hint">diurutkan dari yang paling mendesak</span></div>
+        {d.perhatian.length ? d.perhatian.map((p, i) => (
+          <div key={i} className="bd-row"><span className="dot" style={{ background: p.level === 'merah' ? 'var(--red)' : 'var(--brass)' }} />
+            <div className="bd-row-main"><b>{p.judul}</b><div className="bd-row-sub">{p.sub}</div></div>
+            <Link className="bd-btn" href={p.href}>Lihat</Link></div>))
+          : <p className="bd-empty">Tidak ada yang mendesak.</p>}
+        {isCeo && (<>
+          <div className="bd-head" style={{ marginTop: 6 }}><b>Update proses KPR <span className="hint">· status terakhir</span></b><Link href="/kpr-proses" className="bd-more">Buka Proses KPR</Link></div>
+          <TabelKpr rows={d.kpr} />
+        </>)}
+      </section>
+      <section className="bd-card bd-span2">
+        <h2 className="bd-h2">Performa sales</h2>
+        <div className="bd-tbl"><table>
+          <thead><tr><th>Sales</th><th className="num">Lead aktif</th><th className="num">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num">KPR jalan</th><th className="num">Booking</th></tr></thead>
+          <tbody>{d.perf.map(s => (<tr key={s.nama}><td><b>{s.nama}</b>{s.project ? <div className="hint">{s.project.join(', ')}</div> : null}</td>
+            <td className="num">{s.aktif}</td><td className={'num' + (s.telat > 2 ? ' merah' : '')}>{s.telat}</td>
+            {!isCeo && <td className={'num' + (s.respon > 6 ? ' merah' : '')}>{s.respon != null ? s.respon + ' jam' : '—'}</td>}
+            <td className="num">{s.kpr}</td><td className="num"><b>{s.booking}</b></td></tr>))}</tbody>
+        </table></div>
+        {!isCeo && <span className="hint">Respon = rata-rata jarak lead dioper sampai dihubungi pertama kali (bulan ini)</span>}
+      </section>
+
+      {!isCeo && (<section className="bd-card bd-span4">
+        <div className="bd-head"><h2 className="bd-h2">Update proses KPR</h2>
+          <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'akad (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
+        <TabelKpr rows={d.kpr} lengkap />
+      </section>)}
+
+      {d.tim && (<section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Tim hari ini</h2><Link href="/log" className="bd-more">Log Aktivitas</Link></div>
+        <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
+        <span className="hint">{d.tim.belum.length ? 'Belum aktif: ' + d.tim.belum.slice(0, 6).join(', ') + (d.tim.belum.length > 6 ? '…' : '') + ' · ' : ''}{d.tim.gagal} login gagal · {d.tim.input} input/update data hari ini</span>
+      </section>)}
+    </div>
+  </>);
+}
+
 export default function BerandaPage() {
   const [me, setMe] = useState(null);
   const [d, setD] = useState(null);
-  const [sebagai, setSebagai] = useState('markom');
+  const [sebagai, setSebagai] = useState('pimpinan');
+  const [proj, setProj] = useState('');
+  const [daftarProj, setDaftarProj] = useState([]);
   const pimpinan = me && ['manager', 'ceo'].includes(me.role);
 
-  useEffect(() => { api('/api/auth/me').then(setMe).catch(e => toast(e.message)); }, []);
+  useEffect(() => { api('/api/auth/me').then(setMe).catch(e => toast(e.message)); api('/api/settings').then(s => setDaftarProj(s.project || [])).catch(() => {}); }, []);
   useEffect(() => {
     if (!me) return;
     let batal = false;
-    const muat = () => api('/api/beranda' + (pimpinan ? '?sebagai=' + sebagai : '')).then(x => { if (!batal) setD(x); }).catch(e => toast(e.message));
+    const url = !pimpinan ? '' : sebagai === 'pimpinan' ? (proj ? '?project=' + encodeURIComponent(proj) : '') : '?sebagai=' + sebagai;
+    const muat = () => api('/api/beranda' + url).then(x => { if (!batal) setD(x); }).catch(e => toast(e.message));
     setD(null); muat();
     const t = setInterval(muat, 120000); // segarkan tiap 2 menit selama halaman terbuka
     return () => { batal = true; clearInterval(t); };
-  }, [me, sebagai]); // eslint-disable-line
+  }, [me, sebagai, proj]); // eslint-disable-line
 
   return (
     <div className="bd">
@@ -190,12 +311,13 @@ export default function BerandaPage() {
       <div className="bd-top">
         <span className="hint">{tglPanjang()}</span>
         {pimpinan && <div className="theme-switch" role="group" aria-label="Lihat beranda sebagai">
+          <button aria-pressed={sebagai === 'pimpinan'} onClick={() => setSebagai('pimpinan')}>{me.role === 'ceo' ? 'CEO Project' : 'Manager'}</button>
           <button aria-pressed={sebagai === 'markom'} onClick={() => setSebagai('markom')}>Marcom</button>
           <button aria-pressed={sebagai === 'sales'} onClick={() => setSebagai('sales')}>Sales</button>
         </div>}
       </div>
-      <p className="bd-hello">{sapa()}, {depan(me?.name)}{pimpinan ? ' · pratinjau beranda ' + (sebagai === 'sales' ? 'Sales (seluruh tim)' : 'Marcom') : ''}</p>
-      {!d ? <div className="loading">Menyiapkan beranda…</div> : d.peran === 'sales' ? <Sales d={d} /> : <Marcom d={d} />}
+      <p className="bd-hello">{sapa()}, {depan(me?.name)}{pimpinan && sebagai !== 'pimpinan' ? ' · pratinjau beranda ' + (sebagai === 'sales' ? 'Sales (seluruh tim)' : 'Marcom') : ''}</p>
+      {!d ? <div className="loading">Menyiapkan beranda…</div> : d.peran === 'pimpinan' ? <Pimpinan d={d} me={me} proj={proj} setProj={setProj} daftarProj={daftarProj} /> : d.peran === 'sales' ? <Sales d={d} /> : <Marcom d={d} />}
     </div>
   );
 }

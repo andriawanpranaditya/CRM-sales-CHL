@@ -6,12 +6,13 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
-  { href: '/beranda', ico: '⌂', label: 'Beranda', roles: ['markom', 'sales'] },
+  { href: '/beranda', ico: '⌂', label: 'Beranda', roles: ['manager', 'ceo', 'markom', 'sales'] },
   { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
+  { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
@@ -69,6 +70,8 @@ export default function Shell({ user, children }) {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
     if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
+    // Proses KPR hanya untuk sales, manager & CEO Project
+    if (['markom', 'admin'].includes(user.role) && path.startsWith('/kpr-proses')) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
     if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log'))) router.replace('/dashboard');
     if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten')) router.replace('/beranda');
@@ -149,7 +152,7 @@ export default function Shell({ user, children }) {
         </div>
         <nav className="nav">
           {menus.map(m => (
-            <Link key={m.href} href={m.href} className={path.startsWith(m.href) ? 'active' : ''}>
+            <Link key={m.href} href={m.href} className={path === m.href || path.startsWith(m.href + '/') ? 'active' : ''}>
               <span className="ico">{m.ico}</span><span>{m.label}</span>
             </Link>
           ))}
