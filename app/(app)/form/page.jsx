@@ -152,6 +152,7 @@ export default function FormPage() {
   const [berkas, setBerkas] = useState(null);
   const [upBusy, setUpBusy] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showList, setShowList] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [pwOld, setPwOld] = useState('');
   const [pwNew, setPwNew] = useState('');
@@ -257,6 +258,22 @@ export default function FormPage() {
     } finally { setBusy(false); }
   }
 
+  function mulaiEdit(l) {
+    setEditId(l.id);
+    setTab('lead');
+    const d10 = x => x ? String(x).slice(0, 10) : '';
+    setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
+      kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
+      budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || ''});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
+  }
+
+  function batalEdit() {
+    setEditId(null);
+    setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
+  }
   const isMarkom = me && me.role === 'markom';
   useEffect(() => { if (isMarkom) api('/api/users').then(setSalesWA).catch(() => {}); }, [isMarkom]);
   const [camps, setCamps] = useState([]);
@@ -274,6 +291,13 @@ export default function FormPage() {
     tautanDiproses.current = true;
     const q = new URLSearchParams(window.location.search);
     const t = q.get('tab'), kode = q.get('lead');
+    // Dari Database Lead: /form?edit=LEAD-0123 → langsung mode edit lead tsb
+    const kodeEdit = q.get('edit');
+    if (kodeEdit) {
+      const le = leads.find(x => x.lead_code === kodeEdit);
+      if (le) mulaiEdit(le); else toast('Lead ' + kodeEdit + ' tidak ditemukan atau bukan milik Anda');
+      return;
+    }
     const sah = me.role === 'markom' ? ['lead', 'fu', 'l2s'] : ['lead', 'fu', 'trx'];
     const tujuan = sah.includes(t) ? t : (kode ? 'fu' : null);
     if (tujuan) setTab(tujuan);
@@ -518,7 +542,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{t}</button>))}
       </div>
 
-      {tab === 'lead' && <div className="card">
+      {tab === 'lead' && <div className="card" style={editId ? { borderColor: 'var(--brass)', borderWidth: 2 } : undefined}>
+        {editId && <div className="note">✏️ Sedang mengedit lead <b>{leads.find(l => l.id === editId)?.lead_code}</b> — perbaiki datanya lalu klik <b>Update Lead</b>, atau <b>Batal</b> untuk kembali input baru.</div>}
         <div className="form-grid">
           <div className="field"><label>Tanggal Lead</label><input type="date" {...fl('tgl')} /></div>
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
@@ -569,8 +594,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>
         <div className="form-foot">
-          <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>Simpan Lead</button>
-          <span className="hint">ID Lead dibuat otomatis oleh sistem. Untuk mengubah lead yang sudah tersimpan, buka menu Database Lead → ✏️ Edit.</span>
+          <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>{editId ? 'Update Lead' : 'Simpan Lead'}</button>
+          {editId && <button className="btn btn-ghost" onClick={batalEdit}>Batal</button>}
+          <span className="hint">{editId ? 'Perubahan langsung tersimpan ke database.' : 'ID Lead dibuat otomatis oleh sistem.'}</span>
           {dup && (
             <div style={{ flexBasis: '100%', background: 'var(--red-soft)', border: '1px solid var(--red)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
               <b style={{ color: 'var(--red)' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
@@ -834,10 +860,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
         </div>
       </div>}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <a className="btn btn-ghost" style={{ flex: '2 1 240px', textAlign: 'center', textDecoration: 'none' }} href="/leads">
-          📋 Lihat &amp; Edit Lead Saya di Database Lead ({leads.length} lead)
-        </a>
-        <button className="btn btn-ghost" style={{ flex: '1 1 160px' }} onClick={() => setShowPw(v => !v)}>
+        <button className="btn btn-ghost" style={{ flex: '2 1 240px' }} onClick={() => setShowPw(false) || setShowList(v => !v)}>
+          {showList ? '▲ Tutup Daftar' : '▼ Lihat Lead & Hasil Follow Up Saya (' + leads.length + ' lead)'}
+        </button>
+        <button className="btn btn-ghost" style={{ flex: '1 1 160px' }} onClick={() => setShowList(false) || setShowPw(v => !v)}>
           🔑 Ganti Password
         </button>
       </div>
@@ -863,6 +889,28 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
         </div>
       </div>}
 
+      {showList && <div style={{ marginTop: 12 }}>
+        <div className="tbl-wrap"><table>
+          <thead><tr><th>ID Lead</th><th>Nama</th><th>Status</th><th>FU Terakhir</th><th>Hasil / Next Action</th><th>Next FU</th><th>Aksi</th></tr></thead>
+          <tbody>
+            {leads.length ? [...leads].reverse().map(l => {
+              const myFus = fus.filter(f => f.lead_code === l.lead_code);
+              const last = myFus[0];
+              const nfu = l.next_fu || (last && last.next_tgl);
+              const r = reminder(nfu);
+              return <tr key={l.lead_code}>
+                <td data-label="ID Lead"><span className="id-tag">{l.lead_code}</span></td>
+                <td data-label="Nama"><b>{l.nama}</b>{myFus.length > 0 && <span className="hint"> · {myFus.length}x FU</span>}</td>
+                <td data-label="Status"><span className={'badge ' + (BADGE[l.status] || 'b-cold')}>{l.status}</span></td>
+                <td data-label="FU Terakhir">{last ? <>{fmtDate(last.tgl)}<br /><span className="hint">{last.detail}</span></> : <span style={{ color: 'var(--muted)' }}>belum ada</span>}</td>
+                <td data-label="Hasil / Next Action">{last ? (last.next_action || last.objection || '—') : '—'}</td>
+                <td data-label="Next FU">{nfu ? <>{fmtDate(nfu)}{r && <> <span className={'badge ' + r[1]}>{r[0]}</span></>}</> : '—'}</td>
+                <td data-label="Aksi"><button className="sort-btn" onClick={() => mulaiEdit(l)}>✏️ Edit</button></td>
+              </tr>;
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead — input lead pertama Anda di tab 1.</td></tr>}
+          </tbody>
+        </table></div>
+      </div>}
 
       <Toast />
     </>

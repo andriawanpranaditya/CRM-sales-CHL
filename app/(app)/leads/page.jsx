@@ -215,9 +215,11 @@ export default function LeadsPage() {
               </td>
               <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
               <td data-label="Catatan">{l.catatan}</td>
-              <td data-label="Aksi">{me && me.role === 'manager'
-                ? <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>
-                : <span className="hint">—</span>}</td>
+              <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                {/* Edit lead: membuka Form Input dalam mode edit (manager, CEO, marcom, sales pemilik lead) */}
+                {me && me.role !== 'admin' && <a className="sort-btn" style={{ padding: '4px 9px', textDecoration: 'none' }} href={'/form?edit=' + encodeURIComponent(l.lead_code)} onClick={e => e.stopPropagation()}>✏️ Edit</a>}
+                {me && me.role === 'manager' && <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>}
+              </span></td>
               </tr>
               {sel === l.lead_code && (
                 <tr className="row-detail"><td colSpan={10} style={{ background: 'var(--detail-bg)', borderTop: '2px solid var(--green)' }}>
