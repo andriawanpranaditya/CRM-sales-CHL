@@ -427,3 +427,5 @@ th.num{text-align:right}
 .bd-rinci>td{background:var(--detail-bg);padding:10px!important}.bd-rinci table{width:100%;border-collapse:collapse;font-size:12.5px}
 .bd-rinci th{font-size:10.5px}
 .lead-fokus{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;background:var(--brass-soft);color:var(--brass-deep);font-weight:600;margin-bottom:10px}
+
+.kp-done{background:var(--green);color:var(--on-green)}

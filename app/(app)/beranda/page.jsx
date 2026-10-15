@@ -170,11 +170,11 @@ function Sales({ d }) {
 
 
 // ===== Beranda Manager & CEO Project =====
-const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', ditolak: 'kp-no' };
+const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', selesai: 'kp-done', ditolak: 'kp-no' };
 const tglPendek = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
-const labelKpr = k => k.status.kategori === 'akad' ? `SP3K · akad ${tglPendek(k.akad_tgl)}` : k.status.label;
+const labelKpr = k => k.status.kategori === 'selesai' ? `Done · akad ${tglPendek(k.akad_realisasi)}` : k.status.kategori === 'akad' ? `SP3K · rencana akad ${tglPendek(k.akad_tgl)}` : k.status.label;
 function LangkahKpr({ n, kategori }) {
-  return <div className="kp-steps sm">{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= n ? (kategori === 'ditolak' ? 'f no' : kategori === 'akad' || kategori === 'sp3k' ? 'f ok' : 'f') : ''} />)}</div>;
+  return <div className="kp-steps sm">{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= n ? (kategori === 'ditolak' ? 'f no' : ['akad', 'sp3k', 'selesai'].includes(kategori) ? 'f ok' : 'f') : ''} />)}</div>;
 }
 function TabelKpr({ rows, lengkap }) {
   if (!rows.length) return <p className="bd-empty">Belum ada proses KPR berjalan.</p>;
@@ -188,7 +188,7 @@ function TabelKpr({ rows, lengkap }) {
           <td>{k.banks.join(', ') || '—'}{k.akadBank ? <div className="hint">akad di {k.akadBank}{k.tidakLanjut.length ? ' · ' + k.tidakLanjut.join(', ') + ' tidak dilanjutkan' : ''}</div> : null}</td>
           <td><span className={'kp-pill sm ' + (KELAS_KPR[k.status.kategori] || 'kp-run')}>{labelKpr(k)}</span><LangkahKpr n={k.status.langkah} kategori={k.status.kategori} /></td>
           <td>{k.kendala || '—'}</td>
-          <td className={'num ' + ((k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k') && k.diam > 5 ? 'merah' : 'hint')}>{k.diam <= 0 ? 'hari ini' : k.diam === 1 ? 'kemarin' : k.diam + ' hari lalu'}</td>
+          <td className={'num ' + (['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 5 ? 'merah' : 'hint')}>{k.diam <= 0 ? 'hari ini' : k.diam === 1 ? 'kemarin' : k.diam + ' hari lalu'}</td>
         </tr>))}</tbody>
     </table></div>
   );
@@ -287,7 +287,7 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
 
       {!isCeo && (<section className="bd-card bd-span4">
         <div className="bd-head"><h2 className="bd-h2">Update proses KPR</h2>
-          <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'akad (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
+          <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'rencana akad'], ['selesai', 'done (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
         <TabelKpr rows={d.kpr} lengkap />
       </section>)}
 

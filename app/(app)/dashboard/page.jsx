@@ -579,6 +579,9 @@ export default function Dashboard() {
     try { mi = await api('/api/marcom?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
     let slr = null;
     try { slr = await api('/api/status-log?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
+    // Proses KPR (Sales/Manager/CEO) — peran lain tidak punya akses, bagian KPR dilewati
+    let kprData = null;
+    try { kprData = await api('/api/kpr'); } catch {}
     const inPeriod = t => {
       if (!t) return !d1 && !d2;
       const x = String(t).slice(0, 10);
@@ -928,6 +931,31 @@ ${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOT
 </table>
 <p class="muted">Nilai Penjualan memakai <b>Nilai Transaksi</b> (harga jual unit) dari transaksi terakhir tiap unit; unit hasil penandaan manual memakai nilai kontrak yang tercatat di Master Stock. Unit tanpa nilai tercatat terhitung pada jumlah namun bernilai Rp 0.</p>
 
+${(() => {
+      if (!kprData || !Array.isArray(kprData.rows)) return '';
+      const semua = kprData.rows.filter(k => !k.batal && k.status.kategori !== 'menunggu' && (!proj || k.project === proj));
+      if (!semua.length) return '';
+      const kat = c => semua.filter(k => k.status.kategori === c);
+      const selesaiP = kat('selesai').filter(k => inPeriod(k.akad_realisasi));
+      const ditolakP = kat('ditolak').filter(k => inPeriod(k.updated_at));
+      const berjalan = kat('berjalan');
+      const perTahap = {};
+      berjalan.forEach(k => { perTahap[k.status.label] = (perTahap[k.status.label] || 0) + 1; });
+      const URUT = ['Verifikasi & SLIK', 'Siap diajukan ke bank', 'Diajukan', 'Kumpul berkas', 'Analisa kredit'];
+      const labelReport = k => ({ selesai: 'Selesai', akad: 'Rencana akad', sp3k: 'SP3K terbit', ditolak: 'Ditolak' })[k.status.kategori] || k.status.label;
+      const warna = k => ({ selesai: '#23694A', akad: '#23694A', sp3k: '#23694A', ditolak: '#B3402F' })[k.status.kategori] || '#28527A';
+      const baris = [...kat('akad'), ...kat('sp3k'), ...berjalan, ...selesaiP, ...ditolakP];
+      return `<h2>6B. PROSES KPR <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi per hari ini; Selesai = akad sudah terealisasi pada periode)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Berjalan</th><th style="text-align:center">SP3K belum pilih akad</th><th style="text-align:center">Rencana akad</th><th style="text-align:center">Selesai (periode)</th><th style="text-align:center">Ditolak (periode)</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${berjalan.length}</td><td>${kat('sp3k').length}</td><td>${kat('akad').length}</td><td style="color:#23694A">${selesaiP.length}</td><td style="color:#B3402F">${ditolakP.length}</td></tr></table>
+${berjalan.length ? `<p class="muted">Berjalan per tahap: ${URUT.filter(t => perTahap[t]).map(t => t + ' ' + perTahap[t]).join(' · ')}</p>` : ''}
+<table style="font-size:9pt"><tr><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Bank</th><th>Status</th><th>Rencana akad</th><th>Realisasi akad</th><th>Kendala</th></tr>
+${baris.map(k => `<tr><td><b>${esc(k.nama || k.lead_code)}</b></td><td>${esc([k.project, k.unit].filter(Boolean).join(' · ') || '-')}</td><td>${esc(k.sales || '-')}</td>
+<td>${esc((k.banks || []).map(b => b.bank).join(', ') || '-')}</td><td style="color:${warna(k)};font-weight:bold">${esc(labelReport(k))}</td>
+<td>${k.akad_tgl ? fmtDate(k.akad_tgl) : '-'}</td><td>${k.akad_realisasi ? fmtDate(k.akad_realisasi) : '-'}</td><td>${esc(k.kendala || '-')}</td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Proses KPR dihitung sejak konsumen Booking. Status mengikuti tahap bank yang paling maju; konsumen yang diajukan ke lebih dari satu bank tercantum semua bank-nya. Selesai = tanggal realisasi akad sudah diisi.</p>`;
+    })()}
 ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
 

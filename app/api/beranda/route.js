@@ -202,7 +202,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       WHERE x.jenis = 'Reserved' AND x.tgl <= ${batas14}::date AND (${pp}::text[] IS NULL OR x.project = ANY(${pp}::text[])) ORDER BY x.tgl LIMIT 6`,
     sql`SELECT count(*)::int AS n FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
       WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
-    sql`SELECT k.id, k.lead_code, k.unit, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.updated_at, l.nama, l.sales,
+    sql`SELECT k.id, k.lead_code, k.unit, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, l.nama, l.sales,
         COALESCE(NULLIF(k.project, ''), l.project, '') AS project,
         (SELECT t.jenis FROM transactions t WHERE t.lead_code = k.lead_code ORDER BY t.id DESC LIMIT 1) AS trx_terakhir
       FROM kpr k LEFT JOIN leads l ON l.lead_code = k.lead_code
@@ -231,13 +231,16 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   const kpr = kprRows.filter(k => k.trx_terakhir !== 'Batal' && k.trx_terakhir !== 'Reserved').map(k => {
     const bk = banks.filter(b => b.kpr_id === k.id);
     const st = statusKpr(k, bk, k.trx_terakhir);
-    return { id: k.id, nama: k.nama, unit: k.unit, project: k.project, sales: k.sales, akad_tgl: k.akad_tgl,
+    return { id: k.id, nama: k.nama, unit: k.unit, project: k.project, sales: k.sales, akad_tgl: k.akad_tgl, akad_realisasi: k.akad_realisasi,
       banks: bk.map(b => b.bank), akadBank: (bk.find(b => b.id === k.akad_bank_id) || {}).bank || '', tidakLanjut: bk.filter(b => b.tahap === 'Tidak dilanjutkan').map(b => b.bank),
       status: st, kendala: bk.filter(b => b.kendala && !['Ditolak', 'Tidak dilanjutkan'].includes(b.tahap)).map(b => `${b.bank}: ${b.kendala}`).join(' · '),
       diam: Math.floor((Date.now() - new Date(k.updated_at).getTime()) / 86400000), updated_at: k.updated_at };
   });
-  const kprAktif = kpr.filter(k => k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k' || k.diam <= 30);
-  const kprDiam = kpr.filter(k => (k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k') && k.diam > 5);
+  const kprAktif = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) || k.diam <= 30)
+    .sort((a, b) => (['selesai', 'ditolak'].includes(a.status.kategori) ? 1 : 0) - (['selesai', 'ditolak'].includes(b.status.kategori) ? 1 : 0));
+  // Rencana akad sudah lewat tetapi realisasi belum diisi
+  const akadLewat = kpr.filter(k => k.status.kategori === 'akad' && k.akad_tgl && k.akad_tgl < hariIni);
+  const kprDiam = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 5);
 
   // Performa sales
   const salesPilih = sales.filter(s => !pp || !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => pp.includes(p))).map(s => s.name);
@@ -274,12 +277,13 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
         jam: x.jam != null ? Math.round(Number(x.jam) * 10) / 10 : null })).sort((p, q) => (q.jam ?? 1e9) - (p.jam ?? 1e9)) : undefined;
       return { nama: n, project: proyekSales[n], aktif: a.aktif || 0, telat: a.telat || 0, respon: med != null ? Math.round(med * 10) / 10 : null,
         responN: jamList.length, responBelum: det.length - jamList.length, responRinci: rinci,
-        kpr: kpr.filter(k => k.sales === n && (k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k')).length, booking: b?.n || 0 };
+        kpr: kpr.filter(k => k.sales === n && ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori)).length, booking: b?.n || 0 };
     }).sort((x, y) => y.booking - x.booking || y.aktif - x.aktif);
   }
 
   // Perlu perhatian
   const perhatian = [];
+  akadLewat.slice(0, 3).forEach(k => perhatian.push({ level: 'merah', judul: `Akad ${k.nama} dijadwalkan ${k.akad_tgl} — realisasi belum diisi`, sub: [k.project, k.unit, k.akadBank, k.sales].filter(Boolean).join(' · '), href: '/kpr-proses?id=' + k.id }));
   kprDiam.slice(0, 3).forEach(k => perhatian.push({ level: 'merah', judul: `KPR ${k.nama} tidak di-update ${k.diam} hari`, sub: [k.project, k.unit, k.banks.join(', ') || 'belum diajukan', k.status.label, k.sales].filter(Boolean).join(' · '), href: '/kpr-proses?id=' + k.id }));
   resLama.forEach(r => {
     const h = Math.round((Date.parse(hariIni) - Date.parse(r.tgl)) / 86400000);
@@ -322,7 +326,8 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     biaya: { spend, cpql: F.p2 ? Math.round(spend / F.p2) : null, perBooking: jualN ? Math.round(spend / jualN) : null },
     campaign, kpr: kprAktif.slice(0, 10), kprRingkas: {
       berjalan: kpr.filter(k => k.status.kategori === 'berjalan').length, sp3k: kpr.filter(k => k.status.kategori === 'sp3k').length,
-      akad: kpr.filter(k => k.status.kategori === 'akad' && k.diam <= 30).length, ditolak: kpr.filter(k => k.status.kategori === 'ditolak' && k.diam <= 30).length },
+      akad: kpr.filter(k => k.status.kategori === 'akad').length, selesai: kpr.filter(k => k.status.kategori === 'selesai' && k.diam <= 30).length,
+      ditolak: kpr.filter(k => k.status.kategori === 'ditolak' && k.diam <= 30).length },
     perhatian, perf, tim, stok,
   };
 }

@@ -51,14 +51,15 @@ export async function GET(req) {
     const trx = await sql`SELECT jenis, tgl::text AS tgl, unit FROM transactions WHERE lead_code = ${k.lead_code} ORDER BY id DESC LIMIT 1`;
     const jenisTrx = trx[0]?.jenis || null;
     return Response.json({ kpr: { ...k, slik_tgl: k.slik_tgl ? String(k.slik_tgl instanceof Date ? k.slik_tgl.toISOString() : k.slik_tgl).slice(0, 10) : null,
-      akad_tgl: k.akad_tgl ? String(k.akad_tgl instanceof Date ? k.akad_tgl.toISOString() : k.akad_tgl).slice(0, 10) : null },
+      akad_tgl: k.akad_tgl ? String(k.akad_tgl instanceof Date ? k.akad_tgl.toISOString() : k.akad_tgl).slice(0, 10) : null,
+      akad_realisasi: k.akad_realisasi ? String(k.akad_realisasi instanceof Date ? k.akad_realisasi.toISOString() : k.akad_realisasi).slice(0, 10) : null },
       banks, log, trx: trx[0] || null, status: statusKpr(k, banks, jenisTrx), berkas, BANK_KPR, TAHAP_BANK, PROFIL });
   }
 
   // Daftar
   await sinkronKpr(sql);
   let rows = await sql`SELECT k.id, k.lead_code, k.unit, k.profil, k.berkas, k.plafon, k.tenor, k.slik_tgl::text AS slik_tgl, k.slik_status,
-      k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.updated_at, k.updated_by,
+      k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, k.updated_by,
       l.nama, l.sales, l.created_by AS lead_by, COALESCE(NULLIF(k.project, ''), l.project, '') AS project,
       (SELECT t.jenis FROM transactions t WHERE t.lead_code = k.lead_code ORDER BY t.id DESC LIMIT 1) AS trx_terakhir
     FROM kpr k LEFT JOIN leads l ON l.lead_code = k.lead_code
@@ -183,15 +184,28 @@ async function _PATCH(req) {
   // Pilih bank akad + rencana tanggal akad; bank lain yang SP3K otomatis "Tidak dilanjutkan"
   if (b.jenis === 'akad') {
     const { k, err: e2 } = await ambil(sql, user, b.id); if (e2) return e2;
-    const bk = await sql`SELECT id, bank, tahap FROM kpr_bank WHERE id = ${Number(b.bank_id) || 0} AND kpr_id = ${k.id}`;
-    if (!bk.length || bk[0].tahap !== 'SP3K terbit') return Response.json({ error: 'Pilih bank yang sudah menerbitkan SP3K' }, { status: 400 });
-    const tgl = tglAtauNull(b.akad_tgl);
+    const bankId = Number(b.bank_id) || k.akad_bank_id || 0;
+    const bk = await sql`SELECT id, bank, tahap FROM kpr_bank WHERE id = ${bankId} AND kpr_id = ${k.id}`;
+    if (!bk.length || (bk[0].tahap !== 'SP3K terbit' && bk[0].id !== k.akad_bank_id)) return Response.json({ error: 'Pilih bank yang sudah menerbitkan SP3K' }, { status: 400 });
+    const lamaTgl = k.akad_tgl ? String(k.akad_tgl instanceof Date ? k.akad_tgl.toISOString() : k.akad_tgl).slice(0, 10) : null;
+    const lamaReal = k.akad_realisasi ? String(k.akad_realisasi instanceof Date ? k.akad_realisasi.toISOString() : k.akad_realisasi).slice(0, 10) : null;
+    const tgl = 'akad_tgl' in b ? tglAtauNull(b.akad_tgl) : lamaTgl;
     if (!tgl) return Response.json({ error: 'Isi rencana tanggal akad' }, { status: 400 });
-    await sql`UPDATE kpr SET akad_bank_id = ${bk[0].id}, akad_tgl = ${tgl}, akad_catatan = ${b.akad_catatan || ''} WHERE id = ${k.id}`;
+    // Tanggal realisasi akad: diisi setelah akad benar-benar terlaksana → status KPR menjadi Done (Selesai di report)
+    const real = 'akad_realisasi' in b ? tglAtauNull(b.akad_realisasi) : lamaReal;
+    const hari = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+    if (real && real > hari) return Response.json({ error: 'Tanggal realisasi akad tidak boleh di masa depan — isi setelah akad terlaksana' }, { status: 400 });
+    await sql`UPDATE kpr SET akad_bank_id = ${bk[0].id}, akad_tgl = ${tgl}, akad_realisasi = ${real},
+      akad_catatan = ${'akad_catatan' in b ? (b.akad_catatan || '') : (k.akad_catatan || '')} WHERE id = ${k.id}`;
     const lain = await sql`UPDATE kpr_bank SET tahap = 'Tidak dilanjutkan', updated_at = now()
       WHERE kpr_id = ${k.id} AND id <> ${bk[0].id} AND tahap = 'SP3K terbit' RETURNING bank`;
-    await catatLog(sql, k.id, user, `Akad dipilih: ${bk[0].bank}, rencana ${tgl}` + (lain.length ? ` · ${lain.map(x => x.bank).join(', ')} tidak dilanjutkan` : ''));
-    return Response.json({ ok: true, lead_code: k.lead_code, nama: k.nama, bank: bk[0].bank });
+    const isi = [];
+    if (bk[0].id !== k.akad_bank_id || tgl !== lamaTgl) isi.push(`Akad: ${bk[0].bank}, rencana ${tgl}`);
+    if (lain.length) isi.push(`${lain.map(x => x.bank).join(', ')} tidak dilanjutkan`);
+    if (real && real !== lamaReal) isi.push(`Akad terealisasi ${real} — KPR selesai (Done)`);
+    if (!real && lamaReal) isi.push('Tanggal realisasi akad dikosongkan');
+    await catatLog(sql, k.id, user, isi.join(' · ') || 'Data akad diperbarui');
+    return Response.json({ ok: true, lead_code: k.lead_code, nama: k.nama, bank: bk[0].bank, tahap: real ? 'Done' : undefined });
   }
   return Response.json({ error: 'Jenis tidak dikenal' }, { status: 400 });
 }

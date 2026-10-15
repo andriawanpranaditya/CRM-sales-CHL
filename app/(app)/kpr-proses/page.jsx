@@ -5,16 +5,16 @@ import { api, fmtRp, waLink } from '@/components/util';
 
 // ===== Proses KPR — monitoring pengajuan KPR konsumen (Sales, Manager, CEO Project) =====
 const TAHAP_URUT = ['Verifikasi & SLIK', 'Diajukan ke bank', 'Kumpul berkas', 'Analisa kredit', 'SP3K terbit / Ditolak'];
-const KELAS = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', ditolak: 'kp-no', menunggu: 'kp-mute' };
+const KELAS = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', selesai: 'kp-done', ditolak: 'kp-no', menunggu: 'kp-mute' };
 const KELAS_TAHAP = { 'Diajukan': 'kp-run', 'Kumpul berkas': 'kp-wait', 'Analisa kredit': 'kp-run', 'SP3K terbit': 'kp-ok', 'Ditolak': 'kp-no', 'Tidak dilanjutkan': 'kp-mute' };
 const tgl = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const relatif = n => n <= 0 ? 'hari ini' : n === 1 ? 'kemarin' : n + ' hari lalu';
 const keBase64 = f => new Promise((ok, gagal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = gagal; r.readAsDataURL(f); });
 
 function Langkah({ n, kategori }) {
-  return <div className="kp-steps" aria-label={`${n} dari 5 tahap`}>{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= n ? (kategori === 'ditolak' ? 'f no' : kategori === 'akad' || kategori === 'sp3k' ? 'f ok' : 'f') : ''} />)}</div>;
+  return <div className="kp-steps" aria-label={`${n} dari 5 tahap`}>{[1, 2, 3, 4, 5].map(i => <i key={i} className={i <= n ? (kategori === 'ditolak' ? 'f no' : ['akad', 'sp3k', 'selesai'].includes(kategori) ? 'f ok' : 'f') : ''} />)}</div>;
 }
-const labelStatus = r => r.status.kategori === 'akad' ? `SP3K · akad ${tgl(r.akad_tgl)}` : r.status.label;
+const labelStatus = r => r.status.kategori === 'selesai' ? `Done · akad ${tgl(r.akad_realisasi)}` : r.status.kategori === 'akad' ? `SP3K · rencana akad ${tgl(r.akad_tgl)}` : r.status.label;
 
 export default function ProsesKprPage() {
   const [me, setMe] = useState(null);
@@ -40,6 +40,7 @@ export default function ProsesKprPage() {
     berjalan: rows.filter(r => !r.batal && r.status.kategori === 'berjalan').length,
     sp3k: rows.filter(r => !r.batal && r.status.kategori === 'sp3k').length,
     akad: rows.filter(r => !r.batal && r.status.kategori === 'akad').length,
+    selesai: rows.filter(r => !r.batal && r.status.kategori === 'selesai').length,
     ditolak: rows.filter(r => !r.batal && r.status.kategori === 'ditolak').length,
     batal: rows.filter(r => r.batal).length,
     menunggu: rows.filter(r => !r.batal && r.status.kategori === 'menunggu').length,
@@ -80,7 +81,7 @@ export default function ProsesKprPage() {
         </div>)}
 
       <div className="fu-toolbar">
-        {[['berjalan', 'Berjalan'], ['sp3k', 'SP3K (pilih akad)'], ['akad', 'Akad'], ['ditolak', 'Ditolak'], ['menunggu', 'Menunggu Booking'], ['batal', 'Transaksi batal']].map(([k, l]) => (
+        {[['berjalan', 'Berjalan'], ['sp3k', 'SP3K (pilih akad)'], ['akad', 'Rencana akad'], ['selesai', 'Done'], ['ditolak', 'Ditolak'], ['menunggu', 'Menunggu Booking'], ['batal', 'Transaksi batal']].map(([k, l]) => (
           (!['batal', 'menunggu'].includes(k) || jumlah[k]) ? <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)}>{l} ({jumlah[k]})</button> : null))}
         <input className="sort-filter" placeholder="Cari nama / unit / bank…" value={cari} onChange={e => setCari(e.target.value)} style={{ minWidth: 180 }} />
       </div>
@@ -119,11 +120,11 @@ function Detail({ id, me, kembali }) {
   const [d, setD] = useState(null);
   const [k, setK] = useState(null);
   const [bankBaru, setBankBaru] = useState(null);
-  const [akad, setAkad] = useState({ bank_id: '', akad_tgl: '', akad_catatan: '' });
+  const [akad, setAkad] = useState({ bank_id: '', akad_tgl: '', akad_catatan: '', akad_realisasi: '' });
   const [busy, setBusy] = useState(false);
   const muat = () => api('/api/kpr?id=' + id).then(x => {
     setD(x); setK(x.kpr);
-    setAkad({ bank_id: x.kpr.akad_bank_id || '', akad_tgl: x.kpr.akad_tgl || '', akad_catatan: x.kpr.akad_catatan || '' });
+    setAkad({ bank_id: x.kpr.akad_bank_id || '', akad_tgl: x.kpr.akad_tgl || '', akad_catatan: x.kpr.akad_catatan || '', akad_realisasi: x.kpr.akad_realisasi || '' });
   }).catch(e => { toast(e.message); });
   useEffect(() => { muat(); }, [id]); // eslint-disable-line
 
@@ -144,7 +145,7 @@ function Detail({ id, me, kembali }) {
       <div className="kp-head">
         <b style={{ fontSize: 19 }}>{k.nama || k.lead_code}</b>
         <span>{[k.lead_code, k.proj, k.unit, d.trx ? `${d.trx.jenis} ${tgl(d.trx.tgl)}` : '', k.sales].filter(Boolean).join(' · ')}</span>
-        <span className={'kp-pill ' + (KELAS[d.status.kategori] || 'kp-run')} style={{ alignSelf: 'flex-start' }}>{d.status.kategori === 'akad' ? `SP3K · akad ${tgl(k.akad_tgl)}` : d.status.label}</span>
+        <span className={'kp-pill ' + (KELAS[d.status.kategori] || 'kp-run')} style={{ alignSelf: 'flex-start' }}>{d.status.kategori === 'selesai' ? `Done · akad terealisasi ${tgl(k.akad_realisasi)}` : d.status.kategori === 'akad' ? `SP3K · rencana akad ${tgl(k.akad_tgl)}` : d.status.label}</span>
       </div>
 
       {d.status.kategori === 'menunggu' && <div className="note" style={{ marginBottom: 12 }}>Konsumen ini masih Reserved. Proses KPR baru dihitung berjalan setelah Booking — pengajuan ke bank bisa dimulai setelah transaksi naik ke Booking.</div>}
@@ -199,15 +200,17 @@ function Detail({ id, me, kembali }) {
 
       {sp3k.length > 0 && (
         <section className="card kp-akad" style={{ marginTop: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Rencana akad</h3>
+          <h3 style={{ marginTop: 0 }}>Akad {k.akad_realisasi ? <span className="kp-pill kp-done">Done</span> : null}</h3>
           <div className="form-grid">
             <div className="field"><label>Bank yang dipakai akad</label><select value={akad.bank_id} onChange={e => setAkad({ ...akad, bank_id: e.target.value })}>
               <option value="">— pilih bank ber-SP3K —</option>{sp3k.map(b => <option key={b.id} value={b.id}>{b.bank}{b.plafon_setuju ? ' · ' + fmtRp(b.plafon_setuju) : ''}</option>)}</select></div>
             <div className="field"><label>Rencana tanggal akad</label><input type="date" value={akad.akad_tgl} onChange={e => setAkad({ ...akad, akad_tgl: e.target.value })} /></div>
+            <div className="field"><label>Tanggal realisasi akad</label><input type="date" disabled={!k.akad_bank_id} value={akad.akad_realisasi} onChange={e => setAkad({ ...akad, akad_realisasi: e.target.value })} />
+              <span className="hint">{k.akad_bank_id ? 'Isi setelah akad benar-benar terlaksana — status menjadi Done (Selesai di report)' : 'Aktif setelah rencana akad disimpan'}</span></div>
             <div className="field full"><label>Catatan akad</label><input value={akad.akad_catatan} onChange={e => setAkad({ ...akad, akad_catatan: e.target.value })} placeholder="lokasi, jam, notaris" /></div>
           </div>
           <span className="hint">Bank lain yang juga menerbitkan SP3K otomatis tercatat "Tidak dilanjutkan".</span>
-          <button className="btn btn-primary" disabled={busy} onClick={() => simpan({ jenis: 'akad', id, ...akad, bank_id: Number(akad.bank_id) }, 'Rencana akad disimpan')}>Simpan rencana akad</button>
+          <button className="btn btn-primary" disabled={busy} onClick={() => simpan({ jenis: 'akad', id, ...akad, bank_id: Number(akad.bank_id) }, akad.akad_realisasi ? 'Akad terealisasi — KPR Done' : 'Rencana akad disimpan')}>{akad.akad_realisasi ? 'Simpan — tandai Done' : 'Simpan akad'}</button>
         </section>)}
 
       <div className="kp-grid" style={{ marginTop: 12 }}>
