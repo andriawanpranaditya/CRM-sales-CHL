@@ -759,11 +759,6 @@ ${polaF.map(r => `<tr><td>${esc(r.f)}</td><td style="text-align:center">${r.n}</
 </table>
 ${polaJ.length ? `<p class="muted">Jam tayang terbaik (ER): ${polaJ.map(j => esc(j.b) + ' ' + pctEr(j.er)).join(' · ')}</p>` : ''}` : ''}
 
-<h2>10. OUTPUT TIM MARCOM</h2>
-<table><tr><th>Nama</th><th style="width:82px;text-align:center">Konten (bln ini)</th><th style="width:60px;text-align:center">Konten</th><th style="width:68px;text-align:center">Entri Iklan</th><th style="width:52px;text-align:center">Lead</th><th style="width:44px;text-align:center">L2</th><th style="width:58px;text-align:center">Booking</th><th style="width:105px">Nilai Booking</th></tr>
-${tim.length ? tim.map(u => `<tr><td><b>${esc(u.name)}</b>${u.active ? '' : ' <span class="muted">(nonaktif)</span>'}</td><td style="text-align:center">${u.konten_bln}</td><td style="text-align:center">${u.konten}</td><td style="text-align:center">${u.entri_iklan}</td><td style="text-align:center">${u.l0}</td><td style="text-align:center"><b>${u.l2}</b></td><td style="text-align:center"><b>${u.l3}</b></td><td>${Number(u.nilai) ? rp(u.nilai) : '—'}</td></tr>`).join('') : '<tr><td colspan="8">Belum ada akun Marcom.</td></tr>'}
-</table>
-<p class="muted" style="font-size:8.5pt">Lead & Booking per anggota dihitung dari lead yang ia input.</p>
 `;
     }
 
