@@ -248,7 +248,10 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
           JOIN leads l ON l.lead_code = a.lead_code
           JOIN LATERAL (SELECT min(f.created_at) AS waktu FROM followups f JOIN users s ON s.username = f.created_by AND s.name = a.ke
             WHERE f.lead_code = a.lead_code AND f.created_at > a.created_at) f1 ON f1.waktu IS NOT NULL
-        WHERE a.ke = ANY(${salesPilih}::text[]) AND a.created_at >= ${awalBulan}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY 1`.catch(() => []),
+        WHERE a.ke = ANY(${salesPilih}::text[]) AND a.created_at >= ${awalBulan}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+          -- hanya lead yang dioper ORANG LAIN (Marcom/manager); lead walk-in yang diinput sales sendiri tidak dihitung
+          AND COALESCE(a.oleh, '') NOT IN (SELECT username FROM users WHERE name = a.ke)
+        GROUP BY 1`.catch(() => []),
       sql`SELECT l.sales, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
         WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND l.sales = ANY(${salesPilih}::text[])
           AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[])) GROUP BY 1`,
