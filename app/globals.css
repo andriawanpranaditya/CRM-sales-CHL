@@ -422,3 +422,8 @@ th.num{text-align:right}
 .kp-log .dot{width:9px;height:9px;border-radius:999px;background:var(--blue);margin-top:5px;flex:none}
 @media(max-width:980px){.bd-span4{grid-column:1/-1}}
 @media(max-width:760px){.bd-duo b{font-size:38px}.kp-list{grid-template-columns:1fr}}
+
+.bd-link{all:unset;cursor:pointer;font-weight:700;color:var(--ink)}.bd-link.merah{color:var(--red)}.bd-link:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.bd-rinci>td{background:var(--detail-bg);padding:10px!important}.bd-rinci table{width:100%;border-collapse:collapse;font-size:12.5px}
+.bd-rinci th{font-size:10.5px}
+.lead-fokus{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;background:var(--brass-soft);color:var(--brass-deep);font-weight:600;margin-bottom:10px}

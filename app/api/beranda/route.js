@@ -185,13 +185,16 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       WHERE COALESCE(l.campaign, '') <> '' AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date GROUP BY 1`,
     sql`SELECT campaign AS c, COALESCE(sum(spend), 0)::numeric AS s FROM mi_ads WHERE tgl >= ${d1}::date AND tgl <= ${hariIni}::date GROUP BY 1`.catch(() => []),
     // Lead yang dioper ke sales > 24 jam tetapi belum dihubungi sales itu
-    sql`SELECT l.sales, count(*)::int AS n FROM leads l
+    sql`SELECT l.lead_code, l.nama, l.sales, l.project, a.created_at AS dioper, COALESCE(uo.name, a.oleh) AS oleh,
+        (SELECT max(f.created_at) FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa') AS fu_terakhir_semua
+      FROM leads l
       JOIN LATERAL (SELECT created_at, oleh FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
+      LEFT JOIN users uo ON uo.username = a.oleh
       WHERE COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND a.created_at < now() - interval '24 hours' AND a.created_at > now() - interval '14 days'
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
         AND NOT EXISTS (SELECT 1 FROM followups f JOIN users s ON s.username = f.created_by AND s.name = l.sales WHERE f.lead_code = l.lead_code AND f.created_at > a.created_at)
-      GROUP BY l.sales ORDER BY 2 DESC`.catch(() => []),
+      ORDER BY a.created_at`.catch(() => []),
     // Reserved > 14 hari belum naik Booking
     sql`SELECT x.lead_code, x.nama, x.sales, x.unit, x.project, x.tgl::text AS tgl FROM (
         SELECT DISTINCT ON (t.lead_code) t.lead_code, t.jenis, t.tgl, t.unit, l.nama, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project
@@ -244,22 +247,33 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       sql`SELECT l.sales, count(*) FILTER (WHERE l.status NOT IN ('Closing','Drop','Lost','Booking'))::int AS aktif,
           count(*) FILTER (WHERE l.next_fu IS NOT NULL AND l.next_fu < ${hariIni}::date AND l.status NOT IN ('Closing','Drop','Lost'))::int AS telat
         FROM leads l WHERE l.sales = ANY(${salesPilih}::text[]) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY 1`,
-      sql`SELECT a.ke AS sales, avg(EXTRACT(EPOCH FROM (f1.waktu - a.created_at)) / 3600)::numeric AS jam FROM lead_assign a
+      // Per oper: kapan dioper, oleh siapa, kapan FU pertama oleh sales itu (null = belum di-FU)
+      sql`SELECT a.ke AS sales, a.lead_code, l.nama, a.created_at AS dioper, COALESCE(uo.name, a.oleh) AS oleh, f1.waktu AS fu_pertama,
+          CASE WHEN f1.waktu IS NULL THEN NULL ELSE EXTRACT(EPOCH FROM (f1.waktu - a.created_at)) / 3600 END AS jam
+        FROM lead_assign a
           JOIN leads l ON l.lead_code = a.lead_code
-          JOIN LATERAL (SELECT min(f.created_at) AS waktu FROM followups f JOIN users s ON s.username = f.created_by AND s.name = a.ke
-            WHERE f.lead_code = a.lead_code AND f.created_at > a.created_at) f1 ON f1.waktu IS NOT NULL
+          LEFT JOIN users uo ON uo.username = a.oleh
+          LEFT JOIN LATERAL (SELECT min(f.created_at) AS waktu FROM followups f JOIN users s ON s.username = f.created_by AND s.name = a.ke
+            WHERE f.lead_code = a.lead_code AND f.created_at > a.created_at) f1 ON true
         WHERE a.ke = ANY(${salesPilih}::text[]) AND a.created_at >= ${awalBulan}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
           -- hanya lead yang dioper ORANG LAIN (Marcom/manager); lead walk-in yang diinput sales sendiri tidak dihitung
           AND COALESCE(a.oleh, '') NOT IN (SELECT username FROM users WHERE name = a.ke)
-        GROUP BY 1`.catch(() => []),
+        ORDER BY a.created_at DESC`.catch(() => []),
       sql`SELECT l.sales, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
         WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND l.sales = ANY(${salesPilih}::text[])
           AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[])) GROUP BY 1`,
     ]);
     const proyekSales = Object.fromEntries(sales.map(s => [s.name, Array.isArray(s.projects) && s.projects.length ? s.projects : null]));
     perf = salesPilih.map(n => {
-      const a = akt.find(x => x.sales === n) || {}, r = resp.find(x => x.sales === n), b = bks.find(x => x.sales === n);
-      return { nama: n, project: proyekSales[n], aktif: a.aktif || 0, telat: a.telat || 0, respon: r ? Math.round(Number(r.jam) * 10) / 10 : null,
+      const a = akt.find(x => x.sales === n) || {}, b = bks.find(x => x.sales === n);
+      // Respon = MEDIAN jam dari dioper sampai FU pertama (tidak terseret satu-dua lead ekstrem)
+      const det = resp.filter(x => x.sales === n);
+      const jamList = det.filter(x => x.jam != null).map(x => Number(x.jam)).sort((p, q) => p - q);
+      const med = jamList.length ? (jamList.length % 2 ? jamList[(jamList.length - 1) / 2] : (jamList[jamList.length / 2 - 1] + jamList[jamList.length / 2]) / 2) : null;
+      const rinci = user.role === 'manager' ? det.map(x => ({ lead_code: x.lead_code, nama: x.nama, dioper: x.dioper, oleh: x.oleh, fu_pertama: x.fu_pertama,
+        jam: x.jam != null ? Math.round(Number(x.jam) * 10) / 10 : null })).sort((p, q) => (q.jam ?? 1e9) - (p.jam ?? 1e9)) : undefined;
+      return { nama: n, project: proyekSales[n], aktif: a.aktif || 0, telat: a.telat || 0, respon: med != null ? Math.round(med * 10) / 10 : null,
+        responN: jamList.length, responBelum: det.length - jamList.length, responRinci: rinci,
         kpr: kpr.filter(k => k.sales === n && (k.status.kategori === 'berjalan' || k.status.kategori === 'sp3k')).length, booking: b?.n || 0 };
     }).sort((x, y) => y.booking - x.booking || y.aktif - x.aktif);
   }
@@ -272,8 +286,16 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     const kp = kpr.find(k => k.nama === r.nama);
     perhatian.push({ level: 'merah', judul: `Reserved ${r.unit || r.nama} sudah ${h} hari belum Booking`, sub: [r.nama, r.project, r.sales, kp ? 'KPR: ' + kp.status.label : ''].filter(Boolean).join(' · '), href: '/leads' });
   });
-  const totBelum = belum.reduce((a, r) => a + r.n, 0);
-  if (totBelum) perhatian.push({ level: 'emas', judul: `${totBelum} lead dari Marcom belum dihubungi > 24 jam`, sub: belum.map(r => `${r.sales} ${r.n}`).join(' · '), href: '/leads' });
+  // Lead dari Marcom/manager yang sejak OPER TERAKHIR belum di-FU oleh sales PIC-nya > 24 jam — disebut satu per satu
+  const fmtJam = t => new Date(t).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  belum.slice(0, 5).forEach(r => {
+    const jamLalu = Math.round((Date.now() - new Date(r.dioper).getTime()) / 3600000);
+    perhatian.push({ level: 'emas', judul: `${r.nama} belum dihubungi ${r.sales} · ${jamLalu} jam sejak dioper`,
+      sub: [`dioper ${fmtJam(r.dioper)}` + (r.oleh ? ` oleh ${r.oleh}` : ''), r.project, r.lead_code,
+        r.fu_terakhir_semua && new Date(r.fu_terakhir_semua) > new Date(r.dioper) ? `ada FU ${fmtJam(r.fu_terakhir_semua)} tapi bukan dari akun ${r.sales}` : 'belum ada FU dari akun sales sejak oper terakhir'].filter(Boolean).join(' · '),
+      href: '/leads?lead=' + encodeURIComponent(r.lead_code) });
+  });
+  if (belum.length > 5) perhatian.push({ level: 'emas', judul: `dan ${belum.length - 5} lead lain belum dihubungi > 24 jam`, sub: [...new Set(belum.slice(5).map(r => r.sales))].join(', '), href: '/leads' });
   if (hangat[0]?.n) perhatian.push({ level: 'emas', judul: `${hangat[0].n} lead hangat belum dioper ke sales`, sub: 'Warm/Hot input tim Marcom tanpa PIC', href: '/leads' });
 
   // Tim hari ini (khusus manager)

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
 
@@ -199,6 +199,8 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
   const naik = j.n - j.laluN;
   const judul = d.perhatian.length ? `${d.perhatian.length} hal perlu perhatian hari ini` : 'Semua terkendali hari ini';
   const isCeo = me?.role === 'ceo';
+  const [bukaRespon, setBukaRespon] = useState('');
+  const jamTgl = t => t ? new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
   return (<>
     <div className="bd-head" style={{ alignItems: 'flex-end', marginBottom: 14 }}>
       <h1 className="bd-title" style={{ margin: 0 }}>{judul}</h1>
@@ -263,12 +265,24 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         <h2 className="bd-h2">Performa sales</h2>
         <div className="bd-tbl"><table>
           <thead><tr><th>Sales</th><th className="num">Lead aktif</th><th className="num">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num">KPR jalan</th><th className="num">Booking</th></tr></thead>
-          <tbody>{d.perf.map(s => (<tr key={s.nama}><td><b>{s.nama}</b>{s.project ? <div className="hint">{s.project.join(', ')}</div> : null}</td>
+          <tbody>{d.perf.map(s => (<React.Fragment key={s.nama}><tr><td><b>{s.nama}</b>{s.project ? <div className="hint">{s.project.join(', ')}</div> : null}</td>
             <td className="num">{s.aktif}</td><td className={'num' + (s.telat > 2 ? ' merah' : '')}>{s.telat}</td>
-            {!isCeo && <td className={'num' + (s.respon > 6 ? ' merah' : '')}>{s.respon != null ? s.respon + ' jam' : '—'}</td>}
-            <td className="num">{s.kpr}</td><td className="num"><b>{s.booking}</b></td></tr>))}</tbody>
+            {!isCeo && <td className="num">{(s.responRinci || []).length
+              ? <button className={'bd-link' + (s.respon > 6 ? ' merah' : '')} aria-expanded={bukaRespon === s.nama} onClick={() => setBukaRespon(bukaRespon === s.nama ? '' : s.nama)}>
+                  {s.respon != null ? s.respon + ' jam' : 'belum ada'}<span className="hint"> · {s.responN} lead{s.responBelum ? ` · ${s.responBelum} belum` : ''} ▾</span></button>
+              : '—'}</td>}
+            <td className="num">{s.kpr}</td><td className="num"><b>{s.booking}</b></td></tr>
+            {!isCeo && bukaRespon === s.nama && <tr className="bd-rinci"><td colSpan={6}>
+              <div className="hint" style={{ marginBottom: 6 }}>Rincian lead yang dioper ke {s.nama} bulan ini (urut paling lama direspon). Angka Respon = median jam dari dioper sampai FU pertama.</div>
+              <table><thead><tr><th>Lead</th><th>Dioper</th><th>Oleh</th><th>FU pertama</th><th className="num">Jarak</th></tr></thead>
+                <tbody>{s.responRinci.map((x, i) => (<tr key={x.lead_code + i}>
+                  <td><Link href={'/leads?lead=' + encodeURIComponent(x.lead_code)}><b>{x.nama || x.lead_code}</b></Link><div className="hint">{x.lead_code}</div></td>
+                  <td>{jamTgl(x.dioper)}</td><td>{x.oleh || '—'}</td><td>{x.fu_pertama ? jamTgl(x.fu_pertama) : <span className="merah">belum di-FU</span>}</td>
+                  <td className={'num' + (x.jam > 24 ? ' merah' : '')}>{x.jam != null ? x.jam + ' jam' : '—'}</td></tr>))}</tbody></table>
+            </td></tr>}
+            </React.Fragment>))}</tbody>
         </table></div>
-        {!isCeo && <span className="hint">Respon = rata-rata jarak lead dioper sampai dihubungi pertama kali (bulan ini)</span>}
+        {!isCeo && <span className="hint">Respon = median jam dari lead dioper (oleh Marcom/manager) sampai FU pertama oleh sales itu, bulan ini. Klik angkanya untuk rincian per lead.</span>}
       </section>
 
       {!isCeo && (<section className="bd-card bd-span4">

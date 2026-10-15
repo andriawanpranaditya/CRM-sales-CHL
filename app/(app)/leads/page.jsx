@@ -1,10 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, fmtDate, fmtRp, reminder, bukaWA } from '@/components/util';
-
-const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
-const USIA = ['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'];
+import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
 const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
@@ -17,6 +14,9 @@ export default function LeadsPage() {
   const [fStatus, setFStatus] = useState('');
   // Tautan dari Beranda: /leads?status=Warm
   useEffect(() => { const st = new URLSearchParams(window.location.search).get('status'); if (st) setFStatus(st); }, []);
+  // Tautan dari Beranda: /leads?lead=LEAD-0123 → tampilkan lead itu saja & buka riwayatnya
+  const [fKode, setFKode] = useState('');
+  useEffect(() => { const k = new URLSearchParams(window.location.search).get('lead'); if (k) setFKode(k); }, []);
   const [fAsal, setFAsal] = useState('');
   const asalLead = l => l.creator_role === 'markom' ? (l.sales ? 'Marcom → Sales' : 'Marcom (belum diserahkan)') : 'Non-Marcom'; // asal lead: marcom belum diserahkan / marcom → sales / non-marcom
   const [sortBy, setSortBy] = useState('terbaru');
@@ -26,19 +26,6 @@ export default function LeadsPage() {
   const [sel, setSel] = useState(null);         // lead_code terpilih
   const [detail, setDetail] = useState(null);   // timeline lead terpilih
   const [loadDet, setLoadDet] = useState(false);
-  // Edit lead (panel di bawah baris)
-  const [editKode, setEditKode] = useState(null);
-  const [ed, setEd] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [camps, setCamps] = useState([]);
-  // Pindah massal (khusus manager)
-  const [mode, setMode] = useState(false);
-  const [dipilih, setDipilih] = useState(() => new Set());
-  const [keSales, setKeSales] = useState('');
-  const [ikutTrx, setIkutTrx] = useState(false);
-  const [kirimRingkas, setKirimRingkas] = useState(true);
-  const [hasilPindah, setHasilPindah] = useState(null);
-  const [akunSales, setAkunSales] = useState([]);
 
   const load = () => Promise.all([api('/api/leads'), api('/api/settings'), api('/api/auth/me'), api('/api/followups')])
     .then(([l, s, u, f]) => { setLeads(l); setSet(s); setMe(u); setFus(f); }).catch(e => toast(e.message));
@@ -62,59 +49,6 @@ export default function LeadsPage() {
     return { t: Math.round(j / 24) + ' hari', w: 'var(--red)' };
   };
   useEffect(() => { load(); }, []);
-  const peran = me?.role || '';
-  const isMgr = peran === 'manager';
-  const bolehEdit = ['manager', 'ceo', 'sales', 'markom'].includes(peran);
-  const bolehPIC = ['manager', 'ceo'].includes(peran);
-  const isMarkom = peran === 'markom';
-  useEffect(() => { if (['manager', 'ceo', 'markom'].includes(peran)) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [peran]);
-  useEffect(() => { if (isMgr) api('/api/users').then(u => setAkunSales((u || []).filter(x => x.role === 'sales'))).catch(() => {}); }, [isMgr]);
-
-  function mulaiEdit(l) {
-    const d10 = x => x ? String(x).slice(0, 10) : '';
-    setSel(null); setDetail(null);
-    setEditKode(l.lead_code);
-    setEd({ id: l.id, tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '', kerja: l.kerja || '',
-      sumber: l.sumber || '', walkin_info: l.walkin_info || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '', budget: l.budget || '',
-      bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New', catatan: l.catatan || '', next_fu: d10(l.next_fu),
-      campaign: l.campaign || '', konten: l.konten || '', kode_wa: '', usia: l.usia || '' });
-  }
-  async function simpanEdit() {
-    if (!ed.nama.trim()) return toast('Nama konsumen wajib diisi');
-    if (/walk/i.test(ed.sumber || '') && !ed.walkin_info && !isMarkom) return toast('Pilih Walk In tahu dari mana');
-    setBusy(true);
-    try {
-      const kirim = { ...ed };
-      if (!bolehPIC) delete kirim.sales;
-      const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify(kirim) });
-      toast(r.oper ? `${r.lead_code} tersimpan & dipindah ke ${r.oper}` : `${r.lead_code} tersimpan`);
-      setEditKode(null); setEd(null);
-      setLeads(await api('/api/leads'));
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
-  }
-
-  function togglePilih(id) { setDipilih(s0 => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
-  async function pindahkan() {
-    const ids = [...dipilih];
-    if (!ids.length) return toast('Centang lead yang akan dipindahkan');
-    if (!keSales) return toast('Pilih sales tujuan');
-    if (!confirm(`Pindahkan ${ids.length} lead ke ${keSales}?` + (ikutTrx ? '\n\nTermasuk lead yang sudah Reserved/Booking — nama Sales/Agent di transaksinya ikut berganti.' : '\n\nLead yang sudah Reserved/Booking akan dilewati.'))) return;
-    setBusy(true);
-    try {
-      const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ bulk: true, ids, sales: keSales, ikutTrx }) });
-      setHasilPindah(r);
-      setDipilih(new Set());
-      setLeads(await api('/api/leads'));
-      toast(`${r.dipindah.length} lead dipindah ke ${r.ke}` + (r.dilewati.length ? ` · ${r.dilewati.length} dilewati` : ''));
-      const akun = akunSales.find(a => a.name === r.ke);
-      if (kirimRingkas && r.dipindah.length && akun?.wa) {
-        const pesan = `Halo ${r.ke}, ada ${r.dipindah.length} lead yang dialihkan kepada Anda oleh manager:\n\n`
-          + r.dipindah.map((l, i) => `${i + 1}. ${l.lead_code} — ${l.nama} (${l.project || '-'}, ${l.status}${l.dari ? ', sebelumnya ' + l.dari : ''})`).join('\n')
-          + `\n\nMohon dilanjutkan follow up-nya. Riwayat follow up sebelumnya ada di menu Database Lead.`;
-        bukaWA(akun.wa, pesan);
-      }
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
-  }
 
   async function ubahStatus(id, status) {
     try {
@@ -138,17 +72,21 @@ export default function LeadsPage() {
     if (!leads) return [];
     let r = leads.filter(l =>
       (!proj || l.project === proj) &&
-      (!fSales || (fSales === '__kosong__' ? !l.sales : l.sales === fSales)) &&
+      (!fSales || l.sales === fSales) &&
       (!fStatus || l.status === fStatus) &&
       (!fAsal || asalLead(l) === fAsal) &&
-      (!fDate || String(l.tgl || '').slice(0, 10) === fDate));
+      (!fDate || String(l.tgl || '').slice(0, 10) === fDate) &&
+      (!fKode || l.lead_code === fKode));
     const stIdx = st => { const i = (set.status || []).indexOf(st); return i < 0 ? 99 : i; };
     if (sortBy === 'terbaru') r.sort((a, b) => b.id - a.id);
     else if (sortBy === 'terlama') r.sort((a, b) => a.id - b.id);
     else if (sortBy === 'sales') r.sort((a, b) => (a.sales || '').localeCompare(b.sales || '') || b.id - a.id);
     else if (sortBy === 'status') r.sort((a, b) => stIdx(a.status) - stIdx(b.status) || b.id - a.id);
     return r;
-  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status]);
+  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status, fKode]);
+  // Buka riwayat lead yang dituju dari Beranda (sekali, setelah data lead dimuat)
+  const [kodeDibuka, setKodeDibuka] = useState('');
+  useEffect(() => { if (fKode && leads && kodeDibuka !== fKode && leads.some(l => l.lead_code === fKode)) { setKodeDibuka(fKode); bukaLead(fKode); } }, [fKode, leads]); // eslint-disable-line
 
   function panelRiwayat() {
     return (
@@ -209,57 +147,12 @@ export default function LeadsPage() {
     );
   }
 
-  function panelEdit() {
-    const f = k => ({ value: ed[k] ?? '', onChange: e => setEd(v => ({ ...v, [k]: e.target.value })) });
-    const opsi = k => [''].concat(set?.[k] || []).map(o => <option key={k + o} value={o}>{o || '— pilih —'}</option>);
-    const saran = [...new Set([...(set.domisili || []), ...leads.map(x => String(x.domisili || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
-    const salesOpsi = (set.sales || []).filter(n => { const pp = set.sales_project?.[n]; return !ed.project || !pp || pp.includes(ed.project); });
-    return (
-      <div style={{ padding: '6px 2px 10px' }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ marginBottom: 8 }}>✏️ Edit {editKode}</h2>
-        <div className="form-grid">
-          <div className="field"><label>Tanggal Lead</label><input type="date" {...f('tgl')} /></div>
-          <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...f('nama')} /></div>
-          <div className="field"><label>WhatsApp</label><input {...f('wa')} /></div>
-          <div className="field"><label>Email</label><input type="email" {...f('email')} /></div>
-          <div className="field"><label>Domisili</label><input list="dl-domisili-ed" {...f('domisili')} /><datalist id="dl-domisili-ed">{saran.map(x => <option key={x} value={x} />)}</datalist></div>
-          {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...f('kerja')} /></div>}
-          <div className="field"><label>Sumber Lead</label><select {...f('sumber')}>{opsi('sumber')}</select></div>
-          {!isMarkom && /walk/i.test(ed.sumber || '') && <div className="field"><label>Walk In — tahu dari mana? <span className="req">*</span></label>
-            <select {...f('walkin_info')}><option value="">— pilih —</option>{WALKIN_INFO.map(w => <option key={w}>{w}</option>)}</select></div>}
-          <div className="field"><label>Kode Iklan <span className="hint">(bila ada, mis. BD14-2)</span></label><input {...f('kode_wa')} placeholder="kosongkan bila tidak ada" style={{ textTransform: 'uppercase' }} /></div>
-          {['manager', 'ceo', 'markom'].includes(peran) && <div className="field"><label>Campaign</label>
-            <select {...f('campaign')}><option value="">— tanpa campaign —</option>{camps.map(cp => <option key={cp.id} value={cp.nama}>{cp.nama}</option>)}
-              {ed.campaign && !camps.find(cp => cp.nama === ed.campaign) && <option value={ed.campaign}>{ed.campaign}</option>}</select></div>}
-          {['manager', 'ceo', 'markom'].includes(peran) && <div className="field"><label>Konten / Kreatif</label><input {...f('konten')} /></div>}
-          <div className="field"><label>Project</label><select {...f('project')}>{opsi('project')}</select></div>
-          {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...f('tipe')}>{opsi('tipe')}</select></div>}
-          {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...f('tujuan')}>{opsi('tujuan')}</select></div>}
-          <div className="field"><label>Rentang Usia</label><select {...f('usia')}>{USIA.map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
-          {!isMarkom && <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...f('budget')} /></div>}
-          {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...f('bayar')}>{opsi('bayar')}</select></div>}
-          {bolehPIC && <div className="field"><label>Sales / PIC <span className="hint">(ganti untuk memindahkan lead)</span></label>
-            <select {...f('sales')}><option value="">— belum ada —</option>{salesOpsi.map(n => <option key={n} value={n}>{n}</option>)}
-              {ed.sales && !salesOpsi.includes(ed.sales) && <option value={ed.sales}>{ed.sales}</option>}</select></div>}
-          {!isMarkom && <div className="field"><label>Status</label><select {...f('status')}>
-            {(set.status || []).filter(o => !['Booking', 'Closing'].includes(o) || o === ed.status).map(o => <option key={o}>{o}</option>)}</select></div>}
-          <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...f('next_fu')} /></div>
-          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Catatan</label><input {...f('catatan')} /></div>
-        </div>
-        <div className="form-foot">
-          <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={simpanEdit}>{busy ? 'Menyimpan…' : 'Simpan Perubahan'}</button>
-          <button className="sort-btn" onClick={() => { setEditKode(null); setEd(null); }}>Batal</button>
-          {bolehPIC && <span className="hint">Mengganti Sales / PIC tercatat di riwayat serah terima lead.</span>}
-        </div>
-      </div>);
-  }
-
   if (!leads) return <div className="loading">Memuat…</div>;
 
   return (
     <>
       <div className="page-head">
-        <div><h1>Database Lead</h1><div className="sub">Klik baris lead untuk melihat riwayat follow up &amp; jadwal berikutnya · ✏️ Edit untuk mengubah data</div></div>
+        <div><h1>Database Lead</h1><div className="sub">Klik baris lead untuk melihat riwayat follow up &amp; jadwal berikutnya</div></div>
         <div className="stamp"><b>{rows.length}</b> lead</div>
       </div>
       <div className="form-tabs" style={{ marginBottom: 12 }}>
@@ -278,7 +171,6 @@ export default function LeadsPage() {
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fSales} onChange={e => setFSales(e.target.value)}>
           <option value="">Semua Sales</option>
           {salesList.map(s => <option key={s}>{s}</option>)}
-          <option value="__kosong__">— Belum ada sales —</option>
         </select>
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
           <option value="">Semua Status</option>
@@ -294,35 +186,9 @@ export default function LeadsPage() {
           <option value="sales">Urut: Nama Sales</option>
           <option value="status">Urut: Status</option>
         </select>
-        {isMgr && <button className={'sort-btn' + (mode ? ' active' : '')} onClick={() => { setMode(m => !m); setDipilih(new Set()); setHasilPindah(null); setSel(null); setEditKode(null); }}>⇄ {mode ? 'Selesai Pindah Massal' : 'Pindahkan Massal'}</button>}
       </div>
-      {isMgr && mode && (
-        <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--brass)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <b>⇄ Pindahkan Massal</b>
-            <span className="hint">Centang lead di tabel (atau saring dulu, misalnya per sales), lalu pilih sales tujuan.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            <span><b>{dipilih.size}</b> lead dipilih</span>
-            <button className="sort-btn" onClick={() => setDipilih(new Set(rows.map(l => l.id)))}>Pilih semua hasil filter ({rows.length})</button>
-            {dipilih.size > 0 && <button className="sort-btn" onClick={() => setDipilih(new Set())}>Kosongkan</button>}
-            <select className="sort-filter" style={{ marginLeft: 0 }} value={keSales} onChange={e => setKeSales(e.target.value)}>
-              <option value="">— Sales tujuan —</option>
-              {(set.sales || []).map(n => { const pp = set.sales_project?.[n]; return <option key={n} value={n}>{n}{pp ? ' (' + pp.join(', ') + ')' : ''}</option>; })}
-            </select>
-            <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !dipilih.size || !keSales} onClick={pindahkan}>{busy ? 'Memindahkan…' : `Pindahkan ${dipilih.size || ''} lead`}</button>
-          </div>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-            <label className="hint" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={kirimRingkas} onChange={e => setKirimRingkas(e.target.checked)} /> kirim daftar lead lewat WA ke sales tujuan</label>
-            <label className="hint" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><input type="checkbox" checked={ikutTrx} onChange={e => setIkutTrx(e.target.checked)} /> ikut pindahkan lead yang sudah Reserved/Booking <span style={{ color: 'var(--red)' }}>(nama Sales/Agent di transaksinya ikut berganti)</span></label>
-          </div>
-          {hasilPindah && (
-            <div className="note" style={{ marginTop: 10 }}>
-              <b>✓ {hasilPindah.dipindah.length} lead dipindah ke {hasilPindah.ke}</b>{hasilPindah.dipindah.length ? ': ' + hasilPindah.dipindah.map(l => l.lead_code).join(', ') : ''}
-              {hasilPindah.dilewati.length > 0 && <div className="hint" style={{ marginTop: 4 }}>Dilewati {hasilPindah.dilewati.length}: {hasilPindah.dilewati.map(d => `${d.lead_code} (${d.alasan})`).join(' · ')}</div>}
-              <div className="hint" style={{ marginTop: 4 }}>Semua pemindahan tercatat di riwayat serah terima tiap lead dan di Log Aktivitas.</div>
-            </div>)}
-        </div>)}
+      {fKode && <div className="lead-fokus">Menampilkan {fKode} dari Beranda — riwayat oper &amp; follow up terbuka di bawah.
+        <button className="sort-btn" onClick={() => { setFKode(''); window.history.replaceState(null, '', '/leads'); }}>Tampilkan semua lead</button></div>}
       <div className="tbl-wrap tbl-compact"><table>
         <thead><tr><th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
           <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
@@ -331,11 +197,10 @@ export default function LeadsPage() {
             const c = SEL[l.status] || ['var(--gray-soft)', 'var(--ink)'];
             const r = reminder(l.next_fu);
             return <React.Fragment key={l.id}>
-              <tr onClick={() => mode ? togglePilih(l.id) : bukaLead(l.lead_code)}
-              style={{ cursor: 'pointer', background: mode && dipilih.has(l.id) ? 'var(--brass-soft)' : (sel === l.lead_code || editKode === l.lead_code) ? 'var(--green-soft)' : undefined }}>
-              <td data-label="ID / Tgl">{mode && <input type="checkbox" checked={dipilih.has(l.id)} onChange={() => togglePilih(l.id)} onClick={e => e.stopPropagation()} style={{ marginRight: 6 }} />}
-                <span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
-                {!mode && <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span>}</td>
+              <tr onClick={() => bukaLead(l.lead_code)}
+              style={{ cursor: 'pointer', background: sel === l.lead_code ? 'var(--green-soft)' : undefined }}>
+              <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
+                <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
               <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}</td>
               <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
@@ -350,18 +215,13 @@ export default function LeadsPage() {
               </td>
               <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
               <td data-label="Catatan">{l.catatan}</td>
-              <td data-label="Aksi"><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {bolehEdit && <button className="sort-btn" style={{ padding: '4px 9px' }} onClick={e => { e.stopPropagation(); editKode === l.lead_code ? (setEditKode(null), setEd(null)) : mulaiEdit(l); }}>{editKode === l.lead_code ? 'Tutup' : '✏️ Edit'}</button>}
-                {isMgr && <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>}
-                {!bolehEdit && !isMgr && <span className="hint">—</span>}</div></td>
+              <td data-label="Aksi">{me && me.role === 'manager'
+                ? <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>
+                : <span className="hint">—</span>}</td>
               </tr>
               {sel === l.lead_code && (
                 <tr className="row-detail"><td colSpan={10} style={{ background: 'var(--detail-bg)', borderTop: '2px solid var(--green)' }}>
                   {panelRiwayat()}
-                </td></tr>)}
-              {editKode === l.lead_code && ed && (
-                <tr className="row-detail"><td colSpan={10} style={{ background: 'var(--detail-bg)', borderTop: '2px solid var(--brass)' }}>
-                  {panelEdit()}
                 </td></tr>)}
             </React.Fragment>;
           }) : <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Tidak ada lead pada filter ini.</td></tr>}
@@ -391,7 +251,7 @@ export default function LeadsPage() {
         </table></div>
       )}
 
-      <div className="hint" style={{ marginTop: 8 }}>Klik baris untuk riwayat follow up · tombol ✏️ Edit untuk mengubah data lead{isMgr ? ' · ⇄ Pindahkan Massal untuk mengalihkan banyak lead sekaligus' : ''}.</div>
+      <div className="hint" style={{ marginTop: 8 }}>Email, domisili, pekerjaan, tujuan &amp; cara bayar lengkap bisa dilihat/diubah lewat tombol Edit di Form Input.</div>
       <Toast />
     </>
   );
