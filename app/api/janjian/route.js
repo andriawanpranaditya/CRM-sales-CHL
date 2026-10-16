@@ -40,15 +40,17 @@ export async function GET(req) {
   const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
   const dari = tglOk(q.get('dari')) ? q.get('dari') : geser(now.tgl, -30);
   const sampai = tglOk(q.get('sampai')) ? q.get('sampai') : geser(now.tgl, 30);
-  let rows = await sql`SELECT j.*, j.tgl::text AS tgl, l.nama, l.wa, l.status AS lead_status, l.created_by AS lead_by
-    FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+  let rows = await sql`SELECT j.*, j.tgl::text AS tgl, l.nama, l.wa, l.status AS lead_status, l.created_by AS lead_by,
+      l.sumber AS lead_sumber, l.campaign AS lead_campaign, l.tgl::text AS lead_tgl, ui.name AS penginput, ui.role AS penginput_role
+    FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code LEFT JOIN users ui ON ui.username = l.created_by
     WHERE j.tgl >= ${dari}::date AND j.tgl <= ${sampai}::date
       AND (${user.role === 'sales' ? user.name : null}::text IS NULL OR j.sales = ${user.role === 'sales' ? user.name : null})
     ORDER BY j.tgl, j.jam`;
   rows = rows.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by }));
   // Janjian lama yang masih Terjadwal tapi lewat (di luar rentang) tetap ditampilkan agar bisa di-update
-  const lama = await sql`SELECT j.*, j.tgl::text AS tgl, l.nama, l.wa, l.status AS lead_status, l.created_by AS lead_by
-    FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+  const lama = await sql`SELECT j.*, j.tgl::text AS tgl, l.nama, l.wa, l.status AS lead_status, l.created_by AS lead_by,
+      l.sumber AS lead_sumber, l.campaign AS lead_campaign, l.tgl::text AS lead_tgl, ui.name AS penginput, ui.role AS penginput_role
+    FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code LEFT JOIN users ui ON ui.username = l.created_by
     WHERE j.status = 'Terjadwal' AND j.tgl < ${dari}::date
       AND (${user.role === 'sales' ? user.name : null}::text IS NULL OR j.sales = ${user.role === 'sales' ? user.name : null})`;
   rows = [...lama.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by })), ...rows];

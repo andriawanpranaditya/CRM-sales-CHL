@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
 import { api, bukaWA } from '@/components/util';
 
@@ -180,7 +181,14 @@ export default function JanjianPage() {
             <div key={j.id} className={'jj-card' + (j.perlu_update ? ' telat' : '')}>
               <div className="jj-jam">{jamTitik(j.jam)}<span>{j.perlu_update ? 'lewat' : tglPendek(j.tgl).slice(0, 3)}</span></div>
               <div className="jj-isi">
-                <div className="bd-head"><b>{j.nama || j.lead_code}</b><Status j={j} /></div>
+                <div className="bd-head"><Link href={'/leads?lead=' + encodeURIComponent(j.lead_code)} className="jj-nama" title="Buka riwayat lead">{j.nama || j.lead_code} ›</Link><Status j={j} /></div>
+                {/* Asal lead: kode, sumber, campaign, penginput, status — klik nama untuk riwayat lengkap */}
+                <div className="jj-asal">
+                  <Link href={'/leads?lead=' + encodeURIComponent(j.lead_code)}>{j.lead_code}</Link>
+                  {[j.lead_sumber, j.lead_campaign ? 'campaign ' + j.lead_campaign : '',
+                    j.penginput ? 'diinput ' + j.penginput + (j.penginput_role === 'markom' ? ' (Marcom)' : j.penginput_role === 'sales' ? ' (Sales)' : j.penginput_role === 'manager' ? ' (Manager)' : '') : '',
+                    j.lead_tgl ? 'masuk ' + tglPendek(j.lead_tgl) : '', j.lead_status ? 'status ' + j.lead_status : ''].filter(Boolean).map(x => <span key={x}> · {x}</span>)}
+                </div>
                 <div className="hint">{[j.jenis, j.lokasi, j.project, pimpinan ? j.sales : '', j.peserta].filter(Boolean).join(' · ')}</div>
                 {j.perlu_update && <div className="jj-ket merah">Jam janjian sudah lewat — isi hasilnya: datang, reschedule, atau batal</div>}
                 {j.reschedule_n > 0 && j.status === 'Terjadwal' && (() => { const r = (j.log || []).find(x => x.aksi === 'Reschedule'); return r ? <div className="jj-ket emas">{r.isi}</div> : null; })()}
