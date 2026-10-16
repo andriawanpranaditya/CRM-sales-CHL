@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris } from '@/lib/auth';
+import { siapkanJanjian, perluUpdate, sekarangWIB } from '@/lib/janjian';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,5 +111,21 @@ export async function GET() {
     } catch {}
   }
   if (user.projects) { stok = stok.filter(x => user.projects.includes(x.project)); aiSiap = aiSiap.filter(x => lihatBaris(user, x)); }
-  return Response.json({ today, hariIni, terlambat, stok, celah, aiSiap, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: rows.length + stok.length + celah.length + aiSiap.length });
+  // Pengingat janjian visit: sales → miliknya hari ini & besok + yang perlu di-update; manager/CEO → yang perlu di-update
+  let janjian = [];
+  if (['sales', 'manager', 'ceo'].includes(user.role)) {
+    try {
+      await siapkanJanjian(sql);
+      const now = sekarangWIB();
+      const besok = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+      const jr = await sql`SELECT j.id, j.lead_code, j.project, j.sales, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, l.nama, l.wa, l.created_by
+        FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE j.status = 'Terjadwal' AND j.tgl <= ${besok}::date
+          AND (${user.role === 'sales' ? user.name : null}::text IS NULL OR j.sales = ${user.role === 'sales' ? user.name : null})
+        ORDER BY j.tgl, j.jam`;
+      janjian = jr.filter(j => lihatBaris(user, j)).map(j => ({ ...j, perlu_update: perluUpdate(j, now) }))
+        .filter(j => user.role === 'sales' ? true : j.perlu_update);
+    } catch (e) { console.error('janjian bell', e); }
+  }
+  return Response.json({ today, hariIni, terlambat, stok, celah, aiSiap, janjian, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + stok.length + celah.length + aiSiap.length });
 }

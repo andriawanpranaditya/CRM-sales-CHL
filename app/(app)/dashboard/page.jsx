@@ -582,6 +582,12 @@ export default function Dashboard() {
     // Proses KPR (Sales/Manager/CEO) — peran lain tidak punya akses, bagian KPR dilewati
     let kprData = null;
     try { kprData = await api('/api/kpr'); } catch {}
+    // Janjian visit pada periode report (Manager/CEO) — peran lain tidak punya akses, bagian janjian dilewati
+    let jjData = null;
+    try {
+      const hariJJ = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+      jjData = await api('/api/janjian?dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ));
+    } catch {}
     const inPeriod = t => {
       if (!t) return !d1 && !d2;
       const x = String(t).slice(0, 10);
@@ -950,6 +956,34 @@ ${baris.map(k => `<tr><td><b>${esc(k.nama || k.lead_code)}</b></td><td>${esc([k.
 <td>${k.akad_tgl ? fmtDate(k.akad_tgl) : '-'}</td><td>${k.akad_realisasi ? fmtDate(k.akad_realisasi) : '-'}</td><td>${esc(k.kendala || '-')}</td></tr>`).join('')}
 </table>
 <p class="muted" style="font-size:8.5pt">Proses KPR dihitung sejak konsumen Booking. Status mengikuti tahap bank yang paling maju; konsumen yang diajukan ke lebih dari satu bank tercantum semua bank-nya. Selesai = tanggal realisasi akad sudah diisi.</p>`;
+    })()}
+${(() => {
+      if (!jjData || !Array.isArray(jjData.rows)) return '';
+      const nowJ = jjData.now || {};
+      const semua = jjData.rows.filter(j => (!proj || j.project === proj) && inPeriod(j.tgl));
+      if (!semua.length) return '';
+      const datang = semua.filter(j => j.status === 'Datang'), batal = semua.filter(j => j.status === 'Batal');
+      const resch = semua.filter(j => j.reschedule_n > 0), belum = semua.filter(j => j.perlu_update);
+      const akan = semua.filter(j => j.status === 'Terjadwal' && !j.perlu_update);
+      const perSales = {};
+      semua.forEach(j => { const x = perSales[j.sales] || (perSales[j.sales] = { n: 0, d: 0, r: 0, b: 0, u: 0 }); x.n++; if (j.status === 'Datang') x.d++; if (j.reschedule_n) x.r++; if (j.status === 'Batal') x.b++; if (j.perlu_update) x.u++; });
+      const tglJ = t => fmtDate(t) + (t ? ' (' + ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00Z').getUTCDay()] + ')' : '');
+      const alasanR = j => ((j.log || []).find(x => x.aksi === 'Reschedule') || {}).isi || '';
+      const kasus = [...batal.map(j => ({ j, st: 'Batal', al: (j.batal_alasan || '') + (j.lanjut === 'drop' ? ' · lead Drop' : ' · tetap follow up') })),
+        ...resch.filter(j => j.status !== 'Batal').map(j => ({ j, st: 'Reschedule ' + j.reschedule_n + 'x', al: alasanR(j) }))]
+        .sort((a, b) => (a.j.tgl + a.j.jam).localeCompare(b.j.tgl + b.j.jam));
+      return `<h2>6C. JANJIAN VISIT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(janji temu dengan tanggal visit pada periode report)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Total janji temu</th><th style="text-align:center">Datang</th><th style="text-align:center">Reschedule</th><th style="text-align:center">Batal</th><th style="text-align:center">Belum di-update</th><th style="text-align:center">Akan datang</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${semua.length}</td><td style="color:#23694A">${datang.length}${semua.length ? ' (' + Math.round(datang.length / semua.length * 100) + '%)' : ''}</td><td style="color:#8A5F14">${resch.length}</td><td style="color:#B3402F">${batal.length}</td><td style="color:#B3402F">${belum.length}</td><td>${akan.length}</td></tr></table>
+<table style="font-size:9pt"><tr><th>Sales</th><th style="text-align:right">Janji temu</th><th style="text-align:right">Datang</th><th style="text-align:right">Reschedule</th><th style="text-align:right">Batal</th><th style="text-align:right">Belum di-update</th></tr>
+${Object.entries(perSales).sort((a, b) => b[1].n - a[1].n).map(([n, x]) => `<tr><td><b>${esc(n || '-')}</b></td><td style="text-align:right">${x.n}</td><td style="text-align:right">${x.d}</td><td style="text-align:right">${x.r}</td><td style="text-align:right">${x.b}</td><td style="text-align:right;${x.u ? 'color:#B3402F;font-weight:bold' : ''}">${x.u}</td></tr>`).join('')}
+</table>
+${kasus.length ? `<p style="margin:8px 0 4px"><b>Batal & reschedule beserta alasannya</b></p>
+<table style="font-size:9pt"><tr><th>Tanggal · jam</th><th>Lead</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Alasan</th></tr>
+${kasus.map(k => `<tr><td>${tglJ(k.j.tgl)} ${esc(String(k.j.jam).replace(':', '.'))}</td><td><b>${esc(k.j.nama || k.j.lead_code)}</b><br><span class="muted">${esc(k.j.project || '')}</span></td><td>${esc(k.j.sales || '-')}</td>
+<td>${esc(k.j.jenis || '')}<br><span class="muted">${esc(k.j.lokasi || '')}</span></td><td style="color:${k.st === 'Batal' ? '#B3402F' : '#8A5F14'};font-weight:bold">${esc(k.st)}</td><td>${esc(k.al || '-')}</td></tr>`).join('')}
+</table>` : ''}
+<p class="muted" style="font-size:8.5pt">Belum di-update = janji temu yang jamnya sudah lewat tetapi hasilnya (datang / reschedule / batal) belum diisi sales${nowJ.tgl ? ' per ' + fmtDate(nowJ.tgl) : ''}.</p>`;
     })()}
 ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;

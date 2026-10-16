@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { ringkasStok } from '@/lib/stok';
 import { siapkanKpr, sinkronKpr, statusKpr } from '@/lib/kpr';
+import { siapkanJanjian, perluUpdate, sekarangWIB, namaHari } from '@/lib/janjian';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,8 +128,75 @@ async function berandaSales(sql, user, hariIni, semua) {
     // Stok unit: perhitungan yang sama persis dengan halaman Master Stock (lib/stok.js)
     ringkasStok(sql).then(r => pp ? r.filter(x => pp.includes(x.project)) : r).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
+
+  // ===== Peringatan & agenda sales =====
+  const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const now = sekarangWIB();
+  let janjian = [], janjiTerakhir = null, hotTanpaJanji = [], resLama = [], kprSaya = [];
+  try {
+    await siapkanJanjian(sql);
+    [janjian, janjiTerakhir, hotTanpaJanji, resLama] = await Promise.all([
+      sql`SELECT j.id, j.lead_code, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, j.reschedule_n, j.sales, l.nama, l.wa
+        FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE (${nama}::text IS NULL OR j.sales = ${nama}) AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
+          AND (j.status = 'Terjadwal' OR (j.tgl >= ${geser(hariIni, -1)}::date AND j.tgl <= ${geser(hariIni, 7)}::date))
+        ORDER BY j.tgl, j.jam`,
+      sql`SELECT max(created_at) AS t FROM janjian WHERE (${nama}::text IS NULL OR sales = ${nama})`,
+      // Lead Hot / Warm tanpa janji temu yang sedang terjadwal & belum pernah datang 14 hari terakhir → ajak visit
+      sql`SELECT l.lead_code, l.nama, l.status, l.project FROM leads l
+        WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status IN ('Hot', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+          AND NOT EXISTS (SELECT 1 FROM janjian j WHERE j.lead_code = l.lead_code AND (j.status = 'Terjadwal' OR (j.status = 'Datang' AND j.tgl >= ${geser(hariIni, -14)}::date)))
+        ORDER BY CASE l.status WHEN 'Hot' THEN 0 ELSE 1 END, l.updated_at DESC NULLS LAST LIMIT 20`,
+      sql`SELECT x.lead_code, x.nama, x.unit, x.tgl::text AS tgl FROM (
+          SELECT DISTINCT ON (t.lead_code) t.lead_code, t.jenis, t.tgl, t.unit, l.nama, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project
+          FROM transactions t JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.lead_code, t.id DESC) x
+        WHERE x.jenis = 'Reserved' AND x.tgl <= ${geser(hariIni, -7)}::date AND (${nama}::text IS NULL OR x.sales = ${nama})
+          AND (${pp}::text[] IS NULL OR x.project = ANY(${pp}::text[])) ORDER BY x.tgl LIMIT 5`,
+    ]);
+  } catch (e) { console.error('janjian sales', e); }
+  try {
+    await siapkanKpr(sql);
+    await sinkronKpr(sql);
+    const kr = await sql`SELECT k.id, k.lead_code, k.unit, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at,
+        l.nama, COALESCE(NULLIF(k.project, ''), l.project, '') AS project,
+        (SELECT t.jenis FROM transactions t WHERE t.lead_code = k.lead_code ORDER BY t.id DESC LIMIT 1) AS trx_terakhir
+      FROM kpr k LEFT JOIN leads l ON l.lead_code = k.lead_code
+      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(k.project, ''), l.project, '') = ANY(${pp}::text[]))`;
+    const ids = kr.map(k => k.id);
+    const bk = ids.length ? await sql`SELECT id, kpr_id, bank, tahap, kendala FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id` : [];
+    kprSaya = kr.filter(k => k.trx_terakhir !== 'Batal' && k.trx_terakhir !== 'Reserved').map(k => {
+      const b = bk.filter(x => x.kpr_id === k.id);
+      return { id: k.id, nama: k.nama, unit: k.unit, project: k.project, akad_tgl: k.akad_tgl, status: statusKpr(k, b, k.trx_terakhir),
+        banks: b.map(x => x.bank), kendala: b.filter(x => x.kendala && !['Ditolak', 'Tidak dilanjutkan'].includes(x.tahap)).map(x => `${x.bank}: ${x.kendala}`).join(' · '),
+        diam: Math.floor((Date.now() - new Date(k.updated_at).getTime()) / 86400000) };
+    }).filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori)).sort((a, b) => b.diam - a.diam);
+  } catch (e) { console.error('kpr sales', e); }
+
+  const jj = janjian.map(j => ({ ...j, perlu_update: perluUpdate(j, now) }));
+  // Akhir pekan wajib ada janji temu: Sabtu & Minggu terdekat (bila hari ini Minggu, Sabtu berikutnya)
+  const dow = new Date(hariIni + 'T00:00:00Z').getUTCDay();
+  const sabtu = dow === 6 ? hariIni : dow === 0 ? geser(hariIni, 6) : geser(hariIni, 6 - dow);
+  const minggu = dow === 0 ? hariIni : geser(sabtu, 1);
+  const hitungHari = t => jj.filter(j => j.tgl === t && j.status !== 'Batal').length;
+  const akhirPekan = [{ tgl: sabtu, hari: 'Sabtu', n: hitungHari(sabtu) }, { tgl: minggu, hari: 'Minggu', n: hitungHari(minggu) }].sort((a, b) => a.tgl.localeCompare(b.tgl));
+  const hariTanpaJanji = janjiTerakhir?.[0]?.t ? Math.floor((Date.now() - new Date(janjiTerakhir[0].t).getTime()) / 86400000) : null;
+  const adaJanjiDepan = jj.some(j => j.status === 'Terjadwal' && j.tgl >= hariIni && !j.perlu_update);
+
+  const peringatan = [];
+  const tlt = due.filter(r => r.next_fu < hariIni);
+  if (tlt.length) peringatan.push({ level: 'merah', judul: `${tlt.length} follow up terlambat`, sub: tlt.slice(0, 3).map(r => `${r.nama} (${Math.round((Date.parse(hariIni) - Date.parse(r.next_fu)) / 86400000)} hari)`).join(' · ') + (tlt.length > 3 ? ` · +${tlt.length - 3} lainnya` : ''), href: '/form?tab=fu&lead=' + encodeURIComponent(tlt[0].lead_code), tombol: 'Follow up' });
+  jj.filter(j => j.perlu_update).slice(0, 3).forEach(j => peringatan.push({ level: 'merah', judul: `Janji temu ${j.nama || j.lead_code} belum di-update`, sub: `${namaHari(j.tgl)} ${j.tgl.slice(8, 10)}/${j.tgl.slice(5, 7)} ${j.jam.replace(':', '.')} · isi hasil: datang, reschedule, atau batal`, href: '/janjian', tombol: 'Update' }));
+  akhirPekan.filter(x => x.n === 0).forEach(x => peringatan.push({ level: 'merah', judul: `${x.hari} ${Number(x.tgl.slice(8, 10))}/${Number(x.tgl.slice(5, 7))} belum ada janji temu — wajib`, sub: 'Akhir pekan wajib ada janji temu visit. Ajak lead Hot/Warm datang.', href: '/janjian', tombol: 'Buat janji' }));
+  if (!semua && (hariTanpaJanji === null || hariTanpaJanji > 3) && !adaJanjiDepan) peringatan.push({ level: 'emas', judul: hariTanpaJanji === null ? 'Belum pernah membuat janji temu' : `Sudah ${hariTanpaJanji} hari tanpa janji temu baru`, sub: 'Target minimal satu janji temu baru tiap 3 hari.', href: '/janjian', tombol: 'Buat janji' });
+  if (hotTanpaJanji.length) peringatan.push({ level: 'emas', judul: `${hotTanpaJanji.length} lead Hot/Warm belum dijadwalkan visit`, sub: hotTanpaJanji.slice(0, 3).map(l => `${l.nama} (${l.status})`).join(' · ') + (hotTanpaJanji.length > 3 ? ' · …' : ''), href: '/janjian', tombol: 'Ajak visit' });
+  resLama.forEach(r => peringatan.push({ level: 'emas', judul: `Reserved ${r.unit || r.nama} sudah ${Math.round((Date.parse(hariIni) - Date.parse(r.tgl)) / 86400000)} hari belum Booking`, sub: r.nama + ' · dorong ke Booking atau konfirmasi rencana konsumen', href: '/leads?lead=' + encodeURIComponent(r.lead_code), tombol: 'Lihat' }));
+  kprSaya.filter(k => k.diam > 3).slice(0, 3).forEach(k => peringatan.push({ level: 'emas', judul: `KPR ${k.nama} tidak di-update ${k.diam} hari`, sub: [k.status.label, k.banks.join(', '), k.kendala].filter(Boolean).join(' · '), href: '/kpr-proses?id=' + k.id, tombol: 'Update' }));
+  kprSaya.filter(k => k.status.kategori === 'akad' && k.akad_tgl && k.akad_tgl < hariIni).forEach(k => peringatan.push({ level: 'merah', judul: `Akad ${k.nama} (${k.akad_tgl}) sudah lewat — isi tanggal realisasi`, sub: k.unit || '', href: '/kpr-proses?id=' + k.id, tombol: 'Isi' }));
+
   return {
-    peran: 'sales', hariIni,
+    peran: 'sales', hariIni, peringatan, akhirPekan,
+    agenda: jj.filter(j => j.status === 'Terjadwal' && (j.tgl === hariIni || j.tgl === geser(hariIni, 1)) && !j.perlu_update),
+    kprSaya: kprSaya.slice(0, 6), kprJalan: kprSaya.length,
     baruDioper: baru.map(r => ({ ...r, menit: Math.max(0, Math.round((Date.now() - new Date(r.dioper).getTime()) / 60000)) })),
     fu: { selesai: selesai[0]?.n || 0, sisa: due.length, terlambat: due.filter(r => r.next_fu < hariIni).length,
       daftar: due.slice(0, 6).map(r => ({ ...r, terlambat: r.next_fu < hariIni })) },
@@ -149,7 +217,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   const lalu1 = geserBulan(awalBulan, -1);
   const akhirLalu = new Date(Date.parse(awalBulan + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
   const lalu2 = (lalu1.slice(0, 8) + hariIni.slice(8, 10)) > akhirLalu ? akhirLalu : lalu1.slice(0, 8) + hariIni.slice(8, 10);
-  const batas14 = new Date(Date.parse(hariIni + 'T00:00:00Z') - 14 * 86400000).toISOString().slice(0, 10);
+  const batasResv = new Date(Date.parse(hariIni + 'T00:00:00Z') - 7 * 86400000).toISOString().slice(0, 10); // Reserved > 7 hari
   await siapkanKpr(sql); await sinkronKpr(sql);
 
   const [jual, jualLalu, resv, funnel, spendRows, amort, camps, l2Camp, bookCamp, spendCamp, belum, resLama, hangat, kprRows, sales] = await Promise.all([
@@ -195,11 +263,11 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
         AND NOT EXISTS (SELECT 1 FROM followups f JOIN users s ON s.username = f.created_by AND s.name = l.sales WHERE f.lead_code = l.lead_code AND f.created_at > a.created_at)
       ORDER BY a.created_at`.catch(() => []),
-    // Reserved > 14 hari belum naik Booking
+    // Reserved > 7 hari belum naik Booking
     sql`SELECT x.lead_code, x.nama, x.sales, x.unit, x.project, x.tgl::text AS tgl FROM (
         SELECT DISTINCT ON (t.lead_code) t.lead_code, t.jenis, t.tgl, t.unit, l.nama, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project
         FROM transactions t JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.lead_code, t.id DESC) x
-      WHERE x.jenis = 'Reserved' AND x.tgl <= ${batas14}::date AND (${pp}::text[] IS NULL OR x.project = ANY(${pp}::text[])) ORDER BY x.tgl LIMIT 6`,
+      WHERE x.jenis = 'Reserved' AND x.tgl <= ${batasResv}::date AND (${pp}::text[] IS NULL OR x.project = ANY(${pp}::text[])) ORDER BY x.tgl LIMIT 6`,
     sql`SELECT count(*)::int AS n FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
       WHERE COALESCE(l.sales, '') = '' AND l.status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
     sql`SELECT k.id, k.lead_code, k.unit, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, l.nama, l.sales,
@@ -240,7 +308,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     .sort((a, b) => (['selesai', 'ditolak'].includes(a.status.kategori) ? 1 : 0) - (['selesai', 'ditolak'].includes(b.status.kategori) ? 1 : 0));
   // Rencana akad sudah lewat tetapi realisasi belum diisi
   const akadLewat = kpr.filter(k => k.status.kategori === 'akad' && k.akad_tgl && k.akad_tgl < hariIni);
-  const kprDiam = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 5);
+  const kprDiam = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 3); // tidak di-update > 3 hari
 
   // Performa sales
   const salesPilih = sales.filter(s => !pp || !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => pp.includes(p))).map(s => s.name);
@@ -317,6 +385,46 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     } catch { tim = null; }
   }
 
+  // ===== Janjian visit: hari ini, 7 hari ke depan, hasil bulan ini =====
+  let janjian = null;
+  try {
+    await siapkanJanjian(sql);
+    const now = sekarangWIB();
+    const t7 = new Date(Date.parse(hariIni + 'T00:00:00Z') + 7 * 86400000).toISOString().slice(0, 10);
+    const jr = await sql`SELECT j.id, j.lead_code, j.project, j.sales, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, j.reschedule_n,
+        j.jam_datang, j.unit_dilihat, j.hasil, j.hasil_catatan, j.batal_alasan, j.lanjut, j.peserta, l.nama,
+        (SELECT x.isi FROM janjian_log x WHERE x.janjian_id = j.id AND x.aksi = 'Reschedule' ORDER BY x.waktu DESC LIMIT 1) AS resch_terakhir
+      FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+      WHERE ((j.tgl >= ${awalBulan}::date AND j.tgl <= ${t7}::date) OR j.status = 'Terjadwal')
+        AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
+      ORDER BY j.tgl, j.jam`;
+    const all = jr.map(j => ({ ...j, perlu_update: perluUpdate(j, now) }));
+    const hari = all.filter(j => j.tgl === hariIni);
+    const lewat = all.filter(j => j.perlu_update);
+    const depan = [];
+    for (let i = 1; i <= 7; i++) {
+      const t = new Date(Date.parse(hariIni + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10);
+      depan.push({ tgl: t, hari: namaHari(t), n: all.filter(j => j.tgl === t && j.status === 'Terjadwal').length });
+    }
+    const bulan = all.filter(j => j.tgl >= awalBulan && j.tgl <= hariIni);
+    const perSales = {};
+    bulan.forEach(j => { const s = perSales[j.sales] || (perSales[j.sales] = { sales: j.sales, n: 0, datang: 0, batal: 0, resch: 0 });
+      s.n++; if (j.status === 'Datang') s.datang++; if (j.status === 'Batal') s.batal++; if (j.reschedule_n) s.resch++; });
+    janjian = {
+      hariIni: hari, lewat: lewat.filter(j => j.tgl < hariIni), depan,
+      ringkas: { terjadwal: hari.filter(j => j.status === 'Terjadwal' && !j.perlu_update).length, datang: hari.filter(j => j.status === 'Datang').length,
+        reschedule: hari.filter(j => j.reschedule_n > 0 && j.status === 'Terjadwal').length, batal: hari.filter(j => j.status === 'Batal').length, perluUpdate: lewat.length },
+      bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, batal: bulan.filter(j => j.status === 'Batal').length,
+        resch: bulan.filter(j => j.reschedule_n > 0).length,
+        alasanBatal: bulan.filter(j => j.status === 'Batal' && j.batal_alasan).slice(-4).reverse().map(j => ({ nama: j.nama, sales: j.sales, alasan: j.batal_alasan })),
+        perSales: Object.values(perSales).sort((a, b) => b.n - a.n) },
+    };
+    lewat.slice(0, 3).forEach(j => perhatian.unshift({ level: 'merah', judul: `Janjian ${j.nama || j.lead_code} (${namaHari(j.tgl)} ${j.tgl.slice(8, 10)}/${j.tgl.slice(5, 7)} ${j.jam.replace(':', '.')}) belum di-update`,
+      sub: [j.sales, j.jenis, j.lokasi, j.project].filter(Boolean).join(' · ') + ' · isi hasil: datang / reschedule / batal', href: '/janjian' }));
+  } catch (e) { console.error('janjian beranda', e); }
+  // Kolom Janji temu di Performa sales: jumlah janji temu tiap sales bulan ini
+  perf.forEach(p => { p.janji = (janjian?.bulan?.perSales || []).find(x => x.sales === p.nama)?.n || 0; });
+
   let stok = await ringkasStok(sql).catch(() => []);
   if (pp) stok = stok.filter(x => pp.includes(x.project));
   return {
@@ -328,7 +436,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       berjalan: kpr.filter(k => k.status.kategori === 'berjalan').length, sp3k: kpr.filter(k => k.status.kategori === 'sp3k').length,
       akad: kpr.filter(k => k.status.kategori === 'akad').length, selesai: kpr.filter(k => k.status.kategori === 'selesai' && k.diam <= 30).length,
       ditolak: kpr.filter(k => k.status.kategori === 'ditolak' && k.diam <= 30).length },
-    perhatian, perf, tim, stok,
+    perhatian, perf, tim, stok, janjian,
   };
 }
 

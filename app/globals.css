@@ -437,3 +437,25 @@ th.num{text-align:right}
 .dp-mode{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--gray-soft);margin-bottom:6px}
 .dp-mode button{border:0;border-radius:999px;padding:5px 12px;background:transparent;color:var(--ink);font:700 12px var(--font);cursor:pointer}
 .dp-mode button[aria-pressed="true"]{background:var(--side-active-bg);color:var(--side-active-fg)}
+
+/* ===== Janjian / Appointment ===== */
+.jj-sheet{margin-bottom:14px;border:2px solid var(--gold)}
+.jj-waktu{color:var(--green);font-size:14px}
+.jj-lama{padding:10px 12px;border-radius:12px;background:var(--paper);font-size:13px;margin-bottom:10px}
+.jj-grup{margin-bottom:14px}
+.jj-hari{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:6px 2px 8px}
+.jj-card{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow)}
+.jj-card.telat{box-shadow:inset 3px 0 0 var(--red),var(--shadow)}
+.jj-jam{width:56px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:14px;background:var(--paper);font-weight:800;font-size:15px}
+.jj-jam span{font-size:10px;font-weight:700;color:var(--muted)}
+.jj-isi{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.jj-ket{font-size:12.5px;font-weight:600}.jj-ket.merah{color:var(--red)}.jj-ket.emas{color:var(--brass-deep)}.jj-ket.hijau{color:var(--green)}
+.jj-aksi{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.jj-aksi button{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:800 12.5px var(--font);cursor:pointer}
+.jj-aksi button.d{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.jj-aksi button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.jj-log{font-size:12.5px;margin-top:4px}.jj-log summary{cursor:pointer;color:var(--muted);font-weight:700}.jj-log>div{padding:6px 0;border-top:1px solid var(--line)}
+
+.jj-bar{display:flex;align-items:flex-end;gap:8px;height:110px}
+.jj-bar>div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+.jj-bar i{display:block;width:100%;min-height:3px;border-radius:8px 8px 4px 4px}

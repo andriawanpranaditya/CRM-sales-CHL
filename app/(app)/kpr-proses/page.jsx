@@ -101,7 +101,7 @@ export default function ProsesKprPage() {
       {!data ? <div className="loading">Memuat…</div> : tampil.length ? (
         <div className="kp-list">
           {tampil.map(r => (
-            <button key={r.id} className={'kp-card' + (r.status.kategori === 'berjalan' && r.diam_hari > 5 ? ' diam' : '')} onClick={() => setPilih(r.id)}>
+            <button key={r.id} className={'kp-card' + (['berjalan', 'sp3k', 'akad'].includes(r.status.kategori) && r.diam_hari > 3 ? ' diam' : '')} onClick={() => setPilih(r.id)}>
               <div className="kp-top"><div><b>{r.nama || r.lead_code}</b><div className="hint">{[r.project, r.unit, me?.role !== 'sales' ? r.sales : ''].filter(Boolean).join(' · ')}</div></div>
                 <span className={'kp-pill ' + (KELAS[r.status.kategori] || 'kp-run')}>{labelStatus(r)}</span></div>
               <Langkah n={r.status.langkah} kategori={r.status.kategori} />
@@ -109,7 +109,7 @@ export default function ProsesKprPage() {
                 <div key={b.id}><span><b>{b.bank}</b>{b.ao_nama ? ' · AO ' + b.ao_nama : ''}</span><span className={'kp-pill sm ' + (KELAS_TAHAP[b.tahap] || '')}>{b.tahap}</span></div>))
                 : <span className="hint">{r.slik_tgl ? 'SLIK selesai — belum diajukan ke bank' : 'Isi hasil Verifikasi & SLIK'}</span>}</div>
               <div className="kp-foot"><span className={r.berkas_ok >= r.berkas_total && r.berkas_total ? 'ok' : ''}>Berkas {r.berkas_ok}/{r.berkas_total} · {r.profil}</span>
-                <span className={r.status.kategori === 'berjalan' && r.diam_hari > 5 ? 'merah' : 'hint'}>update {relatif(r.diam_hari)}</span></div>
+                <span className={['berjalan', 'sp3k', 'akad'].includes(r.status.kategori) && r.diam_hari > 3 ? 'merah' : 'hint'}>update {relatif(r.diam_hari)}</span></div>
               {r.kendala && <div className="kp-kendala">Kendala: {r.kendala}</div>}
             </button>))}
         </div>) : <p className="hint">Belum ada konsumen di kelompok ini.</p>}

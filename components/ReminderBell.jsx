@@ -115,6 +115,16 @@ export default function ReminderBell({ user }) {
             <div className="hint" style={{ padding: '14px 16px' }}>✅ Tidak ada pengingat. Mantap!</div>
           ) : (
             <div className="bell-list">
+              {(data.janjian || []).length > 0 && <>
+                <div className="bell-sub">📅 Janjian visit ({data.janjian.length})</div>
+                {data.janjian.map(j => (
+                  <a key={'j' + j.id} href="/janjian" className="rem-item" style={{ borderLeftColor: j.perlu_update ? 'var(--red)' : 'var(--blue)' }}>
+                    <span><b>{j.nama || j.lead_code}</b> <span className="hint">({j.jenis}{user.role !== 'sales' ? ' · ' + j.sales : ''})</span>
+                      <br /><span className="hint">{fmtDate(j.tgl)} pukul {String(j.jam).replace(':', '.')} · {j.lokasi}</span></span>
+                    <span className={'badge ' + (j.perlu_update ? 'b-overdue' : j.tgl === data.today ? 'b-today' : 'b-new')}>{j.perlu_update ? 'PERLU UPDATE' : j.tgl === data.today ? 'HARI INI' : 'BESOK'}</span>
+                  </a>))}
+                {(data.terlambat.length + data.hariIni.length) > 0 && <div className="bell-sub">Follow up</div>}
+              </>}
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
               {(data.aiSiap || []).length > 0 && <>

@@ -15,6 +15,7 @@ const I = {
   cek: <Ik w={2.4} d={<path d="M20 6 9 17l-5-5" />} />,
   hitung: <Ik d={<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2" /></>} />,
   peta: <Ik d={<><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3Z" /><path d="M9 3v15M15 6v15" /></>} />,
+  kalender: <Ik d={<><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>} />,
 };
 const sapa = () => { const j = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: 'numeric', hourCycle: 'h23' }).format(new Date())); return j < 11 ? 'Pagi' : j < 15 ? 'Siang' : j < 19 ? 'Sore' : 'Malam'; };
 const tglPanjang = () => new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -124,7 +125,9 @@ function Marcom({ d }) {
 
 function Sales({ d }) {
   const f = d.fu, totalFU = f.selesai + f.sisa, s = d.status || {};
+  const nMerah = (d.peringatan || []).filter(p => p.level === 'merah').length;
   const judul = d.baruDioper.length ? `${d.baruDioper.length} lead baru dari Marcom menunggu kabar`
+    : nMerah ? `${nMerah} hal mendesak perlu ditindaklanjuti`
     : f.terlambat ? `${f.terlambat} follow up terlambat, kerjakan dulu` : f.sisa ? `${f.sisa} follow up menunggu hari ini` : 'Follow up hari ini sudah beres';
   const tile = [['New', 'New'], ['Warm', 'Warm'], ['Hot', 'Hot'], ['Appointment', 'Appointment'], ['Site Visit', 'Site Visit']];
   return (<>
@@ -136,8 +139,16 @@ function Sales({ d }) {
           <div className="bd-row-sub">{r.project || '-'} · dioper {lamaDioper(r.menit)} · belum dihubungi</div></div>
         <Link className="bd-btn gold" href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)}>Hubungi</Link>
       </div>))}
-    <Pintasan items={[['/form?tab=lead', I.plus, 'Lead walk in', true], ['/form?tab=fu', I.chat, 'Follow up'], ['/form?tab=trx', I.cek, 'Reserved / Booking'],
-      ['/kpr', I.hitung, 'Simulasi'], ['/stock', I.peta, 'Cek unit']]} />
+    {(d.peringatan || []).length > 0 && (
+      <section className="bd-card" style={{ marginBottom: 14 }}>
+        <div className="bd-head"><h2 className="bd-h2">Peringatan</h2><span className="hint">{d.peringatan.length} hal perlu ditindaklanjuti</span></div>
+        {d.peringatan.map((p, i) => (
+          <div key={i} className="bd-row"><span className="dot" style={{ background: p.level === 'merah' ? 'var(--red)' : 'var(--brass)' }} />
+            <div className="bd-row-main"><b>{p.judul}</b><div className="bd-row-sub">{p.sub}</div></div>
+            <Link className="bd-btn" href={p.href}>{p.tombol || 'Lihat'}</Link></div>))}
+      </section>)}
+    <Pintasan items={[['/form?tab=lead', I.plus, 'Lead walk in', true], ['/janjian', I.kalender, 'Janji temu'], ['/form?tab=fu', I.chat, 'Follow up'],
+      ['/form?tab=trx', I.cek, 'Reserved / Booking'], ['/kpr', I.hitung, 'Simulasi']]} />
     <div className="bd-grid">
       <section className="bd-hero bd-span2">
         <div className="bd-hero-top"><span>Follow up hari ini</span>{f.terlambat ? <span className="bd-chip-dark">{f.terlambat} terlambat</span> : null}</div>
@@ -163,11 +174,71 @@ function Sales({ d }) {
             tombol={<Link className="bd-btn" href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)}>Follow up</Link>} />))
           : <p className="bd-empty">Tidak ada follow up yang jatuh tempo. Cek lead Warm dan Hot di Database Lead.</p>}
       </section>
+      <section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Janji temu hari ini &amp; besok</h2><Link href="/janjian" className="bd-more">Menu Janjian</Link></div>
+        <div className="bd-chips kp">{(d.akhirPekan || []).map(x => <span key={x.tgl} className={'kp-pill sm ' + (x.n ? 'kp-ok' : 'kp-no')}>{x.hari} {Number(x.tgl.slice(8, 10))}/{Number(x.tgl.slice(5, 7))}: {x.n ? x.n + ' janji temu' : 'belum ada (wajib)'}</span>)}</div>
+        {(d.agenda || []).length ? d.agenda.map(j => (
+          <div key={j.id} className="bd-row"><span className="kp-pill sm kp-run">{j.tgl === d.hariIni ? 'Hari ini' : 'Besok'} {j.jam.replace(':', '.')}</span>
+            <div className="bd-row-main"><b>{j.nama || j.lead_code}</b><div className="bd-row-sub">{j.jenis} · {j.lokasi}{j.reschedule_n ? ` · reschedule ${j.reschedule_n}×` : ''}</div></div>
+            <Link className="bd-btn ghost" href="/janjian">Buka</Link></div>))
+          : <p className="bd-empty">Belum ada janji temu hari ini &amp; besok.</p>}
+      </section>
+      <section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Proses KPR saya</h2><span className="hint">{d.kprJalan || 0} berjalan</span></div>
+        {(d.kprSaya || []).length ? d.kprSaya.map(k => (
+          <div key={k.id} className={'bd-row' + (k.diam > 3 ? ' telat' : '')}>
+            <span className={'kp-pill sm ' + (k.status.kategori === 'berjalan' ? 'kp-run' : 'kp-ok')}>{k.status.kategori === 'akad' ? 'Rencana akad' : k.status.label}</span>
+            <div className="bd-row-main"><b>{k.nama}</b><div className={'bd-row-sub' + (k.diam > 3 ? ' merah' : '')}>{[k.unit, k.banks.join(', ') || 'belum diajukan', k.kendala, k.diam > 3 ? `tidak di-update ${k.diam} hari` : ''].filter(Boolean).join(' · ')}</div></div>
+            <Link className="bd-btn ghost" href={'/kpr-proses?id=' + k.id}>Update</Link></div>))
+          : <p className="bd-empty">Tidak ada proses KPR berjalan.</p>}
+      </section>
       <KartuStok stok={d.stok} />
     </div>
   </>);
 }
 
+
+// ===== Blok Janjian visit (Manager & CEO) =====
+function StatusJanjian({ j }) {
+  if (j.status === 'Datang') return <span className="kp-pill sm kp-ok">Datang{j.jam_datang ? ' ' + String(j.jam_datang).replace(':', '.') : ''}</span>;
+  if (j.status === 'Batal') return <span className="kp-pill sm kp-no">Batal</span>;
+  if (j.perlu_update) return <span className="kp-pill sm kp-no">Lewat, belum di-update</span>;
+  if (j.reschedule_n) return <span className="kp-pill sm kp-wait">Reschedule {j.reschedule_n}×</span>;
+  return <span className="kp-pill sm kp-run">Terjadwal</span>;
+}
+function BlokJanjian({ j }) {
+  const r = j.ringkas, maks = Math.max(1, ...j.depan.map(x => x.n));
+  const ket = x => x.status === 'Datang' ? [x.unit_dilihat, x.hasil, x.hasil_catatan].filter(Boolean).join(' · ')
+    : x.status === 'Batal' ? (x.batal_alasan || '') + (x.lanjut === 'drop' ? ' · lead Drop' : ' · tetap follow up')
+    : x.reschedule_n ? (x.resch_terakhir || '') : (x.peserta || '');
+  return (<>
+    <section className="bd-card bd-span4">
+      <div className="bd-head"><h2 className="bd-h2">Janjian visit hari ini</h2>
+        <div className="bd-chips kp"><span className="kp-pill sm kp-run">{r.terjadwal} terjadwal</span><span className="kp-pill sm kp-ok">{r.datang} datang</span>
+          <span className="kp-pill sm kp-wait">{r.reschedule} reschedule</span><span className="kp-pill sm kp-no">{r.batal} batal</span>{r.perluUpdate ? <span className="kp-pill sm kp-no">{r.perluUpdate} perlu update</span> : null}</div></div>
+      {j.hariIni.length || j.lewat.length ? <div className="bd-tbl"><table>
+        <thead><tr><th>Jam</th><th>Lead · project</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan</th></tr></thead>
+        <tbody>{[...j.lewat, ...j.hariIni].map(x => (<tr key={x.id}>
+          <td><b>{x.jam.replace(':', '.')}</b>{x.tgl !== j.hariIni[0]?.tgl && x.perlu_update ? <div className="hint">{x.tgl.slice(8, 10)}/{x.tgl.slice(5, 7)}</div> : null}</td>
+          <td><b>{x.nama || x.lead_code}</b><div className="hint">{x.project}</div></td><td>{x.sales}</td><td>{x.jenis}<div className="hint">{x.lokasi}</div></td>
+          <td><StatusJanjian j={x} /></td><td>{ket(x) || '—'}</td></tr>))}</tbody></table></div>
+        : <p className="bd-empty">Tidak ada janjian visit hari ini.</p>}
+      <Link href="/janjian" className="bd-more">Buka menu Janjian</Link>
+    </section>
+    <section className="bd-card bd-span2">
+      <div className="bd-head"><h2 className="bd-h2">7 hari ke depan</h2><span className="hint">{j.depan.reduce((a, x) => a + x.n, 0)} janjian terjadwal</span></div>
+      <div className="jj-bar">{j.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
+      <span className="hint">Akhir pekan ditandai emas — atur pembagian sales jaga.</span>
+    </section>
+    <section className="bd-card bd-span2">
+      <div className="bd-head"><h2 className="bd-h2">Hasil janjian bulan ini</h2><span className="hint">{j.bulan.n} janjian</span></div>
+      <div className="bd-chips"><span>Datang <b>{j.bulan.datang}{j.bulan.n ? ` (${Math.round(j.bulan.datang / j.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{j.bulan.resch}</b></span><span>Batal <b>{j.bulan.batal}</b></span></div>
+      {j.bulan.alasanBatal.length > 0 && <div className="hint">Alasan batal terbaru: {j.bulan.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</div>}
+      {j.bulan.perSales.length > 0 && <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janjian</th><th className="num">Datang</th><th className="num">Reschedule</th><th className="num">Batal</th></tr></thead>
+        <tbody>{j.bulan.perSales.map(s => <tr key={s.sales}><td>{s.sales}</td><td className="num">{s.n}</td><td className="num">{s.datang}</td><td className="num">{s.resch}</td><td className="num">{s.batal}</td></tr>)}</tbody></table></div>}
+    </section>
+  </>);
+}
 
 // ===== Beranda Manager & CEO Project =====
 const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', selesai: 'kp-done', ditolak: 'kp-no' };
@@ -188,7 +259,7 @@ function TabelKpr({ rows, lengkap }) {
           <td>{k.banks.join(', ') || '—'}{k.akadBank ? <div className="hint">akad di {k.akadBank}{k.tidakLanjut.length ? ' · ' + k.tidakLanjut.join(', ') + ' tidak dilanjutkan' : ''}</div> : null}</td>
           <td><span className={'kp-pill sm ' + (KELAS_KPR[k.status.kategori] || 'kp-run')}>{labelKpr(k)}</span><LangkahKpr n={k.status.langkah} kategori={k.status.kategori} /></td>
           <td>{k.kendala || '—'}</td>
-          <td className={'num ' + (['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 5 ? 'merah' : 'hint')}>{k.diam <= 0 ? 'hari ini' : k.diam === 1 ? 'kemarin' : k.diam + ' hari lalu'}</td>
+          <td className={'num ' + (['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) && k.diam > 3 ? 'merah' : 'hint')}>{k.diam <= 0 ? 'hari ini' : k.diam === 1 ? 'kemarin' : k.diam + ' hari lalu'}</td>
         </tr>))}</tbody>
     </table></div>
   );
@@ -264,15 +335,15 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
       <section className="bd-card bd-span2">
         <h2 className="bd-h2">Performa sales</h2>
         <div className="bd-tbl"><table>
-          <thead><tr><th>Sales</th><th className="num">Lead aktif</th><th className="num">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num">KPR jalan</th><th className="num">Booking</th></tr></thead>
+          <thead><tr><th>Sales</th><th className="num">Lead aktif</th><th className="num">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num">KPR jalan</th><th className="num">Janji temu</th><th className="num">Booking</th></tr></thead>
           <tbody>{d.perf.map(s => (<React.Fragment key={s.nama}><tr><td><b>{s.nama}</b>{s.project ? <div className="hint">{s.project.join(', ')}</div> : null}</td>
             <td className="num">{s.aktif}</td><td className={'num' + (s.telat > 2 ? ' merah' : '')}>{s.telat}</td>
             {!isCeo && <td className="num">{(s.responRinci || []).length
               ? <button className={'bd-link' + (s.respon > 6 ? ' merah' : '')} aria-expanded={bukaRespon === s.nama} onClick={() => setBukaRespon(bukaRespon === s.nama ? '' : s.nama)}>
                   {s.respon != null ? s.respon + ' jam' : 'belum ada'}<span className="hint"> · {s.responN} lead{s.responBelum ? ` · ${s.responBelum} belum` : ''} ▾</span></button>
               : '—'}</td>}
-            <td className="num">{s.kpr}</td><td className="num"><b>{s.booking}</b></td></tr>
-            {!isCeo && bukaRespon === s.nama && <tr className="bd-rinci"><td colSpan={6}>
+            <td className="num">{s.kpr}</td><td className={'num' + (!s.janji ? ' merah' : '')}>{s.janji ?? 0}</td><td className="num"><b>{s.booking}</b></td></tr>
+            {!isCeo && bukaRespon === s.nama && <tr className="bd-rinci"><td colSpan={7}>
               <div className="hint" style={{ marginBottom: 6 }}>Rincian lead yang dioper ke {s.nama} bulan ini (urut paling lama direspon). Angka Respon = median jam dari dioper sampai FU pertama.</div>
               <table><thead><tr><th>Lead</th><th>Dioper</th><th>Oleh</th><th>FU pertama</th><th className="num">Jarak</th></tr></thead>
                 <tbody>{s.responRinci.map((x, i) => (<tr key={x.lead_code + i}>
@@ -290,6 +361,8 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
           <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'rencana akad'], ['selesai', 'done (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
         <TabelKpr rows={d.kpr} lengkap />
       </section>)}
+
+      {d.janjian && <BlokJanjian j={d.janjian} isCeo={isCeo} />}
 
       {d.tim && (<section className="bd-card bd-span2">
         <div className="bd-head"><h2 className="bd-h2">Tim hari ini</h2><Link href="/log" className="bd-more">Log Aktivitas</Link></div>
