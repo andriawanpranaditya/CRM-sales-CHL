@@ -18,6 +18,8 @@ export default function LeadsPage() {
   const [fKode, setFKode] = useState('');
   useEffect(() => { const k = new URLSearchParams(window.location.search).get('lead'); if (k) setFKode(k); }, []);
   const [fAsal, setFAsal] = useState('');
+  // Filter sumber lead: 'S:<sumber>' atau 'W:<walk in tahu dari>' (sub-pilihan Walk In)
+  const [fSumber, setFSumber] = useState('');
   const asalLead = l => l.creator_role === 'markom' ? (l.sales ? 'Marcom → Sales' : 'Marcom (belum diserahkan)') : 'Non-Marcom'; // asal lead: marcom belum diserahkan / marcom → sales / non-marcom
   const [sortBy, setSortBy] = useState('terbaru');
   const [tab, setTab] = useState('lead');       // 'lead' | 'fu'
@@ -75,6 +77,7 @@ export default function LeadsPage() {
       (!fSales || l.sales === fSales) &&
       (!fStatus || l.status === fStatus) &&
       (!fAsal || asalLead(l) === fAsal) &&
+      (!fSumber || (fSumber.startsWith('W:') ? /walk/i.test(l.sumber || '') && (l.walkin_info || '(tanpa info)') === fSumber.slice(2) : (l.sumber || '(tidak diisi)') === fSumber.slice(2))) &&
       (!fDate || String(l.tgl || '').slice(0, 10) === fDate) &&
       (!fKode || l.lead_code === fKode));
     const stIdx = st => { const i = (set.status || []).indexOf(st); return i < 0 ? 99 : i; };
@@ -83,7 +86,7 @@ export default function LeadsPage() {
     else if (sortBy === 'sales') r.sort((a, b) => (a.sales || '').localeCompare(b.sales || '') || b.id - a.id);
     else if (sortBy === 'status') r.sort((a, b) => stIdx(a.status) - stIdx(b.status) || b.id - a.id);
     return r;
-  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status, fKode]);
+  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status, fKode, fSumber]);
   // Buka riwayat lead yang dituju dari Beranda (sekali, setelah data lead dimuat)
   const [kodeDibuka, setKodeDibuka] = useState('');
   useEffect(() => { if (fKode && leads && kodeDibuka !== fKode && leads.some(l => l.lead_code === fKode)) { setKodeDibuka(fKode); bukaLead(fKode); } }, [fKode, leads]); // eslint-disable-line
@@ -176,6 +179,21 @@ export default function LeadsPage() {
           <option value="">Semua Status</option>
           {(set.status || []).map(s => <option key={s}>{s}</option>)}
         </select>
+        {(() => {
+          const basis = (leads || []).filter(l => !proj || l.project === proj);
+          const hit = {}, walk = {};
+          basis.forEach(l => { const k = l.sumber || '(tidak diisi)'; hit[k] = (hit[k] || 0) + 1;
+            if (/walk/i.test(l.sumber || '')) { const w = l.walkin_info || '(tanpa info)'; walk[w] = (walk[w] || 0) + 1; } });
+          const urut = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
+          return (
+            <select className="sort-filter" style={{ marginLeft: 0 }} value={fSumber} onChange={e => setFSumber(e.target.value)} title="Filter sumber lead">
+              <option value="">Semua Sumber</option>
+              {urut(hit).map(([k, n]) => <option key={'S' + k} value={'S:' + k}>{k} ({n})</option>)}
+              {Object.keys(walk).length > 0 && <optgroup label="Walk In — tahu dari">
+                {urut(walk).map(([k, n]) => <option key={'W' + k} value={'W:' + k}>Walk In via {k} ({n})</option>)}</optgroup>}
+            </select>);
+        })()}
+        {fSumber && <button className="sort-btn" onClick={() => setFSumber('')}>✕ Sumber</button>}
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fAsal} onChange={e => setFAsal(e.target.value)} title="Asal lead: diinput marcom & sudah/belum dioper ke sales">
           <option value="">Semua Asal Lead</option>
           {['Marcom (belum diserahkan)', 'Marcom → Sales', 'Non-Marcom'].map(a => <option key={a} value={a}>{a} ({leads.filter(l => (!proj || l.project === proj) && asalLead(l) === a).length})</option>)}
