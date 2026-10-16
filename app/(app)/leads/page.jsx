@@ -70,6 +70,12 @@ export default function LeadsPage() {
 
   const salesList = useMemo(() => leads ? [...new Set(leads.map(l => l.sales).filter(Boolean))].sort() : [], [leads]);
 
+  // Waktu follow up terakhir per lead (pesan otomatis WA tidak dihitung)
+  const fuTerakhir = useMemo(() => {
+    const m = {};
+    (fus || []).forEach(f => { if (f.created_by === 'auto-wa') return; const t = f.created_at || f.tgl; if (t && (!m[f.lead_code] || t > m[f.lead_code])) m[f.lead_code] = t; });
+    return m;
+  }, [fus]);
   const rows = useMemo(() => {
     if (!leads) return [];
     let r = leads.filter(l =>
@@ -85,8 +91,10 @@ export default function LeadsPage() {
     else if (sortBy === 'terlama') r.sort((a, b) => a.id - b.id);
     else if (sortBy === 'sales') r.sort((a, b) => (a.sales || '').localeCompare(b.sales || '') || b.id - a.id);
     else if (sortBy === 'status') r.sort((a, b) => stIdx(a.status) - stIdx(b.status) || b.id - a.id);
+    // Follow up terbaru: lead yang paling baru di-FU di atas; yang belum pernah di-FU di paling bawah
+    else if (sortBy === 'fu') r.sort((a, b) => String(fuTerakhir[b.lead_code] || '').localeCompare(String(fuTerakhir[a.lead_code] || '')) || b.id - a.id);
     return r;
-  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status, fKode, fSumber]);
+  }, [leads, proj, fSales, fStatus, fAsal, fDate, sortBy, set.status, fKode, fSumber, fuTerakhir]);
   // Buka riwayat lead yang dituju dari Beranda (sekali, setelah data lead dimuat)
   const [kodeDibuka, setKodeDibuka] = useState('');
   useEffect(() => { if (fKode && leads && kodeDibuka !== fKode && leads.some(l => l.lead_code === fKode)) { setKodeDibuka(fKode); bukaLead(fKode); } }, [fKode, leads]); // eslint-disable-line
@@ -203,6 +211,7 @@ export default function LeadsPage() {
           <option value="terlama">Urut: Terlama</option>
           <option value="sales">Urut: Nama Sales</option>
           <option value="status">Urut: Status</option>
+          <option value="fu">Urut: Follow up terbaru</option>
         </select>
       </div>
       {fKode && <div className="lead-fokus">Menampilkan {fKode} dari Beranda — riwayat oper &amp; follow up terbuka di bawah.
@@ -230,6 +239,7 @@ export default function LeadsPage() {
                   onChange={e => ubahStatus(l.id, e.target.value)}>
                   {(set.status || []).map(s => <option key={s}>{s}</option>)}
                 </select>
+                {sortBy === 'fu' && <span className="sub2">{fuTerakhir[l.lead_code] ? 'FU terakhir ' + new Date(fuTerakhir[l.lead_code]).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'belum pernah di-FU'}</span>}
               </td>
               <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
               <td data-label="Catatan">{l.catatan}</td>
