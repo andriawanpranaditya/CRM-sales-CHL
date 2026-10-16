@@ -237,7 +237,7 @@ export default function Dashboard() {
     buatSheet('Database Lead', 'DATABASE LEAD', [
       { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 },
       { h: 'Nama', k: 'nama', w: 20 }, { h: 'WhatsApp', k: 'wa', w: 13 }, { h: 'Email', k: 'email', w: 18 },
-      { h: 'Domisili', k: 'dom', w: 13 }, { h: 'Sumber', k: 'src', w: 14 }, { h: 'Info Walk In', k: 'wi', w: 14 },
+      { h: 'Domisili', k: 'dom', w: 13 }, { h: 'Sumber', k: 'src', w: 14 }, { h: 'Info Walk In', k: 'wi', w: 14 }, { h: 'Detail Sumber', k: 'sd', w: 22, wrap: true },
       { h: 'Project', k: 'proj', w: 15 }, { h: 'Tipe', k: 'tipe', w: 9 }, { h: 'Budget (Rp)', k: 'budget', w: 13, num: true },
       { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
       { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Tgl FU Terakhir', k: 'futgl', w: 12 },
@@ -249,7 +249,7 @@ export default function Dashboard() {
       return {
         _raw: l,
         id: l.lead_code, tgl: dd(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '',
-        dom: l.domisili || '', src: l.sumber || 'Tidak diisi', wi: l.walkin_info || '', proj: l.project || '-',
+        dom: l.domisili || '', src: l.sumber || 'Tidak diisi', wi: l.walkin_info || '', sd: l.sumber_detail || '', proj: l.project || '-',
         tipe: l.tipe || '', budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '',
         status: l.status, nfu: dd(l.next_fu),
         futgl: lf ? dd(lf.tgl) : '', fuupd: lf ? potong(lf.detail, 180) : 'Belum ada follow up',

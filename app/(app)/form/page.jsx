@@ -4,7 +4,12 @@ import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
+// Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
+const DETAIL_LAINNYA = { label: 'Sumber lainnya — sebutkan', ph: 'mis. brosur di minimarket, papan nama proyek', wajib: true };
+const DETAIL_WALKIN_LAINNYA = { label: 'Walk In — tahu dari mana, sebutkan', ph: 'mis. lewat depan lokasi, diajak teman, brosur', wajib: true };
+const detailUntuk = l => l.sumber === 'Lainnya' ? DETAIL_LAINNYA
+  : /walk/i.test(l.sumber || '') && l.walkin_info === 'Lainnya' ? DETAIL_WALKIN_LAINNYA : null;
 const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
@@ -233,6 +238,7 @@ export default function FormPage() {
     if (!lead.nama.trim()) return toast('Nama Konsumen wajib diisi');
     if (!isMarkom && !lead.sales) return toast('Sales / PIC wajib dipilih');
     if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
+    { const dt = detailUntuk(lead); if (dt?.wajib && !String(lead.sumber_detail || '').trim()) return toast('Isi ' + dt.label.toLowerCase()); }
     setBusy(true);
     try {
       if (editId) {
@@ -578,6 +584,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                 {WALKIN_INFO.map(w => <option key={w}>{w}</option>)}
               </select></div>
           )}
+          {(() => { const dt = detailUntuk(lead); return dt ? (
+            <div className="field"><label>{dt.label} {dt.wajib ? <span className="req">*</span> : null}</label>
+              <input value={lead.sumber_detail || ''} onChange={e => setLead({ ...lead, sumber_detail: e.target.value })} placeholder={dt.ph} maxLength={200} /></div>) : null; })()}
           <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
           {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}

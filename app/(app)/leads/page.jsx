@@ -99,7 +99,7 @@ export default function LeadsPage() {
             const respon = selisih(terima, fu1);
             const r2 = reminder(L.next_fu);
             const ev = [];
-            ev.push({ w: L.created_at, ikon: '🟢', judul: 'Lead masuk', ket: (L.sumber || 'Tidak diisi') + (L.walkin_info ? ' · via ' + L.walkin_info : '') + (L.created_by ? ' · diinput ' + L.created_by : '') });
+            ev.push({ w: L.created_at, ikon: '🟢', judul: 'Lead masuk', ket: (L.sumber || 'Tidak diisi') + (L.walkin_info ? ' · via ' + L.walkin_info : '') + (L.sumber_detail ? ' · ' + L.sumber_detail : '') + (L.created_by ? ' · diinput ' + L.created_by : '') });
             asg.forEach(a => ev.push({ w: a.created_at, ikon: '📮', judul: a.dari ? 'Dioper ' + a.dari + ' → ' + a.ke : 'Ditugaskan ke ' + a.ke, ket: 'oleh ' + (a.oleh || '-') }));
             fuList.forEach((f, i) => ev.push({
               w: f.created_at, ikon: '💬', judul: 'Follow Up #' + (i + 1) + (f.created_by ? ' oleh ' + f.created_by : ''),
@@ -114,7 +114,7 @@ export default function LeadsPage() {
             return (<>
               <h2 style={{ marginBottom: 2 }}>{L.lead_code} — {L.nama}</h2>
               <div className="hint" style={{ marginBottom: 10 }}>
-                {L.wa || '-'} · {L.project || '-'} · sumber {L.sumber || '-'} · PIC <b>{L.sales || 'belum ada'}</b> · status <b>{L.status}</b>
+                {L.wa || '-'} · {L.project || '-'} · sumber {L.sumber || '-'}{L.walkin_info ? ' via ' + L.walkin_info : ''}{L.sumber_detail ? ' (' + L.sumber_detail + ')' : ''} · PIC <b>{L.sales || 'belum ada'}</b> · status <b>{L.status}</b>
               </div>
               <div className="kpi-grid" style={{ marginBottom: 12 }}>
                 <div className="kpi"><div className="kpi-label">Lead Diterima Sales</div>
@@ -202,7 +202,7 @@ export default function LeadsPage() {
               <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
                 <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
-              <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}</td>
+              <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}{l.sumber_detail ? <span className="sub2">{l.sumber_detail}</span> : null}</td>
               <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
               <td className="num" data-label="Budget">{fmtRp(l.budget)}</td>
               <td data-label="Sales">{l.sales || (l.creator_role === 'markom' ? <span className="badge b-warm">Marcom · belum dioper</span> : <span className="hint">—</span>)}{l.sales && l.creator_role === 'markom' ? <div className="hint">dari marcom</div> : null}</td>

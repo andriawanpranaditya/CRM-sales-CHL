@@ -185,7 +185,7 @@ export default function JanjianPage() {
                 {/* Asal lead: kode, sumber, campaign, penginput, status — klik nama untuk riwayat lengkap */}
                 <div className="jj-asal">
                   <Link href={'/leads?lead=' + encodeURIComponent(j.lead_code)}>{j.lead_code}</Link>
-                  {[j.lead_sumber, j.lead_campaign ? 'campaign ' + j.lead_campaign : '',
+                  {[[j.lead_sumber, j.lead_walkin ? 'via ' + j.lead_walkin : '', j.lead_sumber_detail ? '(' + j.lead_sumber_detail + ')' : ''].filter(Boolean).join(' '), j.lead_campaign ? 'campaign ' + j.lead_campaign : '',
                     j.penginput ? 'diinput ' + j.penginput + (j.penginput_role === 'markom' ? ' (Marcom)' : j.penginput_role === 'sales' ? ' (Sales)' : j.penginput_role === 'manager' ? ' (Manager)' : '') : '',
                     j.lead_tgl ? 'masuk ' + tglPendek(j.lead_tgl) : '', j.lead_status ? 'status ' + j.lead_status : ''].filter(Boolean).map(x => <span key={x}> · {x}</span>)}
                 </div>
