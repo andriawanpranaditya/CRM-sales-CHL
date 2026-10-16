@@ -129,14 +129,14 @@ async function _POST(req) {
 }
 
 // Hitung ulang status pipeline lead dari transaksi tersisa (dipakai PATCH & DELETE)
-async function sinkronStatus(sql, lead_code) {
+async function sinkronStatus(sql, lead_code, oleh, alasan) {
   const rows = await sql`SELECT jenis FROM transactions WHERE lead_code = ${lead_code} ORDER BY id DESC`;
   const t = rows.find(r => r.jenis !== 'Reserved');
   if (t) {
     const st = t.jenis === 'Batal' ? 'Drop' : t.jenis;
     await siapkanStatusLog(sql);
     await sql`UPDATE leads SET status = ${st}, updated_at = now() WHERE lead_code = ${lead_code}`;
-    await tandaiOleh(sql, lead_code, user.username, 'Transaksi dibatalkan/dihapus');
+    await tandaiOleh(sql, lead_code, oleh || null, alasan || '');
   }
   // Bila hanya tersisa Reserved / tidak ada transaksi: status dibiarkan — manager bisa atur di Database Lead
 }
@@ -179,19 +179,19 @@ async function _PATCH(req) {
       project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''},
       catatan = ${catatan}
     WHERE id = ${b.id}`;
-  await sinkronStatus(sql, rows[0].lead_code);
+  await sinkronStatus(sql, rows[0].lead_code, user.username, `Transaksi diedit → ${b.jenis}`);
   return Response.json({ ok: true });
 }
 
 // Hapus transaksi — khusus manager. Status lead & stok otomatis mengikuti transaksi tersisa.
 async function _DELETE(req) {
-  const { err } = await requireUser('manager'); if (err) return err;
+  const { user, err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
   const rows = await sql`DELETE FROM transactions WHERE id = ${b.id} RETURNING lead_code`;
   if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
-  await sinkronStatus(sql, rows[0].lead_code);
+  await sinkronStatus(sql, rows[0].lead_code, user.username, 'Transaksi dihapus');
   return Response.json({ ok: true });
 }
 
