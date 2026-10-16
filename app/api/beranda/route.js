@@ -186,7 +186,13 @@ async function berandaSales(sql, user, hariIni, semua) {
   const tlt = due.filter(r => r.next_fu < hariIni);
   if (tlt.length) peringatan.push({ level: 'merah', judul: `${tlt.length} follow up terlambat`, sub: tlt.slice(0, 3).map(r => `${r.nama} (${Math.round((Date.parse(hariIni) - Date.parse(r.next_fu)) / 86400000)} hari)`).join(' · ') + (tlt.length > 3 ? ` · +${tlt.length - 3} lainnya` : ''), href: '/form?tab=fu&lead=' + encodeURIComponent(tlt[0].lead_code), tombol: 'Follow up' });
   jj.filter(j => j.perlu_update).slice(0, 3).forEach(j => peringatan.push({ level: 'merah', judul: `Janji temu ${j.nama || j.lead_code} belum di-update`, sub: `${namaHari(j.tgl)} ${j.tgl.slice(8, 10)}/${j.tgl.slice(5, 7)} ${j.jam.replace(':', '.')} · isi hasil: datang, reschedule, atau batal`, href: '/janjian', tombol: 'Update' }));
-  akhirPekan.filter(x => x.n === 0).forEach(x => peringatan.push({ level: 'merah', judul: `${x.hari} ${Number(x.tgl.slice(8, 10))}/${Number(x.tgl.slice(5, 7))} belum ada janji temu — wajib`, sub: 'Akhir pekan wajib ada janji temu visit. Ajak lead Hot/Warm datang.', href: '/janjian', tombol: 'Buat janji' }));
+  // Satu peringatan untuk akhir pekan (Sabtu & Minggu digabung)
+  const tglPdk = t => `${Number(t.slice(8, 10))}/${Number(t.slice(5, 7))}`;
+  // Cukup salah satu (Sabtu ATAU Minggu) terisi janji temu → peringatan hilang
+  if (akhirPekan.every(x => x.n === 0)) peringatan.push({ level: 'merah',
+    judul: `Janji temu weekend ${akhirPekan.map(x => `${x.hari} ${tglPdk(x.tgl)}`).join(' / ')} belum ada — wajib`,
+    sub: 'Wajib ada minimal satu janji temu visit di Sabtu atau Minggu. Ajak lead Hot/Warm datang.',
+    href: '/janjian', tombol: 'Buat janji' });
   if (!semua && (hariTanpaJanji === null || hariTanpaJanji > 3) && !adaJanjiDepan) peringatan.push({ level: 'emas', judul: hariTanpaJanji === null ? 'Belum pernah membuat janji temu' : `Sudah ${hariTanpaJanji} hari tanpa janji temu baru`, sub: 'Target minimal satu janji temu baru tiap 3 hari.', href: '/janjian', tombol: 'Buat janji' });
   if (hotTanpaJanji.length) peringatan.push({ level: 'emas', judul: `${hotTanpaJanji.length} lead Hot/Warm belum dijadwalkan visit`, sub: hotTanpaJanji.slice(0, 3).map(l => `${l.nama} (${l.status})`).join(' · ') + (hotTanpaJanji.length > 3 ? ' · …' : ''), href: '/janjian', tombol: 'Ajak visit' });
   resLama.forEach(r => peringatan.push({ level: 'emas', judul: `Reserved ${r.unit || r.nama} sudah ${Math.round((Date.parse(hariIni) - Date.parse(r.tgl)) / 86400000)} hari belum Booking`, sub: r.nama + ' · dorong ke Booking atau konfirmasi rencana konsumen', href: '/leads?lead=' + encodeURIComponent(r.lead_code), tombol: 'Lihat' }));

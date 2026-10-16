@@ -129,7 +129,7 @@ function Sales({ d }) {
   const judul = d.baruDioper.length ? `${d.baruDioper.length} lead baru dari Marcom menunggu kabar`
     : nMerah ? `${nMerah} hal mendesak perlu ditindaklanjuti`
     : f.terlambat ? `${f.terlambat} follow up terlambat, kerjakan dulu` : f.sisa ? `${f.sisa} follow up menunggu hari ini` : 'Follow up hari ini sudah beres';
-  const tile = [['New', 'New'], ['Warm', 'Warm'], ['Hot', 'Hot'], ['Appointment', 'Appointment'], ['Site Visit', 'Site Visit']];
+  const tile = [['New', 'New'], ['Warm', 'Warm'], ['Hot', 'Hot'], ['Appointment', 'Appoint\u00ADment'], ['Site Visit', 'Site Visit']];
   return (<>
     <h1 className="bd-title">{judul}</h1>
     {d.baruDioper.map(r => (
@@ -176,7 +176,8 @@ function Sales({ d }) {
       </section>
       <section className="bd-card bd-span2">
         <div className="bd-head"><h2 className="bd-h2">Janji temu hari ini &amp; besok</h2><Link href="/janjian" className="bd-more">Menu Janjian</Link></div>
-        <div className="bd-chips kp">{(d.akhirPekan || []).map(x => <span key={x.tgl} className={'kp-pill sm ' + (x.n ? 'kp-ok' : 'kp-no')}>{x.hari} {Number(x.tgl.slice(8, 10))}/{Number(x.tgl.slice(5, 7))}: {x.n ? x.n + ' janji temu' : 'belum ada (wajib)'}</span>)}</div>
+        {(d.akhirPekan || []).length > 0 && <div className="bd-chips kp"><span className={'kp-pill sm ' + (d.akhirPekan.some(x => x.n) ? 'kp-ok' : 'kp-no')}>
+          Weekend {d.akhirPekan.map(x => `${x.hari.slice(0, 3)} ${Number(x.tgl.slice(8, 10))}/${Number(x.tgl.slice(5, 7))}: ${x.n || 'belum ada'}`).join(' · ')}{d.akhirPekan.some(x => x.n) ? ' ✓' : ' (wajib min. 1)'}</span></div>}
         {(d.agenda || []).length ? d.agenda.map(j => (
           <div key={j.id} className="bd-row"><span className="kp-pill sm kp-run">{j.tgl === d.hariIni ? 'Hari ini' : 'Besok'} {j.jam.replace(':', '.')}</span>
             <div className="bd-row-main"><b>{j.nama || j.lead_code}</b><div className="bd-row-sub">{j.jenis} · {j.lokasi}{j.reschedule_n ? ` · reschedule ${j.reschedule_n}×` : ''}</div></div>
@@ -234,7 +235,7 @@ function BlokJanjian({ j }) {
       <div className="bd-head"><h2 className="bd-h2">Hasil janjian bulan ini</h2><span className="hint">{j.bulan.n} janjian</span></div>
       <div className="bd-chips"><span>Datang <b>{j.bulan.datang}{j.bulan.n ? ` (${Math.round(j.bulan.datang / j.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{j.bulan.resch}</b></span><span>Batal <b>{j.bulan.batal}</b></span></div>
       {j.bulan.alasanBatal.length > 0 && <div className="hint">Alasan batal terbaru: {j.bulan.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</div>}
-      {j.bulan.perSales.length > 0 && <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janjian</th><th className="num">Datang</th><th className="num">Reschedule</th><th className="num">Batal</th></tr></thead>
+      {j.bulan.perSales.length > 0 && <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janji</th><th className="num">Datang</th><th className="num" title="Reschedule">Resch.</th><th className="num">Batal</th></tr></thead>
         <tbody>{j.bulan.perSales.map(s => <tr key={s.sales}><td>{s.sales}</td><td className="num">{s.n}</td><td className="num">{s.datang}</td><td className="num">{s.resch}</td><td className="num">{s.batal}</td></tr>)}</tbody></table></div>}
     </section>
   </>);
@@ -314,8 +315,8 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
       <section className="bd-card bd-span2">
         <div className="bd-head"><h2 className="bd-h2">Campaign aktif bulan ini</h2><span className="hint">urut biaya per lead berkualitas termurah</span></div>
         {d.campaign.length ? <div className="bd-tbl"><table>
-          <thead><tr><th>Campaign</th><th>Project</th><th className="num">Lead L2</th><th className="num">CPQL</th><th className="num">Booking</th></tr></thead>
-          <tbody>{d.campaign.slice(0, 8).map(c => (<tr key={c.nama}><td><b>{c.nama}</b><div className="hint">{c.platform}</div></td><td>{c.project}</td>
+          <thead><tr><th>Campaign</th><th className="num" title="Lead berkualitas">L2</th><th className="num">CPQL</th><th className="num">Booking</th></tr></thead>
+          <tbody>{d.campaign.slice(0, 8).map(c => (<tr key={c.nama}><td style={{ overflowWrap: 'anywhere' }}><b>{c.nama}</b><div className="hint">{[c.project, c.platform].filter(Boolean).join(' · ')}</div></td>
             <td className="num">{c.l2}</td><td className="num">{c.cpql != null ? rpRingkas(c.cpql) : '—'}</td><td className="num"><b>{c.booking}</b></td></tr>))}</tbody>
         </table></div> : <p className="bd-empty">Tidak ada campaign yang sedang tayang.</p>}
       </section>
@@ -335,12 +336,12 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
       <section className="bd-card bd-span2">
         <h2 className="bd-h2">Performa sales</h2>
         <div className="bd-tbl"><table>
-          <thead><tr><th>Sales</th><th className="num">Lead aktif</th><th className="num">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num">KPR jalan</th><th className="num">Janji temu</th><th className="num">Booking</th></tr></thead>
+          <thead><tr><th>Sales</th><th className="num" title="Lead aktif">Aktif</th><th className="num" title="Follow up terlambat">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num" title="KPR berjalan">KPR</th><th className="num" title="Janji temu bulan ini">Janji</th><th className="num">Booking</th></tr></thead>
           <tbody>{d.perf.map(s => (<React.Fragment key={s.nama}><tr><td><b>{s.nama}</b>{s.project ? <div className="hint">{s.project.join(', ')}</div> : null}</td>
             <td className="num">{s.aktif}</td><td className={'num' + (s.telat > 2 ? ' merah' : '')}>{s.telat}</td>
             {!isCeo && <td className="num">{(s.responRinci || []).length
               ? <button className={'bd-link' + (s.respon > 6 ? ' merah' : '')} aria-expanded={bukaRespon === s.nama} onClick={() => setBukaRespon(bukaRespon === s.nama ? '' : s.nama)}>
-                  {s.respon != null ? s.respon + ' jam' : 'belum ada'}<span className="hint"> · {s.responN} lead{s.responBelum ? ` · ${s.responBelum} belum` : ''} ▾</span></button>
+                  <span className="bd-respon">{s.respon != null ? s.respon + ' jam ▾' : 'belum ada ▾'}<span className="hint">{s.responN} lead{s.responBelum ? ` · ${s.responBelum} belum` : ''}</span></span></button>
               : '—'}</td>}
             <td className="num">{s.kpr}</td><td className={'num' + (!s.janji ? ' merah' : '')}>{s.janji ?? 0}</td><td className="num"><b>{s.booking}</b></td></tr>
             {!isCeo && bukaRespon === s.nama && <tr className="bd-rinci"><td colSpan={7}>

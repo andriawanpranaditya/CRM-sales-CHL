@@ -140,9 +140,16 @@ export default function Shell({ user, children }) {
             aria-label={tema === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'} title={tema === 'dark' ? 'Mode terang' : 'Mode gelap'}>
             {tema === 'dark' ? <IkonMatahari /> : <IkonBulan />}</button>
           <ReminderBell user={user} />
-          <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
-          <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
-          <button className="btn-logout" onClick={logout}>{user.name} · Keluar</button>
+          {/* Menu akun (HP): segarkan aplikasi, ganti password, keluar — supaya bar atas tidak melebihi layar */}
+          <details className="m-menu">
+            <summary className="theme-btn" aria-label="Menu akun">⋯</summary>
+            <div className="m-menu-panel">
+              <div className="who"><b>{user.name}</b>{user.role === 'markom' ? 'Marcom' : user.role === 'ceo' ? 'CEO Project' : user.role.charAt(0).toUpperCase() + user.role.slice(1)}</div>
+              <button onClick={segarkanAplikasi}>🧹 Segarkan aplikasi</button>
+              <button onClick={gantiPassword}>🔑 Ganti password</button>
+              <button onClick={logout} style={{ color: 'var(--red)' }}>Keluar</button>
+            </div>
+          </details>
         </span>
       </header>
       <aside className="sidebar">
