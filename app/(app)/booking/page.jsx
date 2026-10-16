@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, BADGE } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 export default function BookingPage() {
   const [trx, setTrx] = useState(null);
@@ -123,9 +124,9 @@ export default function BookingPage() {
             <div className="field"><label>Tanggal</label>
               <input type="date" value={(edit.tgl || '').slice(0, 10)} onChange={e => setEdit({ ...edit, tgl: e.target.value })} /></div>
             <div className="field"><label>Nilai Reserved / Booking (Rp)</label>
-              <input type="number" value={edit.nilai || ''} onChange={e => setEdit({ ...edit, nilai: e.target.value })} /></div>
+              <InputRupiah value={edit.nilai || ''} onChange={e => setEdit({ ...edit, nilai: e.target.value })} /></div>
             <div className="field"><label>Nilai Transaksi (Rp)</label>
-              <input type="number" value={edit.nilai_jual || ''} onChange={e => setEdit({ ...edit, nilai_jual: e.target.value })} placeholder="harga jual unit" /></div>
+              <InputRupiah value={edit.nilai_jual || ''} onChange={e => setEdit({ ...edit, nilai_jual: e.target.value })} placeholder="harga jual unit" /></div>
             <div className="field"><label>Project</label>
               <select value={edit.project || ''} onChange={e => setEdit({ ...edit, project: e.target.value })}>
                 <option value=""></option>{(set.project || []).map(p => <option key={p}>{p}</option>)}

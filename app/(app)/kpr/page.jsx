@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 // ===== Data price list (angka price list = plafon KPR / harga jual) =====
 // Harga standar per tipe BIO (price list STANDART)
@@ -54,6 +55,7 @@ const BF_DEFAULT = 5000000;
 const TENOR_KPR = [25, 20, 15, 10];
 // Price list Permai Indah — KPR BTN Subsidi (SBUM Rp4 jt dari pemerintah tidak disimulasikan)
 const PERMAI = { harga: 185000000, bf: 500000, um: 1350000, plafon: 179150000, bunga: 5, lb: '22,5 m²', lt: '60 m²', tenor: [20, 15, 10] };
+const pctDp = (dp, harga) => harga ? (Math.round(dp / harga * 1000) / 10).toLocaleString('id-ID') + '%' : '';
 function susunPermai(tglBF, bf, um, plafon) {
   if (!tglBF) return [];
   const tUM = plusHari(tglBF, 14);                         // pola BIO: hari ke-14 dari BF
@@ -77,7 +79,7 @@ const plusBulan = (s, n) => {
 const tglID = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 function anuitas(p, b, n) { if (!p || !n) return 0; const i = b / 100 / 12; return i === 0 ? p / n : (p * i) / (1 - Math.pow(1 + i, -n)); }
 
-// Bunga cash bertahap (khusus manager & CEO): dikenakan pada SISA setelah DP 10%, dibagi ke cicilan ke-2 s.d. terakhir.
+// Bunga cash bertahap (khusus manager & CEO): dikenakan pada SISA setelah DP, dibagi ke cicilan ke-2 s.d. terakhir.
 // Flat: total bunga = sisa × bunga%/th × (jumlah bulan cicilan ÷ 12). Efektif: angsuran anuitas atas sisa.
 function hitungBungaCash(sisa, nBulan, persen, metode) {
   const p = Number(persen) || 0;
@@ -88,23 +90,34 @@ function hitungBungaCash(sisa, nBulan, persen, metode) {
 }
 
 // ===== Penyusun jadwal pembayaran =====
-function susunJadwal(cara, harga, tglBF, bf, nCicil, bungaCash) {
+function susunJadwal(cara, harga, tglBF, bf, nCicil, bungaCash, dpManual) {
+  // dpManual: DP / uang muka yang diisi manual (termasuk BF). null = ikut aturan price list
+  const dpIsi = dpManual != null && dpManual !== '' && !isNaN(Number(dpManual)) ? Math.max(0, Number(dpManual)) : null;
   if (!harga || !tglBF) return [];
   if (cara === 'kpr') {
     // Ketentuan price list: subsidi DP 10% → DP 0% hari ke-14, akad 100% − BF sebulan setelah DP
     const tDP = plusHari(tglBF, 14);
+    if (dpIsi != null && dpIsi > 0) {
+      const dpK = Math.max(dpIsi, bf);
+      return [
+        { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
+        { ket: `Sisa DP (DP ${pctDp(dpK, harga)} = ${fmtRp(dpK)}, termasuk BF)`, tgl: tDP, nominal: dpK - bf },
+        { ket: 'Akad / pelunasan via KPR (harga − DP)', tgl: plusBulan(tDP, 1), nominal: harga - dpK },
+      ];
+    }
     return [
       { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
       { ket: 'DP 0% (subsidi DP 10%)', tgl: tDP, nominal: 0 },
       { ket: 'Akad / pelunasan via KPR (100% − BF)', tgl: plusBulan(tDP, 1), nominal: harga - bf },
     ];
   }
-  const dp = Math.round(harga * 0.10); // DP 10% sudah termasuk Booking Fee
+  const dp = dpIsi != null ? Math.max(dpIsi, bf) : Math.round(harga * 0.10); // DP (default 10%) sudah termasuk Booking Fee
+  const lblDp = `DP ${pctDp(dp, harga)}`;
   const tDP = plusHari(tglBF, 14);
   if (cara === 'keras') {
     return [
       { ket: 'Booking Fee', tgl: tglBF, nominal: bf },
-      { ket: `Sisa DP (DP 10% = ${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+      { ket: `Sisa DP (${lblDp} = ${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
       { ket: 'Pelunasan', tgl: plusHari(tglBF, 30), nominal: harga - dp },
     ];
   }
@@ -119,7 +132,7 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil, bungaCash) {
   const ber = bg.total > 0 ? ' (pokok + bunga)' : '';
   const rows = [
     { ket: `Booking Fee (bagian dari Cicilan 1)`, tgl: tglBF, nominal: bf },
-    { ket: `Cicilan 1 dari ${n} — DP 10% (${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
+    { ket: `Cicilan 1 dari ${n} — ${lblDp} (${fmtRp(dp)}, termasuk BF)`, tgl: tDP, nominal: dp - bf },
   ];
   for (let k = 2; k <= n; k++) {
     rows.push({ ket: `Cicilan ${k} dari ${n}${ber}${k === n ? ' (terakhir)' : ''}`, tgl: plusBulan(t2, k - 2), nominal: k === n ? sisa - cic * (n - 2) : cic });
@@ -149,6 +162,11 @@ export default function SimulasiCaraBayar() {
   useEffect(() => { api('/api/auth/me').then(setMe).catch(() => {}); }, []);
   const bolehBunga = !!me && ['manager', 'ceo'].includes(me.role);
   const [bungaCash, setBungaCash] = useState('');
+  // DP / uang muka: default ikut aturan & price list, boleh diisi manual (semua peran)
+  const [dpManual, setDpManual] = useState('');
+  const [dpMode, setDpMode] = useState('rp'); // 'rp' = nominal rupiah, 'persen' = persentase dari harga
+  const [dpPersen, setDpPersen] = useState('');
+  useEffect(() => { setDpManual(''); setDpPersen(''); }, [cara, proj]); // ganti cara bayar / project → kembali ke DP default
   const [metodeBunga, setMetodeBunga] = useState('flat');
   const [rows, setRows] = useState([]);
   // KPR
@@ -187,17 +205,24 @@ export default function SimulasiCaraBayar() {
   const maxCicil = bolehBunga ? 60 : 12;
   const nEff = Math.min(maxCicil, Math.max(1, Number(nCicil) || 12));
   const bungaAktif = bolehBunga && cara === 'bertahap' ? { persen: Number(bungaCash) || 0, metode: metodeBunga } : null;
-  const pokokCicil = harga - Math.round(harga * 0.10); // sisa setelah DP 10% (sama dengan susunJadwal)
+  const dpDefault = isPermai ? PERMAI.um : cara === 'kpr' ? 0 : Math.round(harga * 0.10);
+  const persenAngka = String(dpPersen).replace(',', '.');
+  const dpIsi = dpMode === 'persen'
+    ? (persenAngka !== '' && !isNaN(Number(persenAngka)) ? Math.round(harga * Math.max(0, Number(persenAngka)) / 100) : null)
+    : (dpManual !== '' && !isNaN(Number(dpManual)) ? Math.max(0, Number(dpManual)) : null);
+  const dpEff = isPermai ? (dpIsi ?? PERMAI.um) : cara === 'kpr' ? (dpIsi ?? 0) : Math.max(dpIsi ?? Math.round(harga * 0.10), Number(bf) || 0);
+  const plafonPermai = Math.max(0, PERMAI.plafon - (dpEff - PERMAI.um)); // uang muka lebih besar → plafon KPR lebih kecil
+  const pokokCicil = harga - dpEff; // sisa setelah DP (sama dengan susunJadwal)
   const infoBunga = bungaAktif ? hitungBungaCash(pokokCicil, Math.max(1, nEff - 1), bungaAktif.persen, bungaAktif.metode) : { total: 0, angsuran: 0 };
   const totalBunga = Math.round(infoBunga.total);
-  const targetTotal = isPermai ? (Number(bf) || 0) + PERMAI.um + PERMAI.plafon : harga + (cara === 'bertahap' ? totalBunga : 0);
+  const targetTotal = isPermai ? (Number(bf) || 0) + dpEff + plafonPermai : harga + (cara === 'bertahap' ? totalBunga : 0);
   useEffect(() => { if (isPermai) { setCara('kpr'); setBf(PERMAI.bf); setTenor(20); setBunga(PERMAI.bunga); setDbr(30); } else { setBf(BF_DEFAULT); } }, [isPermai]); // eslint-disable-line
 
   // Susun ulang jadwal setiap kali dasar perhitungan berubah
   useEffect(() => {
-    setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon)
-      : susunJadwal(cara, harga, tglBF, Number(bf) || 0, nEff, bungaAktif));
-  }, [cara, harga, tglBF, bf, nCicil, isPermai, bungaCash, metodeBunga, bolehBunga]); // eslint-disable-line
+    setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, dpEff, plafonPermai)
+      : susunJadwal(cara, harga, tglBF, Number(bf) || 0, nEff, bungaAktif, dpIsi));
+  }, [cara, harga, tglBF, bf, nCicil, isPermai, bungaCash, metodeBunga, bolehBunga, dpManual, dpPersen, dpMode]); // eslint-disable-line
 
   // Edit manual: termin terakhir menyeimbangkan otomatis
   const ubahBaris = (i, k, v) => {
@@ -212,7 +237,8 @@ export default function SimulasiCaraBayar() {
   const cocok = Math.round(total) === Math.round(targetTotal);
 
   // ===== KPR =====
-  const plafon = isPermai ? PERMAI.plafon : harga;
+  // Plafon KPR: Permai mengikuti uang muka; Bio = harga, atau harga − DP bila DP diisi manual
+  const plafon = isPermai ? plafonPermai : (cara === 'kpr' && dpIsi ? harga - Math.max(dpIsi, Number(bf) || 0) : harga);
   const TENOR = isPermai ? PERMAI.tenor : TENOR_KPR;
   const angs = useMemo(() => anuitas(plafon, Number(bunga) || 0, (Number(tenor) || 0) * 12), [plafon, bunga, tenor]);
   // Proyeksi setelah masa fix + rincian anuitas (pokok & bunga per bulan)
@@ -382,26 +408,41 @@ export default function SimulasiCaraBayar() {
             {isPermai && <span className="hint">Permai Indah hanya melalui KPR subsidi.</span>}</div>
           {isPermai ? <div className="field"><label>Harga</label>
             <input value={fmtRp(PERMAI.harga)} disabled />
-            <span className="hint">LB {PERMAI.lb} · LT {PERMAI.lt} · plafon KPR {fmtRp(PERMAI.plafon)}</span></div> :
+            <span className="hint">LB {PERMAI.lb} · LT {PERMAI.lt} · plafon KPR {fmtRp(plafonPermai)}</span></div> :
           <div className="field"><label>Harga</label>
             <select value={hargaMode} onChange={e => setHargaMode(e.target.value)}>
               <option value="standar">Harga Standar — {fmtRp(U.standar)}</option>
               <option value="allin">Harga All In — {fmtRp(U.allin)}</option>
               <option value="manual">Isi manual</option>
             </select>
-            {hargaMode === 'manual' && <input type="number" min="0" style={{ marginTop: 6 }} value={hargaManual}
+            {hargaMode === 'manual' && <InputRupiah style={{ marginTop: 6 }} value={hargaManual}
               onChange={e => setHargaManual(e.target.value)} placeholder="ketik harga" />}
             <span className="hint">{cara === 'kpr' ? 'Untuk KPR, harga ini adalah plafon (sesuai price list).' : cara === 'keras' ? 'Default Cash Keras: Harga Standar.' : 'Default Cash Bertahap: Harga All In.'}</span></div>}
           <div className="field"><label>Tanggal Booking Fee</label>
             <input type="date" value={tglBF} onChange={e => setTglBF(e.target.value)} /></div>
           <div className="field"><label>Booking Fee (Rp)</label>
-            <input type="number" min="0" value={bf} onChange={e => setBf(e.target.value)} />
-            <span className="hint">{cara === 'kpr' ? 'Pelunasan via KPR = 100% − BF.' : 'Sudah termasuk dalam DP 10%.'}</span></div>
+            <InputRupiah value={bf} onChange={e => setBf(e.target.value)} />
+            <span className="hint">{cara === 'kpr' ? 'Pelunasan via KPR = 100% − BF.' : 'Sudah termasuk dalam DP.'}</span></div>
+          <div className="field"><label>{isPermai ? 'Uang Muka (Rp)' : 'DP / Uang Muka (Rp)'}</label>
+            <div className="dp-mode" role="group" aria-label="Isi DP dalam">
+              <button type="button" aria-pressed={dpMode === 'rp'} onClick={() => { if (dpMode !== 'rp') { if (dpIsi != null) setDpManual(String(dpIsi)); setDpMode('rp'); } }}>Rp</button>
+              <button type="button" aria-pressed={dpMode === 'persen'} onClick={() => { if (dpMode !== 'persen') { if (dpIsi != null && harga) setDpPersen(String(Math.round(dpIsi / harga * 10000) / 100).replace('.', ',')); setDpMode('persen'); } }}>%</button>
+            </div>
+            {dpMode === 'rp'
+              ? <InputRupiah value={dpManual} onChange={e => setDpManual(e.target.value)} placeholder={`default ${fmtRp(dpDefault) === '—' ? '0' : fmtRp(dpDefault).replace(/^Rp\s?/, '')}`} />
+              : <span className="inp-rp" style={{ display: 'block' }}><input type="text" inputMode="decimal" value={dpPersen} onChange={e => setDpPersen(e.target.value.replace(/[^\d,.]/g, ''))}
+                  placeholder={`default ${harga ? (Math.round(dpDefault / harga * 1000) / 10).toLocaleString('id-ID') : 0}`} style={{ paddingRight: 30 }} />
+                  <span className="inp-rp-pre" style={{ left: 'auto', right: 12 }} aria-hidden="true">%</span></span>}
+            <span className="hint">{dpIsi != null
+              ? <>Manual: {fmtRp(dpEff) === '—' ? 'Rp 0' : fmtRp(dpEff)}{harga && !isPermai ? ` (${pctDp(dpEff, harga)} dari harga)` : ''}{isPermai ? ` · plafon KPR jadi ${fmtRp(plafonPermai)}` : cara === 'kpr' ? ` · plafon KPR jadi ${fmtRp(plafon)}` : ''} · <a href="#" onClick={e => { e.preventDefault(); setDpManual(''); setDpPersen(''); }}>kembali ke default</a></>
+              : isPermai ? 'Default uang muka sesuai price list Permai; boleh diisi manual.'
+              : cara === 'kpr' ? 'Default DP 0% (subsidi DP 10%) sesuai price list; boleh diisi manual (termasuk BF).'
+              : 'Default DP 10% (termasuk BF) sesuai price list; boleh diisi manual.'}</span></div>
           {cara === 'bertahap' && <div className="field"><label>Jumlah Cicilan (bulan)</label>
             <select value={nEff} onChange={e => setNCicil(Number(e.target.value))}>
               {(bolehBunga ? [60, 48, 36, 24, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2] : [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]).map(n => <option key={n} value={n}>{n}× cicilan{n === 12 ? ' (standar)' : n > 12 ? ' (khusus manager/CEO)' : ''}</option>)}
             </select>
-            <span className="hint">Termasuk DP 10% sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
+            <span className="hint">Termasuk DP sebagai cicilan ke-1. Cicilan ke-2 jatuh 30 hari setelah DP, lalu tiap bulan sampai lunas.</span></div>}
           {cara === 'bertahap' && bolehBunga && <div className="field"><label>Bunga cash bertahap (% per tahun)</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="number" min="0" step="0.01" value={bungaCash} onChange={e => setBungaCash(e.target.value)} placeholder="0 = tanpa bunga" />
@@ -411,7 +452,7 @@ export default function SimulasiCaraBayar() {
             </div>
             <span className="hint">{totalBunga > 0
               ? `Sisa setelah DP ${fmtRp(pokokCicil)} + bunga ${fmtRp(totalBunga)} → ± ${fmtRp(Math.round(infoBunga.angsuran))}/bln × ${nEff - 1} cicilan.`
-              : 'Dikenakan pada sisa setelah DP 10%, dibagi ke cicilan ke-2 s.d. terakhir. Khusus manager & CEO.'}</span></div>}
+              : 'Dikenakan pada sisa setelah DP, dibagi ke cicilan ke-2 s.d. terakhir. Khusus manager & CEO.'}</span></div>}
         </div>
       </div>
 
@@ -439,7 +480,7 @@ export default function SimulasiCaraBayar() {
                   <td data-label="Termin">{r.ket}</td>
                   <td className="num" data-label="Nominal">{akhir
                     ? <b title="Menyesuaikan otomatis">{fmtRp(r.nominal) === '—' ? 'Rp 0' : fmtRp(r.nominal)}</b>
-                    : <input type="number" min="0" value={r.nominal} onChange={e => ubahBaris(i, 'nominal', e.target.value)} style={{ maxWidth: 160, textAlign: 'right' }} />}</td>
+                    : <InputRupiah value={r.nominal} onChange={e => ubahBaris(i, 'nominal', e.target.value)} style={{ maxWidth: 170, textAlign: 'right' }} />}</td>
                   {!isPermai && <td className="num" data-label="Kumulatif">{fmtRp(kum) === '—' ? 'Rp 0' : fmtRp(kum)}</td>}
                 </tr>;
               })}
@@ -449,7 +490,7 @@ export default function SimulasiCaraBayar() {
             </tbody>
           </table></div>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="sort-btn" onClick={() => setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, PERMAI.um, PERMAI.plafon) : susunJadwal(cara, harga, tglBF, Number(bf) || 0, nEff, bungaAktif))}>↺ Kembalikan jadwal standar</button>
+            <button className="sort-btn" onClick={() => setRows(isPermai ? susunPermai(tglBF, Number(bf) || 0, dpEff, plafonPermai) : susunJadwal(cara, harga, tglBF, Number(bf) || 0, nEff, bungaAktif, dpIsi))}>↺ Kembalikan jadwal standar</button>
             <button className="sort-btn" onClick={() => navigator.clipboard.writeText(teksWA()).then(() => toast('Disalin — tinggal tempel di WhatsApp 📋')).catch(() => toast('Gagal menyalin'))}>📋 Salin untuk WhatsApp</button>
             <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} onClick={downloadPDF} disabled={pdfBusy}>{pdfBusy ? '⏳ Menyiapkan…' : '📄 Download PDF'}</button>
           </div>
@@ -472,9 +513,9 @@ export default function SimulasiCaraBayar() {
                   {!isPermai && <option value={50}>50% — maksimal, syarat tertentu</option>}
                 </select></div>
               <div className="field"><label>Cicilan Lain / Bulan (Rp)</label>
-                <input type="number" min="0" value={cicilanLain} onChange={e => setCicilanLain(e.target.value)} placeholder="opsional" /></div>
+                <InputRupiah value={cicilanLain} onChange={e => setCicilanLain(e.target.value)} placeholder="opsional" /></div>
               <div className="field"><label>Penghasilan Konsumen (Rp)</label>
-                <input type="number" min="0" value={penghasilan} onChange={e => setPenghasilan(e.target.value)} placeholder="opsional, boleh gabungan" /></div>
+                <InputRupiah value={penghasilan} onChange={e => setPenghasilan(e.target.value)} placeholder="opsional, boleh gabungan" /></div>
             </div>
             <div className="kpi-grid" style={{ marginTop: 6 }}>
               <div className="kpi"><div className="kpi-label">Angsuran per Bulan</div>

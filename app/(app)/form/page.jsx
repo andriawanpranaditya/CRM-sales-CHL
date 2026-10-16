@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
 const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
@@ -582,7 +583,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
           <div className="field"><label>Rentang Usia</label><select {...fl('usia')}>
             {['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'].map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
-          {!isMarkom && <div className="field"><label>Budget (Rp)</label><input type="number" min="0" {...fl('budget')} placeholder="contoh: 500000000" /></div>}
+          {!isMarkom && <div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
           {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
@@ -848,9 +849,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
           <div className="field"><label>Nilai Reserved / Booking (Rp) <span className="req">*</span></label>
-            <input type="number" min="0" {...ft('nilai')} placeholder="uang yang dibayarkan saat ini" /></div>
+            <InputRupiah {...ft('nilai')} placeholder="uang yang dibayarkan saat ini" /></div>
           <div className="field"><label>Nilai Transaksi (Rp)</label>
-            <input type="number" min="0" {...ft('nilai_jual')} placeholder="harga jual unit" />
+            <InputRupiah {...ft('nilai_jual')} placeholder="harga jual unit" />
             <span className="hint">Harga jual unit — dipakai untuk Surat Pesanan &amp; PPJB serta perhitungan nilai penjualan.</span></div>
           <div className="field"><label>Catatan</label><input {...ft('catatan')} /></div>
         </div>

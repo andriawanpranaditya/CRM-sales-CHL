@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, waLink } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 // ===== Proses KPR — monitoring pengajuan KPR konsumen (Sales, Manager, CEO Project) =====
 const TAHAP_URUT = ['Verifikasi & SLIK', 'Diajukan ke bank', 'Kumpul berkas', 'Analisa kredit', 'SP3K terbit / Ditolak'];
@@ -153,7 +154,7 @@ function Detail({ id, me, kembali }) {
         <section className="card">
           <h3 style={{ marginTop: 0 }}>Plafon &amp; tenor</h3>
           <div className="form-grid">
-            <div className="field"><label>Plafon diajukan (Rp)</label><input inputMode="numeric" value={k.plafon ?? ''} onChange={e => setK({ ...k, plafon: e.target.value.replace(/\D/g, '') })} placeholder="mis. 1850000000" />
+            <div className="field"><label>Plafon diajukan (Rp)</label><InputRupiah value={k.plafon ?? ''} onChange={e => setK({ ...k, plafon: e.target.value })} placeholder="mis. 1.850.000.000" />
               {k.plafon ? <span className="hint">{fmtRp(k.plafon)}</span> : null}</div>
             <div className="field"><label>Tenor (tahun)</label><input inputMode="numeric" value={k.tenor ?? ''} onChange={e => setK({ ...k, tenor: e.target.value.replace(/\D/g, '') })} /></div>
           </div>
@@ -262,7 +263,7 @@ function KartuBank({ b, d, me, akadId, busy, setBusy, muat }) {
         <div className="field"><label>Tanggal diajukan</label><input disabled={kunci} type="date" value={f.tgl_ajukan || ''} onChange={e => setF({ ...f, tgl_ajukan: e.target.value })} /></div>
         <div className="field"><label>Tahap di bank ini</label><select disabled={kunci} value={f.tahap} onChange={e => setF({ ...f, tahap: e.target.value })}>
           {['Diajukan', 'Kumpul berkas', 'Analisa kredit', 'SP3K terbit', 'Ditolak'].map(t => <option key={t}>{t}</option>)}</select></div>
-        {f.tahap === 'SP3K terbit' && <div className="field"><label>Plafon disetujui (Rp)</label><input disabled={kunci} inputMode="numeric" value={f.plafon_setuju ?? ''} onChange={e => setF({ ...f, plafon_setuju: e.target.value.replace(/\D/g, '') })} /></div>}
+        {f.tahap === 'SP3K terbit' && <div className="field"><label>Plafon disetujui (Rp)</label><InputRupiah disabled={kunci} value={f.plafon_setuju ?? ''} onChange={e => setF({ ...f, plafon_setuju: e.target.value })} /></div>}
         <div className="field full"><label>Kendala</label><input disabled={kunci} value={f.kendala || ''} onChange={e => setF({ ...f, kendala: e.target.value })} placeholder="kosongkan bila tidak ada" /></div>
       </div>
       <div className={'kp-upload' + (hasil ? '' : ' off')}>

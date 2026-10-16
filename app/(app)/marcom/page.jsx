@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, todayISO } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 const PLATFORM = ['Instagram', 'Facebook', 'Tiktok', 'Google', 'Youtube', 'Website', 'Lainnya'];
 const FORMAT = ['Reels / Short Video', 'Carousel', 'Single Post', 'Story', 'Video Panjang', 'Live', 'Search Ads', 'Display / Banner', 'Lainnya'];
@@ -827,7 +828,7 @@ export default function MarcomPage() {
             {!cEdit && <div className="field"><label>Pembeda (opsional)</label><input {...fc('extra')} placeholder="mis. lebaran / retargeting" /></div>}
             {!cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign — otomatis, pakai nama ini juga di Ads Manager</label><input value={namaGen} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>}
             <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM_C.map(p => <option key={p}>{p}</option>)}{c.platform && !PLATFORM_C.includes(c.platform) && <option>{c.platform}</option>}</select></div>
-            <div className="field"><label>Budget Rencana (Rp)</label><input type="number" min="0" {...fc('budget')} /></div>
+            <div className="field"><label>Budget Rencana (Rp)</label><InputRupiah {...fc('budget')} /></div>
             <div className="field"><label>Status</label><select {...fc('status')}><option>Aktif</option><option>Selesai</option></select></div>
             <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan</label><input {...fc('catatan')} placeholder="target audiens, penempatan, dsb" /></div>
           </div>
@@ -943,7 +944,7 @@ export default function MarcomPage() {
             <div className="field"><label>Campaign <span className="req">*</span></label>
               <select value={am.campaign} onChange={e => setAm({ ...am, campaign: e.target.value })}><option value="">— pilih —</option>{camps.map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select></div>
             <div className="field"><label>Keterangan</label><input value={am.keterangan} onChange={e => setAm({ ...am, keterangan: e.target.value })} placeholder="mis. Billboard 2026 / Banner materi Sep–Nov" /></div>
-            <div className="field"><label>Total Biaya (Rp) <span className="req">*</span></label><input type="number" min="0" value={am.total} onChange={e => setAm({ ...am, total: e.target.value })} placeholder="21500000" /></div>
+            <div className="field"><label>Total Biaya (Rp) <span className="req">*</span></label><InputRupiah value={am.total} onChange={e => setAm({ ...am, total: e.target.value })} placeholder="21.500.000" /></div>
             <div className="field"><label>Mulai Tayang (bulan) <span className="req">*</span></label><input type="month" value={am.mulai} onChange={e => setAm({ ...am, mulai: e.target.value })} /></div>
             <div className="field"><label>Masa Tayang (bulan) <span className="req">*</span></label><input type="number" min="1" max="60" value={am.bulan} onChange={e => setAm({ ...am, bulan: e.target.value })} /></div>
             <div className="field"><label>Per Bulan</label><input readOnly value={Number(am.total) > 0 && Number(am.bulan) > 0 ? fmtRp(Math.round(Number(am.total) / Number(am.bulan))) : '—'} style={{ fontWeight: 700, color: 'var(--green)' }} /></div>
@@ -983,7 +984,7 @@ export default function MarcomPage() {
               <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif' && !(metaApi && String(x.platform || '').startsWith('Meta'))).map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
               {a.campaign && (() => { const sa = (data.spendAll || []).find(r => r.campaign === a.campaign); return <span className="hint" style={{ color: 'var(--brass)' }}>{sa ? `Sudah tercatat ${fmtRp(sa.total)} dari ${sa.entri} entri (terakhir ${fmtDate(sa.terakhir)}). Isi spend SEJAK entri terakhir saja, bukan total.` : 'Belum ada entri — isi spend sejak campaign mulai sampai tanggal ini.'}</span>; })()}</div>
             <div className="field"><label>Kreatif (utm_content)</label><input {...fa('kreatif')} placeholder="reels-01" /></div>
-            <div className="field"><label>Spend (Rp)</label><input type="number" min="0" {...fa('spend')} /></div>
+            <div className="field"><label>Spend (Rp)</label><InputRupiah {...fa('spend')} /></div>
             <div className="field"><label>Impresi</label><input type="number" min="0" {...fa('impresi')} /></div>
             <div className="field"><label>Reach</label><input type="number" min="0" {...fa('reach')} /></div>
             <div className="field"><label>Klik</label><input type="number" min="0" {...fa('klik')} /></div>
@@ -1135,7 +1136,7 @@ export default function MarcomPage() {
               <div className="form-grid" style={{ marginTop: 10 }}>
                 <div className="field" style={{ gridColumn: '1/-1' }}><label>Area inti (pisahkan dengan koma)</label><input value={personaEdit.areaInti} onChange={e => setPersonaEdit({ ...personaEdit, areaInti: e.target.value })} /></div>
                 <div className="field" style={{ gridColumn: '1/-1' }}><label>Area perluasan</label><input value={personaEdit.areaLuas} onChange={e => setPersonaEdit({ ...personaEdit, areaLuas: e.target.value })} /></div>
-                <div className="field"><label>Kemampuan beli minimal (Rp)</label><input type="number" value={personaEdit.hargaMin} onChange={e => setPersonaEdit({ ...personaEdit, hargaMin: e.target.value })} /></div>
+                <div className="field"><label>Kemampuan beli minimal (Rp)</label><InputRupiah value={personaEdit.hargaMin} onChange={e => setPersonaEdit({ ...personaEdit, hargaMin: e.target.value })} /></div>
                 <div className="field"><label>Usia dari</label><input type="number" value={personaEdit.usiaMin} onChange={e => setPersonaEdit({ ...personaEdit, usiaMin: e.target.value })} /></div>
                 <div className="field"><label>Usia sampai</label><input type="number" value={personaEdit.usiaMax} onChange={e => setPersonaEdit({ ...personaEdit, usiaMax: e.target.value })} /></div>
                 <div className="field"><label>Tujuan utama</label><input value={personaEdit.tujuan} onChange={e => setPersonaEdit({ ...personaEdit, tujuan: e.target.value })} /></div>

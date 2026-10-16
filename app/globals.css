@@ -429,3 +429,11 @@ th.num{text-align:right}
 .lead-fokus{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;background:var(--brass-soft);color:var(--brass-deep);font-weight:600;margin-bottom:10px}
 
 .kp-done{background:var(--green);color:var(--on-green)}
+
+/* ===== Input rupiah berpemisah ribuan ===== */
+.inp-rp{position:relative}
+.inp-rp-pre{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:700;color:var(--muted);pointer-events:none}
+.inp-rp input{width:100%}
+.dp-mode{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--gray-soft);margin-bottom:6px}
+.dp-mode button{border:0;border-radius:999px;padding:5px 12px;background:transparent;color:var(--ink);font:700 12px var(--font);cursor:pointer}
+.dp-mode button[aria-pressed="true"]{background:var(--side-active-bg);color:var(--side-active-fg)}

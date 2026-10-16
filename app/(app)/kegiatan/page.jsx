@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, todayISO } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
 
 const JENIS = ['Kanvasing', 'Open Table', 'Product Knowledge / Agent Gathering', 'Pameran & Event', 'Lainnya'];
 const WARNA = { 'Kanvasing': 'var(--green)', 'Open Table': 'var(--brass)', 'Product Knowledge / Agent Gathering': 'var(--blue)', 'Pameran & Event': 'var(--red)', 'Lainnya': 'var(--muted)' };
@@ -86,7 +87,7 @@ export default function KegiatanPage() {
             <div className="field"><label>Jumlah Lead Didapat</label>
               <input type="number" min="0" {...ff('jml_lead')} placeholder="0" /></div>
             <div className="field"><label>Biaya (Rp)</label>
-              <input type="number" min="0" {...ff('biaya')} placeholder="opsional" />
+              <InputRupiah {...ff('biaya')} placeholder="opsional" />
               {Number(f.biaya) > 0 && Number(f.jml_lead) > 0 && <span className="hint">Biaya per lead: {fmtRp(Math.round(Number(f.biaya) / Number(f.jml_lead)))}</span>}</div>
             <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan Hasil</label>
               <textarea rows={2} {...ff('catatan')} placeholder="hasil kegiatan, respon pengunjung, tindak lanjut…" /></div>
