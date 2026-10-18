@@ -1,6 +1,7 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
+import { sinkronJanjianLead } from '@/lib/janjian';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +135,7 @@ async function _PATCH(req) {
     updated_at = now()
     WHERE id = ${b.id}`;
   await tandaiOleh(sql, cur.lead_code, user.username, '');
+  if (m.status && m.status !== cur.status) await sinkronJanjianLead(sql, cur.lead_code, { status: m.status, catatan: '', oleh: user.name, dari: 'perubahan status lead' });
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
   if (operKe) {
     try {

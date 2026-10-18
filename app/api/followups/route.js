@@ -1,5 +1,6 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
+import { sinkronJanjianLead } from '@/lib/janjian';
 import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,9 @@ async function _POST(req) {
   } else if (b.next_tgl) {
     await sql`UPDATE leads SET next_fu = ${b.next_tgl}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   }
+  // Janji temu yang jadwalnya sudah tiba ikut tercatat dari isi follow up ini (Datang / Batal)
+  const stBaru = b.next_action === 'Drop' ? 'Drop' : b.next_action === 'Booking' ? 'Booking' : b.status;
+  if (stBaru) await sinkronJanjianLead(sql, b.lead_code, { status: stBaru, catatan: b.detail, oleh: user.name, dari: 'form follow up' });
   return Response.json({ ok: true });
 }
 

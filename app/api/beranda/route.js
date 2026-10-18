@@ -405,6 +405,12 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
         AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
       ORDER BY j.tgl, j.jam`;
     const all = jr.map(j => ({ ...j, perlu_update: perluUpdate(j, now) }));
+    // Hasil & update janji temu 7 hari terakhir (datang / reschedule / batal) beserta catatannya
+    const terbaru = await sql`SELECT x.waktu, x.oleh, x.aksi, x.isi, j.id, j.lead_code, j.sales, j.jenis, j.lokasi, j.project, j.tgl::text AS tgl, j.jam, j.status, l.nama
+      FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
+      WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND x.waktu > now() - interval '7 days'
+        AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
+      ORDER BY x.waktu DESC LIMIT 20`.catch(() => []);
     const hari = all.filter(j => j.tgl === hariIni);
     const lewat = all.filter(j => j.perlu_update);
     const depan = [];
@@ -417,7 +423,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     bulan.forEach(j => { const s = perSales[j.sales] || (perSales[j.sales] = { sales: j.sales, n: 0, datang: 0, batal: 0, resch: 0 });
       s.n++; if (j.status === 'Datang') s.datang++; if (j.status === 'Batal') s.batal++; if (j.reschedule_n) s.resch++; });
     janjian = {
-      hariIni: hari, lewat: lewat.filter(j => j.tgl < hariIni), depan,
+      hariIni: hari, lewat: lewat.filter(j => j.tgl < hariIni), depan, terbaru,
       ringkas: { terjadwal: hari.filter(j => j.status === 'Terjadwal' && !j.perlu_update).length, datang: hari.filter(j => j.status === 'Datang').length,
         reschedule: hari.filter(j => j.reschedule_n > 0 && j.status === 'Terjadwal').length, batal: hari.filter(j => j.status === 'Batal').length, perluUpdate: lewat.length },
       bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, batal: bulan.filter(j => j.status === 'Batal').length,

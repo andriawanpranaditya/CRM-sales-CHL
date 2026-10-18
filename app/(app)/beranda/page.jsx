@@ -226,6 +226,19 @@ function BlokJanjian({ j }) {
         : <p className="bd-empty">Tidak ada janjian visit hari ini.</p>}
       <Link href="/janjian" className="bd-more">Buka menu Janjian</Link>
     </section>
+    <section className="bd-card bd-span4">
+      <div className="bd-head"><h2 className="bd-h2">Hasil &amp; update janji temu</h2><span className="hint">7 hari terakhir · terbaru di atas</span></div>
+      {(j.terbaru || []).length ? <div className="bd-tbl"><table>
+        <thead><tr><th>Diperbarui</th><th>Lead · project</th><th>Sales</th><th>Janji temu</th><th>Hasil</th><th>Catatan / alasan</th></tr></thead>
+        <tbody>{j.terbaru.map((x, i) => (<tr key={i}>
+          <td>{new Date(x.waktu).toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}<div className="hint">{x.oleh}</div></td>
+          <td><Link href={'/leads?lead=' + encodeURIComponent(x.lead_code)}><b>{x.nama || x.lead_code}</b></Link><div className="hint">{x.project}</div></td>
+          <td>{x.sales}</td>
+          <td>{x.jenis}<div className="hint">{x.tgl.slice(8, 10)}/{x.tgl.slice(5, 7)} {x.jam.replace(':', '.')} · {x.lokasi}</div></td>
+          <td><span className={'kp-pill sm ' + (x.aksi === 'Datang' ? 'kp-ok' : x.aksi === 'Batal' ? 'kp-no' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{x.aksi}</span></td>
+          <td>{x.isi || '—'}</td></tr>))}</tbody></table></div>
+        : <p className="bd-empty">Belum ada hasil janji temu yang dicatat 7 hari terakhir.</p>}
+    </section>
     <section className="bd-card bd-span2">
       <div className="bd-head"><h2 className="bd-h2">7 hari ke depan</h2><span className="hint">{j.depan.reduce((a, x) => a + x.n, 0)} janjian terjadwal</span></div>
       <div className="jj-bar">{j.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
