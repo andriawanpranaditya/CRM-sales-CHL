@@ -24,7 +24,8 @@ function Status({ j }) {
 export default function JanjianPage() {
   const [me, setMe] = useState(null);
   const [d, setD] = useState(null);
-  const [filter, setFilter] = useState('hari');
+  const [filter, setFilter] = useState('visitor');
+  useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'terbaru', 'rekap', 'riwayat'].includes(t)) setFilter(t); }, []);
   const [fSales, setFSales] = useState('');
   const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
   const [atur, setAtur] = useState(null);
@@ -35,14 +36,12 @@ export default function JanjianPage() {
   const now = d?.now || { tgl: '', jam: '' };
   const rows = (d?.rows || []).filter(r => !fSales || r.sales === fSales);
   const tampil = useMemo(() => {
-    if (filter === 'hari') return rows.filter(r => r.tgl === now.tgl || r.perlu_update);
-    if (filter === '7') return rows.filter(r => r.tgl >= now.tgl && r.tgl <= geser(now.tgl, 7) && r.status === 'Terjadwal');
+    if (filter === 'janji') return rows.filter(r => r.jenis !== 'Datang tanpa janji' && (r.tgl === now.tgl || r.perlu_update || (r.tgl > now.tgl && r.tgl <= geser(now.tgl, 7) && r.status === 'Terjadwal')));
     if (filter === 'update') return rows.filter(r => r.perlu_update);
     return rows.filter(r => r.tgl < now.tgl || r.status !== 'Terjadwal').sort((a, b) => (b.tgl + b.jam).localeCompare(a.tgl + a.jam));
   }, [rows, filter, now.tgl]); // eslint-disable-line
   const jml = {
-    hari: rows.filter(r => r.tgl === now.tgl || r.perlu_update).length,
-    '7': rows.filter(r => r.tgl >= now.tgl && r.tgl <= geser(now.tgl, 7) && r.status === 'Terjadwal').length,
+    janji: rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl >= now.tgl && r.tgl <= geser(now.tgl, 7) && !r.perlu_update).length,
     update: rows.filter(r => r.perlu_update).length,
   };
   const grup = useMemo(() => {
@@ -76,8 +75,8 @@ export default function JanjianPage() {
   return (
     <>
       <Toast />
-      <div className="page-head"><div><h1>Janjian</h1>
-        <div className="sub">Rencana visit konsumen — buat janjian, reschedule, batal, atau catat hasil kedatangan</div></div>
+      <div className="page-head"><div><h1>Janjian &amp; Visitor</h1>
+        <div className="sub">Daily visitor marketing gallery dan janji temu konsumen — buat janji, reschedule, batal, catat kedatangan</div></div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {me?.role === 'manager' && <button className="sort-btn" onClick={() => setAtur(JSON.parse(JSON.stringify(d?.lokasi || {})))}>⚙ Lokasi per project</button>}
           {me?.role === 'sales' && <button className="btn btn-primary" onClick={bukaBaru}>+ Janjian baru</button>}
@@ -168,13 +167,15 @@ export default function JanjianPage() {
         </div>)}
 
       <div className="fu-toolbar">
-        {[['hari', 'Hari ini'], ['7', '7 hari ke depan'], ['update', 'Perlu update'], ['riwayat', 'Riwayat']].map(([k, l]) => (
+        {[['visitor', 'Daily visitor'], ['janji', 'Janji temu'], ['update', 'Perlu update'], ['terbaru', 'Update terbaru'], ['rekap', 'Rekap bulan ini'], ['riwayat', 'Riwayat']].map(([k, l]) => (
           <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)} style={k === 'update' && jml.update ? { color: filter === k ? undefined : 'var(--red)' } : undefined}>
             {l}{jml[k] != null ? ` (${jml[k]})` : ''}</button>))}
         {pimpinan && <select className="sort-filter" value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{salesList.map(s => <option key={s}>{s}</option>)}</select>}
       </div>
 
-      {!d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
+      {filter === 'visitor' && <TabVisitor me={me} fSales={fSales} />}
+      {(filter === 'terbaru' || filter === 'rekap') && <TabRekap mode={filter} fSales={fSales} />}
+      {['visitor', 'terbaru', 'rekap'].includes(filter) ? null : !d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
         <div key={k} className="jj-grup">
           <div className="jj-hari">{k === 'lewat' ? 'Lewat & belum di-update' : (k === now.tgl ? 'Hari ini · ' : k === geser(now.tgl, 1) ? 'Besok · ' : '') + tglPanjang(k)}</div>
           {list.map(j => (
@@ -209,4 +210,129 @@ export default function JanjianPage() {
         </div>))}
     </>
   );
+}
+
+// ===== Tab Daily visitor =====
+const WARNA_ST = { Booking: 'kp-done', Reserved: 'kp-ok', Datang: 'kp-ok', 'Walk in': 'kp-wait', 'Akan datang': 'kp-run', 'Perlu update': 'kp-no' };
+function TabVisitor({ me, fSales }) {
+  const [tgl, setTgl] = useState('');
+  const [v, setV] = useState(null);
+  const [catat, setCatat] = useState(null);
+  const [leadsAll, setLeadsAll] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const muat = (t = tgl) => api('/api/janjian?visitor=' + (t || 'hari')).then(x => { setV(x); if (!t) setTgl(x.tgl); }).catch(e => toast(e.message));
+  useEffect(() => { muat(); }, []); // eslint-disable-line
+  const ganti = t => { setTgl(t); setV(null); muat(t); };
+  const rows = (v?.rows || []).filter(r => !fSales || r.sales === fSales);
+  const datang = rows.filter(r => r.hitung);
+  const rk = { total: datang.length, janji: datang.filter(r => r.kategori === 'janji').length, walkin: datang.filter(r => r.kategori === 'walkin').length,
+    tanpa: datang.filter(r => r.kategori === 'tanpa').length, trx: datang.filter(r => r.kategori === 'trx').length,
+    akan: rows.filter(r => !r.hitung && r.status === 'Akan datang').length, update: rows.filter(r => !r.hitung && r.status === 'Perlu update').length };
+  const maks = Math.max(1, ...(v?.spark || []).map(x => x.n));
+  const bukaCatat = async () => {
+    setCatat({ lead_code: '', jam_datang: v?.now?.jam || '', unit_dilihat: '', catatan: '' });
+    if (me?.role !== 'sales' && !leadsAll) api('/api/leads').then(ls => setLeadsAll(ls.filter(l => !['Closing', 'Drop', 'Lost'].includes(l.status)))).catch(() => setLeadsAll([]));
+  };
+  const pilihan = me?.role === 'sales' ? (v?.leads || []) : (leadsAll || []);
+  const hariIni = v && tgl === v.now?.tgl;
+  return (<>
+    <div className="jj-kpi">
+      <div className="card"><span className="hint">Visitor {hariIni ? 'hari ini' : tglPendek(tgl)}</span><b className="jj-besar">{rk.total}</b>
+        <div className="bd-chips kp">{rk.janji ? <span className="kp-pill sm kp-ok">{rk.janji} janji temu</span> : null}{rk.walkin ? <span className="kp-pill sm kp-wait">{rk.walkin} walk in</span> : null}
+          {rk.tanpa ? <span className="kp-pill sm kp-wait">{rk.tanpa} tanpa janji</span> : null}{rk.trx ? <span className="kp-pill sm kp-done">{rk.trx} Reserved/Booking</span> : null}</div></div>
+      <div className="card"><span className="hint">Akan datang</span><b className="jj-besar">{rk.akan}</b><span className="hint">janji temu yang belum tiba</span></div>
+      <div className="card"><span className="hint">Perlu update</span><b className="jj-besar" style={{ color: rk.update ? 'var(--red)' : undefined }}>{rk.update}</b><span className="hint">jam lewat, hasil belum diisi</span></div>
+      <div className="card"><span className="hint">7 hari terakhir</span>
+        <div className="bd-spark">{(v?.spark || []).map(x => <i key={x.tgl} title={`${x.hari} ${x.tgl.slice(8, 10)}/${x.tgl.slice(5, 7)}: ${x.n}`} style={{ height: Math.max(6, Math.round(x.n / maks * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} />)}</div>
+        <span className="hint">{(v?.spark || []).reduce((a, x) => a + x.n, 0)} visitor</span></div>
+    </div>
+
+    <div className="card" style={{ marginTop: 12 }}>
+      <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Daily visitor · {tglPanjang(tgl)}</h3>
+        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+          <button className="sort-btn" onClick={() => ganti(geser(tgl, -1))}>‹ Sebelumnya</button>
+          {!hariIni && v && <button className="sort-btn" onClick={() => ganti(v.now.tgl)}>Hari ini</button>}
+          {!hariIni && <button className="sort-btn" onClick={() => ganti(geser(tgl, 1))}>Berikutnya ›</button>}
+          <input type="date" className="sort-filter" value={tgl} onChange={e => e.target.value && ganti(e.target.value)} style={{ width: 'auto' }} />
+          {hariIni && me && me.role !== 'admin' && <button className="btn btn-primary" style={{ width: 'auto', padding: '9px 14px' }} onClick={bukaCatat}>+ Catat visitor tanpa janji temu</button>}
+        </span></div>
+
+      {catat && (<div className="jj-sheet card" style={{ margin: '10px 0' }}>
+        <h3 style={{ marginTop: 0 }}>Visitor datang tanpa janji temu</h3>
+        <div className="form-grid">
+          <div className="field full"><label>Lead</label><select value={catat.lead_code} onChange={e => setCatat({ ...catat, lead_code: e.target.value })}>
+            <option value="">{pilihan.length || me?.role === 'sales' ? '— pilih lead —' : 'Memuat lead…'}</option>
+            {pilihan.map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama}{l.sales && me?.role !== 'sales' ? ' · ' + l.sales : ''} ({l.status})</option>)}</select>
+            <span className="hint">Lead baru Walk In tidak perlu dicatat di sini — sudah otomatis masuk dari Form Input.</span></div>
+          <div className="field"><label>Jam datang</label><input type="time" value={catat.jam_datang} onChange={e => setCatat({ ...catat, jam_datang: e.target.value })} /></div>
+          <div className="field"><label>Unit dilihat</label><input value={catat.unit_dilihat} onChange={e => setCatat({ ...catat, unit_dilihat: e.target.value })} placeholder="mis. Tipe B hoek" /></div>
+          <div className="field full"><label>Catatan</label><input value={catat.catatan} onChange={e => setCatat({ ...catat, catatan: e.target.value })} placeholder="hasil kunjungan" /></div>
+        </div>
+        <div className="note" style={{ margin: '10px 0' }}>Status lead otomatis menjadi <b>Site Visit</b> dan tercatat di riwayat follow up.</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !catat.lead_code} onClick={async () => {
+            setBusy(true);
+            try { await api('/api/janjian', { method: 'POST', body: JSON.stringify({ aksi: 'visitor', ...catat }) }); toast('Visitor dicatat'); setCatat(null); muat(); }
+            catch (e) { toast(e.message); } finally { setBusy(false); }
+          }}>Simpan visitor</button>
+          <button className="sort-btn" onClick={() => setCatat(null)}>Batal</button>
+        </div></div>)}
+
+      {!v ? <div className="loading">Memuat…</div> : rows.length ? (
+        <div className="tbl-wrap tbl-compact jj-vtbl"><table>
+          <thead><tr><th>Jam</th><th>Visitor</th><th>Sales</th><th>Asal kedatangan</th><th>Lead (sumber · campaign)</th><th>Catatan / hasil</th><th>Status</th></tr></thead>
+          <tbody>{rows.map(r => (<tr key={r.tgl + r.lead_code}>
+            <td data-label="Jam"><b>{jamTitik(r.jam) || '—'}</b></td>
+            <td data-label="Visitor"><Link href={'/leads?lead=' + encodeURIComponent(r.lead_code)} className="jj-nama">{r.nama || r.lead_code}</Link><span className="sub2">{r.lead_code}</span></td>
+            <td data-label="Sales">{r.sales || '—'}</td>
+            <td data-label="Asal kedatangan">{r.asalTeks}</td>
+            <td data-label="Lead">{[r.sumber, r.walkin_info ? 'via ' + r.walkin_info : '', r.campaign].filter(Boolean).join(' · ') || '—'}</td>
+            <td data-label="Catatan / hasil">{r.catatanTeks || '—'}</td>
+            <td data-label="Status"><span className={'kp-pill sm ' + (WARNA_ST[r.status] || 'kp-run')} style={{ whiteSpace: 'nowrap' }}>{r.status}</span></td>
+          </tr>))}</tbody></table></div>)
+        : <p className="hint" style={{ marginTop: 10 }}>Belum ada visitor maupun janji temu di tanggal ini.</p>}
+      <p className="hint" style={{ marginTop: 8 }}>Visitor = janji temu yang datang, lead baru Walk In, datang tanpa janji, dan konsumen Reserved/Booking hari itu. Satu orang dihitung sekali per hari.</p>
+    </div>
+  </>);
+}
+
+// ===== Tab Update terbaru & Rekap bulan ini =====
+function TabRekap({ mode, fSales }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { api('/api/janjian?rekap=1').then(setD).catch(e => toast(e.message)); }, []);
+  if (!d) return <div className="loading">Memuat…</div>;
+  const terbaru = d.terbaru.filter(x => !fSales || x.sales === fSales);
+  if (mode === 'terbaru') return (
+    <div className="card">
+      <div className="bd-head"><h3 style={{ margin: 0 }}>Update janji temu terbaru</h3><span className="hint">7 hari terakhir · terbaru di atas</span></div>
+      {terbaru.length ? <div className="tbl-wrap tbl-compact jj-vtbl" style={{ marginTop: 8 }}><table>
+        <thead><tr><th>Diperbarui</th><th>Lead</th><th>Sales</th><th>Janji temu</th><th>Hasil</th><th>Catatan / alasan</th></tr></thead>
+        <tbody>{terbaru.map((x, i) => (<tr key={i}>
+          <td data-label="Diperbarui">{new Date(x.waktu).toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}<span className="sub2">{x.oleh}</span></td>
+          <td data-label="Lead"><Link href={'/leads?lead=' + encodeURIComponent(x.lead_code)} className="jj-nama">{x.nama || x.lead_code}</Link><span className="sub2">{x.project}</span></td>
+          <td data-label="Sales">{x.sales}</td>
+          <td data-label="Janji temu">{x.jenis}<span className="sub2">{tglPendek(x.tgl)} {jamTitik(x.jam)}{x.lokasi ? ' · ' + x.lokasi : ''}</span></td>
+          <td data-label="Hasil"><span className={'kp-pill sm ' + (x.aksi === 'Datang' ? 'kp-ok' : x.aksi === 'Batal' ? 'kp-no' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{x.aksi}</span></td>
+          <td data-label="Catatan / alasan">{x.isi || '—'}</td></tr>))}</tbody></table></div>
+        : <p className="hint">Belum ada hasil janji temu 7 hari terakhir.</p>}
+    </div>);
+  const ps = d.perSales.filter(x => !fSales || x.sales === fSales);
+  const maks = Math.max(1, ...d.depan.map(x => x.n));
+  const vis = d.visitor;
+  return (<div className="jj-rekap">
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Janji temu bulan ini</h3>
+      <div className="bd-chips"><span>Total <b>{d.bulan.n}</b></span><span>Datang <b>{d.bulan.datang}{d.bulan.n ? ` (${Math.round(d.bulan.datang / d.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{d.bulan.resch}</b></span><span>Batal <b>{d.bulan.batal}</b></span></div>
+      <p className="hint" style={{ margin: '8px 0' }}>Visitor bulan ini: <b>{vis.total}</b> (janji temu {vis.janji} · walk in {vis.walkin} · tanpa janji {vis.tanpa} · Reserved/Booking {vis.trx})</p>
+      <div className="jj-bar">{d.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
+      <span className="hint">Janji temu terjadwal 7 hari ke depan · akhir pekan ditandai emas</span>
+    </div>
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Per sales bulan ini</h3>
+      {ps.length ? <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janji</th><th className="num">Datang</th><th className="num">Resch.</th><th className="num">Batal</th><th className="num">Visitor</th></tr></thead>
+        <tbody>{ps.map(x => <tr key={x.sales}><td>{x.sales}</td><td className="num">{x.janji}</td><td className="num">{x.datang}</td><td className="num">{x.resch}</td><td className="num">{x.batal}</td><td className="num"><b>{x.visitor}</b></td></tr>)}</tbody></table></div>
+        : <p className="hint">Belum ada data bulan ini.</p>}
+      {d.alasanBatal.length > 0 && <p className="hint" style={{ marginTop: 8 }}>Alasan batal terbaru: {d.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</p>}
+    </div>
+  </div>);
 }

@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { ringkasStok } from '@/lib/stok';
 import { siapkanKpr, sinkronKpr, statusKpr } from '@/lib/kpr';
-import { siapkanJanjian, perluUpdate, sekarangWIB, namaHari } from '@/lib/janjian';
+import { siapkanJanjian, perluUpdate, sekarangWIB, namaHari, hitungVisitor, ringkasVisitor } from '@/lib/janjian';
 
 export const dynamic = 'force-dynamic';
 
@@ -391,51 +391,31 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     } catch { tim = null; }
   }
 
-  // ===== Janjian visit: hari ini, 7 hari ke depan, hasil bulan ini =====
+  // ===== Visitor hari ini (detail di menu Janjian & Visitor) + janji temu yang belum di-update (Perlu perhatian) =====
   let janjian = null;
   try {
     await siapkanJanjian(sql);
     const now = sekarangWIB();
-    const t7 = new Date(Date.parse(hariIni + 'T00:00:00Z') + 7 * 86400000).toISOString().slice(0, 10);
-    const jr = await sql`SELECT j.id, j.lead_code, j.project, j.sales, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, j.reschedule_n,
-        j.jam_datang, j.unit_dilihat, j.hasil, j.hasil_catatan, j.batal_alasan, j.lanjut, j.peserta, l.nama,
-        (SELECT x.isi FROM janjian_log x WHERE x.janjian_id = j.id AND x.aksi = 'Reschedule' ORDER BY x.waktu DESC LIMIT 1) AS resch_terakhir
-      FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
-      WHERE ((j.tgl >= ${awalBulan}::date AND j.tgl <= ${t7}::date) OR j.status = 'Terjadwal')
-        AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
-      ORDER BY j.tgl, j.jam`;
-    const all = jr.map(j => ({ ...j, perlu_update: perluUpdate(j, now) }));
-    // Hasil & update janji temu 7 hari terakhir (datang / reschedule / batal) beserta catatannya
-    const terbaru = await sql`SELECT x.waktu, x.oleh, x.aksi, x.isi, j.id, j.lead_code, j.sales, j.jenis, j.lokasi, j.project, j.tgl::text AS tgl, j.jam, j.status, l.nama
-      FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
-      WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND x.waktu > now() - interval '7 days'
-        AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
-      ORDER BY x.waktu DESC LIMIT 20`.catch(() => []);
-    const hari = all.filter(j => j.tgl === hariIni);
-    const lewat = all.filter(j => j.perlu_update);
-    const depan = [];
-    for (let i = 1; i <= 7; i++) {
-      const t = new Date(Date.parse(hariIni + 'T00:00:00Z') + i * 86400000).toISOString().slice(0, 10);
-      depan.push({ tgl: t, hari: namaHari(t), n: all.filter(j => j.tgl === t && j.status === 'Terjadwal').length });
-    }
-    const bulan = all.filter(j => j.tgl >= awalBulan && j.tgl <= hariIni);
-    const perSales = {};
-    bulan.forEach(j => { const s = perSales[j.sales] || (perSales[j.sales] = { sales: j.sales, n: 0, datang: 0, batal: 0, resch: 0 });
-      s.n++; if (j.status === 'Datang') s.datang++; if (j.status === 'Batal') s.batal++; if (j.reschedule_n) s.resch++; });
-    janjian = {
-      hariIni: hari, lewat: lewat.filter(j => j.tgl < hariIni), depan, terbaru,
-      ringkas: { terjadwal: hari.filter(j => j.status === 'Terjadwal' && !j.perlu_update).length, datang: hari.filter(j => j.status === 'Datang').length,
-        reschedule: hari.filter(j => j.reschedule_n > 0 && j.status === 'Terjadwal').length, batal: hari.filter(j => j.status === 'Batal').length, perluUpdate: lewat.length },
-      bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, batal: bulan.filter(j => j.status === 'Batal').length,
-        resch: bulan.filter(j => j.reschedule_n > 0).length,
-        alasanBatal: bulan.filter(j => j.status === 'Batal' && j.batal_alasan).slice(-4).reverse().map(j => ({ nama: j.nama, sales: j.sales, alasan: j.batal_alasan })),
-        perSales: Object.values(perSales).sort((a, b) => b.n - a.n) },
-    };
+    const t6 = new Date(Date.parse(hariIni + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
+    const [vis, jr] = await Promise.all([
+      hitungVisitor(sql, { dari: t6, sampai: hariIni, pp, now }),
+      sql`SELECT j.id, j.lead_code, j.project, j.sales, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, l.nama
+        FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE j.status = 'Terjadwal' AND j.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) ORDER BY j.tgl, j.jam`,
+    ]);
+    const spark = [];
+    for (let i = 6; i >= 0; i--) { const t = new Date(Date.parse(hariIni + 'T00:00:00Z') - i * 86400000).toISOString().slice(0, 10); spark.push({ tgl: t, hari: namaHari(t), n: vis.filter(v => v.tgl === t && v.hitung).length }); }
+    const lewat = jr.filter(j => perluUpdate(j, now));
+    janjian = { visitor: ringkasVisitor(vis.filter(v => v.tgl === hariIni)), spark };
     lewat.slice(0, 3).forEach(j => perhatian.unshift({ level: 'merah', judul: `Janjian ${j.nama || j.lead_code} (${namaHari(j.tgl)} ${j.tgl.slice(8, 10)}/${j.tgl.slice(5, 7)} ${j.jam.replace(':', '.')}) belum di-update`,
-      sub: [j.sales, j.jenis, j.lokasi, j.project].filter(Boolean).join(' · ') + ' · isi hasil: datang / reschedule / batal', href: '/janjian' }));
+      sub: [j.sales, j.jenis, j.lokasi, j.project].filter(Boolean).join(' · ') + ' · isi hasil: datang / reschedule / batal', href: '/janjian?tab=update' }));
   } catch (e) { console.error('janjian beranda', e); }
   // Kolom Janji temu di Performa sales: jumlah janji temu tiap sales bulan ini
-  perf.forEach(p => { p.janji = (janjian?.bulan?.perSales || []).find(x => x.sales === p.nama)?.n || 0; });
+  try {
+    const jb = await sql`SELECT sales, count(*)::int AS n FROM janjian WHERE tgl >= ${awalBulan}::date AND tgl <= ${hariIni}::date AND jenis <> 'Datang tanpa janji'
+      AND (${pp}::text[] IS NULL OR project = ANY(${pp}::text[])) GROUP BY sales`;
+    perf.forEach(p => { p.janji = jb.find(x => x.sales === p.nama)?.n || 0; });
+  } catch { perf.forEach(p => { p.janji = 0; }); }
 
   let stok = await ringkasStok(sql).catch(() => []);
   if (pp) stok = stok.filter(x => pp.includes(x.project));

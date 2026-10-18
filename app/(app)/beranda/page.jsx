@@ -199,61 +199,6 @@ function Sales({ d }) {
 }
 
 
-// ===== Blok Janjian visit (Manager & CEO) =====
-function StatusJanjian({ j }) {
-  if (j.status === 'Datang') return <span className="kp-pill sm kp-ok">Datang{j.jam_datang ? ' ' + String(j.jam_datang).replace(':', '.') : ''}</span>;
-  if (j.status === 'Batal') return <span className="kp-pill sm kp-no">Batal</span>;
-  if (j.perlu_update) return <span className="kp-pill sm kp-no">Lewat, belum di-update</span>;
-  if (j.reschedule_n) return <span className="kp-pill sm kp-wait">Reschedule {j.reschedule_n}×</span>;
-  return <span className="kp-pill sm kp-run">Terjadwal</span>;
-}
-function BlokJanjian({ j }) {
-  const r = j.ringkas, maks = Math.max(1, ...j.depan.map(x => x.n));
-  const ket = x => x.status === 'Datang' ? [x.unit_dilihat, x.hasil, x.hasil_catatan].filter(Boolean).join(' · ')
-    : x.status === 'Batal' ? (x.batal_alasan || '') + (x.lanjut === 'drop' ? ' · lead Drop' : ' · tetap follow up')
-    : x.reschedule_n ? (x.resch_terakhir || '') : (x.peserta || '');
-  return (<>
-    <section className="bd-card bd-span4">
-      <div className="bd-head"><h2 className="bd-h2">Janjian visit hari ini</h2>
-        <div className="bd-chips kp"><span className="kp-pill sm kp-run">{r.terjadwal} terjadwal</span><span className="kp-pill sm kp-ok">{r.datang} datang</span>
-          <span className="kp-pill sm kp-wait">{r.reschedule} reschedule</span><span className="kp-pill sm kp-no">{r.batal} batal</span>{r.perluUpdate ? <span className="kp-pill sm kp-no">{r.perluUpdate} perlu update</span> : null}</div></div>
-      {j.hariIni.length || j.lewat.length ? <div className="bd-tbl"><table>
-        <thead><tr><th>Jam</th><th>Lead · project</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan</th></tr></thead>
-        <tbody>{[...j.lewat, ...j.hariIni].map(x => (<tr key={x.id}>
-          <td><b>{x.jam.replace(':', '.')}</b>{x.tgl !== j.hariIni[0]?.tgl && x.perlu_update ? <div className="hint">{x.tgl.slice(8, 10)}/{x.tgl.slice(5, 7)}</div> : null}</td>
-          <td><b>{x.nama || x.lead_code}</b><div className="hint">{x.project}</div></td><td>{x.sales}</td><td>{x.jenis}<div className="hint">{x.lokasi}</div></td>
-          <td><StatusJanjian j={x} /></td><td>{ket(x) || '—'}</td></tr>))}</tbody></table></div>
-        : <p className="bd-empty">Tidak ada janjian visit hari ini.</p>}
-      <Link href="/janjian" className="bd-more">Buka menu Janjian</Link>
-    </section>
-    <section className="bd-card bd-span4">
-      <div className="bd-head"><h2 className="bd-h2">Hasil &amp; update janji temu</h2><span className="hint">7 hari terakhir · terbaru di atas</span></div>
-      {(j.terbaru || []).length ? <div className="bd-tbl"><table>
-        <thead><tr><th>Diperbarui</th><th>Lead · project</th><th>Sales</th><th>Janji temu</th><th>Hasil</th><th>Catatan / alasan</th></tr></thead>
-        <tbody>{j.terbaru.map((x, i) => (<tr key={i}>
-          <td>{new Date(x.waktu).toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}<div className="hint">{x.oleh}</div></td>
-          <td><Link href={'/leads?lead=' + encodeURIComponent(x.lead_code)}><b>{x.nama || x.lead_code}</b></Link><div className="hint">{x.project}</div></td>
-          <td>{x.sales}</td>
-          <td>{x.jenis}<div className="hint">{x.tgl.slice(8, 10)}/{x.tgl.slice(5, 7)} {x.jam.replace(':', '.')} · {x.lokasi}</div></td>
-          <td><span className={'kp-pill sm ' + (x.aksi === 'Datang' ? 'kp-ok' : x.aksi === 'Batal' ? 'kp-no' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{x.aksi}</span></td>
-          <td>{x.isi || '—'}</td></tr>))}</tbody></table></div>
-        : <p className="bd-empty">Belum ada hasil janji temu yang dicatat 7 hari terakhir.</p>}
-    </section>
-    <section className="bd-card bd-span2">
-      <div className="bd-head"><h2 className="bd-h2">7 hari ke depan</h2><span className="hint">{j.depan.reduce((a, x) => a + x.n, 0)} janjian terjadwal</span></div>
-      <div className="jj-bar">{j.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
-      <span className="hint">Akhir pekan ditandai emas — atur pembagian sales jaga.</span>
-    </section>
-    <section className="bd-card bd-span2">
-      <div className="bd-head"><h2 className="bd-h2">Hasil janjian bulan ini</h2><span className="hint">{j.bulan.n} janjian</span></div>
-      <div className="bd-chips"><span>Datang <b>{j.bulan.datang}{j.bulan.n ? ` (${Math.round(j.bulan.datang / j.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{j.bulan.resch}</b></span><span>Batal <b>{j.bulan.batal}</b></span></div>
-      {j.bulan.alasanBatal.length > 0 && <div className="hint">Alasan batal terbaru: {j.bulan.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</div>}
-      {j.bulan.perSales.length > 0 && <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janji</th><th className="num">Datang</th><th className="num" title="Reschedule">Resch.</th><th className="num">Batal</th></tr></thead>
-        <tbody>{j.bulan.perSales.map(s => <tr key={s.sales}><td>{s.sales}</td><td className="num">{s.n}</td><td className="num">{s.datang}</td><td className="num">{s.resch}</td><td className="num">{s.batal}</td></tr>)}</tbody></table></div>}
-    </section>
-  </>);
-}
-
 // ===== Beranda Manager & CEO Project =====
 const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', selesai: 'kp-done', ditolak: 'kp-no' };
 const tglPendek = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
@@ -282,8 +227,8 @@ function TabelKpr({ rows, lengkap }) {
 function Pimpinan({ d, me, proj, setProj, daftarProj }) {
   const j = d.jual, f = d.funnel, pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
   const naik = j.n - j.laluN;
-  const judul = d.perhatian.length ? `${d.perhatian.length} hal perlu perhatian hari ini` : 'Semua terkendali hari ini';
   const isCeo = me?.role === 'ceo';
+  const judul = isCeo ? `Selamat datang, ${me?.name || ''}` : d.perhatian.length ? `${d.perhatian.length} hal perlu perhatian hari ini` : 'Semua terkendali hari ini';
   const [bukaRespon, setBukaRespon] = useState('');
   const jamTgl = t => t ? new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
   return (<>
@@ -312,7 +257,41 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         </div>))}
         <Link href="/stock" className="bd-more">Master Stock</Link>
       </section>
-      <section className="bd-card">
+      <Link href="/janjian?tab=visitor" className="bd-card bd-vlink" aria-label="Lihat detail visitor hari ini">
+        <div className="bd-head"><span className="bd-label">Visitor hari ini</span><span className="bd-more">Lihat detail ›</span></div>
+        <div><b className="bd-num">{d.janjian?.visitor?.total ?? 0}</b> <span className="hint">orang datang</span></div>
+        {d.janjian?.visitor && <div className="bd-chips kp">
+          {d.janjian.visitor.janji ? <span className="kp-pill sm kp-ok">{d.janjian.visitor.janji} janji temu</span> : null}
+          {d.janjian.visitor.walkin ? <span className="kp-pill sm kp-wait">{d.janjian.visitor.walkin} walk in</span> : null}
+          {d.janjian.visitor.tanpa ? <span className="kp-pill sm kp-wait">{d.janjian.visitor.tanpa} tanpa janji</span> : null}
+          {d.janjian.visitor.trx ? <span className="kp-pill sm kp-done">{d.janjian.visitor.trx} Reserved/Booking</span> : null}
+          {d.janjian.visitor.akanDatang ? <span className="kp-pill sm kp-run">{d.janjian.visitor.akanDatang} akan datang</span> : null}</div>}
+        {d.janjian?.spark && <div className="bd-spark" aria-hidden="true">{d.janjian.spark.map(x => (
+          <i key={x.tgl} title={`${x.hari}: ${x.n}`} style={{ height: Math.max(6, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} />))}</div>}
+        <span className="hint">7 hari terakhir · klik untuk daily visitor &amp; janji temu</span>
+      </Link>
+      {!isCeo && <section className="bd-card bd-span4">
+        <div className="bd-head"><h2 className="bd-h2">Perlu perhatian</h2><span className="hint">diurutkan dari yang paling mendesak</span></div>
+        {d.perhatian.length ? d.perhatian.map((p, i) => (
+          <div key={i} className="bd-row"><span className="dot" style={{ background: p.level === 'merah' ? 'var(--red)' : 'var(--brass)' }} />
+            <div className="bd-row-main"><b>{p.judul}</b><div className="bd-row-sub">{p.sub}</div></div>
+            <Link className="bd-btn" href={p.href}>Lihat</Link></div>))
+          : <p className="bd-empty">Tidak ada yang mendesak.</p>}
+
+      </section>}
+      {(<section className="bd-card bd-span4">
+        <div className="bd-head"><h2 className="bd-h2">Update proses KPR</h2>
+          <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'rencana akad'], ['selesai', 'done (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
+        <TabelKpr rows={d.kpr} lengkap />
+      </section>)}
+
+      {d.tim && (<section className="bd-card bd-span2">
+        <div className="bd-head"><h2 className="bd-h2">Tim hari ini</h2><Link href="/log" className="bd-more">Log Aktivitas</Link></div>
+        <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
+        <span className="hint">{d.tim.belum.length ? 'Belum aktif: ' + d.tim.belum.slice(0, 6).join(', ') + (d.tim.belum.length > 6 ? '…' : '') + ' · ' : ''}{d.tim.gagal} login gagal · {d.tim.input} input/update data hari ini</span>
+      </section>)}
+      <div className="bd-bagian bd-span4">Marketing &amp; tim sales</div>
+      <section className="bd-card bd-span2">
         <span className="bd-label">Biaya marketing bulan ini</span>
         <b className="bd-num">{rpRingkas(d.biaya.spend)}</b>
         <span className="hint">Per lead berkualitas <b>{d.biaya.cpql != null ? rpRingkas(d.biaya.cpql) : '—'}</b></span>
@@ -325,7 +304,7 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
           <div key={l}><div className="bd-head" style={{ fontSize: 13 }}><span>{l}</span><b>{n}{i ? ` · ${p}%` : ''}</b></div>
             <div className="bd-bar"><div style={{ width: Math.max(2, Math.min(100, p)) + '%', background: c }} /></div></div>))}
       </section>
-      <section className="bd-card bd-span2">
+      <section className="bd-card bd-span4">
         <div className="bd-head"><h2 className="bd-h2">Campaign aktif bulan ini</h2><span className="hint">urut biaya per lead berkualitas termurah</span></div>
         {d.campaign.length ? <div className="bd-tbl"><table>
           <thead><tr><th>Campaign</th><th className="num" title="Lead berkualitas">L2</th><th className="num">CPQL</th><th className="num">Booking</th></tr></thead>
@@ -334,19 +313,7 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         </table></div> : <p className="bd-empty">Tidak ada campaign yang sedang tayang.</p>}
       </section>
 
-      <section className="bd-card bd-span2">
-        <div className="bd-head"><h2 className="bd-h2">Perlu perhatian</h2><span className="hint">diurutkan dari yang paling mendesak</span></div>
-        {d.perhatian.length ? d.perhatian.map((p, i) => (
-          <div key={i} className="bd-row"><span className="dot" style={{ background: p.level === 'merah' ? 'var(--red)' : 'var(--brass)' }} />
-            <div className="bd-row-main"><b>{p.judul}</b><div className="bd-row-sub">{p.sub}</div></div>
-            <Link className="bd-btn" href={p.href}>Lihat</Link></div>))
-          : <p className="bd-empty">Tidak ada yang mendesak.</p>}
-        {isCeo && (<>
-          <div className="bd-head" style={{ marginTop: 6 }}><b>Update proses KPR <span className="hint">· status terakhir</span></b><Link href="/kpr-proses" className="bd-more">Buka Proses KPR</Link></div>
-          <TabelKpr rows={d.kpr} />
-        </>)}
-      </section>
-      <section className="bd-card bd-span2">
+      <section className="bd-card bd-span4">
         <h2 className="bd-h2">Performa sales</h2>
         <div className="bd-tbl"><table>
           <thead><tr><th>Sales</th><th className="num" title="Lead aktif">Aktif</th><th className="num" title="Follow up terlambat">FU telat</th>{!isCeo && <th className="num">Respon</th>}<th className="num" title="KPR berjalan">KPR</th><th className="num" title="Janji temu bulan ini">Janji</th><th className="num">Booking</th></tr></thead>
@@ -370,19 +337,6 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         {!isCeo && <span className="hint">Respon = median jam dari lead dioper (oleh Marcom/manager) sampai FU pertama oleh sales itu, bulan ini. Klik angkanya untuk rincian per lead.</span>}
       </section>
 
-      {!isCeo && (<section className="bd-card bd-span4">
-        <div className="bd-head"><h2 className="bd-h2">Update proses KPR</h2>
-          <div className="bd-chips kp">{[['berjalan', 'berjalan'], ['sp3k', 'SP3K belum pilih akad'], ['akad', 'rencana akad'], ['selesai', 'done (30 hari)'], ['ditolak', 'ditolak (30 hari)']].map(([k, l]) => <span key={k} className={'kp-pill sm ' + KELAS_KPR[k]}>{d.kprRingkas[k]} {l}</span>)}</div></div>
-        <TabelKpr rows={d.kpr} lengkap />
-      </section>)}
-
-      {d.janjian && <BlokJanjian j={d.janjian} isCeo={isCeo} />}
-
-      {d.tim && (<section className="bd-card bd-span2">
-        <div className="bd-head"><h2 className="bd-h2">Tim hari ini</h2><Link href="/log" className="bd-more">Log Aktivitas</Link></div>
-        <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
-        <span className="hint">{d.tim.belum.length ? 'Belum aktif: ' + d.tim.belum.slice(0, 6).join(', ') + (d.tim.belum.length > 6 ? '…' : '') + ' · ' : ''}{d.tim.gagal} login gagal · {d.tim.input} input/update data hari ini</span>
-      </section>)}
     </div>
   </>);
 }

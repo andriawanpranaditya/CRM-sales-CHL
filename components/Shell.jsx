@@ -12,7 +12,7 @@ const MENUS = [
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
-  { href: '/janjian', ico: '📅', label: 'Janjian', roles: ['manager', 'ceo', 'sales'] },
+  { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales'] },
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] },
   { href: '/report', ico: '▤', label: 'Report Sales', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },

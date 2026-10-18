@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { siapkanJanjian, lokasiJanjian, perluUpdate, sekarangWIB, namaHari, JENIS_JANJIAN, HASIL_VISIT, LOKASI_DEFAULT,
-  NAIK_KE_APPOINTMENT, NAIK_KE_SITEVISIT } from '@/lib/janjian';
+  NAIK_KE_APPOINTMENT, NAIK_KE_SITEVISIT, hitungVisitor, ringkasVisitor, JENIS_TANPA_JANJI } from '@/lib/janjian';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +39,56 @@ export async function GET(req) {
   const q = new URL(req.url).searchParams;
   const now = sekarangWIB();
   const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const salesSaya = user.role === 'sales' ? user.name : null;
+  const pjMinta = q.get('project') || null;
+  if (pjMinta && user.projects && !user.projects.includes(pjMinta)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+  const pp = pjMinta ? [pjMinta] : user.projects;
+
+  // ===== Daily visitor satu tanggal (+ grafik 7 hari terakhir) =====
+  if (q.get('visitor')) {
+    const tgl = tglOk(q.get('visitor')) ? q.get('visitor') : now.tgl;
+    const [hari, seminggu] = await Promise.all([
+      hitungVisitor(sql, { dari: tgl, sampai: tgl, pp, sales: salesSaya, now }),
+      hitungVisitor(sql, { dari: geser(tgl, -6), sampai: tgl, pp, sales: salesSaya, now }),
+    ]);
+    const rows = hari.filter(v => lihatBaris(user, { project: v.project, sales: v.sales, created_by: v.lead_by }));
+    const spark = [];
+    for (let i = 6; i >= 0; i--) { const t = geser(tgl, -i); spark.push({ tgl: t, hari: namaHari(t), n: seminggu.filter(v => v.tgl === t && v.hitung).length }); }
+    let leadsPilih = [];
+    if (user.role === 'sales') leadsPilih = await sql`SELECT lead_code, nama, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST LIMIT 500`;
+    return Response.json({ tgl, hari: namaHari(tgl), now, rows, ringkas: ringkasVisitor(rows), spark, leads: leadsPilih });
+  }
+
+  // ===== Rekap bulan ini + update janji temu terbaru =====
+  if (q.get('rekap')) {
+    const awal = now.tgl.slice(0, 8) + '01';
+    const [jb, vis, upd] = await Promise.all([
+      sql`SELECT j.id, j.sales, j.status, j.reschedule_n, j.batal_alasan, j.tgl::text AS tgl, j.jenis, l.nama, j.project, l.created_by AS lead_by
+        FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE j.tgl >= ${awal}::date AND j.tgl <= ${geser(now.tgl, 7)}::date AND j.jenis <> ${JENIS_TANPA_JANJI}
+          AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})`,
+      hitungVisitor(sql, { dari: awal, sampai: now.tgl, pp, sales: salesSaya, now }),
+      sql`SELECT x.waktu, x.oleh, x.aksi, x.isi, j.lead_code, j.sales, j.jenis, j.lokasi, j.project, j.tgl::text AS tgl, j.jam, l.nama, l.created_by AS lead_by
+        FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND x.waktu > now() - interval '7 days'
+          AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})
+        ORDER BY x.waktu DESC LIMIT 50`,
+    ]);
+    const ok = x => lihatBaris(user, { project: x.project, sales: x.sales, created_by: x.lead_by });
+    const bulan = jb.filter(ok).filter(j => j.tgl <= now.tgl), visitor = vis.filter(ok).filter(v => v.hitung);
+    const perSales = {};
+    const ps = n => perSales[n] || (perSales[n] = { sales: n, janji: 0, datang: 0, resch: 0, batal: 0, visitor: 0 });
+    bulan.forEach(j => { const x = ps(j.sales || '-'); x.janji++; if (j.status === 'Datang') x.datang++; if (j.reschedule_n) x.resch++; if (j.status === 'Batal') x.batal++; });
+    visitor.forEach(v => { ps(v.sales || '-').visitor++; });
+    const depan = [];
+    for (let i = 1; i <= 7; i++) { const t = geser(now.tgl, i); depan.push({ tgl: t, hari: namaHari(t), n: jb.filter(j => j.tgl === t && j.status === 'Terjadwal').length }); }
+    return Response.json({ now, bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, resch: bulan.filter(j => j.reschedule_n > 0).length,
+        batal: bulan.filter(j => j.status === 'Batal').length },
+      visitor: ringkasVisitor(vis.filter(ok)), depan, perSales: Object.values(perSales).sort((a, b) => b.visitor - a.visitor || b.janji - a.janji),
+      alasanBatal: bulan.filter(j => j.status === 'Batal' && j.batal_alasan).slice(-5).reverse().map(j => ({ nama: j.nama, sales: j.sales, alasan: j.batal_alasan })),
+      terbaru: upd.filter(ok) });
+  }
+
   const dari = tglOk(q.get('dari')) ? q.get('dari') : geser(now.tgl, -30);
   const sampai = tglOk(q.get('sampai')) ? q.get('sampai') : geser(now.tgl, 30);
   let rows = await sql`SELECT j.*, j.tgl::text AS tgl, l.nama, l.wa, l.status AS lead_status, l.created_by AS lead_by,
@@ -73,6 +123,22 @@ async function _POST(req) {
   const sql = db();
   await siapkanJanjian(sql);
   const b = await req.json().catch(() => ({}));
+  // Catat visitor yang datang tanpa janji temu (lead lama datang langsung)
+  if (b.aksi === 'visitor') {
+    const lv = await sql`SELECT lead_code, nama, project, sales, status, created_by FROM leads WHERE lead_code = ${b.lead_code || ''}`;
+    if (!lv.length) return Response.json({ error: 'Pilih lead' }, { status: 400 });
+    if (user.role === 'sales' && lv[0].sales !== user.name) return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
+    if (!lihatBaris(user, lv[0])) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+    const now = sekarangWIB();
+    const jamD = jamOk(b.jam_datang) ? b.jam_datang : now.jam;
+    const r = await sql`INSERT INTO janjian (lead_code, project, sales, jenis, lokasi, tgl, jam, status, jam_datang, unit_dilihat, hasil_catatan, created_by)
+      VALUES (${lv[0].lead_code}, ${lv[0].project || ''}, ${lv[0].sales || ''}, ${JENIS_TANPA_JANJI}, ${b.lokasi || ''}, ${now.tgl}, ${jamD}, 'Datang', ${jamD},
+              ${b.unit_dilihat || ''}, ${b.catatan || ''}, ${user.username}) RETURNING id`;
+    await catatLog(sql, r[0].id, user, 'Datang', `datang tanpa janji temu ${jamD}` + (b.catatan ? ' · ' + b.catatan : ''));
+    if (NAIK_KE_SITEVISIT.includes(lv[0].status)) await sql`UPDATE leads SET status = 'Site Visit', updated_at = now() WHERE lead_code = ${lv[0].lead_code}`;
+    await catatFU(sql, user, lv[0].lead_code, `Konsumen datang tanpa janji temu (${jamD})` + (b.unit_dilihat ? ' · unit: ' + b.unit_dilihat : '') + (b.catatan ? ' · ' + b.catatan : ''));
+    return Response.json({ ok: true, lead_code: lv[0].lead_code, nama: lv[0].nama, aksi: 'Visitor tanpa janji' });
+  }
   const l = await sql`SELECT lead_code, nama, project, sales, status, created_by FROM leads WHERE lead_code = ${b.lead_code || ''}`;
   if (!l.length) return Response.json({ error: 'Pilih lead' }, { status: 400 });
   const lead = l[0];
