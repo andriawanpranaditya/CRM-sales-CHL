@@ -140,6 +140,8 @@ export default function BookingPage() {
             </div>
             <div className="field"><label>Cara Bayar</label>
               <input value={edit.bayar || ''} onChange={e => setEdit({ ...edit, bayar: e.target.value })} /></div>
+            {/bertahap/i.test(edit.bayar || '') && <div className="field"><label>Jumlah Cicilan (×)</label>
+              <input type="number" min="2" max="120" value={edit.cicilan || ''} onChange={e => setEdit({ ...edit, cicilan: e.target.value })} placeholder="mis. 24" /></div>}
             <div className="field" style={{ gridColumn: '1 / -1' }}><label>Catatan</label>
               <input value={edit.catatan || ''} onChange={e => setEdit({ ...edit, catatan: e.target.value })} /></div>
           </div>

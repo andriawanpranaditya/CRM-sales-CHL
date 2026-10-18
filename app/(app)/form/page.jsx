@@ -148,7 +148,7 @@ export default function FormPage() {
   const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
-  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '' });
   const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
   const [idn, setIdn] = useState(IDN0);
   const [idnInfo, setIdnInfo] = useState(''); // keterangan asal data identitas
@@ -797,6 +797,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               <span className="hint">Otomatis mengikuti pemilik lead; tercatat di Master Stock, report Word, PDF &amp; Excel.</span></div>;
           })()}
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
+          {/bertahap/i.test(trx.bayar || '') && <div className="field"><label>Jumlah Cicilan (×)</label><input type="number" min="2" max="120" {...ft('cicilan')} placeholder="mis. 24" />
+            <span className="hint">Berapa kali cicilan — tampil di Laporan Penjualan sebagai "Cash Bertahap 24x"</span></div>}
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <div className="sec-head">1 · Berkas Transaksi — Bukti Transfer, KTP &amp; NPWP Wajib</div>
             <span className="hint">Unggah dulu: NIK, nama, dan alamat di bagian berikutnya terisi otomatis dari foto KTP / NPWP. Tips: foto lurus, penuh satu kartu, tidak silau; PDF tidak dibaca otomatis.</span>

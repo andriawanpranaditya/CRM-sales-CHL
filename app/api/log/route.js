@@ -5,7 +5,7 @@ import { siapkanLog, catat } from '@/lib/log';
 export const dynamic = 'force-dynamic';
 
 const HALAMAN = {
-  '/beranda': 'Beranda', '/dashboard': 'Dashboard', '/form': 'Form Input', '/leads': 'Database Lead', '/booking': 'Booking', '/report': 'Report Sales',
+  '/beranda': 'Beranda', '/dashboard': 'Dashboard', '/form': 'Form Input', '/leads': 'Database Lead', '/booking': 'Booking', '/report': 'Report',
   '/marcom': 'Analisa Marcom', '/kegiatan': 'Kegiatan', '/stock': 'Master Stock', '/kpr-proses': 'Proses KPR', '/janjian': 'Janjian & Visitor', '/kpr': 'Simulasi Cara Bayar',
   '/ai-asisten': 'Asisten AI', '/settings': 'Settings', '/users': 'Pengguna', '/log': 'Log Aktivitas',
 };

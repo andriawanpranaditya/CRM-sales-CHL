@@ -4,9 +4,15 @@ import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
+// Jumlah cicilan untuk Cash Bertahap (mis. 24x) — tampil di Laporan Penjualan
+let kolomCicilan = false;
+async function siapkanCicilan(sql) { if (kolomCicilan) return; try { await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`; kolomCicilan = true; } catch {} }
+const cicilanDari = b => (/bertahap/i.test(b.bayar || '') && Number(b.cicilan) > 0 ? Math.round(Number(b.cicilan)) : null);
+
 export async function GET() {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
+  await siapkanCicilan(sql);
   const rows = user.role !== 'sales'
     ? await sql`SELECT t.*, l.nama, l.tipe, l.sales, COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar
         FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.id DESC`
@@ -96,9 +102,10 @@ async function _POST(req) {
       for (const r of res) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
     }
   }
-  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, created_by)
+  await siapkanCicilan(sql);
+  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
-            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${user.username})`;
+            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${user.username})`;
   if (idn && b.jenis !== 'Batal') {
     await sql`CREATE TABLE IF NOT EXISTS konsumen (lead_code text PRIMARY KEY, nama_ktp text, nik text, npwp text, email text, alamat text, rt_rw text,
       kel_desa text, kecamatan text, kota_kab text, provinsi text, alamat_domisili text, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
@@ -173,10 +180,11 @@ async function _PATCH(req) {
     for (const r of lain) await sql`DELETE FROM transactions WHERE id = ${r.id}`;
     if (b.unit && b.project) await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
   }
+  await siapkanCicilan(sql);
   await sql`UPDATE transactions SET
       tgl = ${b.tgl || null}, jenis = ${b.jenis}, nilai = ${Number(b.nilai) || 0},
       nilai_jual = ${b.nilai_jual ? Number(b.nilai_jual) : null},
-      project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''},
+      project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''}, cicilan = ${cicilanDari(b)},
       catatan = ${catatan}
     WHERE id = ${b.id}`;
   await sinkronStatus(sql, rows[0].lead_code, user.username, `Transaksi diedit → ${b.jenis}`);

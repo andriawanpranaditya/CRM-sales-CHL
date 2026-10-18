@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
+import Link from 'next/link';
 import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
 
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
 
-export default function Dashboard() {
+// hanyaReport: 'lengkap' (Report Word/PDF) | 'excel' (Data Excel) → dipakai menu Report; filterLuar = { d1, d2, proj } dari filter bersama menu Report
+export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const [lastUpd, setLastUpd] = useState(null);
   function muatSemua(senyap = false) { // senyap = refresh latar belakang (tanpa indikator "Memuat…")
     return Promise.all([api('/api/leads?all=1', { silent: senyap }), api('/api/followups?all=1', { silent: senyap }), api('/api/trx', { silent: senyap }), api('/api/settings', { silent: senyap }), api('/api/stock', { silent: senyap }), api('/api/kegiatan', { silent: senyap }).catch(() => [])])
@@ -32,6 +34,7 @@ export default function Dashboard() {
   const [panelFoto, setPanelFoto] = useState(false);
   const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
   const [srcOpen, setSrcOpen] = useState(false);
+  useEffect(() => { if (filterLuar) { setD1(filterLuar.d1 || ''); setD2(filterLuar.d2 || ''); setProj(filterLuar.proj || ''); } }, [filterLuar?.d1, filterLuar?.d2, filterLuar?.proj]); // eslint-disable-line
 
   useEffect(() => {
     muatSemua();
@@ -588,6 +591,9 @@ export default function Dashboard() {
       const hariJJ = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
       jjData = await api('/api/janjian?dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ));
     } catch {}
+    // Ringkasan penjualan (Reserved → Booking / Batal) — satu halaman; detail per transaksi ada di menu Report → Laporan Penjualan
+    let lpData = null;
+    try { lpData = await api('/api/laporan-penjualan?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
     const inPeriod = t => {
       if (!t) return !d1 && !d2;
       const x = String(t).slice(0, 10);
@@ -985,6 +991,20 @@ ${kasus.map(k => `<tr><td>${tglJ(k.j.tgl)} ${esc(String(k.j.jam).replace(':', '.
 </table>` : ''}
 <p class="muted" style="font-size:8.5pt">Belum di-update = janji temu yang jamnya sudah lewat tetapi hasilnya (datang / reschedule / batal) belum diisi sales${nowJ.tgl ? ' per ' + fmtDate(nowJ.tgl) : ''}.</p>`;
     })()}
+${(() => {
+      if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';
+      const L = lpData.rows, bk = L.filter(x => x.status === 'Booking'), bt = L.filter(x => x.status === 'Batal'), rv = L.filter(x => x.status === 'Reserved');
+      const nilaiL = bk.reduce((a, x) => a + (x.harga || 0), 0), lm = bk.filter(x => x.lama != null).map(x => x.lama), rataL = lm.length ? (lm.reduce((a, b) => a + b, 0) / lm.length).toFixed(1) : '-';
+      const rp2 = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+      const rek = (judul, kunci) => { const daftar = [...new Set(L.map(x => kunci(x)))]; return `<p style="margin:8px 0 4px"><b>${judul}</b></p><table style="font-size:9pt"><tr><th>Nama</th><th style="text-align:right">Unit</th><th style="text-align:right">Booking</th><th style="text-align:right">Batal</th><th style="text-align:right">Reserved</th><th style="text-align:right">Nilai penjualan</th></tr>
+        ${daftar.map(n => { const tt = L.filter(x => kunci(x) === n), bb = tt.filter(x => x.status === 'Booking'); return `<tr><td><b>${esc(n)}</b></td><td style="text-align:right">${tt.length}</td><td style="text-align:right">${bb.length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Batal').length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Reserved').length}</td><td style="text-align:right">${rp2(bb.reduce((a, x) => a + (x.harga || 0), 0))}</td></tr>`; }).join('')}</table>`; };
+      return `<h2>6D. RINGKASAN PENJUALAN <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(Reserved → Booking / Batal pada periode report)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Konsumen</th><th style="text-align:center">Booking</th><th style="text-align:center">Batal</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Konversi</th><th style="text-align:center">Nilai penjualan</th><th style="text-align:center">Rata-rata hari ke Booking</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${L.length}</td><td style="color:#23694A">${bk.length}</td><td style="color:#B3402F">${bt.length}</td><td style="color:#8A5F14">${rv.length}</td><td>${Math.round(bk.length / L.length * 100)}%</td><td>${rp2(nilaiL)}</td><td>${rataL}</td></tr></table>
+${rek('Per cara bayar', x => (x.bayar || 'Belum diisi').replace(/\s*\d+x$/i, ''))}
+${rek('Per sales', x => x.sales || '-')}
+<p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking. Detail per konsumen (tanggal Reserved, Booking, nominal, cara bayar, status KPR) ada di menu Report → Laporan Penjualan (Excel/PDF).</p>`;
+    })()}
 ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
 
@@ -1010,25 +1030,25 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
 
   return (
     <>
-      <div className="page-head">
+      {!hanyaReport && <div className="page-head">
         <div><h1>Dashboard</h1>
           <div className="sub">{periodeCustom
             ? <>Data periode terpilih: <b>{bulanLabel}</b> (mengikuti tanggal report) <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => { setD1(''); setD2(''); }}>↺ Kembali ke bulan berjalan</button></>
             : <>Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</div><div className="sub">Data real-time dari database bersama — auto-refresh tiap menit{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={muatSemua}>↻ Segarkan</button></div></div>
         <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
-      </div>
-      <div className="fu-toolbar">
+      </div>}
+      {!hanyaReport && <div className="fu-toolbar">
         <span className="hint" style={{ fontWeight: 600 }}>Filter project:</span>
         {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
         {(set.project || []).map(p => (
           <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
-      </div>
+      </div>}
       <div className="card" style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-        <div className="field" style={{ minWidth: 150 }}><label>Report — Dari Tanggal</label>
-          <input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>
-        <div className="field" style={{ minWidth: 150 }}><label>Sampai Tanggal</label>
-          <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        {!hanyaReport && <div className="field" style={{ minWidth: 150 }}><label>Periode — Dari Tanggal</label>
+          <input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>}
+        {!hanyaReport && <div className="field" style={{ minWidth: 150 }}><label>Sampai Tanggal</label>
+          <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>}
+        {hanyaReport === 'excel' && <div style={{ position: 'relative', display: 'inline-block' }}>
           <button className="sort-btn" style={{ fontWeight: 700 }} onClick={() => setSrcOpen(o => !o)}>
             Sumber: {srcSel.length === 0 ? 'Semua' : srcSel.length <= 2 ? srcSel.join(', ') : srcSel.length + ' dipilih'} ▾
           </button>
@@ -1049,15 +1069,16 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               </div>
             </div>
           </>)}
-        </div>
-        <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: 'var(--brass-deep)', fontWeight: 700 }}
+        </div>}
+        {hanyaReport === 'lengkap' && <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: 'var(--brass-deep)', fontWeight: 700 }}
           onClick={() => setPanelFoto(v => !v)} title="Lampirkan foto kegiatan ke report Word/PDF">
           📸 Foto Kegiatan{Object.values(fotoKeg).reduce((a, x) => a + x.length, 0) ? ` (${Object.values(fotoKeg).reduce((a, x) => a + x.length, 0)})` : ''}
-        </button>
-        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>
-        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>
-        <button className="btn btn-ghost" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>
-        {panelFoto && (
+        </button>}
+        {hanyaReport === 'lengkap' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>}
+        {hanyaReport === 'lengkap' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>}
+        {hanyaReport === 'excel' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>}
+        {!hanyaReport && <span className="hint">Report Word/PDF, Laporan Penjualan, dan Data Excel ada di menu <Link href="/report"><b>Report ›</b></Link></span>}
+        {hanyaReport === 'lengkap' && panelFoto && (
           <div style={{ flexBasis: '100%', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
             <b style={{ color: 'var(--brass-deep)' }}>📸 Lampirkan foto kegiatan</b>
             <div className="hint" style={{ marginBottom: 6 }}>Foto diperkecil di perangkat ini lalu ditempel ke report — <b>tidak disimpan di aplikasi</b> dan hilang saat halaman ditutup.</div>
@@ -1072,8 +1093,10 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               </div>)) : <span className="hint">Tidak ada kegiatan pada project &amp; rentang tanggal yang dipilih.</span>}
           </div>
         )}
-        <span className="hint">Word &amp; Excel mengikuti <b>filter project di atas</b> + rentang tanggal (kosongkan utk seluruh periode). Khusus Excel juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode. <b>Tampilan Dashboard di bawah ikut rentang tanggal ini</b>; bila tanggal dikosongkan, Dashboard kembali ke bulan berjalan (Reminder Follow-up selalu berdasarkan hari ini).</span>
+        {hanyaReport === 'lengkap' && <span className="hint">Report mengikuti filter periode &amp; project di atas; isinya lead, follow up, booking, stok, KPR, janjian, dan marketing, plus satu halaman ringkasan penjualan. Detail per transaksi ada di tab Laporan Penjualan.</span>}
+        {hanyaReport === 'excel' && <span className="hint">Excel berisi data mentah lead, follow up, dan transaksi sesuai periode &amp; project, dan juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>}
       </div>
+      {!hanyaReport && (<>
       <div className="grid kpis">
         {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],
           ['Reserved', mResSet.size], ['Booking', mBookSet.size]]
@@ -1223,6 +1246,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
           </tbody>
         </table>
       </div>
+      </>)}
       <Toast />
     </>
   );
