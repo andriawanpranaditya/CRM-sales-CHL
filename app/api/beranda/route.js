@@ -213,6 +213,9 @@ async function berandaSales(sql, user, hariIni, semua) {
 }
 
 
+// Daftar project untuk sumbu grafik: dari data stok (urutan Master Stock)
+const daftarProjectSemua = stok => (stok || []).map(x => x.project);
+
 // ===== Beranda Manager & CEO Project =====
 function geserBulan(iso, n) { const [y, m] = iso.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 10); }
 
@@ -419,7 +422,43 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
 
   let stok = await ringkasStok(sql).catch(() => []);
   if (pp) stok = stok.filter(x => pp.includes(x.project));
+
+  // ===== Grafik ringkasan: tren booking tahun berjalan, booking harian bulan ini, reserved aktif =====
+  const awalTahun = hariIni.slice(0, 4) + '-01-01';
+  const [trenRows, harian, resAktif] = await Promise.all([
+    sql`SELECT to_char(t.tgl, 'YYYY-MM') AS bln, COALESCE(NULLIF(t.project, ''), l.project, '') AS project,
+        count(DISTINCT t.lead_code)::int AS n, COALESCE(sum(COALESCE(t.nilai_jual, t.nilai, 0)), 0)::numeric AS nilai
+      FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis = 'Booking' AND t.tgl >= ${awalTahun}::date AND t.tgl <= ${hariIni}::date
+        AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[]))
+      GROUP BY 1, 2`.catch(() => []),
+    sql`SELECT t.tgl::text AS tgl, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
+        AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[])) GROUP BY 1`.catch(() => []),
+    // Reserved aktif = transaksi terakhir lead masih Reserved (belum naik Booking / batal)
+    sql`SELECT x.project, count(*)::int AS n, COALESCE(sum(x.nilai), 0)::numeric AS nilai FROM (
+        SELECT DISTINCT ON (t.lead_code) t.lead_code, t.jenis, t.nilai, COALESCE(NULLIF(t.project, ''), l.project, '') AS project
+        FROM transactions t JOIN leads l ON l.lead_code = t.lead_code ORDER BY t.lead_code, t.id DESC) x
+      WHERE x.jenis = 'Reserved' AND (${pp}::text[] IS NULL OR x.project = ANY(${pp}::text[])) GROUP BY 1`.catch(() => []),
+  ]);
+  const blnSekarang = Number(hariIni.slice(5, 7));
+  const projTren = [...new Set([...(pp || daftarProjectSemua(stok)), ...trenRows.map(x => x.project)])].filter(Boolean);
+  const tren = { project: projTren, bulan: [] };
+  let kum = 0;
+  for (let m = 1; m <= blnSekarang; m++) {
+    const key = hariIni.slice(0, 4) + '-' + String(m).padStart(2, '0');
+    const rows = trenRows.filter(x => x.bln === key);
+    const per = Object.fromEntries(projTren.map(p => [p, rows.find(x => x.project === p)?.n || 0]));
+    const n = Object.values(per).reduce((a, b) => a + b, 0);
+    kum += n;
+    tren.bulan.push({ bln: m, per, n, nilai: rows.reduce((a, x) => a + Number(x.nilai || 0), 0), kum });
+  }
+  const hariKe = Number(hariIni.slice(8, 10));
+  let kh = 0; const bookingHarian = [];
+  for (let d = 1; d <= hariKe; d++) { const t = hariIni.slice(0, 8) + String(d).padStart(2, '0'); kh += harian.find(x => x.tgl === t)?.n || 0; bookingHarian.push(kh); }
+  const reservedAktif = { n: resAktif.reduce((a, x) => a + x.n, 0), nilai: resAktif.reduce((a, x) => a + Number(x.nilai || 0), 0), perProject: resAktif.map(x => ({ project: x.project, n: x.n })) };
   return {
+    tren, bookingHarian, reservedAktif,
     peran: 'pimpinan', hariIni, project: pilihProj || null, proyekSaya: user.projects,
     jual: { n: jualN, nilai: jualNilai, perProject: jual, laluN: jualLalu[0]?.n || 0, reservedN: resv[0]?.n || 0, reservedNilai: Number(resv[0]?.nilai || 0) },
     funnel: { l0: F.l0 || 0, l1: F.l1 || 0, l2: F.l2 || 0, l3: F.l3 || 0 },

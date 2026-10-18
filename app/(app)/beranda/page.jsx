@@ -199,6 +199,67 @@ function Sales({ d }) {
 }
 
 
+
+// ===== Grafik ringkasan beranda (SVG, mengikuti warna tema) =====
+const WARNA_PROJ = ['var(--gold)', 'var(--green)', 'var(--blue)', 'var(--red)'];
+const BULAN_PDK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const singkatProj = p => { const w = String(p || '').split(/\s+/)[0]; return w.charAt(0) + w.slice(1).toLowerCase(); };
+function SparkBooking({ data }) {
+  if (!data.length) return null;
+  const W = 200, H = 44, mx = Math.max(1, data[data.length - 1]), sx = W / Math.max(1, data.length - 1);
+  const d = data.map((v, i) => `${i ? 'L' : 'M'}${(i * sx).toFixed(1)},${(H - 4 - v / mx * (H - 10)).toFixed(1)}`).join(' ');
+  return (<svg viewBox={`0 0 ${W} ${H}`} width="100%" height="40" preserveAspectRatio="none" aria-hidden="true">
+    <path d={`${d} L${W},${H} L0,${H} Z`} style={{ fill: 'rgba(11,31,25,.12)' }} /><path d={d} style={{ fill: 'none', stroke: '#0B1F19', strokeWidth: 2.5 }} /></svg>);
+}
+function TrenBooking({ tren }) {
+  const bl = tren.bulan, pr = tren.project;
+  const total = bl.length ? bl[bl.length - 1].kum : 0, nilai = bl.reduce((a, b) => a + b.nilai, 0);
+  const terbaik = bl.reduce((a, b) => (b.n > (a?.n || 0) ? b : a), null);
+  const W = 760, H = 250, L = 34, R = 40, T = 22, B = 30, iw = W - L - R, ih = H - T - B, n = Math.max(1, bl.length), slot = iw / n;
+  const bw = Math.max(5, Math.min(14, slot * 0.6 / Math.max(1, pr.length)));
+  const mx = Math.max(1, ...bl.flatMap(b => pr.map(p => b.per[p] || 0))) + 1, cm = Math.max(1, total) * 1.1;
+  const step = Math.max(1, Math.ceil(mx / 4)), grid = []; for (let k = 0; k <= mx; k += step) grid.push(k);
+  const pts = bl.map((b, i) => [L + slot * i + slot / 2, T + ih - b.kum / cm * ih]);
+  return (<section className="bd-card">
+    <div className="bd-head"><h2 className="bd-h2">Tren booking {new Date().getFullYear()}</h2>
+      <div className="rb-legend">{pr.map((p, k) => <span key={p}><i style={{ background: WARNA_PROJ[k % 4] }} />{p}</span>)}<span><i className="rb-garis" />kumulatif</span></div></div>
+    <div className="rb-stat"><span>Total tahun ini<b>{total} unit</b></span><span>Nilai<b>{rpRingkas(nilai)}</b></span>
+      <span>Rata-rata<b>{(total / n).toLocaleString('id-ID', { maximumFractionDigits: 1 })} / bulan</b></span>
+      {terbaik && terbaik.n > 0 && <span>Bulan terbaik<b>{BULAN_PDK[terbaik.bln - 1]} · {terbaik.n} unit</b></span>}</div>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Tren booking per bulan, total ${total} unit tahun ini`}>
+      {grid.map(k => { const y = T + ih - k / mx * ih; return <g key={'g' + k}><line x1={L} x2={W - R} y1={y} y2={y} style={{ stroke: 'var(--line)' }} /><text x={L - 8} y={y + 4} textAnchor="end" style={{ fill: 'var(--muted)', fontSize: 10.5 }}>{k}</text></g>; })}
+      {[0, Math.round(cm / 2), Math.round(cm)].map(k => <text key={'c' + k} x={W - R + 8} y={T + ih - k / cm * ih + 4} style={{ fill: 'var(--muted)', fontSize: 10.5 }}>{k}</text>)}
+      {bl.map((b, i) => {
+        const cx = L + slot * i + slot / 2, kini = i === bl.length - 1, lebar = pr.length * bw + (pr.length - 1) * 4;
+        return (<g key={b.bln}>
+          {kini && <rect x={cx - slot / 2 + 3} y={T - 6} width={slot - 6} height={ih + 6} rx="10" style={{ fill: 'var(--gold)', opacity: 0.1 }} />}
+          {pr.map((p, k) => { const v = b.per[p] || 0, h = v / mx * ih; return <rect key={p} x={cx - lebar / 2 + k * (bw + 4)} y={T + ih - h} width={bw} height={Math.max(0, h)} rx={bw / 2} style={{ fill: WARNA_PROJ[k % 4] }}><title>{`${BULAN_PDK[b.bln - 1]} · ${p}: ${v} unit`}</title></rect>; })}
+          <text x={cx} y={H - 10} textAnchor="middle" style={{ fill: kini ? 'var(--brass-deep)' : 'var(--muted)', fontSize: 11.5, fontWeight: kini ? 800 : 600 }}>{BULAN_PDK[b.bln - 1]}</text>
+        </g>);
+      })}
+      {pts.length > 1 && <path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')} style={{ fill: 'none', stroke: 'var(--ink)', strokeWidth: 2, strokeDasharray: '5 4', opacity: 0.8 }} />}
+      {pts.map((p, i) => <circle key={'p' + i} cx={p[0]} cy={p[1]} r="3.5" style={{ fill: 'var(--card)', stroke: 'var(--ink)', strokeWidth: 2 }}><title>{`Kumulatif s.d. ${BULAN_PDK[bl[i].bln - 1]}: ${bl[i].kum} unit`}</title></circle>)}
+      {pts.length > 0 && (() => { const [x, y] = pts[pts.length - 1]; return <g><rect x={x - 26} y={y - 30} width="52" height="20" rx="10" style={{ fill: 'var(--ink)' }} /><text x={x} y={y - 16} textAnchor="middle" style={{ fill: 'var(--card)', fontSize: 11, fontWeight: 800 }}>{total} unit</text></g>; })()}
+    </svg>
+    <span className="hint">Januari s.d. bulan berjalan · batang = unit Booking per bulan per project · garis = total kumulatif tahun ini</span>
+  </section>);
+}
+function DonutStok({ x, garis }) {
+  const r = 36, c = 2 * Math.PI * r, t = x.terjual / Math.max(1, x.total) * c, rv = x.reserved / Math.max(1, x.total) * c;
+  return (<div className={'rb-dn' + (garis ? ' garis' : '')}>
+    <svg viewBox="0 0 96 96" width="96" height="96" role="img" aria-label={`${x.project}: ${x.tersedia} tersedia dari ${x.total}`}>
+      <circle cx="48" cy="48" r={r} style={{ fill: 'none', stroke: 'var(--line)', strokeWidth: 12 }} />
+      <circle cx="48" cy="48" r={r} transform="rotate(-90 48 48)" style={{ fill: 'none', stroke: 'var(--red)', strokeWidth: 12, strokeDasharray: `${t} ${c}` }} />
+      <circle cx="48" cy="48" r={r} transform="rotate(-90 48 48)" style={{ fill: 'none', stroke: 'var(--gold)', strokeWidth: 12, strokeDasharray: `${rv} ${c}`, strokeDashoffset: -t }} />
+      <text x="48" y="50" textAnchor="middle" style={{ fill: 'var(--ink)', fontSize: 21, fontWeight: 800 }}>{x.tersedia}</text>
+      <text x="48" y="64" textAnchor="middle" style={{ fill: 'var(--muted)', fontSize: 9.5, fontWeight: 700 }}>tersedia</text>
+    </svg>
+    <div><b>{x.project}</b><div className="hint">dari {x.total} unit</div>
+      <div className="rb-mini"><span><i style={{ background: 'var(--red)' }} />{x.terjual} terjual</span><span><i style={{ background: 'var(--gold)' }} />{x.reserved} reserved</span></div>
+      <span className="rb-pct">{Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100)}% terserap</span></div>
+  </div>);
+}
+
 // ===== Beranda Manager & CEO Project =====
 const KELAS_KPR = { berjalan: 'kp-run', sp3k: 'kp-ok', akad: 'kp-ok', selesai: 'kp-done', ditolak: 'kp-no' };
 const tglPendek = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '';
@@ -240,36 +301,38 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
       </div>}
     </div>
     <div className="bd-grid">
-      <section className="bd-hero bd-span2">
-        <div className="bd-hero-top"><span>Penjualan &amp; reservasi bulan ini</span><span className="bd-chip-dark">diakui saat Booking</span></div>
-        <div className="bd-duo">
-          <div><span>Booking</span><b>{j.n}</b><em>unit · {rpRingkas(j.nilai)}</em></div>
-          <div><span>Reserved</span><b>{j.reservedN}</b><em>unit{j.reservedNilai ? ' · ' + rpRingkas(j.reservedNilai) + ' tanda jadi' : ''}</em></div>
-        </div>
-        <div className="bd-chips"><span>{naik > 0 ? '▲' : naik < 0 ? '▼' : '•'} Booking bulan lalu periode sama: {j.laluN} unit</span>
-          {j.perProject.length > 1 && <span>{j.perProject.map(p => `${p.project || '-'} ${p.n}`).join(' · ')}</span>}</div>
-      </section>
-      <section className="bd-card">
-        <span className="bd-label">Stok unit</span>
-        {d.stok.map(x => (<div key={x.project}>
-          <div className="bd-head"><b style={{ fontSize: 13 }}>{x.project}</b><span><b className="bd-gold">{x.tersedia}</b> <span className="hint">tersedia / {x.total}</span></span></div>
-          <div className="bd-bar tipis"><div style={{ width: Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100) + '%' }} /></div>
-        </div>))}
-        <Link href="/stock" className="bd-more">Master Stock</Link>
-      </section>
-      <Link href="/janjian?tab=visitor" className="bd-card bd-vlink" aria-label="Lihat detail visitor hari ini">
-        <div className="bd-head"><span className="bd-label">Visitor hari ini</span><span className="bd-more">Lihat detail ›</span></div>
-        <div><b className="bd-num">{d.janjian?.visitor?.total ?? 0}</b> <span className="hint">orang datang</span></div>
-        {d.janjian?.visitor && <div className="bd-chips kp">
-          {d.janjian.visitor.janji ? <span className="kp-pill sm kp-ok">{d.janjian.visitor.janji} janji temu</span> : null}
-          {d.janjian.visitor.walkin ? <span className="kp-pill sm kp-wait">{d.janjian.visitor.walkin} walk in</span> : null}
-          {d.janjian.visitor.tanpa ? <span className="kp-pill sm kp-wait">{d.janjian.visitor.tanpa} tanpa janji</span> : null}
-          {d.janjian.visitor.trx ? <span className="kp-pill sm kp-done">{d.janjian.visitor.trx} Reserved/Booking</span> : null}
-          {d.janjian.visitor.akanDatang ? <span className="kp-pill sm kp-run">{d.janjian.visitor.akanDatang} akan datang</span> : null}</div>}
-        {d.janjian?.spark && <div className="bd-spark" aria-hidden="true">{d.janjian.spark.map(x => (
-          <i key={x.tgl} title={`${x.hari}: ${x.n}`} style={{ height: Math.max(6, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} />))}</div>}
-        <span className="hint">7 hari terakhir · klik untuk daily visitor &amp; janji temu</span>
-      </Link>
+      {/* ===== Ringkasan atas: 3 kartu KPI ===== */}
+      <div className="bd-span4 rb-kpi3">
+        <section className="rb-k rb-emas">
+          <div className="rb-lbl"><span>Booking bulan ini</span><span>diakui saat Booking</span></div>
+          <div className="rb-big">{j.n}<small>unit · {rpRingkas(j.nilai)}</small></div>
+          <span className="rb-naik">{naik > 0 ? '▲' : naik < 0 ? '▼' : '•'} {naik > 0 ? '+' : ''}{naik} vs bulan lalu periode sama{j.perProject.length > 1 ? ' · ' + j.perProject.map(p => `${singkatProj(p.project)} ${p.n}`).join(' · ') : ''}</span>
+          <SparkBooking data={d.bookingHarian || []} />
+        </section>
+        <section className="rb-k">
+          <div className="rb-lbl"><span>Reserved aktif</span></div>
+          <div className="rb-big">{d.reservedAktif?.n ?? j.reservedN}<small>unit</small></div>
+          <span className="hint">Tanda jadi {rpRingkas(d.reservedAktif?.nilai || 0)} · menunggu naik Booking</span>
+          {(d.reservedAktif?.perProject || []).length > 0 && <div className="rb-tags">{d.reservedAktif.perProject.map(p => <span key={p.project} className="kp-pill sm kp-ok">{singkatProj(p.project)} {p.n}</span>)}</div>}
+        </section>
+        <Link href="/janjian?tab=visitor" className="rb-k rb-vlink" aria-label="Lihat detail visitor hari ini">
+          <div className="rb-lbl"><span>Visitor hari ini</span><span className="rb-more">Lihat detail ›</span></div>
+          <div className="rb-big">{d.janjian?.visitor?.total ?? 0}<small>orang</small></div>
+          {d.janjian?.spark && <div className="rb-vbar" aria-hidden="true">{d.janjian.spark.map(x => (
+            <div key={x.tgl}><i style={{ height: Math.max(5, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} /><span>{x.hari.slice(0, 3)}</span></div>))}</div>}
+          <span className="hint">{(d.janjian?.spark || []).reduce((a, x) => a + x.n, 0)} visitor 7 hari terakhir{d.janjian?.visitor?.akanDatang ? ` · ${d.janjian.visitor.akanDatang} akan datang hari ini` : ''}</span>
+        </Link>
+      </div>
+
+      {/* ===== Tren booking tahun berjalan + stok per project ===== */}
+      <div className="bd-span4 rb-row2">
+        {d.tren && <TrenBooking tren={d.tren} />}
+        <section className="bd-card rb-stok">
+          <div className="bd-head"><h2 className="bd-h2">Stok unit per project</h2><Link href="/stock" className="bd-more">Master Stock ›</Link></div>
+          {d.stok.map((x, i) => <DonutStok key={x.project} x={x} garis={i > 0} />)}
+          <div className="rb-legend"><span><i style={{ background: 'var(--red)' }} />terjual</span><span><i style={{ background: 'var(--gold)' }} />reserved</span><span><i style={{ background: 'var(--line)' }} />tersedia</span></div>
+        </section>
+      </div>
       {!isCeo && <section className="bd-card bd-span4">
         <div className="bd-head"><h2 className="bd-h2">Perlu perhatian</h2><span className="hint">diurutkan dari yang paling mendesak</span></div>
         {d.perhatian.length ? d.perhatian.map((p, i) => (
@@ -285,11 +348,7 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         <TabelKpr rows={d.kpr} lengkap />
       </section>)}
 
-      {d.tim && (<section className="bd-card bd-span2">
-        <div className="bd-head"><h2 className="bd-h2">Tim hari ini</h2><Link href="/log" className="bd-more">Log Aktivitas</Link></div>
-        <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
-        <span className="hint">{d.tim.belum.length ? 'Belum aktif: ' + d.tim.belum.slice(0, 6).join(', ') + (d.tim.belum.length > 6 ? '…' : '') + ' · ' : ''}{d.tim.gagal} login gagal · {d.tim.input} input/update data hari ini</span>
-      </section>)}
+
       <div className="bd-bagian bd-span4">Marketing &amp; tim sales</div>
       <section className="bd-card bd-span2">
         <span className="bd-label">Biaya marketing bulan ini</span>
@@ -337,6 +396,11 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         {!isCeo && <span className="hint">Respon = median jam dari lead dioper (oleh Marcom/manager) sampai FU pertama oleh sales itu, bulan ini. Klik angkanya untuk rincian per lead.</span>}
       </section>
 
+      {!isCeo && d.tim && (<section className="bd-card bd-span4">
+        <div className="bd-head"><h2 className="bd-h2">Log aktivitas tim hari ini</h2><Link href="/log" className="bd-more">Buka Log Aktivitas ›</Link></div>
+        <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
+        <span className="hint">{d.tim.belum.length ? 'Belum aktif: ' + d.tim.belum.slice(0, 6).join(', ') + (d.tim.belum.length > 6 ? '…' : '') + ' · ' : ''}{d.tim.gagal} login gagal · {d.tim.input} input/update data hari ini</span>
+      </section>)}
     </div>
   </>);
 }
