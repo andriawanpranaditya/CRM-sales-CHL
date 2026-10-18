@@ -17,9 +17,9 @@ export async function GET(req) {
   const sql = db();
   const semua = new URL(req.url).searchParams.get('all') === '1';
   let rows;
-  if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
-  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY f.tgl DESC, f.id DESC`;
-  else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`;
+  if (user.role === 'sales') rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, (SELECT x.name FROM users x WHERE x.username = f.created_by) AS oleh_nama FROM followups f JOIN leads l ON l.lead_code = f.lead_code WHERE l.sales = ${user.name} ORDER BY f.tgl DESC, f.id DESC`;
+  else if (user.role === 'markom' && !semua) rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, (SELECT x.name FROM users x WHERE x.username = f.created_by) AS oleh_nama FROM followups f JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom' ORDER BY f.tgl DESC, f.id DESC`;
+  else rows = await sql`SELECT f.*, l.nama, l.project, l.sales, l.wa, (SELECT x.name FROM users x WHERE x.username = f.created_by) AS oleh_nama FROM followups f LEFT JOIN leads l ON l.lead_code = f.lead_code ORDER BY f.tgl DESC, f.id DESC`;
   if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
   return Response.json(rows);
 }

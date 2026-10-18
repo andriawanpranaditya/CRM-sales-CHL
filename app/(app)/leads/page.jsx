@@ -71,11 +71,12 @@ export default function LeadsPage() {
   const salesList = useMemo(() => leads ? [...new Set(leads.map(l => l.sales).filter(Boolean))].sort() : [], [leads]);
 
   // Waktu follow up terakhir per lead (pesan otomatis WA tidak dihitung)
-  const fuTerakhir = useMemo(() => {
-    const m = {};
-    (fus || []).forEach(f => { if (f.created_by === 'auto-wa') return; const t = f.created_at || f.tgl; if (t && (!m[f.lead_code] || t > m[f.lead_code])) m[f.lead_code] = t; });
-    return m;
+  const [fuTerakhir, fuRec] = useMemo(() => {
+    const m = {}, rec = {};
+    (fus || []).forEach(f => { if (f.created_by === 'auto-wa') return; const t = f.created_at || f.tgl; if (t && (!m[f.lead_code] || t > m[f.lead_code])) { m[f.lead_code] = t; rec[f.lead_code] = f; } });
+    return [m, rec];
   }, [fus]);
+  const jamFU = t => new Date(t).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const rows = useMemo(() => {
     if (!leads) return [];
     let r = leads.filter(l =>
@@ -216,9 +217,9 @@ export default function LeadsPage() {
       </div>
       {fKode && <div className="lead-fokus">Menampilkan {fKode} dari Beranda — riwayat oper &amp; follow up terbuka di bawah.
         <button className="sort-btn" onClick={() => { setFKode(''); window.history.replaceState(null, '', '/leads'); }}>Tampilkan semua lead</button></div>}
-      <div className="tbl-wrap tbl-compact"><table>
-        <thead><tr><th>ID / Tgl</th><th>Nama / WA</th><th>Sumber</th><th>Project / Tipe</th>
-          <th className="num">Budget</th><th>Sales</th><th>Status</th><th>Next FU</th><th>Catatan</th><th>Aksi</th></tr></thead>
+      <div className="tbl-wrap tbl-compact tbl-leads"><table>
+        <thead><tr><th className="c-lead">ID / Tgl</th><th className="c-nama">Nama / WA</th><th className="c-src">Sumber</th><th className="c-proj">Project / Tipe / Budget</th>
+          <th className="c-sales">Sales</th><th className="c-status">Status</th><th className="c-fu">Catatan FU terakhir</th><th className="c-next">Next FU</th><th className="c-cat">Catatan lead</th><th className="c-aksi">Aksi</th></tr></thead>
         <tbody>
           {rows.length ? rows.map(l => {
             const c = SEL[l.status] || ['var(--gray-soft)', 'var(--ink)'];
@@ -230,8 +231,7 @@ export default function LeadsPage() {
                 <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
               <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
               <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}{l.sumber_detail ? <span className="sub2">{l.sumber_detail}</span> : null}</td>
-              <td data-label="Project / Tipe">{l.project}<span className="sub2">{l.tipe}</span></td>
-              <td className="num" data-label="Budget">{fmtRp(l.budget)}</td>
+              <td data-label="Project / Tipe / Budget">{l.project}<span className="sub2">{[l.tipe, l.budget ? fmtRp(l.budget) : ''].filter(Boolean).join(' · ') || '—'}</span></td>
               <td data-label="Sales">{l.sales || (l.creator_role === 'markom' ? <span className="badge b-warm">Marcom · belum dioper</span> : <span className="hint">—</span>)}{l.sales && l.creator_role === 'markom' ? <div className="hint">dari marcom</div> : null}</td>
               <td data-label="Status">
                 <select className="status-sel" style={{ background: c[0], color: c[1] }} value={l.status}
@@ -239,14 +239,17 @@ export default function LeadsPage() {
                   onChange={e => ubahStatus(l.id, e.target.value)}>
                   {(set.status || []).map(s => <option key={s}>{s}</option>)}
                 </select>
-                {sortBy === 'fu' && <span className="sub2">{fuTerakhir[l.lead_code] ? 'FU terakhir ' + new Date(fuTerakhir[l.lead_code]).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'belum pernah di-FU'}</span>}
               </td>
+              <td data-label="Catatan FU terakhir">{fuRec[l.lead_code] ? (<>
+                <span className="clamp2">{fuRec[l.lead_code].detail || fuRec[l.lead_code].next_action || '—'}</span>
+                <span className="sub2">{jamFU(fuTerakhir[l.lead_code])}{fuRec[l.lead_code].oleh_nama || fuRec[l.lead_code].created_by ? ' · ' + (fuRec[l.lead_code].oleh_nama || fuRec[l.lead_code].created_by) : ''}</span></>)
+                : <span className="hint">belum pernah di-FU</span>}</td>
               <td data-label="Next FU">{l.next_fu ? <>{fmtDate(l.next_fu)}{r && <span className="sub2"><span className={'badge ' + r[1]}>{r[0]}</span></span>}</> : <span style={{ color: 'var(--muted)' }}>—</span>}</td>
-              <td data-label="Catatan">{l.catatan}</td>
-              <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+              <td data-label="Catatan lead">{l.catatan ? <span className="clamp2" title={l.catatan}>{l.catatan}</span> : <span className="hint">—</span>}</td>
+              <td data-label="Aksi"><span style={{ display: 'inline-flex', gap: 6 }}>
                 {/* Edit lead: membuka Form Input dalam mode edit (manager, CEO, marcom, sales pemilik lead) */}
-                {me && me.role !== 'admin' && <a className="sort-btn" style={{ padding: '4px 9px', textDecoration: 'none' }} href={'/form?edit=' + encodeURIComponent(l.lead_code)} onClick={e => e.stopPropagation()}>✏️ Edit</a>}
-                {me && me.role === 'manager' && <button className="sort-btn" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }}>Hapus</button>}
+                {me && me.role !== 'admin' && <a className="sort-btn aksi-ik" style={{ padding: '4px 9px', textDecoration: 'none' }} href={'/form?edit=' + encodeURIComponent(l.lead_code)} onClick={e => e.stopPropagation()} title="Edit lead" aria-label={'Edit lead ' + l.nama}>✏️</a>}
+                {me && me.role === 'manager' && <button className="sort-btn aksi-ik" style={{ color: 'var(--red)', borderColor: 'var(--red-soft)', padding: '4px 9px' }} onClick={e => { e.stopPropagation(); hapus(l); }} title="Hapus lead" aria-label={'Hapus lead ' + l.nama}>🗑</button>}
               </span></td>
               </tr>
               {sel === l.lead_code && (

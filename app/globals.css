@@ -62,7 +62,7 @@ button{font:inherit}
 .side-foot .u-role{font-size:10px;color:var(--brass);letter-spacing:1px;text-transform:uppercase}
 .btn-logout{background:none;border:1px solid var(--side-line);color:var(--side-strong);border-radius:999px;padding:5px 10px;font-size:11px;cursor:pointer}
 .btn-logout:hover{border-color:var(--side-fg)}
-.main{flex:1;margin-left:228px;padding:26px 30px 90px;max-width:1200px}
+.main{flex:1;min-width:0;margin-left:228px;padding:26px 30px 90px;max-width:1200px}
 .m-topbar{display:none}
 
 .page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:18px}
@@ -489,3 +489,17 @@ th.num{text-align:right}
 
 .jj-nama{font-weight:800;color:var(--ink);text-decoration:none}.jj-nama:hover{color:var(--brass-deep);text-decoration:underline}
 .jj-asal{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.jj-asal a{color:var(--brass-deep);font-weight:700;text-decoration:none}.jj-asal a:hover{text-decoration:underline}
+
+/* ===== Database Lead: kolom lebih terbaca (lebar kolom hanya untuk layar laptop; HP tetap tampilan kartu) ===== */
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4;overflow-wrap:anywhere}
+.tbl-leads .sub2{display:block;margin-top:2px}
+@media(min-width:761px){
+  .tbl-leads table{font-size:12.5px;min-width:980px}
+  .tbl-leads th{font-size:10px;white-space:nowrap;padding:8px 6px}
+  .tbl-leads td{vertical-align:top;padding:9px 6px}
+  .tbl-leads .c-lead{width:84px}.tbl-leads .c-nama{min-width:112px}.tbl-leads .c-src{min-width:80px}.tbl-leads .c-proj{min-width:100px}
+  .tbl-leads .c-sales{min-width:66px}.tbl-leads .c-status{width:104px}.tbl-leads .c-fu{min-width:170px}.tbl-leads .c-next{width:82px}
+  .tbl-leads .c-cat{min-width:110px}.tbl-leads .c-aksi{width:70px}
+  .tbl-leads .aksi-ik{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0!important;border-radius:999px}
+}
+@media(max-width:760px){.tbl-leads .clamp2{-webkit-line-clamp:3;text-align:right}}
