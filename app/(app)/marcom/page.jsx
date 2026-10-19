@@ -75,6 +75,7 @@ export default function MarcomPage() {
   const [personaEdit, setPersonaEdit] = useState(null); // { project, areaInti, areaLuas, hargaMin, usiaMin, usiaMax, tujuan, catatan }
   const [kSort, setKSort] = useState({ key: 'tgl', dir: 'desc' }); // urutan tabel konten
   const [showSpendManual, setShowSpendManual] = useState(false);
+  const [showCampManual, setShowCampManual] = useState(false); // form daftar campaign manual (TikTok / YouTube / Offline) — disembunyikan bila Meta & Google sudah otomatis
   const [gb, setGb] = useState(null); // { dari, ke }
   const AM0 = { campaign: '', keterangan: '', total: '', mulai: todayISO().slice(0, 7), bulan: '3' };
   const [am, setAm] = useState(AM0);
@@ -818,7 +819,12 @@ export default function MarcomPage() {
       </>)}
 
       {tab === 'iklan' && (<>
-        <div className="card" style={{ marginBottom: 12 }}>
+        {metaApi && !showCampManual && !cEdit && (
+          <div className="card" style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span className="hint">Campaign <b>Meta &amp; Google Ads</b> terdaftar otomatis beserta spend-nya. Form manual hanya untuk TikTok, YouTube, atau Offline (event, banner, kanvasing).</span>
+            <button className="sort-btn" onClick={() => { setShowCampManual(true); if (String(c.platform || '').startsWith('Meta') || c.platform === 'Google') setC({ ...c, platform: 'Tiktok' }); }}>➕ Daftarkan campaign manual</button>
+          </div>)}
+        {(!metaApi || showCampManual || cEdit) && <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>{cEdit ? 'Edit Campaign' : 'Daftarkan Campaign'} <span className="hint">{metaApi ? '(campaign Meta & Google Ads terdaftar otomatis — daftarkan manual untuk TikTok & Offline, atau lebih dulu agar namanya seragam)' : '(nama HARUS sama dengan utm_campaign & nama di platform iklan)'}</span></h3>
           <div className="form-grid">
             {cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign (terkunci)</label><input value={c.nama} disabled style={{ fontFamily: 'monospace', fontWeight: 700 }} /></div>}
@@ -827,7 +833,7 @@ export default function MarcomPage() {
             {!cEdit && <div className="field"><label>Bulan</label><select {...fc('bulan')}>{bulanOpts.map(b => <option key={b}>{b}</option>)}</select></div>}
             {!cEdit && <div className="field"><label>Pembeda (opsional)</label><input {...fc('extra')} placeholder="mis. lebaran / retargeting" /></div>}
             {!cEdit && <div className="field" style={{ gridColumn: '1/-1' }}><label>Nama Campaign — otomatis, pakai nama ini juga di Ads Manager</label><input value={namaGen} readOnly onFocus={e => e.target.select()} style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--green)' }} /></div>}
-            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM_C.map(p => <option key={p}>{p}</option>)}{c.platform && !PLATFORM_C.includes(c.platform) && <option>{c.platform}</option>}</select></div>
+            <div className="field"><label>Platform</label><select {...fc('platform')}>{PLATFORM_C.filter(p => !metaApi || cEdit || !(p.startsWith('Meta') || p === 'Google')).map(p => <option key={p}>{p}</option>)}{c.platform && !PLATFORM_C.includes(c.platform) && <option>{c.platform}</option>}</select></div>
             <div className="field"><label>Budget Rencana (Rp)</label><InputRupiah {...fc('budget')} /></div>
             <div className="field"><label>Status</label><select {...fc('status')}><option>Aktif</option><option>Selesai</option></select></div>
             <div className="field" style={{ gridColumn: '1/-1' }}><label>Catatan</label><input {...fc('catatan')} placeholder="target audiens, penempatan, dsb" /></div>
@@ -836,7 +842,7 @@ export default function MarcomPage() {
             <button className="btn btn-primary" disabled={busy} onClick={() => { if (!cEdit && !c.project) return toast('Pilih project dulu'); simpan('campaign', { ...c, nama: cEdit ? c.nama : namaGen }, cEdit, () => { setCEdit(null); setC({ ...C0 }); }); }}>{cEdit ? 'Simpan Perubahan' : 'Simpan Campaign'}</button>
             {cEdit && <button className="sort-btn" onClick={() => { setCEdit(null); setC(C0); }}>Batal edit</button>}
           </div>
-        </div>
+        </div>}
 
         {lk && (() => {
           const salin = async (teks, apa) => { try { await navigator.clipboard.writeText(teks); toast(apa + ' tersalin 📋'); } catch { window.prompt('Salin manual:', teks); } };
@@ -981,7 +987,7 @@ export default function MarcomPage() {
           <div className="form-grid">
             <div className="field"><label>Tanggal</label><input type="date" {...fa('tgl')} /></div>
             <div className="field"><label>Campaign <span className="req">*</span></label>
-              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif' && !(metaApi && String(x.platform || '').startsWith('Meta'))).map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
+              <select {...fa('campaign')}><option value="">— pilih —</option>{camps.filter(x => x.status === 'Aktif' && !(metaApi && (String(x.platform || '').startsWith('Meta') || x.platform === 'Google'))).map(x => <option key={x.id} value={x.nama}>{x.nama}</option>)}</select>
               {a.campaign && (() => { const sa = (data.spendAll || []).find(r => r.campaign === a.campaign); return <span className="hint" style={{ color: 'var(--brass)' }}>{sa ? `Sudah tercatat ${fmtRp(sa.total)} dari ${sa.entri} entri (terakhir ${fmtDate(sa.terakhir)}). Isi spend SEJAK entri terakhir saja, bukan total.` : 'Belum ada entri — isi spend sejak campaign mulai sampai tanggal ini.'}</span>; })()}</div>
             <div className="field"><label>Kreatif (utm_content)</label><input {...fa('kreatif')} placeholder="reels-01" /></div>
             <div className="field"><label>Spend (Rp)</label><InputRupiah {...fa('spend')} /></div>
