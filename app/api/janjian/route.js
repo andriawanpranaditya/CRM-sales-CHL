@@ -6,7 +6,7 @@ import { siapkanJanjian, lokasiJanjian, perluUpdate, sekarangWIB, namaHari, JENI
 
 export const dynamic = 'force-dynamic';
 
-const PERAN = ['manager', 'ceo', 'sales'];
+const PERAN = ['manager', 'ceo', 'sales', 'markom']; // Marcom: lihat daily visitor & janji temu, boleh buat janji temu / catat visitor
 const tglOk = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const jamOk = v => /^\d{2}:\d{2}$/.test(String(v || ''));
 const tglStr = t => (t instanceof Date ? t.toISOString() : String(t || '')).slice(0, 10);
@@ -150,6 +150,10 @@ export async function GET(req) {
   if (user.role === 'sales') {
     leads = await sql`SELECT lead_code, nama, project, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 500`;
     leads = leads.filter(l => lihatBaris(user, { ...l, sales: user.name }));
+  } else {
+    // Marcom / Manager / CEO: semua lead aktif (sesuai akses project) — janji temu tercatat atas nama sales pemilik lead
+    leads = await sql`SELECT lead_code, nama, project, status, sales, created_by FROM leads WHERE status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 800`;
+    leads = leads.filter(l => lihatBaris(user, l));
   }
   return Response.json({ rows: out, now, leads, lokasi: await lokasiJanjian(sql), JENIS: JENIS_JANJIAN, HASIL: HASIL_VISIT });
 }

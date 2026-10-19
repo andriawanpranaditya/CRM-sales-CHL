@@ -79,7 +79,7 @@ export default function JanjianPage() {
         <div className="sub">Daily visitor marketing gallery dan janji temu konsumen — buat janji, reschedule, batal, catat kedatangan</div></div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {me?.role === 'manager' && <button className="sort-btn" onClick={() => setAtur(JSON.parse(JSON.stringify(d?.lokasi || {})))}>⚙ Lokasi per project</button>}
-          {me?.role === 'sales' && <button className="btn btn-primary" onClick={bukaBaru}>+ Janjian baru</button>}
+          {me && me.role !== 'admin' && <button className="btn btn-primary" onClick={bukaBaru}>+ Janjian baru</button>}
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export default function JanjianPage() {
             <div className="form-grid">
               <div className="field full"><label>Lead</label>
                 <select value={sheet.f.lead_code} onChange={e => { const l = (d.leads || []).find(x => x.lead_code === e.target.value); setF({ lead_code: e.target.value, lokasi: l ? (opsiLokasi(l.project)[0] || '') : '' }); }}>
-                  <option value="">— pilih lead aktif Anda —</option>{(d.leads || []).map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama} ({l.status})</option>)}</select>
+                  <option value="">{me?.role === 'sales' ? '— pilih lead aktif Anda —' : '— pilih lead —'}</option>{(d.leads || []).map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama}{l.sales && me?.role !== 'sales' ? ' · ' + l.sales : ''} ({l.status})</option>)}</select>
                 {leadPilih && <span className="hint">{leadPilih.project} · status sekarang {leadPilih.status}</span>}</div>
               <div className="field"><label>Jenis janjian</label>
                 <select value={sheet.f.jenis} onChange={e => setF({ jenis: e.target.value, lokasi: e.target.value === 'Online meeting' ? 'Online' : e.target.value === 'Ketemu di luar' ? '' : (opsiLokasi(leadPilih?.project)[0] || '') })}>

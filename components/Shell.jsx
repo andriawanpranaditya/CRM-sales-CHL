@@ -12,7 +12,7 @@ const MENUS = [
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
-  { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales'] },
+  { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
@@ -72,7 +72,8 @@ export default function Shell({ user, children }) {
     if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
-    if (['markom', 'admin'].includes(user.role) && (path.startsWith('/kpr-proses') || path.startsWith('/janjian'))) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
+    if (['markom', 'admin'].includes(user.role) && path.startsWith('/kpr-proses')) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
+    if (user.role === 'admin' && path.startsWith('/janjian')) router.replace('/dashboard');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
     if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log'))) router.replace('/dashboard');
     if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten')) router.replace('/beranda');
