@@ -46,6 +46,7 @@ async function _POST(req) {
   const b = await req.json();
   if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
+  if (b.status === 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   const sales = user.role === 'sales' ? user.name : (b.sales || '');
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
@@ -81,6 +82,7 @@ async function _POST(req) {
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${id}`;
+  if (b.status === 'Drop') await tandaiOleh(sql, code, user.username, String(b.alasan).trim());
   // Catat serah terima awal bila lead langsung punya PIC (tidak boleh menggagalkan penyimpanan)
   if (sales) {
     try {

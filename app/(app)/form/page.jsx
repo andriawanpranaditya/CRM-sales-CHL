@@ -600,8 +600,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}</select>}
           </div>}
-          {!isMarkom && <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>}
-          {!isMarkom && lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
+          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
+            {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>
+          {lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
             <input value={lead.alasan || ''} onChange={e => setLead({ ...lead, alasan: e.target.value })} list="dl-alasan-drop-lead" placeholder="mis. tidak ada respon sampai Day-60 / sudah beli di tempat lain" />
             <datalist id="dl-alasan-drop-lead">{['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'].map(o => <option key={o} value={o} />)}</datalist></div>}
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
