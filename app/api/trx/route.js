@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic';
 
 // Jumlah cicilan untuk Cash Bertahap (mis. 24x) — tampil di Laporan Penjualan
 let kolomCicilan = false;
-async function siapkanCicilan(sql) { if (kolomCicilan) return; try { await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`; kolomCicilan = true; } catch {} }
+async function siapkanCicilan(sql) { if (kolomCicilan) return; try { await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`; await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS datang boolean`; kolomCicilan = true; } catch {} }
+// Konsumen datang ke marketing gallery saat Reserved/Booking? (hanya yang 'datang' dihitung visitor)
+const datangDari = b => (b.datang === true || b.datang === 'true' || b.datang === 1 ? true : b.datang === false || b.datang === 'false' || b.datang === 0 ? false : null);
 const cicilanDari = b => (/bertahap/i.test(b.bayar || '') && Number(b.cicilan) > 0 ? Math.round(Number(b.cicilan)) : null);
 
 export async function GET() {
@@ -103,9 +105,9 @@ async function _POST(req) {
     }
   }
   await siapkanCicilan(sql);
-  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, created_by)
+  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, datang, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
-            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${user.username})`;
+            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${datangDari(b)}, ${user.username})`;
   if (idn && b.jenis !== 'Batal') {
     await sql`CREATE TABLE IF NOT EXISTS konsumen (lead_code text PRIMARY KEY, nama_ktp text, nik text, npwp text, email text, alamat text, rt_rw text,
       kel_desa text, kecamatan text, kota_kab text, provinsi text, alamat_domisili text, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
@@ -184,7 +186,7 @@ async function _PATCH(req) {
   await sql`UPDATE transactions SET
       tgl = ${b.tgl || null}, jenis = ${b.jenis}, nilai = ${Number(b.nilai) || 0},
       nilai_jual = ${b.nilai_jual ? Number(b.nilai_jual) : null},
-      project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''}, cicilan = ${cicilanDari(b)},
+      project = ${b.project || ''}, bayar = ${b.bayar || ''}, unit = ${b.unit || ''}, cicilan = ${cicilanDari(b)}, datang = ${datangDari(b)},
       catatan = ${catatan}
     WHERE id = ${b.id}`;
   await sinkronStatus(sql, rows[0].lead_code, user.username, `Transaksi diedit → ${b.jenis}`);

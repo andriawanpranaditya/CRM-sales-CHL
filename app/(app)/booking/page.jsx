@@ -140,6 +140,9 @@ export default function BookingPage() {
             </div>
             <div className="field"><label>Cara Bayar</label>
               <input value={edit.bayar || ''} onChange={e => setEdit({ ...edit, bayar: e.target.value })} /></div>
+            {['Reserved', 'Booking'].includes(edit.jenis) && <div className="field"><label>Konsumen datang ke marketing gallery?</label>
+              <select value={edit.datang === true ? 'ya' : edit.datang === false ? 'tidak' : ''} onChange={e => setEdit({ ...edit, datang: e.target.value === 'ya' ? true : e.target.value === 'tidak' ? false : null })}>
+                <option value="">— belum diisi —</option><option value="ya">Ya, datang langsung (dihitung visitor)</option><option value="tidak">Tidak (transfer / online / diwakilkan)</option></select></div>}
             {/bertahap/i.test(edit.bayar || '') && <div className="field"><label>Jumlah Cicilan (×)</label>
               <input type="number" min="2" max="120" value={edit.cicilan || ''} onChange={e => setEdit({ ...edit, cicilan: e.target.value })} placeholder="mis. 24" /></div>}
             <div className="field" style={{ gridColumn: '1 / -1' }}><label>Catatan</label>

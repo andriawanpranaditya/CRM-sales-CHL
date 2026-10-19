@@ -148,7 +148,7 @@ export default function FormPage() {
   const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
-  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '' });
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null });
   const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
   const [idn, setIdn] = useState(IDN0);
   const [idnInfo, setIdnInfo] = useState(''); // keterangan asal data identitas
@@ -514,6 +514,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
     if (!Number(trx.nilai)) return toast('Nilai (Rp) wajib diisi angka');
+    if (['Reserved', 'Booking'].includes(trx.jenis) && trx.datang !== true && trx.datang !== false) return toast('Pilih: konsumen datang ke marketing gallery atau tidak');
     if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.ktp && berkas.transfer) {
       return toast('Upload KTP dulu untuk transaksi pertama di unit ini.');
     }
@@ -533,7 +534,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     try {
       await api('/api/trx', { method: 'POST', body: JSON.stringify({ ...trx, identitas: trx.jenis !== 'Batal' ? idn : null }) });
       toast('Transaksi tersimpan — status pipeline ter-update');
-      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '' });
+      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null });
       setIdn(IDN0); setIdnInfo('');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
@@ -802,6 +803,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               <span className="hint">Otomatis mengikuti pemilik lead; tercatat di Master Stock, report Word, PDF &amp; Excel.</span></div>;
           })()}
           <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
+          {['Reserved', 'Booking'].includes(trx.jenis) && <div className="field full"><label>Konsumen datang ke marketing gallery?</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[[true, 'Ya, datang langsung'], [false, 'Tidak (transfer / online / diwakilkan)']].map(([v, l]) => <button type="button" key={String(v)} className={'sort-btn' + (trx.datang === v ? ' active' : '')} onClick={() => setTrx({ ...trx, datang: v })}>{l}</button>)}</div>
+            <span className="hint">Hanya yang datang langsung dihitung sebagai visitor di menu Janjian &amp; Visitor</span></div>}
           {/bertahap/i.test(trx.bayar || '') && <div className="field"><label>Jumlah Cicilan (×)</label><input type="number" min="2" max="120" {...ft('cicilan')} placeholder="mis. 24" />
             <span className="hint">Berapa kali cicilan — tampil di Laporan Penjualan sebagai "Cash Bertahap 24x"</span></div>}
           <div className="field" style={{ gridColumn: '1 / -1' }}>
