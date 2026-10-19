@@ -239,6 +239,7 @@ export default function FormPage() {
     if (!isMarkom && !lead.sales) return toast('Sales / PIC wajib dipilih');
     if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
     { const dt = detailUntuk(lead); if (dt?.wajib && !String(lead.sumber_detail || '').trim()) return toast('Isi ' + dt.label.toLowerCase()); }
+    if (lead.status === 'Drop' && !String(lead.alasan || '').trim()) return toast('Alasan drop wajib diisi');
     setBusy(true);
     try {
       if (editId) {
@@ -459,7 +460,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     if (!isMarkom && fu.balas === null) return toast('Pilih dulu: apakah lead membalas?');
     if (isMarkom && !fu.next_action) return toast('Pilih Next Action: Lanjut Follow Up atau Drop');
     if (isMarkom && fu.next_action === 'Lanjut Follow Up' && !fu.next_tgl) return toast('Isi Tgl Next Follow Up untuk jadwal day berikutnya');
-    if (isMarkom && fu.next_action === 'Drop' && !(fu.objection || '').trim()) return toast('Isi alasan drop');
+    if ((fu.next_action === 'Drop' || fu.status === 'Drop') && !(fu.objection || '').trim()) return toast('Alasan drop wajib diisi');
     // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
     const leadFu = leads.find(x => x.lead_code === fu.lead_code);
     const pesan = (fu.wa_pesan || '').trim();
@@ -600,6 +601,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}</select>}
           </div>}
           {!isMarkom && <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select></div>}
+          {!isMarkom && lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
+            <input value={lead.alasan || ''} onChange={e => setLead({ ...lead, alasan: e.target.value })} list="dl-alasan-drop-lead" placeholder="mis. tidak ada respon sampai Day-60 / sudah beli di tempat lain" />
+            <datalist id="dl-alasan-drop-lead">{['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'].map(o => <option key={o} value={o} />)}</datalist></div>}
           <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
           <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
         </div>
@@ -675,7 +679,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).map(o => <option key={o}>{o}</option>)}
             </select>
             <span className="hint">Ubah bila ada perkembangan — mis. sudah survey → Site Visit</span></div>}
-          {!isMarkom && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
+          {!isMarkom && fu.next_action !== 'Drop' && fu.status !== 'Drop' && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
           {!isMarkom && <div className="field"><label>Next Action</label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: TANPA_NEXT.includes(e.target.value) ? '' : fu.next_tgl })}>
               <option value="">— pilih —</option>
@@ -690,7 +694,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               <option value="Lanjut Follow Up">Lanjut Follow Up — jadwalkan day berikutnya</option>
               <option value="Drop">Drop — hentikan follow up</option>
             </select></div>}
-          {isMarkom && fu.next_action === 'Drop' && <div className="field"><label>Alasan Drop <span className="req">*</span></label>
+          {(fu.next_action === 'Drop' || fu.status === 'Drop') && <div className="field"><label>Alasan Drop <span className="req">*</span></label>
             <input value={fu.objection} onChange={e => setFu({ ...fu, objection: e.target.value })} list="dl-alasan-drop" placeholder="mis. tidak ada respon sampai Day-60 / salah sambung / sudah beli di tempat lain" />
             <datalist id="dl-alasan-drop">{['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'].map(o => <option key={o} value={o} />)}</datalist></div>}
           {!(isMarkom && fu.next_action === 'Drop') && <div className="field"><label>Tgl Next Follow Up{isMarkom && fu.next_action === 'Lanjut Follow Up' ? <span className="req"> *</span> : null}{TANPA_NEXT.includes(fu.next_action) ? ' (nonaktif — ' + fu.next_action + ')' : ''}</label>

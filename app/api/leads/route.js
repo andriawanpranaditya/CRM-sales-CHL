@@ -100,6 +100,8 @@ async function _PATCH(req) {
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
+  // Alasan drop wajib diisi saat status diubah ke Drop (tercatat di riwayat status & report)
+  if (b.status === 'Drop' && cur.status !== 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   if (user.role === 'sales' && cur.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
   }
@@ -134,7 +136,7 @@ async function _PATCH(req) {
     sumber_detail = ${perluDetail(m) ? String(m.sumber_detail || '').trim().slice(0, 200) : ''},
     updated_at = now()
     WHERE id = ${b.id}`;
-  await tandaiOleh(sql, cur.lead_code, user.username, '');
+  await tandaiOleh(sql, cur.lead_code, user.username, m.status === 'Drop' ? String(b.alasan || '').trim() : '');
   if (m.status && m.status !== cur.status) await sinkronJanjianLead(sql, cur.lead_code, { status: m.status, catatan: '', oleh: user.name, dari: 'perubahan status lead' });
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
   if (operKe) {

@@ -589,7 +589,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     let jjData = null;
     try {
       const hariJJ = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
-      jjData = await api('/api/janjian?dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ));
+      jjData = await api('/api/janjian?laporan=1&dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ) + '&project=' + encodeURIComponent(proj || ''));
     } catch {}
     // Ringkasan penjualan (Reserved → Booking / Batal) — satu halaman; detail per transaksi ada di menu Report → Laporan Penjualan
     let lpData = null;
@@ -888,8 +888,14 @@ ${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
 ${slr ? `<h2>2B. PERGERAKAN STATUS LEAD PADA PERIODE <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(dihitung dari setiap perubahan status, bukan status akhir)</span></h2>
 <table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th>Lead masuk</th><th>Dioper ke sales</th><th>Naik ke berkualitas</th><th>Site Visit</th><th>Reserved</th><th>Booking</th><th>Drop</th><th>Drop marcom / sales</th></tr>
 <tr style="text-align:center;font-weight:bold"><td>${slr.masuk}</td><td>${slr.oper}</td><td>${slr.naikKualitas}</td><td>${slr.transisi['Site Visit'] || 0}</td><td>${slr.transisi['Reserved'] || 0}</td><td>${(slr.transisi['Booking'] || 0) + (slr.transisi['Closing'] || 0)}</td><td style="color:#B3402F">${slr.drop.total}</td><td>${slr.drop.marcom} / ${slr.drop.sales}</td></tr></table>
-${slr.drop.alasan.length ? `<h3>Alasan drop terbanyak</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:80%">Alasan</th><th style="width:20%;text-align:center">Lead</th></tr>${slr.drop.alasan.slice(0, 6).map(a => `<tr><td>${esc(a.alasan)}</td><td style="text-align:center"><b>${a.n}</b></td></tr>`).join('')}</table>` : ''}
-${slr.perSales.length ? `<h3>Per sales (lead yang dipegang saat kejadian)</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:30%">Sales</th><th style="text-align:center">Dioper</th><th style="text-align:center">Berkualitas</th><th style="text-align:center">Site Visit</th><th style="text-align:center">Booking</th><th style="text-align:center">Drop</th></tr>${slr.perSales.map(r => `<tr><td><b>${esc(r.sales)}</b></td><td style="text-align:center">${r.oper}</td><td style="text-align:center">${r.kualitas}</td><td style="text-align:center">${r.visit}</td><td style="text-align:center"><b>${r.booking}</b></td><td style="text-align:center">${r.drop}</td></tr>`).join('')}</table>` : ''}
+${slr.drop.alasan.length ? `<h3>Alasan drop terbanyak</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:70%">Alasan</th><th style="width:15%;text-align:center">Lead</th><th style="width:15%;text-align:center">Porsi</th></tr>${slr.drop.alasan.slice(0, 8).map(a => `<tr><td>${a.alasan === '(tanpa alasan)' ? '<b style="color:#B3402F">Tanpa alasan</b> — alasan drop tidak diisi sales' : esc(a.alasan)}</td><td style="text-align:center"><b>${a.n}</b></td><td style="text-align:center">${slr.drop.total ? Math.round(a.n / slr.drop.total * 100) : 0}%</td></tr>`).join('')}<tr style="font-weight:bold;background:#F5F2EA"><td>Total drop pada periode (dengan riwayat)</td><td style="text-align:center">${slr.drop.total}</td><td style="text-align:center">100%</td></tr></table>` : ''}
+${slr.drop.perkiraan ? `<p class="muted" style="font-size:8.5pt;background:#FFF8E6;border:1px solid #F0DCA6;border-radius:6px;padding:6px 10px"><b>Catatan:</b> ${slr.drop.perkiraan} lead lain berstatus Drop sejak sebelum ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'pencatat riwayat aktif'}, saat CRM belum mencatat riwayat perubahan status, sehingga tanggal dan alasan drop-nya tidak diketahui. Lead ini tidak dimasukkan ke tabel alasan dan angka per sales.</p>` : ''}
+${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper: a.oper + r.oper, kualitas: a.kualitas + r.kualitas, visit: a.visit + r.visit, booking: a.booking + r.booking, drop: a.drop + r.drop, masih: a.masih + r.masih, dropLama: a.dropLama + r.dropLama }), { oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 });
+      const c = 'style="text-align:center"';
+      return `<h3>Per sales — lead yang dioper pada periode dan perkembangannya</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:18%">Sales</th><th ${c}>Dioper</th><th ${c}>Berkualitas</th><th ${c}>Site Visit</th><th ${c}>Booking</th><th ${c}>Drop</th><th ${c}>Masih diproses</th><th ${c}>Konversi ke berkualitas</th><th ${c} style="color:#E2BE7A">Drop lead lama*</th></tr>
+      ${slr.perSales.map(r => `<tr><td><b>${esc(r.sales)}</b></td><td ${c}>${r.oper}</td><td ${c}>${r.kualitas}</td><td ${c}>${r.visit}</td><td ${c}><b>${r.booking}</b></td><td ${c}>${r.drop}</td><td ${c}>${r.masih}</td><td ${c}>${r.konversi}%</td><td ${c} class="muted">${r.dropLama}</td></tr>`).join('')}
+      <tr style="font-weight:bold;background:#F5F2EA"><td>Total</td><td ${c}>${T.oper}</td><td ${c}>${T.kualitas}</td><td ${c}>${T.visit}</td><td ${c}>${T.booking}</td><td ${c}>${T.drop}</td><td ${c}>${T.masih}</td><td ${c}>${T.oper ? Math.round(T.kualitas / T.oper * 100) : 0}%</td><td ${c}>${T.dropLama}</td></tr></table>
+      <p class="muted" style="font-size:8.5pt">Angka Dioper s.d. Masih diproses hanya dari lead yang dioper ke sales tsb <b>pada periode ini</b>, diikuti perkembangannya sampai hari ini — jadi Drop tidak melebihi Dioper. Booking dari lead lama tetap tampil di Bagian 3 dan Laporan Penjualan. *Drop lead lama = lead yang dioper sebelum periode (atau tanpa oper) tetapi di-drop pada periode ini.</p>`; })() : ''}
 <p class="muted" style="font-size:8.5pt">Lead New tanpa perkembangan: ${slr.aging.n7} lead > 7 hari (${slr.aging.n14} > 14 hari). Riwayat status dicatat otomatis sejak ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'update terpasang'}; periode sebelum itu hanya memiliki status akhir.</p>` : ''}
 <h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
 <table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
@@ -964,32 +970,19 @@ ${baris.map(k => `<tr><td><b>${esc(k.nama || k.lead_code)}</b></td><td>${esc([k.
 <p class="muted" style="font-size:8.5pt">Proses KPR dihitung sejak konsumen Booking. Status mengikuti tahap bank yang paling maju; konsumen yang diajukan ke lebih dari satu bank tercantum semua bank-nya. Selesai = tanggal realisasi akad sudah diisi.</p>`;
     })()}
 ${(() => {
-      if (!jjData || !Array.isArray(jjData.rows)) return '';
-      const nowJ = jjData.now || {};
-      const semua = jjData.rows.filter(j => (!proj || j.project === proj) && inPeriod(j.tgl));
-      if (!semua.length) return '';
-      const datang = semua.filter(j => j.status === 'Datang'), batal = semua.filter(j => j.status === 'Batal');
-      const resch = semua.filter(j => j.reschedule_n > 0), belum = semua.filter(j => j.perlu_update);
-      const akan = semua.filter(j => j.status === 'Terjadwal' && !j.perlu_update);
-      const perSales = {};
-      semua.forEach(j => { const x = perSales[j.sales] || (perSales[j.sales] = { n: 0, d: 0, r: 0, b: 0, u: 0 }); x.n++; if (j.status === 'Datang') x.d++; if (j.reschedule_n) x.r++; if (j.status === 'Batal') x.b++; if (j.perlu_update) x.u++; });
-      const tglJ = t => fmtDate(t) + (t ? ' (' + ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00Z').getUTCDay()] + ')' : '');
-      const alasanR = j => ((j.log || []).find(x => x.aksi === 'Reschedule') || {}).isi || '';
-      const kasus = [...batal.map(j => ({ j, st: 'Batal', al: (j.batal_alasan || '') + (j.lanjut === 'drop' ? ' · lead Drop' : ' · tetap follow up') })),
-        ...resch.filter(j => j.status !== 'Batal').map(j => ({ j, st: 'Reschedule ' + j.reschedule_n + 'x', al: alasanR(j) }))]
-        .sort((a, b) => (a.j.tgl + a.j.jam).localeCompare(b.j.tgl + b.j.jam));
-      return `<h2>6C. JANJIAN VISIT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(janji temu dengan tanggal visit pada periode report)</span></h2>
-<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Total janji temu</th><th style="text-align:center">Datang</th><th style="text-align:center">Reschedule</th><th style="text-align:center">Batal</th><th style="text-align:center">Belum di-update</th><th style="text-align:center">Akan datang</th></tr>
-<tr style="text-align:center;font-weight:bold"><td>${semua.length}</td><td style="color:#23694A">${datang.length}${semua.length ? ' (' + Math.round(datang.length / semua.length * 100) + '%)' : ''}</td><td style="color:#8A5F14">${resch.length}</td><td style="color:#B3402F">${batal.length}</td><td style="color:#B3402F">${belum.length}</td><td>${akan.length}</td></tr></table>
-<table style="font-size:9pt"><tr><th>Sales</th><th style="text-align:right">Janji temu</th><th style="text-align:right">Datang</th><th style="text-align:right">Reschedule</th><th style="text-align:right">Batal</th><th style="text-align:right">Belum di-update</th></tr>
-${Object.entries(perSales).sort((a, b) => b[1].n - a[1].n).map(([n, x]) => `<tr><td><b>${esc(n || '-')}</b></td><td style="text-align:right">${x.n}</td><td style="text-align:right">${x.d}</td><td style="text-align:right">${x.r}</td><td style="text-align:right">${x.b}</td><td style="text-align:right;${x.u ? 'color:#B3402F;font-weight:bold' : ''}">${x.u}</td></tr>`).join('')}
-</table>
-${kasus.length ? `<p style="margin:8px 0 4px"><b>Batal & reschedule beserta alasannya</b></p>
-<table style="font-size:9pt"><tr><th>Tanggal · jam</th><th>Lead</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Alasan</th></tr>
-${kasus.map(k => `<tr><td>${tglJ(k.j.tgl)} ${esc(String(k.j.jam).replace(':', '.'))}</td><td><b>${esc(k.j.nama || k.j.lead_code)}</b><br><span class="muted">${esc(k.j.project || '')}</span></td><td>${esc(k.j.sales || '-')}</td>
-<td>${esc(k.j.jenis || '')}<br><span class="muted">${esc(k.j.lokasi || '')}</span></td><td style="color:${k.st === 'Batal' ? '#B3402F' : '#8A5F14'};font-weight:bold">${esc(k.st)}</td><td>${esc(k.al || '-')}</td></tr>`).join('')}
-</table>` : ''}
-<p class="muted" style="font-size:8.5pt">Belum di-update = janji temu yang jamnya sudah lewat tetapi hasilnya (datang / reschedule / batal) belum diisi sales${nowJ.tgl ? ' per ' + fmtDate(nowJ.tgl) : ''}.</p>`;
+      if (!jjData || !Array.isArray(jjData.perSales) || !jjData.perSales.length) return '';
+      const P = jjData.perSales, T = jjData.total || {}, c = 'style="text-align:right"';
+      const hariN = t => ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00Z').getUTCDay()];
+      const warnaSt = { Reschedule: '#8A5F14', Batal: '#B3402F', 'Belum di-update': '#B3402F', 'Akan datang': '#2D5D8E' };
+      return `<h2>6C. JANJIAN VISIT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(kejadian pada periode report — dihitung dari riwayat janji temu, bukan tanggal janji)</span></h2>
+<table style="font-size:9pt"><tr><th>Sales</th><th ${c}>Janji temu dibuat</th><th ${c}>Datang</th><th ${c}>Reschedule</th><th ${c}>Batal</th><th ${c}>Belum di-update</th><th ${c}>Akan datang</th><th ${c}>Walk in / tanpa janji</th><th ${c}>Total visitor</th></tr>
+${P.map(p => `<tr><td><b>${esc(p.sales)}</b></td><td ${c}>${p.dibuat}</td><td ${c} style="color:#23694A;text-align:right">${p.datang}</td><td ${c}>${p.resch}</td><td ${c} style="color:#B3402F;text-align:right">${p.batal}</td><td ${c} style="${p.belum ? 'color:#B3402F;font-weight:bold;' : ''}text-align:right">${p.belum}</td><td ${c}>${p.akan}</td><td ${c}>${p.lain}</td><td ${c}><b>${p.visitor}</b></td></tr>`).join('')}
+<tr style="font-weight:bold;background:#F5F2EA"><td>Total</td><td ${c}>${T.dibuat || 0}</td><td ${c}>${T.datang || 0}</td><td ${c}>${T.resch || 0}</td><td ${c}>${T.batal || 0}</td><td ${c}>${T.belum || 0}</td><td ${c}>${T.akan || 0}</td><td ${c}>${T.lain || 0}</td><td ${c}>${T.visitor || 0}</td></tr></table>
+<p class="muted" style="font-size:8.5pt">Janji temu dibuat = dibuat pada periode · Datang / Reschedule / Batal = kejadian yang dicatat pada periode (satu janji temu bisa reschedule lalu datang) · Belum di-update = jam janji sudah lewat tanpa hasil · Akan datang = masih terjadwal setelah periode · Walk in / tanpa janji = visitor lain pada periode · Total visitor = seluruh orang yang datang pada periode (satu orang dihitung sekali per hari).</p>
+${jjData.rincian.length ? `<p style="margin:8px 0 4px"><b>Rincian reschedule, batal, belum di-update, dan akan datang</b></p>
+<table style="font-size:9pt"><tr><th>Tanggal · jam</th><th>Lead</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan / alasan</th></tr>
+${jjData.rincian.slice(0, 60).map(x => { const ev = x.status === 'Reschedule' || x.status === 'Batal'; const tglK = ev ? new Date(x.waktu) : null; const tk = ev && !isNaN(tglK) ? `${['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][tglK.getDay()]} ${tglK.toLocaleDateString('id-ID')} ${tglK.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}<br><span class="muted">dicatat · janji ${fmtDate(x.tgl)}</span>` : `${hariN(x.tgl)} ${fmtDate(x.tgl)} ${esc(String(x.jam || '').slice(0, 5).replace(':', '.'))}`; return `<tr><td>${tk}</td><td><b>${esc(x.nama || x.lead_code)}</b><br><span class="muted">${esc(x.project || '')}</span></td><td>${esc(x.sales || '-')}</td>
+<td>${esc(x.jenis || '')}<br><span class="muted">${esc(x.lokasi || '')}</span></td><td style="color:${warnaSt[x.status] || '#10251E'};font-weight:bold">${esc(x.status)}</td><td>${esc(x.ket || '-')}</td></tr>`; }).join('')}</table>` : ''}`;
     })()}
 ${(() => {
       if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';
@@ -1141,7 +1134,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
             <div>
               <h3 style={{ margin: '0 0 6px' }}>Alasan drop terbanyak</h3>
               {sl.drop.alasan.length ? <div className="tbl-wrap tbl-compact"><table><thead><tr><th>Alasan</th><th className="num">Lead</th></tr></thead>
-                <tbody>{sl.drop.alasan.slice(0, 6).map(a => <tr key={a.alasan}><td>{a.alasan}</td><td className="num"><b>{a.n}</b></td></tr>)}</tbody></table></div>
+                <tbody>{sl.drop.alasan.slice(0, 6).map(a => <tr key={a.alasan}><td>{a.alasan === '(tanpa alasan)' ? <b style={{ color: 'var(--red)' }}>Tanpa alasan</b> : a.alasan}</td><td className="num"><b>{a.n}</b></td></tr>)}</tbody></table></div>
                 : <p className="hint">Belum ada lead yang di-drop pada periode ini.</p>}
               <h3 style={{ margin: '12px 0 6px' }}>Lead aktif saat ini</h3>
               <div className="hint">{Object.entries(sl.aktifAkhir).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
@@ -1149,15 +1142,15 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               <div className="hint">{sl.aging.n7} lead New &gt; 7 hari ({sl.aging.n14} di antaranya &gt; 14 hari){sl.aging.daftar.length ? ': ' + sl.aging.daftar.slice(0, 8).map(a => `${a.lead_code} (${a.hari} hr${a.sales ? ', ' + a.sales : ', marcom'})`).join(', ') : ''}</div>
             </div>
             <div>
-              <h3 style={{ margin: '0 0 6px' }}>Per sales (lead yang dipegang saat kejadian)</h3>
+              <h3 style={{ margin: '0 0 6px' }}>Per sales — lead yang dioper pada periode dan perkembangannya</h3>
               <div className="tbl-wrap tbl-compact"><table>
-                <thead><tr><th>Sales</th><th className="num">Dioper</th><th className="num">Berkualitas</th><th className="num">Site Visit</th><th className="num">Booking</th><th className="num">Drop</th></tr></thead>
-                <tbody>{sl.perSales.length ? sl.perSales.map(r => <tr key={r.sales}><td><b>{r.sales}</b></td><td className="num">{r.oper}</td><td className="num">{r.kualitas}</td><td className="num">{r.visit}</td><td className="num"><b>{r.booking}</b></td><td className="num" style={{ color: r.drop ? 'var(--red)' : undefined }}>{r.drop}</td></tr>)
-                  : <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>Belum ada perubahan status tercatat pada periode ini.</td></tr>}</tbody>
+                <thead><tr><th>Sales</th><th className="num">Dioper</th><th className="num">Berkualitas</th><th className="num">Site Visit</th><th className="num">Booking</th><th className="num">Drop</th><th className="num">Masih diproses</th><th className="num" title="Drop lead yang dioper sebelum periode">Drop lead lama</th></tr></thead>
+                <tbody>{sl.perSales.length ? sl.perSales.map(r => <tr key={r.sales}><td><b>{r.sales}</b></td><td className="num">{r.oper}</td><td className="num">{r.kualitas}</td><td className="num">{r.visit}</td><td className="num"><b>{r.booking}</b></td><td className="num" style={{ color: r.drop ? 'var(--red)' : undefined }}>{r.drop}</td><td className="num">{r.masih}</td><td className="num hint">{r.dropLama}</td></tr>)
+                  : <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>Belum ada lead yang dioper pada periode ini.</td></tr>}</tbody>
               </table></div>
             </div>
           </div>
-          <p className="hint" style={{ marginTop: 8 }}>Riwayat status dicatat otomatis sejak {sl.mulaiRiwayat ? fmtDate(sl.mulaiRiwayat) : 'update ini terpasang'}; periode sebelum itu hanya punya status akhir.</p>
+          <p className="hint" style={{ marginTop: 8 }}>{sl.drop.perkiraan ? `${sl.drop.perkiraan} lead berstatus Drop sejak sebelum riwayat dicatat (alasan tidak diketahui) tidak dihitung di tabel alasan & per sales. ` : ''}Riwayat status dicatat otomatis sejak {sl.mulaiRiwayat ? fmtDate(sl.mulaiRiwayat) : 'update ini terpasang'}; periode sebelum itu hanya punya status akhir.</p>
         </div>
       )}
       <div className="card" style={{ marginBottom: 14 }}>

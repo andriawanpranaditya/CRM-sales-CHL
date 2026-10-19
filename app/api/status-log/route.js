@@ -60,31 +60,50 @@ export async function GET(req) {
   const transisi = {};
   st.forEach(r => { transisi[r.ke] = (transisi[r.ke] || 0) + 1; });
   const naikKualitas = new Set(st.filter(r => KUALITAS.includes(r.ke)).map(r => r.lead_code)).size;
-  const dropRows = st.filter(r => r.ke === 'Drop');
+  // Drop "riwayat perkiraan" = lead yang sudah Drop sebelum pencatat riwayat aktif (tanggal & alasan tidak diketahui) → tidak masuk tabel alasan & per sales
+  const perkiraan = r => /\(riwayat perkiraan/.test(r.alasan || '');
+  const dropSemua = st.filter(r => r.ke === 'Drop'), dropRows = dropSemua.filter(r => !perkiraan(r)), dropPerkiraan = dropSemua.length - dropRows.length;
   const posisiMarcom = r => !r.sales_saat || r.oleh_role === 'markom';
   const alasan = {};
   dropRows.forEach(r => { const a = (r.alasan || '').trim() || '(tanpa alasan)'; alasan[a] = (alasan[a] || 0) + 1; });
+
+  // ===== Per sales = COHORT lead yang DIOPER pada periode, diikuti perkembangannya sampai sekarang =====
   const perSales = {};
-  const ps = n => { if (!n) return null; perSales[n] = perSales[n] || { sales: n, oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0 }; return perSales[n]; };
-  op.forEach(r => { const x = ps(r.ke); if (x) x.oper++; });
-  st.forEach(r => {
-    const x = ps(r.sales_saat); if (!x) return;
-    if (KUALITAS.includes(r.ke)) x.kualitas++;
-    if (r.ke === 'Site Visit') x.visit++;
-    if (r.ke === 'Booking' || r.ke === 'Closing') x.booking++;
-    if (r.ke === 'Drop') x.drop++;
+  const ps = n => { if (!n) return null; perSales[n] = perSales[n] || { sales: n, oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 }; return perSales[n]; };
+  const cohort = new Map(); // lead_code → { sales, sejak }  (oper terakhir pada periode)
+  op.forEach(r => { if (r.ke) cohort.set(r.lead_code, { sales: r.ke, sejak: r.created_at }); });
+  const kodes = [...cohort.keys()];
+  const [lanjut, kini] = kodes.length ? await Promise.all([
+    sql`SELECT lead_code, ke, created_at FROM lead_status_log WHERE jenis = 'status' AND lead_code = ANY(${kodes}::text[])`,
+    sql`SELECT lead_code, status FROM leads WHERE lead_code = ANY(${kodes}::text[])`,
+  ]) : [[], []];
+  const statusKini = Object.fromEntries(kini.map(x => [x.lead_code, x.status]));
+  const MAJU = [...KUALITAS, 'Site Visit', 'Booking', 'Closing'];
+  cohort.forEach((c, kode) => {
+    const x = ps(c.sales); if (!x) return;
+    x.oper++;
+    const ev = lanjut.filter(e => e.lead_code === kode && new Date(e.created_at) >= new Date(c.sejak)).map(e => e.ke);
+    const now = statusKini[kode] || '';
+    const ada = s => ev.includes(s) || now === s;
+    if (ev.some(k => MAJU.includes(k)) || MAJU.includes(now)) x.kualitas++;
+    if (ada('Site Visit') || ['Booking', 'Closing'].includes(now)) x.visit++;
+    if (ada('Booking') || ada('Closing')) x.booking++;
+    if (now === 'Drop') x.drop++;
   });
+  Object.values(perSales).forEach(x => { x.masih = Math.max(0, x.oper - x.booking - x.drop); x.konversi = x.oper ? Math.round(x.kualitas / x.oper * 100) : 0; });
+  // Drop lead lama: drop pada periode untuk lead yang TIDAK dioper ke sales tsb pada periode ini
+  dropRows.forEach(r => { const x = ps(r.sales_saat); if (!x) return; const c = cohort.get(r.lead_code); if (!c || c.sales !== r.sales_saat) x.dropLama++; });
   return Response.json({
     mulaiRiwayat: awal[0]?.mulai || null,
     masuk: masuk[0]?.n || 0, oper: op.length, transisi, naikKualitas,
     drop: {
-      total: dropRows.length,
+      total: dropRows.length, perkiraan: dropPerkiraan,
       marcom: dropRows.filter(posisiMarcom).length,
       sales: dropRows.filter(r => !posisiMarcom(r)).length,
       alasan: Object.entries(alasan).map(([a, n]) => ({ alasan: a, n })).sort((x, y) => y.n - x.n),
       daftar: dropRows.slice(-50).reverse().map(r => ({ lead_code: r.lead_code, nama: r.nama, tgl: r.tgl, posisi: posisiMarcom(r) ? 'Marcom' : (r.sales_saat || 'Sales'), alasan: r.alasan || '' })),
     },
-    perSales: Object.values(perSales).sort((a, b) => b.booking - a.booking || b.kualitas - a.kualitas),
+    perSales: Object.values(perSales).sort((a, b) => b.oper - a.oper || b.booking - a.booking),
     aktifAkhir: Object.fromEntries(AKTIF.map(k => [k, (aktif.find(r => r.status === k) || {}).n || 0])),
     aging: { n7: agingRows.length, n14: agingRows.filter(r => r.hari > 14).length, daftar: agingRows.slice(0, 15) },
     me: user.role,

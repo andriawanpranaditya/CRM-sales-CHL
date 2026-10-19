@@ -59,6 +59,42 @@ export async function GET(req) {
     return Response.json({ tgl, hari: namaHari(tgl), now, rows, ringkas: ringkasVisitor(rows), spark, leads: leadsPilih });
   }
 
+  // ===== Laporan janjian visit per periode (untuk Report Lengkap) — dihitung dari KEJADIAN pada periode, bukan tanggal janji =====
+  if (q.get('laporan')) {
+    const dari = tglOk(q.get('dari')) ? q.get('dari') : now.tgl.slice(0, 8) + '01', sampai = tglOk(q.get('sampai')) ? q.get('sampai') : now.tgl;
+    const batasAkan = sampai > now.tgl ? sampai : now.tgl;
+    const [dibuat, ev, terjadwal, vis] = await Promise.all([
+      sql`SELECT j.id, j.sales, j.project, l.created_by AS lead_by FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE j.jenis <> ${JENIS_TANPA_JANJI} AND (j.created_at AT TIME ZONE 'Asia/Jakarta')::date >= ${dari}::date AND (j.created_at AT TIME ZONE 'Asia/Jakarta')::date <= ${sampai}::date
+          AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})`,
+      sql`SELECT x.waktu, x.aksi, x.isi, x.oleh, j.id, j.lead_code, j.sales, j.project, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, l.nama, l.created_by AS lead_by
+        FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND j.jenis <> ${JENIS_TANPA_JANJI}
+          AND (x.waktu AT TIME ZONE 'Asia/Jakarta')::date >= ${dari}::date AND (x.waktu AT TIME ZONE 'Asia/Jakarta')::date <= ${sampai}::date
+          AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya}) ORDER BY x.waktu`,
+      sql`SELECT j.id, j.lead_code, j.sales, j.project, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, j.catatan, j.peserta, l.nama, l.created_by AS lead_by
+        FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
+        WHERE j.status = 'Terjadwal' AND j.jenis <> ${JENIS_TANPA_JANJI} AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya}) ORDER BY j.tgl, j.jam`,
+      hitungVisitor(sql, { dari, sampai, pp, sales: salesSaya, now }),
+    ]);
+    const ok = x => lihatBaris(user, { project: x.project, sales: x.sales, created_by: x.lead_by });
+    const E = ev.filter(ok), B = dibuat.filter(ok), V = vis.filter(ok).filter(v => v.hitung);
+    const belum = terjadwal.filter(ok).filter(j => perluUpdate(j, now) && j.tgl >= dari && j.tgl <= sampai);
+    const akan = terjadwal.filter(ok).filter(j => j.tgl > batasAkan || (j.tgl >= now.tgl && !perluUpdate(j, now) && j.tgl <= batasAkan && j.tgl >= dari));
+    const per = {}; const P = n => per[n] || (per[n] = { sales: n || '-', dibuat: 0, datang: 0, resch: 0, batal: 0, belum: 0, akan: 0, lain: 0, visitor: 0 });
+    B.forEach(j => { P(j.sales).dibuat++; });
+    E.forEach(e => { const p = P(e.sales); if (e.aksi === 'Datang') p.datang++; else if (e.aksi === 'Reschedule') p.resch++; else p.batal++; });
+    belum.forEach(j => { P(j.sales).belum++; }); akan.forEach(j => { P(j.sales).akan++; });
+    V.forEach(v => { const p = P(v.sales); p.visitor++; if (v.kategori !== 'janji') p.lain++; });
+    const rincian = [
+      ...E.filter(e => e.aksi !== 'Datang').map(e => ({ waktu: e.waktu, tgl: e.tgl, jam: e.jam, lead_code: e.lead_code, nama: e.nama, project: e.project, sales: e.sales, jenis: e.jenis, lokasi: e.lokasi, status: e.aksi, ket: e.isi || '' })),
+      ...belum.map(j => ({ waktu: j.tgl + 'T' + j.jam, tgl: j.tgl, jam: j.jam, lead_code: j.lead_code, nama: j.nama, project: j.project, sales: j.sales, jenis: j.jenis, lokasi: j.lokasi, status: 'Belum di-update', ket: `Jam janji sudah lewat — isi datang / reschedule / batal` })),
+      ...akan.map(j => ({ waktu: j.tgl + 'T' + j.jam, tgl: j.tgl, jam: j.jam, lead_code: j.lead_code, nama: j.nama, project: j.project, sales: j.sales, jenis: j.jenis, lokasi: j.lokasi, status: 'Akan datang', ket: [j.peserta, j.catatan].filter(Boolean).join(' · ') })),
+    ].sort((a, b) => String(a.waktu).localeCompare(String(b.waktu)));
+    const total = Object.values(per).reduce((t, p) => { Object.keys(p).forEach(k => { if (k !== 'sales') t[k] = (t[k] || 0) + p[k]; }); return t; }, {});
+    return Response.json({ dari, sampai, now, perSales: Object.values(per).sort((a, b) => b.visitor - a.visitor || b.dibuat - a.dibuat), total, rincian });
+  }
+
   // ===== Rekap bulan ini + update janji temu terbaru =====
   if (q.get('rekap')) {
     const awal = now.tgl.slice(0, 8) + '01';

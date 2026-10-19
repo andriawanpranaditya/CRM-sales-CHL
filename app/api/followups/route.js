@@ -29,6 +29,7 @@ async function _POST(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const b = await req.json();
   if (!b.lead_code || !b.detail) return Response.json({ error: 'ID Lead dan Detail Komunikasi wajib diisi' }, { status: 400 });
+  if ((b.next_action === 'Drop' || b.status === 'Drop') && !String(b.objection || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   const sql = db();
   if (user.role === 'sales') {
     const own = await sql`SELECT 1 FROM leads WHERE lead_code = ${b.lead_code} AND sales = ${user.name}`;

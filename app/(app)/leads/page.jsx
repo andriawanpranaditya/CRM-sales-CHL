@@ -53,8 +53,13 @@ export default function LeadsPage() {
   useEffect(() => { load(); }, []);
 
   async function ubahStatus(id, status) {
+    let alasan = '';
+    if (status === 'Drop') {
+      alasan = (window.prompt('Alasan drop wajib diisi.\nContoh: tidak ada respon sampai Day-60 / sudah beli di tempat lain / budget tidak sesuai / minta tidak dihubungi lagi') || '').trim();
+      if (!alasan) { toast('Drop dibatalkan — alasan belum diisi'); setLeads(ls => [...ls]); return; }
+    }
     try {
-      await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id, status }) });
+      await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id, status, alasan }) });
       setLeads(ls => ls.map(l => l.id === id ? { ...l, status } : l));
       toast('Status ter-update');
     } catch (e) { toast(e.message); }
