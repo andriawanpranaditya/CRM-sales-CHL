@@ -288,7 +288,10 @@ function TabVisitor({ me, fSales }) {
             <td data-label="Asal kedatangan">{r.asalTeks}</td>
             <td data-label="Lead">{[r.sumber, r.walkin_info ? 'via ' + r.walkin_info : '', r.campaign].filter(Boolean).join(' · ') || '—'}</td>
             <td data-label="Catatan / hasil">{r.catatanTeks || '—'}</td>
-            <td data-label="Status"><span className={'kp-pill sm ' + (WARNA_ST[r.status] || 'kp-run')} style={{ whiteSpace: 'nowrap' }}>{r.status}</span></td>
+            <td data-label="Status"><span className={'kp-pill sm ' + (WARNA_ST[r.status] || 'kp-run')} style={{ whiteSpace: 'nowrap' }}>{r.status}</span>
+              {me?.role === 'manager' && r.janjianId && r.kategori !== 'trx' && r.kategori !== 'walkin' && <button className="sort-btn" style={{ marginLeft: 6, padding: '2px 8px' }} title="Hapus catatan janji temu / kedatangan ini (salah catat)"
+                onClick={async () => { if (!confirm(`Hapus catatan kedatangan ${r.nama || r.lead_code} pada ${tglPendek(r.tgl)}?\nDipakai bila tercatat keliru. Tidak bisa dibatalkan.`)) return;
+                  try { await api('/api/janjian?id=' + r.janjianId, { method: 'DELETE' }); toast('Catatan dihapus'); muat(); } catch (e) { toast(e.message); } }}>🗑</button>}</td>
           </tr>))}</tbody></table></div>)
         : <p className="hint" style={{ marginTop: 10 }}>Belum ada visitor maupun janji temu di tanggal ini.</p>}
       <p className="hint" style={{ marginTop: 8 }}>Visitor = janji temu yang datang, lead baru Walk In, datang tanpa janji, dan konsumen Reserved/Booking hari itu. Satu orang dihitung sekali per hari.</p>

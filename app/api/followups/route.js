@@ -42,6 +42,7 @@ async function _POST(req) {
   await siapkanBalas(sql);
   await siapkanStatusLog(sql);
   const balas = b.balas === true ? true : b.balas === false ? false : null;
+  const sebelum = (await sql`SELECT status FROM leads WHERE lead_code = ${b.lead_code}`)[0]?.status || '';
   if (b.next_action === 'Drop' && (b.objection || '').trim() && !String(b.detail || '').includes('Drop:')) b.detail = String(b.detail || '') + ' — Drop: ' + b.objection.trim();
   await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
     VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas})`;
@@ -61,9 +62,10 @@ async function _POST(req) {
   } else if (b.next_tgl) {
     await sql`UPDATE leads SET next_fu = ${b.next_tgl}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
   }
-  // Janji temu yang jadwalnya sudah tiba ikut tercatat dari isi follow up ini (Datang / Batal)
+  // Janji temu yang jadwalnya sudah tiba ikut tercatat dari isi follow up ini (Datang / Batal) —
+  // HANYA bila status lead benar-benar BERUBAH pada follow up ini (follow up biasa pada lead yang sudah Site Visit tidak dihitung datang lagi)
   const stBaru = b.next_action === 'Drop' ? 'Drop' : b.next_action === 'Booking' ? 'Booking' : b.status;
-  if (stBaru) await sinkronJanjianLead(sql, b.lead_code, { status: stBaru, catatan: b.detail, oleh: user.name, dari: 'form follow up' });
+  if (stBaru && stBaru !== sebelum) await sinkronJanjianLead(sql, b.lead_code, { status: stBaru, catatan: b.detail, oleh: user.name, dari: 'form follow up' });
   return Response.json({ ok: true });
 }
 
