@@ -71,6 +71,9 @@ export async function GET(req) {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`;
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS walkin_info text`;
   await sql`ALTER TABLE followups ADD COLUMN IF NOT EXISTS wa_pesan text`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS sumber_detail text`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`;
+  await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS datang boolean`;
   // Role baru: admin (akses lihat Dashboard, Booking, Master Stock)
   await coba(() => sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
   await coba(() => sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','ceo','admin','markom','sales'))`);
