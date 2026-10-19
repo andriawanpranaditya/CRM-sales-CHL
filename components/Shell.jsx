@@ -13,6 +13,7 @@ const MENUS = [
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
+  { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
@@ -73,10 +74,10 @@ export default function Shell({ user, children }) {
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
     if (['markom', 'admin'].includes(user.role) && path.startsWith('/kpr-proses')) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
-    if (user.role === 'admin' && path.startsWith('/janjian')) router.replace('/dashboard');
+    if (user.role === 'admin' && (path.startsWith('/janjian') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
-    if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log'))) router.replace('/dashboard');
-    if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten')) router.replace('/beranda');
+    if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
+    if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten') && !path.startsWith('/janjian') && !path.startsWith('/wa-inbox')) router.replace('/beranda');
   }, [path, user.role, router]);
 
   // Log akses: setiap halaman yang dibuka dicatat (server menghitung halaman sama dalam 10 menit sekali).

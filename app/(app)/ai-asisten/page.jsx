@@ -41,6 +41,18 @@ export default function AsistenAI() {
       <div className="sub">Membalas chat calon pembeli 24 jam, mengkualifikasi, dan mengisi data lead otomatis · model {d.model}</div></div></div>
 
     {!d.apiKey && <div className="note" style={{ borderLeft: '4px solid var(--red)', marginBottom: 12 }}><b>ANTHROPIC_API_KEY belum dipasang di Vercel.</b> Simulasi & balasan otomatis belum bisa berjalan sampai kunci API dipasang.</div>}
+    {d.koneksi && (() => { const k = d.koneksi; const ok = v => v ? '✅' : '❌'; const semua = k.apiKey && k.waToken && k.verifyToken && k.appSecret;
+      return <div className="card" style={{ marginBottom: 12 }}>
+        <div className="bd-head"><h3 style={{ margin: 0 }}>Checklist koneksi</h3><span className={'kp-pill sm ' + (semua ? 'kp-ok' : 'kp-no')}>{semua ? 'Semua kunci terpasang' : 'Belum lengkap'}</span></div>
+        <div className="ai-cek">
+          <div>{ok(k.apiKey)} <b>ANTHROPIC_API_KEY</b> — kunci Claude untuk menjawab chat</div>
+          <div>{ok(k.waToken)} <b>WA_TOKEN</b> — token WhatsApp Cloud API untuk mengirim balasan{k.waTokenSumber ? ` · ${k.waTokenSumber}` : ''}</div>
+          <div>{ok(k.verifyToken)} <b>WA_VERIFY_TOKEN</b> — teks bebas untuk verifikasi webhook di Meta</div>
+          <div>{ok(k.appSecret)} <b>META_APP_SECRET</b> — App Secret untuk memastikan pesan benar dari Meta</div>
+          <div>📞 <b>Nomor → project:</b> {k.nomor.join(' · ')}{k.pemilik ? ` · pemilik lead: ${k.pemilik}` : ' · WA_PEMILIK belum diisi (lead otomatis tanpa pemilik)'}</div>
+          <div>🔗 <b>Callback URL webhook:</b> <code>{k.webhookUrl}</code> · field yang dilanggan: <code>messages</code></div>
+          <div>{k.pesanTerakhir ? '✅' : '⏳'} <b>Webhook:</b> {k.pesanTerakhir ? 'pesan WhatsApp terakhir diterima ' + new Date(k.pesanTerakhir).toLocaleString('id-ID') : 'belum pernah menerima pesan — webhook belum terhubung atau belum ada chat masuk'}</div>
+        </div></div>; })()}
 
     <div className="fu-toolbar" style={{ marginBottom: 12 }}>
       {d.config.map(c => <button key={c.project} className={'sort-btn' + (proj === c.project ? ' active' : '')} onClick={() => setProj(c.project)}>{c.project} {c.aktif ? '· 🟢 aktif' : '· ⚪ nonaktif'}</button>)}

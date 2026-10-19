@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { db, DEFAULT_SETTINGS } from '@/lib/db';
-import { siapkanAI, konfigAI, tanyaAI, kirimWA } from '@/lib/ai';
+import { siapkanAI, konfigAI, tanyaAI, kirimWA, simpanNomorWA } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -197,6 +197,7 @@ export async function POST(req) {
       }
       if (c.field !== 'messages') continue;
       const project = peta[String(v.metadata?.display_phone_number || '').replace(/[^0-9]/g, '')] || '';
+      await simpanNomorWA(sql, v.metadata?.phone_number_id, v.metadata?.display_phone_number, project);
       const nama = {};
       (v.contacts || []).forEach(k => { nama[k.wa_id] = k.profile?.name || ''; });
       for (const m of v.messages || []) {

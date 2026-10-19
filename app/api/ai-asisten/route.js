@@ -12,7 +12,7 @@ async function bacaSettings(sql) {
   return out;
 }
 
-export async function GET() {
+export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   if (!['manager', 'ceo', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
   const sql = db(); await siapkanAI(sql);
@@ -22,9 +22,19 @@ export async function GET() {
   for (const p of projects) config.push(await konfigAI(sql, p));
   const statistik = await sql`SELECT
       count(*) FILTER (WHERE peran = 'ai' AND created_at > now() - interval '30 days')::int AS balasan_ai,
-      count(DISTINCT wa) FILTER (WHERE created_at > now() - interval '30 days')::int AS percakapan
+      count(DISTINCT wa) FILTER (WHERE created_at > now() - interval '30 days')::int AS percakapan,
+      max(created_at) FILTER (WHERE peran <> 'ai') AS pesan_terakhir
     FROM wa_percakapan`;
-  return Response.json({ config, apiKey: !!process.env.ANTHROPIC_API_KEY, model: MODEL_AI(), statistik: statistik[0], role: user.role, bawaan: PENGETAHUAN_DEFAULT });
+  // Checklist koneksi — hanya status terpasang/belum, tanpa membuka isi kuncinya
+  const peta = (process.env.WA_NOMOR_PROJECT || '6281385237865:BIO DISTRICT,628139871781:PERMAI INDAH').split(',').map(x => x.trim()).filter(Boolean);
+  const koneksi = {
+    apiKey: !!process.env.ANTHROPIC_API_KEY,
+    waToken: !!(process.env.WA_TOKEN || process.env.META_TOKEN), waTokenSumber: process.env.WA_TOKEN ? 'WA_TOKEN' : process.env.META_TOKEN ? 'META_TOKEN (dipakai bersama Meta Ads)' : '',
+    verifyToken: !!process.env.WA_VERIFY_TOKEN, appSecret: !!process.env.META_APP_SECRET,
+    nomor: peta, pemilik: process.env.WA_PEMILIK || '', webhookUrl: new URL(req.url).origin + '/api/wa-webhook',
+    pesanTerakhir: statistik[0]?.pesan_terakhir || null,
+  };
+  return Response.json({ config, apiKey: !!process.env.ANTHROPIC_API_KEY, model: MODEL_AI(), statistik: statistik[0], role: user.role, bawaan: PENGETAHUAN_DEFAULT, koneksi });
 }
 
 async function _PUT(req) {
