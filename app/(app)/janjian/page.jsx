@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
 import { api, bukaWA } from '@/components/util';
@@ -25,7 +25,7 @@ export default function JanjianPage() {
   const [me, setMe] = useState(null);
   const [d, setD] = useState(null);
   const [filter, setFilter] = useState('visitor');
-  useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'terbaru', 'rekap', 'riwayat'].includes(t)) setFilter(t); }, []);
+  useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'rekap', 'riwayat'].includes(t)) setFilter(t === 'terbaru' ? 'riwayat' : t); }, []);
   const [fSales, setFSales] = useState('');
   const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
   const [atur, setAtur] = useState(null);
@@ -167,15 +167,16 @@ export default function JanjianPage() {
         </div>)}
 
       <div className="fu-toolbar">
-        {[['visitor', 'Daily visitor'], ['janji', 'Janji temu'], ['update', 'Perlu update'], ['terbaru', 'Update terbaru'], ['rekap', 'Rekap bulan ini'], ['riwayat', 'Riwayat']].map(([k, l]) => (
+        {[['visitor', 'Daily visitor'], ['janji', 'Janji temu'], ['update', 'Perlu update'], ['riwayat', 'Riwayat & update'], ['rekap', 'Rekap bulan ini']].map(([k, l]) => (
           <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)} style={k === 'update' && jml.update ? { color: filter === k ? undefined : 'var(--red)' } : undefined}>
             {l}{jml[k] != null ? ` (${jml[k]})` : ''}</button>))}
         {pimpinan && <select className="sort-filter" value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{salesList.map(s => <option key={s}>{s}</option>)}</select>}
       </div>
 
       {filter === 'visitor' && <TabVisitor me={me} fSales={fSales} />}
-      {(filter === 'terbaru' || filter === 'rekap') && <TabRekap mode={filter} fSales={fSales} />}
-      {['visitor', 'terbaru', 'rekap'].includes(filter) ? null : !d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
+      {filter === 'rekap' && <TabRekap mode={filter} fSales={fSales} />}
+      {filter === 'riwayat' && <TabRiwayat me={me} fSales={fSales} />}
+      {['visitor', 'rekap', 'riwayat'].includes(filter) ? null : !d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
         <div key={k} className="jj-grup">
           <div className="jj-hari">{k === 'lewat' ? 'Lewat & belum di-update' : (k === now.tgl ? 'Hari ini · ' : k === geser(now.tgl, 1) ? 'Besok · ' : '') + tglPanjang(k)}</div>
           {list.map(j => (
@@ -338,4 +339,67 @@ function TabRekap({ mode, fSales }) {
       {d.alasanBatal.length > 0 && <p className="hint" style={{ marginTop: 8 }}>Alasan batal terbaru: {d.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</p>}
     </div>
   </div>);
+}
+
+// ===== Tab Riwayat & update: semua janji temu + visitor per bulan, lengkap dengan status & riwayat perubahannya =====
+const NAMA_BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const WARNA_JJ = { Terjadwal: 'kp-run', Datang: 'kp-ok', Batal: 'kp-no', 'Perlu update': 'kp-no' };
+function TabRiwayat({ me, fSales }) {
+  const kini = new Date();
+  const [bln, setBln] = useState(`${kini.getFullYear()}-${String(kini.getMonth() + 1).padStart(2, '0')}`);
+  const [d, setD] = useState(null);
+  const [buka, setBuka] = useState(null);
+  const [fSt, setFSt] = useState('');
+  const pilihan = []; for (let i = 0; i < 12; i++) { const t = new Date(kini.getFullYear(), kini.getMonth() - i, 1); pilihan.push(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`); }
+  useEffect(() => {
+    setD(null);
+    const [y, m] = bln.split('-').map(Number); const akhir = new Date(y, m, 0).getDate();
+    api(`/api/janjian?dari=${bln}-01&sampai=${bln}-${String(akhir).padStart(2, '0')}`).then(setD).catch(e => toast(e.message));
+  }, [bln]);
+  const labelBln = b => { const [y, m] = b.split('-'); return `${NAMA_BLN[Number(m) - 1]} ${y}`; };
+  if (!d) return <div className="loading">Memuat…</div>;
+  const [y, m] = bln.split('-').map(Number); const awal = `${bln}-01`, akhir = `${bln}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+  let rows = d.rows.filter(r => r.tgl >= awal && r.tgl <= akhir).filter(r => !fSales || r.sales === fSales);
+  const stOf = r => r.perlu_update ? 'Perlu update' : r.status;
+  const n = { semua: rows.length, Datang: rows.filter(r => r.status === 'Datang').length, Terjadwal: rows.filter(r => r.status === 'Terjadwal' && !r.perlu_update).length, 'Perlu update': rows.filter(r => r.perlu_update).length, Batal: rows.filter(r => r.status === 'Batal').length, Reschedule: rows.filter(r => r.reschedule_n > 0).length };
+  if (fSt === 'Reschedule') rows = rows.filter(r => r.reschedule_n > 0); else if (fSt) rows = rows.filter(r => stOf(r) === fSt);
+  rows = [...rows].sort((a, b) => (b.tgl + b.jam).localeCompare(a.tgl + a.jam));
+  const ket = r => {
+    if (r.status === 'Datang') return [r.jam_datang ? 'datang ' + jamTitik(r.jam_datang) : '', r.unit_dilihat, r.hasil, r.hasil_catatan].filter(Boolean).join(' · ');
+    if (r.status === 'Batal') return (r.batal_alasan || '') + (r.lanjut === 'drop' ? ' · lead Drop' : ' · tetap follow up');
+    const rs = (r.log || []).find(x => x.aksi === 'Reschedule');
+    return [rs ? rs.isi : '', r.peserta, r.catatan].filter(Boolean).join(' · ');
+  };
+  return (
+    <div className="card">
+      <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <h3 style={{ margin: 0 }}>Riwayat &amp; update · {labelBln(bln)}</h3>
+        <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="sort-filter" value={bln} onChange={e => setBln(e.target.value)}>{pilihan.map(b => <option key={b} value={b}>{labelBln(b)}</option>)}</select>
+          <select className="sort-filter" value={fSt} onChange={e => setFSt(e.target.value)}>
+            <option value="">Semua status ({n.semua})</option><option value="Datang">Datang ({n.Datang})</option><option value="Terjadwal">Terjadwal ({n.Terjadwal})</option>
+            <option value="Perlu update">Perlu update ({n['Perlu update']})</option><option value="Batal">Batal ({n.Batal})</option><option value="Reschedule">Pernah reschedule ({n.Reschedule})</option></select>
+        </span></div>
+      <div className="bd-chips kp" style={{ margin: '8px 0' }}>
+        <span className="kp-pill sm kp-ok">{n.Datang} datang</span><span className="kp-pill sm kp-run">{n.Terjadwal} terjadwal</span><span className="kp-pill sm kp-no">{n['Perlu update']} perlu update</span><span className="kp-pill sm kp-no">{n.Batal} batal</span><span className="kp-pill sm kp-wait">{n.Reschedule} pernah reschedule</span></div>
+      {rows.length ? <div className="tbl-wrap tbl-compact jj-vtbl"><table>
+        <thead><tr><th>Tanggal · jam</th><th>Lead · project</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan / hasil / alasan</th><th>Riwayat</th></tr></thead>
+        <tbody>{rows.map(r => (<React.Fragment key={r.id}>
+          <tr>
+            <td data-label="Tanggal"><b>{tglPendek(r.tgl)}</b><span className="sub2">{r.hari ? r.hari + ' · ' : ''}{jamTitik(r.jam)}{r.reschedule_n ? ` · reschedule ${r.reschedule_n}×` : ''}</span></td>
+            <td data-label="Lead"><Link href={'/leads?lead=' + encodeURIComponent(r.lead_code)} className="jj-nama">{r.nama || r.lead_code}</Link><span className="sub2">{r.lead_code} · {r.project}</span></td>
+            <td data-label="Sales">{r.sales || '—'}</td>
+            <td data-label="Jenis">{r.jenis}<span className="sub2">{r.lokasi}</span></td>
+            <td data-label="Status"><span className={'kp-pill sm ' + (WARNA_JJ[stOf(r)] || 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{stOf(r)}</span></td>
+            <td data-label="Keterangan">{ket(r) || '—'}</td>
+            <td data-label="Riwayat"><button className="sort-btn" style={{ padding: '2px 8px' }} onClick={() => setBuka(buka === r.id ? null : r.id)}>{buka === r.id ? '▲' : '▼'} {(r.log || []).length}</button></td>
+          </tr>
+          {buka === r.id && <tr><td colSpan={7} style={{ background: 'var(--paper)' }}>
+            {(r.log || []).length ? (r.log || []).map((x, i) => <div key={i} className="hint" style={{ padding: '2px 0' }}><b style={{ color: 'var(--ink)' }}>{new Date(x.waktu).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b> · {x.aksi} · {x.isi}{x.oleh ? ' — ' + x.oleh : ''}</div>) : <span className="hint">Belum ada riwayat.</span>}
+          </td></tr>}
+        </React.Fragment>))}</tbody></table></div>
+        : <p className="hint">Tidak ada janji temu pada {labelBln(bln)}{fSt ? ' dengan status ' + fSt : ''}.</p>}
+      <p className="hint" style={{ marginTop: 8 }}>Mencakup semua janji temu bertanggal pada bulan terpilih, termasuk kedatangan tanpa janji. Klik ▼ untuk melihat riwayat perubahan (dibuat, reschedule, datang, batal) beserta pengubahnya.</p>
+    </div>
+  );
 }
