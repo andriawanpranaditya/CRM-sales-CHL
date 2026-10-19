@@ -113,16 +113,18 @@ export async function GET(req) {
     const ok = x => lihatBaris(user, { project: x.project, sales: x.sales, created_by: x.lead_by });
     const bulan = jb.filter(ok).filter(j => j.tgl <= now.tgl), visitor = vis.filter(ok).filter(v => v.hitung);
     const perSales = {};
-    const ps = n => perSales[n] || (perSales[n] = { sales: n, janji: 0, datang: 0, resch: 0, batal: 0, visitor: 0 });
+    const ps = n => perSales[n] || (perSales[n] = { sales: n, janji: 0, datang: 0, resch: 0, batal: 0, walkin: 0, tanpa: 0, trx: 0, visitor: 0 });
     bulan.forEach(j => { const x = ps(j.sales || '-'); x.janji++; if (j.status === 'Datang') x.datang++; if (j.reschedule_n) x.resch++; if (j.status === 'Batal') x.batal++; });
-    visitor.forEach(v => { ps(v.sales || '-').visitor++; });
+    visitor.forEach(v => { const x = ps(v.sales || '-'); x.visitor++; if (v.kategori === 'walkin') x.walkin++; else if (v.kategori === 'tanpa') x.tanpa++; else if (v.kategori === 'trx') x.trx++; });
     const depan = [];
     for (let i = 1; i <= 7; i++) { const t = geser(now.tgl, i); depan.push({ tgl: t, hari: namaHari(t), n: jb.filter(j => j.tgl === t && j.status === 'Terjadwal').length }); }
     return Response.json({ now, bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, resch: bulan.filter(j => j.reschedule_n > 0).length,
         batal: bulan.filter(j => j.status === 'Batal').length },
       visitor: ringkasVisitor(vis.filter(ok)), depan, perSales: Object.values(perSales).sort((a, b) => b.visitor - a.visitor || b.janji - a.janji),
       alasanBatal: bulan.filter(j => j.status === 'Batal' && j.batal_alasan).slice(-5).reverse().map(j => ({ nama: j.nama, sales: j.sales, alasan: j.batal_alasan })),
-      terbaru: upd.filter(ok) });
+      terbaru: upd.filter(ok),
+      // Rincian visitor bulan ini — supaya angka Visitor per sales bisa ditelusuri satu per satu
+      visitorList: visitor.map(v => ({ tgl: v.tgl, jam: v.jam, lead_code: v.lead_code, nama: v.nama, sales: v.sales, project: v.project, asal: v.asalTeks, kategori: v.kategori, catatan: v.catatanTeks })).sort((a, b) => b.tgl.localeCompare(a.tgl) || (b.jam || '').localeCompare(a.jam || '')) });
   }
 
   const dari = tglOk(q.get('dari')) ? q.get('dari') : geser(now.tgl, -30);

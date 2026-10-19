@@ -333,10 +333,23 @@ function TabRekap({ mode, fSales }) {
     </div>
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Per sales bulan ini</h3>
-      {ps.length ? <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num">Janji</th><th className="num">Datang</th><th className="num">Resch.</th><th className="num">Batal</th><th className="num">Visitor</th></tr></thead>
-        <tbody>{ps.map(x => <tr key={x.sales}><td>{x.sales}</td><td className="num">{x.janji}</td><td className="num">{x.datang}</td><td className="num">{x.resch}</td><td className="num">{x.batal}</td><td className="num"><b>{x.visitor}</b></td></tr>)}</tbody></table></div>
+      {ps.length ? <div className="bd-tbl"><table><thead><tr><th>Sales</th><th className="num" title="Janji temu bulan ini">Janji</th><th className="num">Datang</th><th className="num">Resch.</th><th className="num">Batal</th><th className="num" title="Lead baru Walk In">Walk in</th><th className="num" title="Datang tanpa janji">Tanpa janji</th><th className="num" title="Reserved / Booking">Resv/Book</th><th className="num" title="Datang + Walk in + Tanpa janji + Reserved/Booking">Visitor</th></tr></thead>
+        <tbody>{ps.map(x => <tr key={x.sales}><td>{x.sales}</td><td className="num">{x.janji}</td><td className="num">{x.datang}</td><td className="num">{x.resch}</td><td className="num">{x.batal}</td><td className="num">{x.walkin}</td><td className="num">{x.tanpa}</td><td className="num">{x.trx}</td><td className="num"><b>{x.visitor}</b></td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada data bulan ini.</p>}
+      <p className="hint">Visitor = janji temu yang datang + lead baru Walk In + datang tanpa janji + konsumen Reserved/Booking; satu orang dihitung sekali per hari.</p>
       {d.alasanBatal.length > 0 && <p className="hint" style={{ marginTop: 8 }}>Alasan batal terbaru: {d.alasanBatal.map(a => `${a.nama} (${a.sales}): ${a.alasan}`).join(' · ')}</p>}
+    </div>
+    <div className="card" style={{ gridColumn: '1 / -1' }}>
+      <h3 style={{ marginTop: 0 }}>Rincian visitor bulan ini</h3>
+      {(() => { const vl = (d.visitorList || []).filter(v => !fSales || v.sales === fSales); return vl.length ? <div className="tbl-wrap tbl-compact jj-vtbl"><table>
+        <thead><tr><th>Tanggal · jam</th><th>Visitor</th><th>Sales</th><th>Asal kedatangan</th><th>Catatan / hasil</th></tr></thead>
+        <tbody>{vl.map(v => (<tr key={v.tgl + v.lead_code}>
+          <td data-label="Tanggal"><b>{tglPendek(v.tgl)}</b><span className="sub2">{jamTitik(v.jam) || '—'}</span></td>
+          <td data-label="Visitor"><Link href={'/leads?lead=' + encodeURIComponent(v.lead_code)} className="jj-nama">{v.nama || v.lead_code}</Link><span className="sub2">{v.lead_code} · {v.project}</span></td>
+          <td data-label="Sales">{v.sales || '—'}</td>
+          <td data-label="Asal"><span className={'kp-pill sm ' + (v.kategori === 'janji' ? 'kp-ok' : v.kategori === 'trx' ? 'kp-done' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{v.kategori === 'janji' ? 'Janji temu' : v.kategori === 'walkin' ? 'Walk in' : v.kategori === 'tanpa' ? 'Tanpa janji' : 'Resv/Book'}</span> <span className="hint">{v.asal}</span></td>
+          <td data-label="Catatan">{v.catatan || '—'}</td></tr>))}</tbody></table></div>
+        : <p className="hint">Belum ada visitor bulan ini.</p>; })()}
     </div>
   </div>);
 }
