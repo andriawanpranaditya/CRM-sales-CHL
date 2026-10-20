@@ -293,24 +293,26 @@ export default function StockPage() {
           {manMap[proj + '|' + selUnit] && (
             <button className="sort-btn" onClick={() => setStatusManual(selUnit, null)}>↩ Kembali Ikut Transaksi</button>
           )}
-          {/BIO/i.test(proj) && (
+          {(/BIO/i.test(proj) || /PERMAI/i.test(proj)) && (
             <button className="sort-btn" style={{ marginLeft: 'auto', borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
               disabled={imp}
               onClick={async () => {
-                if (!confirm('Impor data Weekly Report BIO DISTRICT (s.d September 2026)?\n\n1) Master unit disetel ke daftar SITEPLAN RESMI = 63 unit.\n2) 32 unit ditandai TERJUAL + 1 RESERVED (Bio Blv no.12), lengkap NAMA PEMBELI & SALES.\n\nUnit yang sudah Anda atur sendiri (termasuk yang dibuka lewat "Buka Stok") TIDAK akan ditimpa.')) return;
+                const permai = /PERMAI/i.test(proj);
+                if (!confirm(permai
+                  ? 'Impor Laporan Penjualan PERMAI INDAH (s.d Oktober 2026)?\n\n72 unit ditandai TERJUAL lengkap NAMA PEMBELI, AGEN, nilai kontrak, dan tanggal akad. Daftar master unit Permai Indah tidak diubah.\n\nUnit yang sudah punya transaksi Booking di CRM tetap mengikuti transaksi. Unit yang ditandai manual Terjual oleh manager dan juga Terjual di laporan → datanya disamakan dengan laporan; bila berbeda, dibiarkan dan dilaporkan.'
+                  : 'Impor data Weekly Report BIO DISTRICT (s.d September 2026)?\n\n1) Master unit disetel ke daftar SITEPLAN RESMI = 63 unit.\n2) 32 unit ditandai TERJUAL + 1 RESERVED (Bio Blv no.12), lengkap NAMA PEMBELI & SALES.\n\nUnit yang sudah punya transaksi di CRM tetap mengikuti transaksi; unit yang diatur manual oleh manager tidak ditimpa.')) return;
                 setImp(true);
                 try {
-                  const r = await api('/api/stock/import', { method: 'POST', body: JSON.stringify({}) });
+                  const r = await api('/api/stock/import', { method: 'POST', body: JSON.stringify({ project: proj }) });
                   await loadStock();
                   toast(`Impor selesai — master ${r.totalUnit} unit · ${r.terjual} terjual · ${r.reserved} reserved · ${r.totalUnit - r.terjual - r.reserved} tersedia ✅`);
-                  if (r.dihormati && r.dihormati.length) {
-                    toast(r.dihormati.length + ' unit dilewati karena sudah diatur manual oleh manager: ' + r.dihormati.slice(0, 4).join(', '));
-                  }
+                  if (r.disamakan && r.disamakan.length) toast(r.disamakan.length + ' unit tanda manual disamakan dengan laporan (nama, agen, nilai, akad)');
+                  if (r.konflik && r.konflik.length) toast('Perlu dicek manager, tanda manual berbeda dengan laporan: ' + r.konflik.slice(0, 3).join(' · ') + (r.konflik.length > 3 ? ' · +' + (r.konflik.length - 3) + ' lagi' : ''));
                   if (r.tandaMenggantung && r.tandaMenggantung.length) {
                     toast('Perlu dicek: ' + r.tandaMenggantung.length + ' tanda lama di unit yang tidak ada di siteplan → ' + r.tandaMenggantung.slice(0, 4).join(', '));
                   }
                 } catch (err) { toast(err.message); } finally { setImp(false); }
-              }}>{imp ? '⏳ Mengimpor…' : '⬆ Impor Weekly Report'}</button>
+              }}>{imp ? '⏳ Mengimpor…' : (/PERMAI/i.test(proj) ? '⬆ Impor Laporan Penjualan (s.d Okt 2026)' : '⬆ Impor Weekly Report')}</button>
           )}
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
