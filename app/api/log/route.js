@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const HALAMAN = {
   '/beranda': 'Beranda', '/dashboard': 'Dashboard', '/form': 'Form Input', '/leads': 'Database Lead', '/booking': 'Booking', '/report': 'Report',
-  '/marcom': 'Analisa Marcom', '/kegiatan': 'Kegiatan', '/stock': 'Master Stock', '/kpr-proses': 'Proses KPR', '/janjian': 'Janjian & Visitor', '/wa-inbox': 'Inbox WhatsApp', '/kpr': 'Simulasi Cara Bayar',
+  '/marcom': 'Analisa Marcom', '/kegiatan': 'Kegiatan', '/stock': 'Master Stock', '/kpr-proses': 'Proses KPR', '/collection': 'Collection & KPR', '/janjian': 'Janjian & Visitor', '/wa-inbox': 'Inbox WhatsApp', '/kpr': 'Simulasi Cara Bayar',
   '/ai-asisten': 'Asisten AI', '/settings': 'Settings', '/users': 'Pengguna', '/log': 'Log Aktivitas',
 };
 

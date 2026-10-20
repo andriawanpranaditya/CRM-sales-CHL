@@ -64,6 +64,7 @@ export default function UsersPage() {
               <option value="admin">Admin — Dashboard, Booking, Master Stock</option>
               <option value="markom">Marcom — Lead digital, Follow Up, Leads to Sales</option>
               <option value="ceo">CEO Project — semua menu kecuali Settings/Pengguna/Log, tanpa hapus</option>
+              <option value="collection">Collection &amp; KPR — proses KPR, tagihan &amp; pembayaran, simulasi, master stock</option>
               <option value="manager">Manager — akses penuh</option>
             </select></div>
           <div className="field"><label>Password</label><input value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div>
@@ -93,7 +94,7 @@ export default function UsersPage() {
                   catch (er) { toast(er.message); }
                 }}>✎</button></td>
               <td data-label="Password">{u.password_plain ? <code>{u.password_plain}</code> : <span className="hint">tersembunyi — Reset utk melihat</span>}</td>
-              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: 'var(--blue-soft)', color: 'var(--blue)' } : u.role === 'ceo' ? { background: 'var(--brass-soft)', color: 'var(--brass-deep)' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role === 'ceo' ? 'CEO Project' : u.role}</span></td>
+              <td data-label="Peran"><span className={'badge ' + (u.role === 'manager' ? 'b-close' : u.role === 'admin' ? 'b-warm' : 'b-book')} style={u.role === 'markom' ? { background: 'var(--blue-soft)', color: 'var(--blue)' } : u.role === 'ceo' ? { background: 'var(--brass-soft)', color: 'var(--brass-deep)' } : undefined}>{u.role === 'markom' ? 'marcom' : u.role === 'ceo' ? 'CEO Project' : u.role === 'collection' ? 'Collection & KPR' : u.role}</span></td>
               <td data-label="Project">
                 {u.role === 'manager' ? <span className="hint">Semua (manager)</span>
                   : edProj && edProj.id === u.id ? (
@@ -118,7 +119,7 @@ export default function UsersPage() {
                   <button className="sort-btn" onClick={() => resetPw(u)}>Reset Password</button>
                   <button className={'sort-btn'} onClick={() => toggle(u)}>{u.active ? 'Nonaktifkan' : 'Aktifkan'}</button>
                   <button className="sort-btn" onClick={async () => {
-                    const r = prompt('Peran baru untuk ' + u.name + ' — ketik salah satu: sales / admin / marcom / ceo / manager', u.role === 'markom' ? 'marcom' : u.role);
+                    const r = prompt('Peran baru untuk ' + u.name + ' — ketik salah satu: sales / admin / marcom / ceo / manager / collection', u.role === 'markom' ? 'marcom' : u.role);
                     if (!r) return;
                     const role = r.trim().toLowerCase().replace('marcom', 'markom');
                     if (!['sales', 'admin', 'markom', 'ceo', 'manager'].includes(role)) return toast('Peran tidak dikenal: ' + r);

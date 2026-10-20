@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 const MENUS = [
-  { href: '/beranda', ico: '⌂', label: 'Beranda', roles: ['manager', 'ceo', 'markom', 'sales'] },
+  { href: '/beranda', ico: '⌂', label: 'Beranda', roles: ['manager', 'ceo', 'markom', 'sales', 'collection'] },
   { href: '/dashboard', ico: '◧', label: 'Dashboard', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/form', ico: '✎', label: 'Form Input', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
@@ -14,12 +14,13 @@ const MENUS = [
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
-  { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] },
+  { href: '/collection', ico: '💰', label: 'Collection & KPR', roles: ['manager', 'ceo', 'collection'] },
+  { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
-  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
-  { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
+  { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
+  { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
   { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'ceo', 'markom'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
   { href: '/users', ico: '👥', label: 'Pengguna', roles: ['manager'] },
@@ -77,6 +78,7 @@ export default function Shell({ user, children }) {
     if (user.role === 'admin' && (path.startsWith('/janjian') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
     if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
+    if (user.role === 'collection' && !['/beranda', '/collection', '/kpr-proses', '/kpr', '/stock'].some(p => path.startsWith(p))) router.replace('/beranda');
     if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten') && !path.startsWith('/janjian') && !path.startsWith('/wa-inbox')) router.replace('/beranda');
   }, [path, user.role, router]);
 
@@ -146,7 +148,7 @@ export default function Shell({ user, children }) {
           <details className="m-menu">
             <summary className="theme-btn" aria-label="Menu akun">⋯</summary>
             <div className="m-menu-panel">
-              <div className="who"><b>{user.name}</b>{user.role === 'markom' ? 'Marcom' : user.role === 'ceo' ? 'CEO Project' : user.role.charAt(0).toUpperCase() + user.role.slice(1)}</div>
+              <div className="who"><b>{user.name}</b>{user.role === 'markom' ? 'Marcom' : user.role === 'ceo' ? 'CEO Project' : user.role === 'collection' ? 'Collection & KPR' : user.role.charAt(0).toUpperCase() + user.role.slice(1)}</div>
               <button onClick={segarkanAplikasi}>🧹 Segarkan aplikasi</button>
               <button onClick={gantiPassword}>🔑 Ganti password</button>
               <button onClick={logout} style={{ color: 'var(--red)' }}>Keluar</button>
@@ -175,7 +177,7 @@ export default function Shell({ user, children }) {
         </div>
         <div className="side-foot">
           <span><span className="u-name">{user.name}</span>
-            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : 'Sales — Form Input'}</span></span>
+            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : user.role === 'collection' ? 'Collection & KPR' : 'Sales — Form Input'}</span></span>
           <span style={{ display: 'flex', gap: 4 }}>
             <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
             <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>

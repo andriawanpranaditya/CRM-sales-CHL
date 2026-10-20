@@ -11,7 +11,7 @@ async function siapkanPeran(sql) {
   if (peranSiap) return;
   try {
     await sql`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`;
-    await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','ceo','admin','markom','sales'))`;
+    await sql`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('manager','ceo','admin','markom','sales','collection'))`;
     peranSiap = true;
   } catch (e) { console.error('siapkanPeran', e); }
 }
@@ -41,12 +41,12 @@ async function _POST(req) {
   const { err } = await requireUser('manager'); if (err) return err;
   const b = await req.json();
   if (!b.username || !b.name || !b.password) return Response.json({ error: 'Username, nama, dan password wajib diisi' }, { status: 400 });
-  const role = ['manager', 'ceo', 'admin', 'markom', 'sales'].includes(b.role) ? b.role : 'sales';
+  const role = ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'].includes(b.role) ? b.role : 'sales';
   const sql = db();
   const dupe = await sql`SELECT 1 FROM users WHERE lower(username) = ${String(b.username).toLowerCase()}`;
   if (dupe.length) return Response.json({ error: 'Username sudah dipakai' }, { status: 400 });
   const hash = await bcrypt.hash(b.password, 10);
-  if (role === 'ceo') await siapkanPeran(sql);
+  if (role === 'ceo' || role === 'collection') await siapkanPeran(sql);
   await sql`INSERT INTO users (username, name, role, password_hash, password_plain, email, wa)
     VALUES (${b.username}, ${b.name}, ${role}, ${hash}, ${role !== 'manager' ? b.password : null}, ${b.email || ''}, ${b.wa || ''})`;
   const pp = Array.isArray(b.projects) ? b.projects.map(String).filter(Boolean) : [];
@@ -105,7 +105,8 @@ async function _PATCH(req) {
   if (typeof b.wa === 'string') {
     await sql`UPDATE users SET wa = ${b.wa.trim()} WHERE id = ${b.id}`;
   }
-  if (b.role && ['manager', 'ceo', 'admin', 'markom', 'sales'].includes(b.role)) {
+  if (b.role && ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'].includes(b.role)) {
+    if (b.role === 'collection') await siapkanPeran(sql);
     if (Number(b.id) === Number(user.id)) return Response.json({ error: 'Tidak bisa mengubah peran akun sendiri' }, { status: 400 });
     if (b.role === 'ceo') await siapkanPeran(sql);
     if (b.role === 'manager') await sql`UPDATE users SET role = 'manager', password_plain = null WHERE id = ${b.id}`;

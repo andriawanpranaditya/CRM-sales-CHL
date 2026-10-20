@@ -592,3 +592,6 @@ th.num{text-align:right}
   .wa-wrap.thread .wa-list{display:none}.wa-wrap:not(.thread) .wa-th{display:none}
   .wa-back{display:inline-block;margin-bottom:6px}.wa-msgs{max-height:none}
 }
+/* Proses KPR / Collection: mode hanya lihat (CEO) */
+.kp-ro .btn,.kp-ro button.btn-primary,.kp-ro .kp-aksi button{display:none!important}
+.kp-ro input:not([type=search]),.kp-ro select:not(.sort-filter),.kp-ro textarea{pointer-events:none;opacity:.65}

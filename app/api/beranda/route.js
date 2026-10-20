@@ -487,6 +487,7 @@ export async function GET(req) {
     }
     if (peran === 'markom') return Response.json({ ...(await berandaMarcom(sql, user, hariIni)), pratinjau: pimpinan });
     if (peran === 'sales') return Response.json({ ...(await berandaSales(sql, user, hariIni, pimpinan)), pratinjau: pimpinan });
+    if (peran === 'collection') return Response.json({ peran: 'collection', hariIni }); // isi beranda diambil dari /api/collection
     return Response.json({ error: 'Beranda belum tersedia untuk peran ini' }, { status: 403 });
   } catch (e) {
     console.error('beranda', e);

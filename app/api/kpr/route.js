@@ -5,7 +5,8 @@ import { siapkanKpr, sinkronKpr, statusKpr, daftarBerkas, BANK_KPR, TAHAP_BANK, 
 
 export const dynamic = 'force-dynamic';
 
-const PERAN = ['manager', 'ceo', 'sales'];
+const PERAN = ['manager', 'ceo', 'sales', 'collection'];
+const BOLEH_UBAH = ['manager', 'sales', 'collection']; // CEO hanya melihat
 const tglAtauNull = v => (v && /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? String(v).slice(0, 10) : null);
 const angka = v => (v === '' || v === null || v === undefined ? null : Number(String(v).replace(/[^\d.]/g, '')) || null);
 
@@ -66,6 +67,7 @@ export async function GET(req) {
     WHERE (${user.role === 'sales' ? user.name : null}::text IS NULL OR l.sales = ${user.role === 'sales' ? user.name : null})
     ORDER BY k.updated_at DESC`;
   rows = rows.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by }));
+  const pjF = q.get('project'); if (pjF) rows = rows.filter(r => r.project === pjF);
   const ids = rows.map(r => r.id);
   const banks = ids.length ? await sql`SELECT id, kpr_id, bank, ao_nama, cabang, tahap, kendala, updated_at FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id` : [];
   const hari = 86400000;
@@ -83,7 +85,7 @@ export async function GET(req) {
 
 // Tambah: kartu KPR manual (lead dengan Reserved/Booking) atau pengajuan ke bank baru
 async function _POST(req) {
-  const { user, err } = await requireUser(PERAN); if (err) return err;
+  const { user, err } = await requireUser(BOLEH_UBAH); if (err) return err;
   const sql = db();
   await siapkanKpr(sql);
   const b = await req.json().catch(() => ({}));
@@ -117,7 +119,7 @@ async function _POST(req) {
 }
 
 async function _PATCH(req) {
-  const { user, err } = await requireUser(PERAN); if (err) return err;
+  const { user, err } = await requireUser(BOLEH_UBAH); if (err) return err;
   const sql = db();
   await siapkanKpr(sql);
   const b = await req.json().catch(() => ({}));
@@ -212,7 +214,7 @@ async function _PATCH(req) {
 
 // Hapus pengajuan bank yang salah input (bukan hasil akhir) — manager / sales pemilik
 async function _DELETE(req) {
-  const { user, err } = await requireUser(['manager', 'sales']); if (err) return err;
+  const { user, err } = await requireUser(['manager', 'sales', 'collection']); if (err) return err;
   const sql = db();
   await siapkanKpr(sql);
   const id = Number(new URL(req.url).searchParams.get('bank')) || 0;

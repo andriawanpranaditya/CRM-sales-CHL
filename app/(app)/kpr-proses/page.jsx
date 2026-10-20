@@ -21,6 +21,8 @@ export default function ProsesKprPage() {
   const [me, setMe] = useState(null);
   const [data, setData] = useState(null);
   const [filter, setFilter] = useState('berjalan');
+  const [proj, setProj] = useState(''); // filter per project (Manager / CEO / Collection)
+  const [projek, setProjek] = useState([]);
   const [cari, setCari] = useState('');
   const [pilih, setPilih] = useState(null);
   const [aturBerkas, setAturBerkas] = useState(null);
@@ -30,13 +32,15 @@ export default function ProsesKprPage() {
   const muat = () => api('/api/kpr').then(setData).catch(e => toast(e.message));
   useEffect(() => {
     api('/api/auth/me').then(setMe).catch(() => {});
+    api('/api/settings').then(s => setProjek(s.project || [])).catch(() => {});
     muat();
     const id = new URLSearchParams(window.location.search).get('id');
     if (id) setPilih(Number(id));
   }, []);
   useEffect(() => { if (me && me.role === 'sales') api('/api/leads').then(setLeads).catch(() => {}); }, [me]);
 
-  const rows = data?.rows || [];
+  const readOnly = me?.role === 'ceo'; // CEO hanya melihat
+  const rows = (data?.rows || []).filter(r => !proj || r.project === proj);
   const jumlah = useMemo(() => ({
     berjalan: rows.filter(r => !r.batal && r.status.kategori === 'berjalan').length,
     sp3k: rows.filter(r => !r.batal && r.status.kategori === 'sp3k').length,
@@ -58,12 +62,17 @@ export default function ProsesKprPage() {
   if (pilih) return <Detail id={pilih} me={me} kembali={() => { setPilih(null); muat(); }} />;
 
   return (
-    <>
+    <div className={readOnly ? 'kp-ro' : ''}>
       <Toast />
-      <div className="page-head"><div><h1>Proses KPR</h1>
+      <div className={'page-head' + (readOnly ? ' kp-ro-head' : '')}><div><h1>Proses KPR{readOnly ? <span className="hint" style={{ fontSize: 13, marginLeft: 8 }}>· hanya lihat</span> : null}</h1>
         <div className="sub">Pantau pengajuan KPR konsumen sejak Booking: Verifikasi &amp; SLIK → Diajukan ke bank → Kumpul berkas → Analisa kredit → SP3K terbit / Ditolak → akad</div></div>
         {me?.role === 'manager' && <button className="sort-btn" onClick={() => setAturBerkas(JSON.parse(JSON.stringify(data?.berkas || {})))}>⚙ Atur daftar berkas</button>}
       </div>
+      {projek.length > 1 && me && me.role !== 'sales' && <div className="fu-toolbar" style={{ marginBottom: 10 }}>
+        <span className="hint" style={{ fontWeight: 600 }}>Project:</span>
+        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
+        {projek.map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
+      </div>}
 
       {aturBerkas && (
         <div className="card" style={{ marginBottom: 12 }}>
@@ -113,7 +122,7 @@ export default function ProsesKprPage() {
               {r.kendala && <div className="kp-kendala">Kendala: {r.kendala}</div>}
             </button>))}
         </div>) : <p className="hint">Belum ada konsumen di kelompok ini.</p>}
-    </>
+    </div>
   );
 }
 

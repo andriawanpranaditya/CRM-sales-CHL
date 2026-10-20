@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Ringkasan from '@/components/CollectionRingkasan';
 import React, { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
@@ -436,7 +437,27 @@ export default function BerandaPage() {
         </div>}
       </div>
       <p className="bd-hello">{sapa()}, {depan(me?.name)}{pimpinan && sebagai !== 'pimpinan' ? ' · pratinjau beranda ' + (sebagai === 'sales' ? 'Sales (seluruh tim)' : 'Marcom') : ''}</p>
-      {!d ? <div className="loading">Menyiapkan beranda…</div> : d.peran === 'pimpinan' ? <Pimpinan d={d} me={me} proj={proj} setProj={setProj} daftarProj={daftarProj} /> : d.peran === 'sales' ? <Sales d={d} /> : <Marcom d={d} />}
+      {!d ? <div className="loading">Menyiapkan beranda…</div> : d.peran === 'pimpinan' ? <Pimpinan d={d} me={me} proj={proj} setProj={setProj} daftarProj={daftarProj} /> : d.peran === 'sales' ? <Sales d={d} /> : d.peran === 'collection' ? <Collection me={me} /> : <Marcom d={d} />}
     </div>
   );
+}
+
+// ===== Beranda Collection & KPR =====
+function Collection({ me }) {
+  const [d, setD] = useState(null);
+  const [proj, setProj] = useState('');
+  const [projek, setProjek] = useState([]);
+  const muat = (p = proj) => api('/api/collection' + (p ? '?project=' + encodeURIComponent(p) : '')).then(setD).catch(e => toast(e.message));
+  useEffect(() => { api('/api/settings').then(s => setProjek(s.project || [])).catch(() => {}); }, []);
+  useEffect(() => { setD(null); muat(proj); }, [proj]); // eslint-disable-line
+  if (!d) return <div className="loading">Menyiapkan beranda…</div>;
+  const mendesak = d.perhatian.filter(p => p.level === 'merah').length;
+  return (<>
+    <div className="bd-head" style={{ alignItems: 'flex-end', marginBottom: 14 }}>
+      <h1 className="bd-title" style={{ margin: 0 }}>{d.perhatian.length ? `${d.perhatian.length} hal perlu ditindaklanjuti${mendesak ? ` · ${mendesak} mendesak` : ''}` : 'Semua terkendali hari ini'}</h1>
+      {projek.length > 1 && <div className="theme-switch" role="group" aria-label="Pilih project">{[['', 'Semua project'], ...projek.map(p => [p, p])].map(([v, l]) => <button key={v} aria-pressed={proj === v} onClick={() => setProj(v)}>{l}</button>)}</div>}
+    </div>
+    <Pintasan items={[['/collection?tab=tagihan', I.cek, 'Catat pembayaran', true], ['/kpr-proses', I.hitung, 'Proses KPR'], ['/collection?tab=akad', I.kalender, 'Jadwal akad'], ['/kpr', I.hitung, 'Simulasi'], ['/stock', I.peta, 'Master Stock']]} />
+    <Ringkasan d={d} proj={proj} muat={() => muat(proj)} />
+  </>);
 }
