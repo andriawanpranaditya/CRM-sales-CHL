@@ -142,7 +142,10 @@ async function _PATCH(req) {
     await sql`UPDATE kpr SET profil = ${profil}, berkas = ${JSON.stringify(centang || [])}::jsonb,
       plafon = ${'plafon' in b ? angka(b.plafon) : k.plafon}, tenor = ${'tenor' in b ? angka(b.tenor) : k.tenor},
       slik_status = ${'slik_status' in b ? (b.slik_status || null) : k.slik_status}, slik_tgl = ${slikTgl},
-      slik_catatan = ${'slik_catatan' in b ? (b.slik_catatan || '') : k.slik_catatan}, catatan = ${'catatan' in b ? (b.catatan || '') : k.catatan}
+      slik_catatan = ${'slik_catatan' in b ? (b.slik_catatan || '') : k.slik_catatan}, catatan = ${'catatan' in b ? (b.catatan || '') : k.catatan},
+      bi_hasil = ${'bi_hasil' in b ? (b.bi_hasil || null) : k.bi_hasil}, bi_pinjaman = ${'bi_pinjaman' in b ? (b.bi_pinjaman || null) : k.bi_pinjaman}, bi_status = ${'bi_status' in b ? (b.bi_status || null) : k.bi_status},
+      sertifikat = ${'sertifikat' in b ? (b.sertifikat || null) : k.sertifikat}, lpa = ${'lpa' in b ? !!b.lpa : k.lpa}, slf = ${'slf' in b ? !!b.slf : k.slf}, surat_pernyataan = ${'surat_pernyataan' in b ? !!b.surat_pernyataan : k.surat_pernyataan},
+      alamat_ktp = ${'alamat_ktp' in b ? (b.alamat_ktp || null) : k.alamat_ktp}, kota = ${'kota' in b ? (b.kota || null) : k.kota}
       WHERE id = ${k.id}`;
     const isi = [];
     if (b.slik_status && b.slik_status !== k.slik_status) isi.push(`Verifikasi & SLIK: ${b.slik_status}` + (b.slik_catatan ? ` (${b.slik_catatan})` : ''));
@@ -150,6 +153,8 @@ async function _PATCH(req) {
     if (Array.isArray(b.berkas)) isi.push(`Berkas ${centang.length}/${(berkas[profil] || []).length} lengkap`);
     if ('plafon' in b || 'tenor' in b) isi.push('Plafon/tenor diperbarui');
     if (b.catatan && b.catatan !== k.catatan) isi.push('Catatan: ' + b.catatan);
+    if ('sertifikat' in b && b.sertifikat !== k.sertifikat) isi.push('Sertifikat: ' + (b.sertifikat || '-'));
+    if ('bi_status' in b && b.bi_status !== k.bi_status) isi.push('BI checking: ' + (b.bi_status || '-'));
     await catatLog(sql, k.id, user, isi.join(' · ') || 'Data KPR diperbarui');
     return Response.json({ ok: true, lead_code: k.lead_code, nama: k.nama });
   }

@@ -595,3 +595,10 @@ th.num{text-align:right}
 /* Proses KPR / Collection: mode hanya lihat (CEO) */
 .kp-ro .btn,.kp-ro button.btn-primary,.kp-ro .kp-aksi button{display:none!important}
 .kp-ro input:not([type=search]),.kp-ro select:not(.sort-filter),.kp-ro textarea{pointer-events:none;opacity:.65}
+/* Ceklis dokumen KPR */
+.ck-tbl table{font-size:12px;min-width:1400px}.ck-tbl th{white-space:normal;line-height:1.15;vertical-align:bottom}
+.ck-h span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);max-height:110px;font-size:10px;letter-spacing:.2px}
+.ck-c{text-align:center}
+.ck-box{width:24px;height:24px;border-radius:6px;border:1.5px solid var(--line);background:var(--paper);cursor:pointer;font-weight:800;color:var(--on-green);font-size:13px}
+.ck-box.on{background:var(--green);border-color:var(--green)}
+.ck-box:disabled{cursor:default;opacity:.8}

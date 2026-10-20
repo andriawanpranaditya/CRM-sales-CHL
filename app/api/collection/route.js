@@ -2,7 +2,9 @@ import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { siapkanKpr, sinkronKpr, statusKpr } from '@/lib/kpr';
-import { siapkanCollection, daftarTagihan, ringkasTagihan } from '@/lib/collection';
+import { siapkanCollection, siapkanKontrak, daftarTagihan, ringkasTagihan, daftarKontrak, resumeKontrak } from '@/lib/collection';
+import { imporPermaiKontrak } from '@/lib/impor-permai';
+import { daftarBerkas } from '@/lib/kpr';
 
 export const dynamic = 'force-dynamic';
 const LIHAT = ['manager', 'ceo', 'collection'], UBAH = ['manager', 'collection']; // CEO hanya melihat
@@ -54,7 +56,10 @@ export async function GET(req) {
     const bayar = await sql`SELECT p.id, p.tagihan_id, p.tgl::text AS tgl, p.nominal, p.cara, p.bukti_nama, p.catatan, p.created_by, p.created_at, g.ket FROM pembayaran p LEFT JOIN tagihan g ON g.id = p.tagihan_id WHERE p.lead_code = ${kode} ORDER BY p.tgl DESC, p.id DESC`;
     return Response.json({ bayar });
   }
-  const [tagihan, kpr, tgt] = await Promise.all([daftarTagihan(sql, { pp, hariIni }), dataKpr(sql, user, pp, hariIni), sql`SELECT items FROM settings WHERE key = 'target_akad'`.catch(() => [])]);
+  await siapkanKontrak(sql);
+  const [tagihan, kpr, tgt, kontrakSemua, berkas] = await Promise.all([daftarTagihan(sql, { pp, hariIni }), dataKpr(sql, user, pp, hariIni), sql`SELECT items FROM settings WHERE key = 'target_akad'`.catch(() => []), daftarKontrak(sql, { pp, hariIni }), daftarBerkas(sql)]);
+  const kontrak = kontrakSemua.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by }));
+  const stokBelum = await sql`SELECT items FROM settings WHERE key = 'units'`.then(x => { const u = x[0]?.items || {}; return Object.entries(u).filter(([p]) => !pp || pp.includes(p)).reduce((a, [, v]) => a + (Array.isArray(v) ? v.length : 0), 0); }).catch(() => 0);
   const rows = tagihan.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by }));
   const target = tgt[0]?.items || {};
   // Perlu tindakan: tunggakan, akad lewat, berkas/kendala lama, SP3K belum pilih bank, jatuh tempo besok, KPR diam
@@ -72,7 +77,8 @@ export async function GET(req) {
     ...rows.filter(r => r.sisa > 0 && r.jatuh_tempo >= hariIni && r.jatuh_tempo <= t14).map(r => ({ tgl: r.jatuh_tempo, nama: r.nama, unit: r.unit, sales: r.sales, kejadian: r.ket, nilai: r.sisa, jenis: 'tagihan', href: '/collection?tab=tagihan&lead=' + r.lead_code })),
   ].sort((a, b) => a.tgl.localeCompare(b.tgl));
   return Response.json({ hariIni, project: pj, readOnly: user.role === 'ceo', me: { name: user.name, role: user.role }, tagihan: rows, ringkasTagihan: ringkasTagihan(rows, hariIni), kpr: kpr.ringkas, kprList: kpr.list.map(r => ({ id: r.id, lead_code: r.lead_code, nama: r.nama, unit: r.unit, project: r.project, sales: r.sales, status: r.status, banks: r.banks.map(b => b.bank), kendala: r.kendala, diam: r.diam, akad_tgl: r.akad_tgl, akad_realisasi: r.akad_realisasi, akadBank: r.akadBank })),
-    perBank: kpr.perBank, jadwalAkad: kpr.jadwalAkad, perhatian, jadwal, target, targetBulan: Number((target[hariIni.slice(0, 7)] || {})[pj || 'SEMUA'] || 0) });
+    perBank: kpr.perBank, jadwalAkad: kpr.jadwalAkad, perhatian, jadwal, target, targetBulan: Number((target[hariIni.slice(0, 7)] || {})[pj || 'SEMUA'] || 0),
+    kontrak, resume: resumeKontrak(kontrak), unitBelumTerjual: Math.max(0, stokBelum - kontrak.length), berkas });
 }
 const fmt = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
@@ -117,6 +123,20 @@ async function _POST(req) {
     const mx = (await sql`SELECT COALESCE(max(urut), 0)::int AS m FROM tagihan WHERE lead_code = ${b.lead_code} AND unit = ${b.unit || ''}`)[0].m;
     await sql`INSERT INTO tagihan (lead_code, project, unit, urut, jenis, ket, jatuh_tempo, nominal, sumber) VALUES (${b.lead_code}, ${l.project || ''}, ${b.unit || ''}, ${mx + 100}, ${b.jenis || 'Lainnya'}, ${b.ket || 'Tagihan'}, ${b.jatuh_tempo || null}, ${Number(b.nominal) || 0}, 'manual')`;
     return Response.json({ ok: true, lead_code: b.lead_code, nama: l.nama, aksi: 'Tambah tagihan' });
+  }
+  if (b.aksi === 'impor_permai') {
+    const hasil = await imporPermaiKontrak(sql, user, { cek: b.cek === true });
+    return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek impor' : 'Impor') + ' kontrak Permai Indah' });
+  }
+  if (b.aksi === 'ubah_kontrak') { // data kontrak per konsumen: no kontrak, skema, tipe sales, potensi batal, catatan
+    const l = (await sql`SELECT lead_code, nama, project, sales, created_by FROM leads WHERE lead_code = ${b.lead_code || ''}`)[0];
+    if (!l) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
+    if (!lihatBaris(user, l)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
+    await siapkanKontrak(sql);
+    await sql`UPDATE leads SET sales_tipe = ${b.sales_tipe || ''}, sales_kantor = ${b.sales_kantor || ''}, sales_hp = ${b.sales_hp || ''}, potensi_batal = ${b.potensi_batal === true}, updated_at = now() WHERE lead_code = ${l.lead_code}`;
+    await sql`UPDATE transactions SET no_kontrak = ${b.no_kontrak || ''}, skema = ${b.skema || ''} WHERE lead_code = ${l.lead_code} AND unit = ${b.unit || ''} AND jenis IN ('Booking', 'Closing')`;
+    if ('catatan' in b) await sql`UPDATE transactions SET catatan = ${b.catatan || ''} WHERE lead_code = ${l.lead_code} AND unit = ${b.unit || ''} AND jenis IN ('Booking', 'Closing')`;
+    return Response.json({ ok: true, lead_code: l.lead_code, nama: l.nama, aksi: 'Ubah data kontrak' });
   }
   if (b.aksi === 'target') { // target akad per bulan & project — disiapkan, angka diisi manual
     const bulan = String(b.bulan || '').slice(0, 7); if (!/^\d{4}-\d{2}$/.test(bulan)) return Response.json({ error: 'Bulan tidak valid' }, { status: 400 });
