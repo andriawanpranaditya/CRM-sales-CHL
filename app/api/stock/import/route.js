@@ -189,6 +189,7 @@ async function _POST(req) {
   const sql = db();
   const body = await req.json().catch(() => ({}));
   const PROJ = SUMBER[body.project] ? body.project : 'BIO DISTRICT';
+  const cek = body.cek === true; // mode cek: hanya menghitung & melaporkan apa yang akan berubah, tanpa menulis apa pun
   const { data: DATA0, master: MASTER } = SUMBER[PROJ];
   // Samakan penamaan unit laporan dengan daftar master CRM (mis. "Blok BLV no.02" vs "Blok Blv no.2"): abaikan kata Blok/no., spasi, strip, nol di depan, huruf besar
   const norm = u => String(u || '').toLowerCase().replace(/blok|\s/g, '').replace(/no\.?|-|_|\//g, '#').replace(/#0+(\d)/, '#$1');
@@ -202,14 +203,14 @@ async function _POST(req) {
   const DATA = DATA0.map(d => ({ ...d, u: petaNama[norm(d.u)] || d.u }));
   const hilang = MASTER ? lama.filter(u => !MASTER63.includes(u)) : [];   // unit lama yang tidak ada di siteplan
   const baru = MASTER ? MASTER63.filter(u => !lama.includes(u)) : [];     // unit siteplan yang belum terdaftar
-  if (MASTER) {
+  if (MASTER && !cek) {
     units[PROJ] = MASTER63;
     await sql`INSERT INTO settings (key, items) VALUES ('units', ${JSON.stringify(units)}::jsonb)
               ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(units)}::jsonb`;
   }
 
   // Tanda/posisi pada unit yang sudah tidak ada di daftar resmi — dilaporkan, TIDAK dihapus
-  const semuaTanda = await sql`SELECT unit, status, sumber FROM unit_manual WHERE project = ${PROJ}`;
+  const semuaTanda = await sql`SELECT unit, status, sumber, nama FROM unit_manual WHERE project = ${PROJ}`;
   // Tanda manual manager: bila manager & laporan sama-sama bilang TERJUAL → datanya disamakan dengan laporan (nama, agen, nilai, akad);
   // bila berbeda (manager: Reserved / Kosong, laporan: Terjual) → dibiarkan dan dilaporkan sebagai konflik untuk dicek manager
   const tandaManual = Object.fromEntries(semuaTanda.filter(t => t.sumber === 'manual' || t.status === 'Kosong').map(t => [t.unit, t.status]));
@@ -236,14 +237,14 @@ async function _POST(req) {
       disamakan.push(d.u);
     }
     if (adaTrx.includes(d.u)) {
-      await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${d.u}`;
+      if (!cek) await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${d.u}`;
       lewatTrx.push(d.u);
       continue;
     }
     const status = d.s === 'T' ? 'Terjual' : 'Reserved';
     // Keterangan akad (bila ada) ikut disimpan di belakang nama agen agar terbaca di Master Stock: "… · akad 10 Apr 2026"
     const ket = d.k ? ' · akad ' + d.k : (d.t ? ' · kontrak ' + d.t : '');
-    await sql`INSERT INTO unit_manual (project, unit, status, nama, sales, sumber, nilai)
+    if (!cek) await sql`INSERT INTO unit_manual (project, unit, status, nama, sales, sumber, nilai)
               VALUES (${PROJ}, ${d.u}, ${status}, ${d.n}, ${(d.a || '') + ket}, 'import', ${d.v || null})
               ON CONFLICT (project, unit) DO UPDATE SET status = ${status}, nama = ${d.n}, sales = ${(d.a || '') + ket}, sumber = 'import', nilai = ${d.v || null}, updated_at = now()`;
     if (d.s === 'T') terjual++; else reserved++;
@@ -255,12 +256,12 @@ async function _POST(req) {
   const bersih = [], dibuka = [];
   for (const t of semuaTanda) {
     if (pakai.includes(t.unit)) continue;
-    if (t.sumber === 'import') { await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; bersih.push(t.unit); }
-    else if (t.sumber === 'manual' && t.status !== 'Kosong' && !adaTrx.includes(t.unit)) { await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; dibuka.push(`${t.unit} (${t.status})`); }
+    if (t.sumber === 'import') { if (!cek) await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; bersih.push(t.unit); }
+    else if (t.sumber === 'manual' && t.status !== 'Kosong' && !adaTrx.includes(t.unit)) { if (!cek) await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; dibuka.push(`${t.unit} (${t.status}${t.nama ? ' · ' + t.nama : ''})`); }
   }
 
   return Response.json({
-    ok: true, project: PROJ, terjual, reserved, takDikenal,
+    ok: true, cek, project: PROJ, terjual, reserved, takDikenal,
     totalUnit: MASTER63.length,
     unitBaru: baru.length,
     unitDibuang: hilang.length,
@@ -272,4 +273,4 @@ async function _POST(req) {
 }
 
 // Log aktivitas: setiap aksi yang berhasil dicatat (siapa, kapan, apa) — lihat menu Log Aktivitas
-export const POST = denganLog('Master Stock', _POST, ({ body }) => ({ aksi: 'Impor', detail: (SUMBER[body?.project] ? body.project + ' · ' + SUMBER[body.project].label : 'BIO DISTRICT · Weekly Report') }));
+export const POST = denganLog('Master Stock', _POST, ({ body }) => ({ aksi: body?.cek ? 'Cek impor' : 'Impor', detail: (SUMBER[body?.project] ? body.project + ' · ' + SUMBER[body.project].label : 'BIO DISTRICT · Weekly Report') }));

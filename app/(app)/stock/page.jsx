@@ -294,7 +294,26 @@ export default function StockPage() {
             <button className="sort-btn" onClick={() => setStatusManual(selUnit, null)}>↩ Kembali Ikut Transaksi</button>
           )}
           {(/BIO/i.test(proj) || /PERMAI/i.test(proj)) && (
-            <button className="sort-btn" style={{ marginLeft: 'auto', borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
+            <button className="sort-btn" style={{ marginLeft: 'auto' }} disabled={imp} title="Lihat apa yang akan berubah tanpa menulis apa pun"
+              onClick={async () => {
+                setImp(true);
+                try {
+                  const r = await api('/api/stock/import', { method: 'POST', body: JSON.stringify({ project: proj, cek: true }) });
+                  const baris = [
+                    `CEK IMPOR ${r.project} — belum ada yang diubah`, '',
+                    `• ${r.terjual} unit akan ditandai Terjual${r.reserved ? ` + ${r.reserved} Reserved` : ''} dari laporan`,
+                    r.ikutTransaksi?.length ? `• ${r.ikutTransaksi.length} unit tetap mengikuti transaksi CRM: ${r.ikutTransaksi.join(', ')}` : '',
+                    r.disamakan?.length ? `• ${r.disamakan.length} tanda manual Terjual akan disamakan datanya: ${r.disamakan.join(', ')}` : '',
+                    r.dibuka?.length ? `• ${r.dibuka.length} tanda manual TIDAK ADA di laporan → akan DIBUKA (tersedia): ${r.dibuka.join(', ')}` : '• Tidak ada tanda manual yang perlu dibuka',
+                    r.konflik?.length ? `• Konflik (dibiarkan, cek manager): ${r.konflik.join(', ')}` : '',
+                    r.takDikenal?.length ? `• Unit di laporan yang tidak ada di master: ${r.takDikenal.join(', ')}` : '',
+                    r.tandaDibersihkan?.length ? `• Tanda impor lama yang akan dihapus: ${r.tandaDibersihkan.join(', ')}` : '',
+                  ].filter(Boolean).join('\n');
+                  alert(baris);
+                } catch (err) { toast(err.message); } finally { setImp(false); }
+              }}>🔍 Cek dulu</button>)}
+          {(/BIO/i.test(proj) || /PERMAI/i.test(proj)) && (
+            <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }}
               disabled={imp}
               onClick={async () => {
                 const permai = /PERMAI/i.test(proj);
