@@ -189,13 +189,17 @@ async function _POST(req) {
   const sql = db();
   const body = await req.json().catch(() => ({}));
   const PROJ = SUMBER[body.project] ? body.project : 'BIO DISTRICT';
-  const { data: DATA, master: MASTER } = SUMBER[PROJ];
+  const { data: DATA0, master: MASTER } = SUMBER[PROJ];
+  // Samakan penamaan unit laporan dengan daftar master CRM (mis. "Blok BLV no.02" vs "Blok Blv no.2"): abaikan kata Blok/no., spasi, strip, nol di depan, huruf besar
+  const norm = u => String(u || '').toLowerCase().replace(/blok|\s/g, '').replace(/no\.?|-|_|\//g, '#').replace(/#0+(\d)/, '#$1');
 
   // 1) Master unit: BIO DISTRICT disetel ke daftar siteplan resmi (63 unit); PERMAI INDAH memakai daftar master yang sudah ada di Settings
   const st = await sql`SELECT items FROM settings WHERE key = 'units'`;
   const units = (st[0] && st[0].items) || {};
   const lama = Array.isArray(units[PROJ]) ? units[PROJ] : [];
   const MASTER63 = MASTER || lama;
+  const petaNama = Object.fromEntries(MASTER63.map(u => [norm(u), u]));
+  const DATA = DATA0.map(d => ({ ...d, u: petaNama[norm(d.u)] || d.u }));
   const hilang = MASTER ? lama.filter(u => !MASTER63.includes(u)) : [];   // unit lama yang tidak ada di siteplan
   const baru = MASTER ? MASTER63.filter(u => !lama.includes(u)) : [];     // unit siteplan yang belum terdaftar
   if (MASTER) {
@@ -244,14 +248,15 @@ async function _POST(req) {
               ON CONFLICT (project, unit) DO UPDATE SET status = ${status}, nama = ${d.n}, sales = ${(d.a || '') + ket}, sumber = 'import', nilai = ${d.v || null}, updated_at = now()`;
     if (d.s === 'T') terjual++; else reserved++;
   }
-  // 3) Bersihkan tanda manual lama di unit yang TIDAK ada dalam report (mis. bekas batal)
+  // 3) Laporan penjualan = acuan paling mutakhir:
+  //    - tanda impor lama di unit yang tidak ada dalam laporan (bekas batal / penamaan lama) → dihapus
+  //    - tanda MANUAL Terjual/Reserved yang tidak ada dalam laporan & tidak punya transaksi → dihapus (unit kembali tersedia); kunci "Kosong" tetap dihormati
   const pakai = DATA.map(d => d.u);
-  const bersih = [];
+  const bersih = [], dibuka = [];
   for (const t of semuaTanda) {
-    if (!pakai.includes(t.unit) && t.sumber === 'import') {
-      await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`;
-      bersih.push(t.unit);
-    }
+    if (pakai.includes(t.unit)) continue;
+    if (t.sumber === 'import') { await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; bersih.push(t.unit); }
+    else if (t.sumber === 'manual' && t.status !== 'Kosong' && !adaTrx.includes(t.unit)) { await sql`DELETE FROM unit_manual WHERE project = ${PROJ} AND unit = ${t.unit}`; dibuka.push(`${t.unit} (${t.status})`); }
   }
 
   return Response.json({
@@ -262,7 +267,7 @@ async function _POST(req) {
     tandaMenggantung: sisaTanda.map(x => x.unit + ' (' + x.status + ')'),
     tandaDibersihkan: bersih,
     ikutTransaksi: lewatTrx,
-    dihormati, disamakan, konflik,
+    dihormati, disamakan, konflik, dibuka,
   });
 }
 
