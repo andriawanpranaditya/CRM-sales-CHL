@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
 import InputRupiah from '@/components/InputRupiah';
@@ -340,9 +340,15 @@ function DataKontrak({ d, muat, me, proj }) {
 function Ceklis({ d, muat }) {
   const [cari, setCari] = useState('');
   const [busy, setBusy] = useState('');
-  const rows = d.kontrak.filter(x => x.kpr && (!cari.trim() || (x.nama + ' ' + x.unit).toLowerCase().includes(cari.trim().toLowerCase())));
-  const profil = rows[0]?.kpr?.profil || 'Subsidi — Karyawan';
-  const semuaDoc = [...new Set(rows.flatMap(x => d.berkas[x.kpr.profil] || []))];
+  const [fProfil, setFProfil] = useState('');
+  const wadah = useRef(null);
+  const semuaKpr = d.kontrak.filter(x => x.kpr);
+  // Kolom berkas mengikuti SATU profil (default: profil terbanyak) supaya tidak bercampur antar profil
+  const profilAda = [...new Set(semuaKpr.map(x => x.kpr.profil).filter(Boolean))].sort((a, b) => semuaKpr.filter(x => x.kpr.profil === b).length - semuaKpr.filter(x => x.kpr.profil === a).length);
+  const profilAktif = fProfil || profilAda[0] || 'Karyawan';
+  const rows = semuaKpr.filter(x => x.kpr.profil === profilAktif && (!cari.trim() || (x.nama + ' ' + x.unit).toLowerCase().includes(cari.trim().toLowerCase())));
+  const semuaDoc = d.berkas[profilAktif] || [];
+  const geser = dx => { if (wadah.current) wadah.current.scrollBy({ left: dx, behavior: 'smooth' }); };
   async function toggle(x, doc) {
     if (d.readOnly) return;
     setBusy(x.lead_code + doc);
@@ -355,12 +361,17 @@ function Ceklis({ d, muat }) {
   }
   return (<div className="card">
     <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Ceklis dokumen KPR ({rows.length})</h3>
-      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><input className="sort-filter" placeholder="🔍 nama / unit" value={cari} onChange={e => setCari(e.target.value)} style={{ width: 170 }} /><span className="hint">klik kotak untuk centang · daftar berkas per profil diatur di Proses KPR → ⚙</span></span></div>
-    {rows.length ? <div className="tbl-wrap ck-tbl"><table>
-      <thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 2 }}>Konsumen · unit</th><th>Profil</th><th>BI checking</th><th>Hasil</th><th>Sertifikat</th>{semuaDoc.map(dc => <th key={dc} title={dc} className="ck-h"><span>{dc.replace(/\s*\(.*\)/, '')}</span></th>)}<th>LPA</th><th>SLF</th><th>Srt. pernyataan</th><th>Bank</th><th>Akad</th><th>Keterangan</th></tr></thead>
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {profilAda.map(p => <button key={p} className={'sort-btn' + (profilAktif === p ? ' active' : '')} onClick={() => setFProfil(p)}>{p} ({semuaKpr.filter(x => x.kpr.profil === p).length})</button>)}
+        <input className="sort-filter" placeholder="🔍 nama / unit" value={cari} onChange={e => setCari(e.target.value)} style={{ width: 160 }} />
+        <button className="sort-btn" title="Geser ke kiri" onClick={() => geser(-420)}>◀</button><button className="sort-btn" title="Geser ke kanan" onClick={() => geser(420)}>▶</button>
+      </span></div>
+    <p className="hint" style={{ margin: '4px 0 8px' }}>Kolom berkas mengikuti profil yang dipilih; ganti profil konsumen lewat dropdown di barisnya. Klik kotak untuk centang. Daftar berkas per profil diatur di Proses KPR → ⚙. Geser tabel dengan tombol ◀ ▶, Shift + scroll, atau bilah gulir di bawah tabel (selalu terlihat).</p>
+    {rows.length ? <div className="tbl-wrap ck-tbl" ref={wadah}><table>
+      <thead><tr><th className="ck-first">Konsumen · unit</th><th>Profil</th><th>BI checking</th><th>Hasil</th><th>Sertifikat</th>{semuaDoc.map(dc => <th key={dc} title={dc} className="ck-h"><span>{dc.replace(/\s*\(.*\)/, '')}</span></th>)}<th>LPA</th><th>SLF</th><th>Srt. pernyataan</th><th>Bank</th><th>Akad</th><th>Keterangan</th></tr></thead>
       <tbody>{rows.map(x => { const daftar = d.berkas[x.kpr.profil] || []; const ok = (x.kpr.berkas || []).filter(b => daftar.includes(b)).length;
         return (<tr key={x.lead_code}>
-          <td style={{ position: 'sticky', left: 0, background: 'var(--card)', zIndex: 1 }}><Link href={'/kpr-proses?id=' + x.kpr_id} className="jj-nama">{x.nama}</Link><span className="sub2">{x.unit} · {x.sales}</span><span className="sub2"><b>{ok}/{daftar.length}</b> berkas</span></td>
+          <td className="ck-first"><Link href={'/kpr-proses?id=' + x.kpr_id} className="jj-nama">{x.nama}</Link><span className="sub2">{x.unit} · {x.sales}</span><span className="sub2"><b>{ok}/{daftar.length}</b> berkas</span></td>
           <td><select className="sort-filter" value={x.kpr.profil} disabled={d.readOnly} onChange={e => ubah(x, 'profil', e.target.value)}>{Object.keys(d.berkas).map(p => <option key={p}>{p}</option>)}</select></td>
           <td>{x.kpr.slik_tgl ? fmtDate(x.kpr.slik_tgl) : '—'}<span className="sub2">{x.kpr.bi_hasil || x.kpr.slik_status || ''}{x.kpr.bi_pinjaman ? ' · ' + x.kpr.bi_pinjaman : ''}</span></td>
           <td><select className="sort-filter" value={x.kpr.bi_status || ''} disabled={d.readOnly} onChange={e => ubah(x, 'bi_status', e.target.value)}><option value="">—</option>{['Lancar', 'Tidak Lancar', 'Proses'].map(o => <option key={o}>{o}</option>)}</select></td>
@@ -371,7 +382,7 @@ function Ceklis({ d, muat }) {
           <td>{x.bank || '—'}<span className="sub2">{x.kprStatus}</span></td>
           <td>{x.tgl_akad ? fmtDate(x.tgl_akad) : x.rencana_akad ? 'rencana ' + fmtDate(x.rencana_akad) : '—'}</td>
           <td style={{ minWidth: 160 }}>{x.kpr.catatan || x.catatan || '—'}</td></tr>); })}</tbody></table></div>
-      : <p className="hint">Belum ada konsumen KPR.</p>}
+      : <p className="hint">Belum ada konsumen KPR di profil ini.</p>}
     <p className="hint" style={{ marginTop: 6 }}>Profil <b>Subsidi — Karyawan</b> / <b>Subsidi — Wirausaha</b> memuat daftar berkas rumah subsidi (KTP, KTP pasangan, NPWP, SPT PPh 21, KK, surat nikah, SK domisili, pas foto, BPJS, slip gaji/SKU, rekening koran, SKK/SKDU, SKTB, SKBM, Form FLPP, SKBMR, Form KPR Bank, SPBPMS, foto usaha). Kolom LPA, SLF, dan surat pernyataan mengikuti Ceklis Dokumen KPR Permai Indah.</p>
   </div>);
 }

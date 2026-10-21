@@ -596,7 +596,11 @@ th.num{text-align:right}
 .kp-ro .btn,.kp-ro button.btn-primary,.kp-ro .kp-aksi button{display:none!important}
 .kp-ro input:not([type=search]),.kp-ro select:not(.sort-filter),.kp-ro textarea{pointer-events:none;opacity:.65}
 /* Ceklis dokumen KPR */
-.ck-tbl table{font-size:12px;min-width:1400px}.ck-tbl th{white-space:normal;line-height:1.15;vertical-align:bottom}
+.ck-tbl{max-height:calc(100vh - 300px);overflow:auto;overscroll-behavior-x:contain}
+.ck-tbl table{font-size:12px;min-width:1400px;border-collapse:separate;border-spacing:0}
+.ck-tbl thead th{position:sticky;top:0;z-index:3;background:var(--head-bg);white-space:normal;line-height:1.15;vertical-align:bottom;box-shadow:inset 0 -1px 0 var(--line)}
+.ck-tbl th.ck-first{left:0;z-index:5}.ck-tbl td.ck-first{position:sticky;left:0;z-index:2;background:var(--card);box-shadow:inset -1px 0 0 var(--line);min-width:150px}
+.ck-tbl td{vertical-align:top;background:var(--card)}
 .ck-h span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);max-height:110px;font-size:10px;letter-spacing:.2px}
 .ck-c{text-align:center}
 .ck-box{width:24px;height:24px;border-radius:6px;border:1.5px solid var(--line);background:var(--paper);cursor:pointer;font-weight:800;color:var(--on-green);font-size:13px}
@@ -614,3 +618,4 @@ th.num{text-align:right}
   .ck-kontrak .kp-pill.sm{font-size:10px;padding:2px 6px;white-space:normal!important}
   .ck-kontrak .sub2{font-size:10.5px;line-height:1.25}
 }
+.ck-tbl td.ck-first .sub2{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
