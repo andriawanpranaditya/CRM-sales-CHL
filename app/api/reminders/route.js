@@ -11,6 +11,37 @@ export async function GET() {
   const sql = db();
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
+  // ===== Collection & KPR: lonceng khusus (tagihan jatuh tempo / tunggakan, akad, kendala KPR) — tanpa pengingat follow up sales =====
+  if (user.role === 'collection') {
+    const { daftarTagihan } = await import('@/lib/collection');
+    const { siapkanKpr, statusKpr } = await import('@/lib/kpr');
+    const pp = user.projects;
+    const besok = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+    let tagihan = [];
+    try { tagihan = (await daftarTagihan(sql, { pp, hariIni: today })).filter(r => r.sisa > 0 && lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by })); } catch (e) { console.error('reminder tagihan', e); }
+    const tunggakan = tagihan.filter(r => r.jatuh_tempo && r.jatuh_tempo < today).sort((a, b) => b.hariLewat - a.hariLewat);
+    const jatuhTempo = tagihan.filter(r => r.jatuh_tempo === today || r.jatuh_tempo === besok);
+    let akad = [], kendala = [];
+    try {
+      await siapkanKpr(sql);
+      const ks = await sql`SELECT k.id, k.lead_code, k.unit, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, l.nama, l.sales, l.created_by AS lead_by, COALESCE(NULLIF(k.project, ''), l.project, '') AS project,
+          (SELECT t.jenis FROM transactions t WHERE t.lead_code = k.lead_code ORDER BY t.id DESC LIMIT 1) AS trx_terakhir
+        FROM kpr k LEFT JOIN leads l ON l.lead_code = k.lead_code WHERE (${pp}::text[] IS NULL OR COALESCE(NULLIF(k.project, ''), l.project, '') = ANY(${pp}::text[]))`;
+      const ids = ks.map(k => k.id);
+      const bk = ids.length ? await sql`SELECT id, kpr_id, bank, tahap, kendala FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[])` : [];
+      ks.filter(k => k.trx_terakhir !== 'Batal' && lihatBaris(user, { project: k.project, sales: k.sales, created_by: k.lead_by })).forEach(k => {
+        const b = bk.filter(x => x.kpr_id === k.id), st = statusKpr(k, b, k.trx_terakhir);
+        if (st.kategori === 'akad' && k.akad_tgl && !k.akad_realisasi && k.akad_tgl <= besok) akad.push({ id: k.id, nama: k.nama, unit: k.unit, tgl: k.akad_tgl, lewat: k.akad_tgl < today, bank: (b.find(x => x.id === k.akad_bank_id) || {}).bank || '' });
+        const kd = b.filter(x => x.kendala && !['Ditolak', 'Tidak dilanjutkan'].includes(x.tahap)).map(x => `${x.bank}: ${x.kendala}`).join(' · ');
+        if (st.kategori === 'berjalan' && kd) kendala.push({ id: k.id, nama: k.nama, unit: k.unit, kendala: kd, hari: Math.floor((Date.now() - new Date(k.updated_at).getTime()) / 86400000) });
+      });
+    } catch (e) { console.error('reminder kpr', e); }
+    const ringkas = r => ({ id: r.id, lead_code: r.lead_code, nama: r.nama, unit: r.unit, ket: r.ket, sisa: r.sisa, jatuh_tempo: r.jatuh_tempo, hariLewat: r.hariLewat, wa: r.wa });
+    return Response.json({ today, peran: 'collection', hariIni: [], terlambat: [], stok: [], celah: [], aiSiap: [], janjian: [],
+      tunggakan: tunggakan.slice(0, 30).map(ringkas), jatuhTempo: jatuhTempo.map(ringkas), akad, kendala: kendala.slice(0, 20),
+      total: tunggakan.length + jatuhTempo.length + akad.length + kendala.length });
+  }
+
   let rows = user.role === 'markom'
     // Marcom: pengingat FU seluruh lead tim marcom (nama penginput ikut ditampilkan)
     ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,

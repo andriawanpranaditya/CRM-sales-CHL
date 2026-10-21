@@ -36,7 +36,7 @@ export default function ReminderBell({ user }) {
         const key = 'crm_notif_' + d.today;
         if (!localStorage.getItem(key)) {
           new Notification('CRM Sales CHL — Pengingat', {
-            body: `📅 ${d.hariIni.length} FU hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : '') + ((d.stok || []).length ? ` · 🗺 ${d.stok.length} unit perlu ditandai di Master Stock` : '') + ((d.celah || []).length ? ` · 📩 ada lead masuk yang belum tercatat` : ''),
+            body: d.peran === 'collection' ? `💰 ${(d.tunggakan || []).length} tunggakan · 📅 ${(d.jatuhTempo || []).length} jatuh tempo · 🏦 ${(d.akad || []).length} akad` : `📅 ${d.hariIni.length} FU hari ini` + (d.terlambat.length ? ` · ⚠️ ${d.terlambat.length} terlambat` : '') + ((d.stok || []).length ? ` · 🗺 ${d.stok.length} unit perlu ditandai di Master Stock` : '') + ((d.celah || []).length ? ` · 📩 ada lead masuk yang belum tercatat` : ''),
             icon: '/icon-192.png', badge: '/icon-192.png',
           });
           try { localStorage.setItem(key, '1'); } catch {}
@@ -104,17 +104,31 @@ export default function ReminderBell({ user }) {
 
   return (
     <div className="bell-wrap">
-      <button className={'bell-btn' + (total ? ' has' : '')} onClick={toggle} aria-label="Pengingat follow up">
+      <button className={'bell-btn' + (total ? ' has' : '')} onClick={toggle} aria-label="Pengingat">
         🔔{total > 0 && <span className="bell-badge">{total > 99 ? '99+' : total}</span>}
       </button>
       {open && <>
         <div className="bell-backdrop" onClick={() => setOpen(false)} />
         <div className="bell-panel">
-          <div className="bell-head">Pengingat Follow Up {data ? '— ' + fmtDate(data.today) : ''}</div>
+          <div className="bell-head">{data?.peran === 'collection' ? 'Pengingat Collection & KPR' : 'Pengingat Follow Up'} {data ? '— ' + fmtDate(data.today) : ''}</div>
           {!data || !total ? (
             <div className="hint" style={{ padding: '14px 16px' }}>✅ Tidak ada pengingat. Mantap!</div>
           ) : (
             <div className="bell-list">
+              {data.peran === 'collection' && <>
+                {(data.tunggakan || []).length > 0 && <><div className="bell-sub">💰 Tunggakan ({data.tunggakan.length})</div>
+                  {data.tunggakan.map(r => (<a key={'tg' + r.id} href={'/collection?tab=tagihan&lead=' + r.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                    <b>{r.nama}</b> · {r.unit}<br /><span className="hint">{r.ket} · sisa Rp {Number(r.sisa).toLocaleString('id-ID')} · lewat {r.hariLewat} hari</span></a>))}</>}
+                {(data.jatuhTempo || []).length > 0 && <><div className="bell-sub">📅 Jatuh tempo hari ini / besok ({data.jatuhTempo.length})</div>
+                  {data.jatuhTempo.map(r => (<a key={'jt' + r.id} href={'/collection?tab=tagihan&lead=' + r.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--blue)' }}>
+                    <b>{r.nama}</b> · {r.unit}<br /><span className="hint">{r.ket} · Rp {Number(r.sisa).toLocaleString('id-ID')} · {r.jatuh_tempo === data.today ? 'hari ini' : 'besok'}</span></a>))}</>}
+                {(data.akad || []).length > 0 && <><div className="bell-sub">🏦 Akad ({data.akad.length})</div>
+                  {data.akad.map(a => (<a key={'ak' + a.id} href={'/kpr-proses?id=' + a.id} className="rem-item" style={{ borderLeftColor: a.lewat ? 'var(--red)' : 'var(--brass)' }}>
+                    <b>{a.nama}</b> · {a.unit}<br /><span className="hint">{a.lewat ? 'Akad ' + fmtDate(a.tgl) + ' sudah lewat — isi realisasi' : 'Akad ' + fmtDate(a.tgl)}{a.bank ? ' · ' + a.bank : ''}</span></a>))}</>}
+                {(data.kendala || []).length > 0 && <><div className="bell-sub">⚠ Kendala berkas / bank ({data.kendala.length})</div>
+                  {data.kendala.map(k => (<a key={'kd' + k.id} href={'/kpr-proses?id=' + k.id} className="rem-item" style={{ borderLeftColor: 'var(--brass)' }}>
+                    <b>{k.nama}</b> · {k.unit}<br /><span className="hint">{k.kendala} · {k.hari} hari</span></a>))}</>}
+              </>}
               {(data.janjian || []).length > 0 && <>
                 <div className="bell-sub">📅 Janjian visit ({data.janjian.length})</div>
                 {data.janjian.map(j => (
@@ -164,7 +178,7 @@ export default function ReminderBell({ user }) {
             </div>
           )}
           <div className="bell-foot">
-            Ketuk lead untuk mencatat follow up di Form Input.
+            {data?.peran === 'collection' ? 'Ketuk untuk membuka tagihan atau proses KPR konsumen.' : 'Ketuk lead untuk mencatat follow up di Form Input.'}
             {typeof Notification !== 'undefined' && Notification.permission === 'default' &&
               <> · <a href="#" onClick={e => { e.preventDefault(); Notification.requestPermission(); }}>Aktifkan notifikasi perangkat</a></>}
           </div>
