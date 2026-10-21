@@ -284,15 +284,15 @@ function DataKontrak({ d, muat, me, proj }) {
   const rows = d.kontrak.filter(x => (!f || x.kategori === f) && (!cari.trim() || (x.nama + ' ' + x.unit + ' ' + x.no_kontrak + ' ' + x.sales).toLowerCase().includes(cari.trim().toLowerCase())));
   const KAT = ['Lunas', 'Akad KPR', 'Proses KPR', 'Proses Tunai Angsuran', 'Potensi Batal'];
   async function simpan() { try { await api('/api/collection', { method: 'POST', body: JSON.stringify({ aksi: 'ubah_kontrak', ...edit }) }); toast('Data kontrak disimpan'); setEdit(null); muat(); } catch (e) { toast(e.message); } }
-  async function jalankanImpor(cek) {
+  async function jalankanImpor(cek, projekImpor) {
     setImpor(true);
     try {
-      const r = await api('/api/collection', { method: 'POST', body: JSON.stringify({ aksi: 'impor_permai', cek }) });
-      alert([`${cek ? 'CEK IMPOR (belum ada yang diubah)' : 'IMPOR SELESAI'} — Permai Indah, Report Detail 09/2026 + Ceklis Dokumen`, '',
+      const r = await api('/api/collection', { method: 'POST', body: JSON.stringify({ aksi: 'impor_permai', cek, project: projekImpor }) });
+      alert([`${cek ? 'CEK IMPOR (belum ada yang diubah)' : 'IMPOR SELESAI'} — ${projekImpor}, ${projekImpor === 'BIO DISTRICT' ? 'Report Detail snapshot 12 Okt 2026' : 'Report Detail 09/2026 + Ceklis Dokumen'}`, '',
         `• ${r.dibuat.length} konsumen ${cek ? 'akan ' : ''}dibuat baru (lead + Booking + kartu KPR): ${r.dibuat.slice(0, 6).join(', ')}${r.dibuat.length > 6 ? ' …' : ''}`,
         `• ${r.dipakai.length} konsumen sudah ada di CRM → ${cek ? 'akan ' : ''}dilengkapi (no kontrak, KPR, saldo awal): ${r.dipakai.slice(0, 6).join(', ')}${r.dipakai.length > 6 ? ' …' : ''}`,
         r.takDikenal.length ? `• Unit tidak ada di master: ${r.takDikenal.join(', ')}` : '• Semua unit cocok dengan master',
-        cek ? '' : `• Kartu KPR diperbarui: ${r.kpr} · posisi tagihan/pembayaran per 30 Sep 2026: ${r.tagihan} konsumen`].filter(Boolean).join('\n'));
+        cek ? '' : `• Kartu KPR diperbarui: ${r.kpr} · posisi tagihan/pembayaran (saldo awal): ${r.tagihan} konsumen`].filter(Boolean).join('\n'));
       if (!cek) muat();
     } catch (e) { toast(e.message); } finally { setImpor(false); }
   }
@@ -302,7 +302,9 @@ function DataKontrak({ d, muat, me, proj }) {
         <button className={'sort-btn' + (!f ? ' active' : '')} onClick={() => setF('')}>Semua</button>
         {KAT.map(k => <button key={k} className={'sort-btn' + (f === k ? ' active' : '')} onClick={() => setF(k)}>{k} ({d.kontrak.filter(x => x.kategori === k).length})</button>)}
         <input className="sort-filter" placeholder="🔍 nama / unit / no kontrak" value={cari} onChange={e => setCari(e.target.value)} style={{ width: 190 }} />
-        {!d.readOnly && (proj === 'PERMAI INDAH' || !proj) && <><button className="sort-btn" disabled={impor} onClick={() => jalankanImpor(true)}>🔍 Cek impor Permai</button><button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={impor} onClick={() => { if (confirm('Impor data Collection & KPR PERMAI INDAH dari Report Detail 09/2026 + Ceklis Dokumen KPR?\n\nKonsumen yang belum ada di CRM dibuat (lead + Booking + kartu KPR), yang sudah ada dilengkapi. Posisi tagihan/pembayaran per 30 Sep 2026 dicatat sebagai saldo awal. Aman diulang.')) jalankanImpor(false); }}>{impor ? '⏳…' : '⬆ Impor Permai (Report 09/2026)'}</button></>}
+        {!d.readOnly && ['PERMAI INDAH', 'BIO DISTRICT'].filter(p => !proj || proj === p).map(p => <span key={p} style={{ display: 'inline-flex', gap: 4 }}>
+          <button className="sort-btn" disabled={impor} onClick={() => jalankanImpor(true, p)}>🔍 Cek {p === 'BIO DISTRICT' ? 'Bio' : 'Permai'}</button>
+          <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={impor} onClick={() => { if (confirm(`Impor data Collection & KPR ${p} dari Report Detail${p === 'BIO DISTRICT' ? ' (snapshot 12 Okt 2026)' : ' 09/2026 + Ceklis Dokumen KPR'}?\n\nKonsumen yang belum ada di CRM dibuat (lead + Booking + kartu KPR), yang sudah ada dilengkapi. Posisi tagihan/pembayaran per tanggal laporan dicatat sebagai saldo awal. Aman diulang.`)) jalankanImpor(false, p); }}>{impor ? '⏳…' : `⬆ Impor ${p === 'BIO DISTRICT' ? 'Bio (12 Okt 2026)' : 'Permai (09/2026)'}`}</button></span>)}
       </span></div>
     {rows.length ? <div className="tbl-wrap tbl-compact jj-vtbl"><table>
       <thead><tr><th>Tgl kontrak · No</th><th>Konsumen · unit</th><th>Sales</th><th>Skema</th><th className="num">Nilai kontrak</th><th className="num">Tagihan JT</th><th className="num">Outstanding</th><th className="num">Actual</th><th className="num">Remainder</th><th>Kategori</th><th>Bank · status KPR</th><th>Catatan</th><th></th></tr></thead>

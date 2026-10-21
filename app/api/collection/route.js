@@ -125,8 +125,9 @@ async function _POST(req) {
     return Response.json({ ok: true, lead_code: b.lead_code, nama: l.nama, aksi: 'Tambah tagihan' });
   }
   if (b.aksi === 'impor_permai') {
-    const hasil = await imporPermaiKontrak(sql, user, { cek: b.cek === true });
-    return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek impor' : 'Impor') + ' kontrak Permai Indah' });
+    const projekImpor = b.project === 'BIO DISTRICT' ? 'BIO DISTRICT' : 'PERMAI INDAH';
+    const hasil = await imporPermaiKontrak(sql, user, { cek: b.cek === true, project: projekImpor });
+    return Response.json({ ok: true, ...hasil, project: projekImpor, aksi: (b.cek ? 'Cek impor' : 'Impor') + ' kontrak ' + projekImpor });
   }
   if (b.aksi === 'ubah_kontrak') { // data kontrak per konsumen: no kontrak, skema, tipe sales, potensi batal, catatan
     const l = (await sql`SELECT lead_code, nama, project, sales, created_by FROM leads WHERE lead_code = ${b.lead_code || ''}`)[0];
