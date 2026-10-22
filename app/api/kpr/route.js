@@ -192,7 +192,10 @@ async function _PATCH(req) {
   if (b.jenis === 'akad') {
     const { k, err: e2 } = await ambil(sql, user, b.id); if (e2) return e2;
     const bankId = Number(b.bank_id) || k.akad_bank_id || 0;
-    const bk = await sql`SELECT id, bank, tahap FROM kpr_bank WHERE id = ${bankId} AND kpr_id = ${k.id}`;
+    let bk = bankId ? await sql`SELECT id, bank, tahap FROM kpr_bank WHERE id = ${bankId} AND kpr_id = ${k.id}` : [];
+    // Data impor yang sudah akad tetapi bank akadnya belum tercatat: tanggal akad tetap bisa dikoreksi tanpa memilih bank
+    const tanpaBank = !bankId && (k.akad_tgl || k.akad_realisasi);
+    if (tanpaBank) bk = [{ id: null, bank: '(bank belum dicatat)', tahap: 'SP3K terbit' }];
     if (!bk.length || (bk[0].tahap !== 'SP3K terbit' && bk[0].id !== k.akad_bank_id)) return Response.json({ error: 'Pilih bank yang sudah menerbitkan SP3K' }, { status: 400 });
     const lamaTgl = k.akad_tgl ? String(k.akad_tgl instanceof Date ? k.akad_tgl.toISOString() : k.akad_tgl).slice(0, 10) : null;
     const lamaReal = k.akad_realisasi ? String(k.akad_realisasi instanceof Date ? k.akad_realisasi.toISOString() : k.akad_realisasi).slice(0, 10) : null;
@@ -204,8 +207,8 @@ async function _PATCH(req) {
     if (real && real > hari) return Response.json({ error: 'Tanggal realisasi akad tidak boleh di masa depan — isi setelah akad terlaksana' }, { status: 400 });
     await sql`UPDATE kpr SET akad_bank_id = ${bk[0].id}, akad_tgl = ${tgl}, akad_realisasi = ${real},
       akad_catatan = ${'akad_catatan' in b ? (b.akad_catatan || '') : (k.akad_catatan || '')} WHERE id = ${k.id}`;
-    const lain = await sql`UPDATE kpr_bank SET tahap = 'Tidak dilanjutkan', updated_at = now()
-      WHERE kpr_id = ${k.id} AND id <> ${bk[0].id} AND tahap = 'SP3K terbit' RETURNING bank`;
+    const lain = bk[0].id ? await sql`UPDATE kpr_bank SET tahap = 'Tidak dilanjutkan', updated_at = now()
+      WHERE kpr_id = ${k.id} AND id <> ${bk[0].id} AND tahap = 'SP3K terbit' RETURNING bank` : [];
     const isi = [];
     if (bk[0].id !== k.akad_bank_id || tgl !== lamaTgl) isi.push(`Akad: ${bk[0].bank}, rencana ${tgl}`);
     if (lain.length) isi.push(`${lain.map(x => x.bank).join(', ')} tidak dilanjutkan`);

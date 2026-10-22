@@ -208,15 +208,15 @@ function Detail({ id, me, kembali }) {
         {d.banks.map(b => <KartuBank key={b.id} b={b} d={d} me={me} akadId={k.akad_bank_id} busy={busy} setBusy={setBusy} muat={muat} />)}
       </section>
 
-      {sp3k.length > 0 && (
+      {(sp3k.length > 0 || k.akad_tgl || k.akad_realisasi) && (
         <section className="card kp-akad" style={{ marginTop: 12 }}>
           <h3 style={{ marginTop: 0 }}>Akad {k.akad_realisasi ? <span className="kp-pill kp-done">Done</span> : null}</h3>
           <div className="form-grid">
             <div className="field"><label>Bank yang dipakai akad</label><select value={akad.bank_id} onChange={e => setAkad({ ...akad, bank_id: e.target.value })}>
-              <option value="">— pilih bank ber-SP3K —</option>{sp3k.map(b => <option key={b.id} value={b.id}>{b.bank}{b.plafon_setuju ? ' · ' + fmtRp(b.plafon_setuju) : ''}</option>)}</select></div>
+              <option value="">{sp3k.length ? '— pilih bank ber-SP3K —' : '— bank belum dicatat (tambah pengajuan bank di atas) —'}</option>{sp3k.map(b => <option key={b.id} value={b.id}>{b.bank}{b.plafon_setuju ? ' · ' + fmtRp(b.plafon_setuju) : ''}</option>)}</select></div>
             <div className="field"><label>Rencana tanggal akad</label><input type="date" value={akad.akad_tgl} onChange={e => setAkad({ ...akad, akad_tgl: e.target.value })} /></div>
-            <div className="field"><label>Tanggal realisasi akad</label><input type="date" disabled={!k.akad_bank_id} value={akad.akad_realisasi} onChange={e => setAkad({ ...akad, akad_realisasi: e.target.value })} />
-              <span className="hint">{k.akad_bank_id ? 'Isi setelah akad benar-benar terlaksana — status menjadi Done (Selesai di report)' : 'Aktif setelah rencana akad disimpan'}</span></div>
+            <div className="field"><label>Tanggal realisasi akad</label><input type="date" disabled={!k.akad_bank_id && !k.akad_tgl} value={akad.akad_realisasi} onChange={e => setAkad({ ...akad, akad_realisasi: e.target.value })} />
+              <span className="hint">{k.akad_bank_id || k.akad_tgl ? 'Isi setelah akad benar-benar terlaksana — status menjadi Done (Selesai di report)' : 'Aktif setelah rencana akad disimpan'}</span></div>
             <div className="field full"><label>Catatan akad</label><input value={akad.akad_catatan} onChange={e => setAkad({ ...akad, akad_catatan: e.target.value })} placeholder="lokasi, jam, notaris" /></div>
           </div>
           <span className="hint">Bank lain yang juga menerbitkan SP3K otomatis tercatat "Tidak dilanjutkan".</span>

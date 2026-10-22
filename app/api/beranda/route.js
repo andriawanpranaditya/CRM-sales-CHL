@@ -313,7 +313,9 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       status: st, kendala: bk.filter(b => b.kendala && !['Ditolak', 'Tidak dilanjutkan'].includes(b.tahap)).map(b => `${b.bank}: ${b.kendala}`).join(' · '),
       diam: Math.floor((Date.now() - new Date(k.updated_at).getTime()) / 86400000), updated_at: k.updated_at };
   });
-  const kprAktif = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) || k.diam <= 30)
+  // Yang masih berjalan + yang baru selesai/ditolak 30 hari terakhir (Done dihitung dari tanggal realisasi akad, bukan tanggal data diubah/diimpor)
+  const t30 = new Date(Date.parse(hariIni + 'T00:00:00Z') - 30 * 86400000).toISOString().slice(0, 10);
+  const kprAktif = kpr.filter(k => ['berjalan', 'sp3k', 'akad'].includes(k.status.kategori) || (k.status.kategori === 'selesai' ? (k.akad_realisasi || '') >= t30 : k.diam <= 30))
     .sort((a, b) => (['selesai', 'ditolak'].includes(a.status.kategori) ? 1 : 0) - (['selesai', 'ditolak'].includes(b.status.kategori) ? 1 : 0));
   // Rencana akad sudah lewat tetapi realisasi belum diisi
   const akadLewat = kpr.filter(k => k.status.kategori === 'akad' && k.akad_tgl && k.akad_tgl < hariIni);
