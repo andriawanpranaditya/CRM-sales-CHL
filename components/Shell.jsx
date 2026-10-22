@@ -20,6 +20,7 @@ const MENUS = [
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
+  { href: '/price-list', ico: '🏷', label: 'Price List', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
   { href: '/kpr', ico: '🧮', label: 'Simulasi Cara Bayar', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
   { href: '/ai-asisten', ico: '🤖', label: 'Asisten AI', roles: ['manager', 'ceo', 'markom'] },
   { href: '/settings', ico: '⚙', label: 'Settings', roles: ['manager'] },
@@ -71,15 +72,15 @@ export default function Shell({ user, children }) {
 
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
-    if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
-    if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
+    if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
+    if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
     if (['markom', 'admin'].includes(user.role) && path.startsWith('/kpr-proses')) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
     if (user.role === 'admin' && (path.startsWith('/janjian') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
     // CEO Project: semua menu kecuali Settings, Pengguna & Log Aktivitas
     if (user.role === 'ceo' && (path.startsWith('/settings') || path.startsWith('/users') || path.startsWith('/log') || path.startsWith('/wa-inbox'))) router.replace('/dashboard');
-    if (user.role === 'collection' && !['/beranda', '/collection', '/kpr-proses', '/kpr', '/stock'].some(p => path.startsWith(p))) router.replace('/beranda');
-    if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten') && !path.startsWith('/janjian') && !path.startsWith('/wa-inbox')) router.replace('/beranda');
+    if (user.role === 'collection' && !['/beranda', '/collection', '/kpr-proses', '/kpr', '/stock', '/price-list'].some(p => path.startsWith(p))) router.replace('/beranda');
+    if (user.role === 'markom' && !path.startsWith('/beranda') && !path.startsWith('/dashboard') && !path.startsWith('/form') && !path.startsWith('/leads') && !path.startsWith('/followup') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan') && !path.startsWith('/marcom') && !path.startsWith('/ai-asisten') && !path.startsWith('/janjian') && !path.startsWith('/wa-inbox') && !path.startsWith('/price-list')) router.replace('/beranda');
   }, [path, user.role, router]);
 
   // Log akses: setiap halaman yang dibuka dicatat (server menghitung halaman sama dalam 10 menit sekali).

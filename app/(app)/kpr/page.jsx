@@ -3,48 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
+import { BIO_TIPE, BIO_IRREG, tipeBio, hargaUnit, PERMAI } from '@/lib/pricelist';
 
-// ===== Data price list (angka price list = plafon KPR / harga jual) =====
-// Harga standar per tipe BIO (price list STANDART)
-const BIO_TIPE = {
-  A: { standar: 1553778000, allin: 1670000000 },
-  B: { standar: 2097000000, allin: 2271000000 },
-  C: { standar: 2595417445, allin: 2806527243 },
-};
-// Unit IRREGULER — harga khusus per kavling (price list IRREGULER)
-const BIO_IRREG = {
-  'Bio Ave 1 no.06': { tipe: 'C', standar: 3280421823, allin: 3543756850, ket: 'Hoek · 9×12 · Utara' },
-  'Bio Ave 1 no.08': { tipe: 'C', standar: 3422708235, allin: 3695942183, ket: 'Hoek (IRR) · 9,9×12 · Selatan' },
-  'Bio Ave 2 no.02': { tipe: 'B', standar: 2870357023, allin: 3102099378, ket: 'Hoek (IRR) · 8,9×12 · Utara' },
-  'Bio Ave 2 no.03': { tipe: 'B', standar: 3528323578, allin: 3810009189, ket: 'Hoek (IRR) · 11,4×12 · Utara' },
-  'Bio Blv no.07': { tipe: 'B', standar: 3445808649, allin: 3720794422, ket: 'Hoek (IRR) · 11,5×12 · Barat' },
-  'Bio Blv no.08': { tipe: 'B', standar: 3573474308, allin: 3858972641, ket: 'Hoek (IRR) · 8,4×17 · Barat' },
-  'Bio Blv no.09': { tipe: 'B', standar: 3219159189, allin: 3477143546, ket: 'Hoek (IRR) · 7,4×17 · Barat' },
-  'Bio Blv no.17': { tipe: 'B', standar: 4363629575, allin: 4707732405, ket: 'Hoek (IRR) · 8,6×16 · Barat' },
-  'Bio Ave 3 no.02': { tipe: 'B', standar: 3515189279, allin: 3795887387, ket: 'Hoek (IRR) · 12×12 · Utara' },
-  'Bio Ave 3 no.08': { tipe: 'B', standar: 2946051829, allin: 3183172351, ket: 'Hoek (IRR) · 8,7×12 · Utara' },
-  'Bio Ave 5 no.11': { tipe: 'C', standar: 3126825431, allin: 3377726589, ket: 'Hoek (IRR) · 8,7×12 · Utara' },
-  'Bio Ave 5 no.16': { tipe: 'C', standar: 4096731600, allin: 4420737921, ket: 'Hoek (IRR) · 8,9×12 · Selatan' },
-};
-// Tipe unit BIO sesuai warna siteplan (A ungu · B oranye · C hijau tosca)
-function tipeBio(unit) {
-  const m = String(unit).match(/^Bio (Ave (\d)|Blv) no\.(\d+)/i);
-  if (!m) return null;
-  const ave = m[2] ? Number(m[2]) : null, no = Number(m[3]);
-  if (ave === 1) return 'C';
-  if (ave === 2 || ave === 7) return 'B';
-  if (ave === 6) return 'A';
-  if (ave === 3) return no <= 12 ? 'B' : 'C';
-  if (ave === 5) return no === 12 ? 'A' : no === 15 ? 'B' : 'C';
-  if (!ave) return no >= 18 ? 'A' : no >= 7 ? 'B' : 'C'; // Bio Blv
-  return null;
-}
-function hargaUnit(proj, blok, tipePilih) {
-  if (/permai/i.test(proj)) return { standar: PERMAI.harga, allin: PERMAI.harga, bunga: PERMAI.bunga, tenor: 20, tipe: 'Subsidi', irreg: false, ket: '' };
-  if (blok && BIO_IRREG[blok]) { const x = BIO_IRREG[blok]; return { ...x, bunga: 2.75, tenor: 25, irreg: true }; }
-  const t = (blok && tipeBio(blok)) || tipePilih || 'A';
-  return { ...BIO_TIPE[t], tipe: t, bunga: 2.75, tenor: 25, irreg: false, ket: '' };
-}
+// Data price list & harga per unit: lib/pricelist.js (dipakai juga oleh menu Price List)
 
 const CARA = [
   ['kpr', 'KPR'],
@@ -54,7 +15,7 @@ const CARA = [
 const BF_DEFAULT = 5000000;
 const TENOR_KPR = [25, 20, 15, 10];
 // Price list Permai Indah — KPR BTN Subsidi (SBUM Rp4 jt dari pemerintah tidak disimulasikan)
-const PERMAI = { harga: 185000000, bf: 500000, um: 1350000, plafon: 179150000, bunga: 5, lb: '22,5 m²', lt: '60 m²', tenor: [20, 15, 10] };
+
 const pctDp = (dp, harga) => harga ? (Math.round(dp / harga * 1000) / 10).toLocaleString('id-ID') + '%' : '';
 function susunPermai(tglBF, bf, um, plafon) {
   if (!tglBF) return [];

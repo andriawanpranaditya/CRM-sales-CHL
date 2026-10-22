@@ -267,6 +267,7 @@ export default function StockPage() {
             onClick={downloadPDF} disabled={pdfBusy}
             title={isMgr ? 'Peta siteplan + rekap unit & pembeli' : 'Peta siteplan (tanpa daftar unit & nama pembeli)'}>
             {pdfBusy ? '⏳ Menyiapkan…' : (isMgr ? '📄 Download PDF' : '📄 Download PDF Peta')}</button>
+          <a className="sort-btn" href={'/price-list?project=' + encodeURIComponent(proj)} title="PDF price list + siteplan ketersediaan untuk dikirim ke konsumen (tanpa nama pembeli)">📤 PDF untuk konsumen</a>
         </span>
       </div>
 

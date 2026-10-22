@@ -626,3 +626,23 @@ th.num{text-align:right}
 .mc-lain-panel{position:absolute;right:0;top:34px;z-index:20;min-width:260px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
 .mc-lain-panel button{all:unset;cursor:pointer;padding:9px 10px;border-radius:10px;font-size:13px;font-weight:600}
 .mc-lain-panel button:hover{background:var(--hover)}
+/* ===== Price List ===== */
+.pl-share{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.pl-cek{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}.pl-cek label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.pl-tipe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.pl-k{display:flex;flex-direction:column;gap:6px;border-top:5px solid var(--line)}
+.pl-k.pl-A{border-top-color:#8E6FB8}.pl-k.pl-B{border-top-color:#E09B4A}.pl-k.pl-C{border-top-color:#3FA9A0}
+.pl-nama{font-size:18px}.pl-harga{font-size:28px;font-weight:800;letter-spacing:-.5px;line-height:1.1}
+.pl-promo{margin-top:4px;padding:8px 10px;border-radius:12px;background:var(--brass-soft);color:var(--brass-deep);font-weight:700;font-size:13px}
+.pl-promobox{background:linear-gradient(135deg,rgba(226,190,122,.18),transparent)}
+@media(max-width:760px){.pl-tipe{grid-template-columns:1fr}}
+.pl-kop{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;background:#fff}
+.pl-kop img{height:52px;width:auto}.pl-kop .pl-logo-bio{height:40px}.pl-kop .pl-logo-permai{height:70px}
+.pl-kop-t{display:flex;flex-direction:column;align-items:center;color:#1a1a1a;font-size:13px}.pl-kop-t b{font-size:15px;letter-spacing:.5px}
+.pl-tbl table{font-size:12px}.pl-tbl th{text-align:center;vertical-align:middle;white-space:normal;line-height:1.15}.pl-tbl th.pl-hijau{background:#2E5A3E}
+.pl-tbl td{white-space:nowrap}
+.pl-term{display:grid;grid-template-columns:150px 90px 1fr;gap:6px;font-size:13px;padding:2px 0 2px 14px}
+.pl-ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13px;line-height:1.45}
+@media(max-width:760px){.pl-term{grid-template-columns:1fr 1fr}.pl-kop img{height:38px}.pl-kop .pl-logo-permai{height:50px}}
+@media(min-width:761px){.pl-tbl table{font-size:10.5px}.pl-tbl th{font-size:9px;padding:5px 4px;letter-spacing:.2px}.pl-tbl td{padding:6px 4px}.pl-tbl .sub2{font-size:9.5px}}
+@media(min-width:761px){.pl-tbl table{font-size:10px}.pl-tbl td{padding:6px 3px}.pl-tbl th{padding:5px 3px}}
