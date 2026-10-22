@@ -619,3 +619,10 @@ th.num{text-align:right}
   .ck-kontrak .sub2{font-size:10.5px;line-height:1.25}
 }
 .ck-tbl td.ck-first .sub2{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+/* Daftar Campaign: kolom aksi ringkas */
+.mc-aksi{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.mc-aksi .sort-btn{padding:3px 9px;white-space:nowrap}
+.mc-lain{position:relative}.mc-lain>summary{list-style:none;cursor:pointer}.mc-lain>summary::-webkit-details-marker{display:none}
+.mc-lain-panel{position:absolute;right:0;top:34px;z-index:20;min-width:260px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
+.mc-lain-panel button{all:unset;cursor:pointer;padding:9px 10px;border-radius:10px;font-size:13px;font-weight:600}
+.mc-lain-panel button:hover{background:var(--hover)}
