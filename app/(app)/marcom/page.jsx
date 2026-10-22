@@ -90,10 +90,19 @@ export default function MarcomPage() {
     return ['', ''];
   }, [periode, d1, d2, bln]);
 
+  const [ekstra, setEkstra] = useState({ janji: null, drop: null, leads: null }); // data fitur baru: janji temu & visitor, alasan drop, sumber walk in / lainnya
   const muat = () => Promise.all([
     api('/api/marcom?d1=' + rentang[0] + '&d2=' + rentang[1] + '&project=' + encodeURIComponent(fProj)),
     api('/api/settings'),
   ]).then(([d, s]) => { setData(d); setSet(s); if (!fProj && (s.project || []).length === 1) setFProj(s.project[0]); }).catch(e => toast(e.message));
+  useEffect(() => {
+    const hari = todayISO(), dari = rentang[0] || '2026-09-01', sampai = rentang[1] || hari;
+    Promise.all([
+      api('/api/janjian?laporan=1&dari=' + dari + '&sampai=' + sampai + '&project=' + encodeURIComponent(fProj)).catch(() => null),
+      api('/api/status-log?d1=' + dari + '&d2=' + sampai + '&project=' + encodeURIComponent(fProj)).catch(() => null),
+      api('/api/leads').catch(() => null),
+    ]).then(([janji, drop, leads]) => setEkstra({ janji, drop, leads }));
+  }, [rentang[0], rentang[1], fProj]); // eslint-disable-line
   useEffect(() => { muat(); }, [rentang[0], rentang[1], fProj]); // eslint-disable-line
 
   const fk = key => ({ value: k[key], onChange: e => setK({ ...k, [key]: e.target.value }) });
@@ -283,6 +292,20 @@ export default function MarcomPage() {
       R.ringkas.push(`Website: ${(ses - sesPangle).toLocaleString('id-ID')} sesi pengunjung sungguhan${sesPangle ? ` (di luar ${sesPangle.toLocaleString('id-ID')} sesi Pangle yang tidak dihitung sebagai minat)` : ''}, terbanyak dari ${topAsli ? topAsli.source_medium : '-'}; ${kev} key event (klik WA).`);
     }
     if (audDomisili.length && audDomisili[0].nama !== '(kosong)') R.ringkas.push(`Domisili lead berkualitas terbanyak: ${audDomisili.slice(0, 3).filter(d => d.nama !== '(kosong)').map(d => d.nama + ' (' + d.l2 + ')').join(', ')}.`);
+    // Janji temu & visitor (menu Janjian & Visitor)
+    if (ekstra.janji?.total) { const T = ekstra.janji.total; if (T.dibuat || T.visitor) R.ringkas.push(`Janji temu dibuat ${T.dibuat || 0}, datang ${T.datang || 0}, reschedule ${T.resch || 0}, batal ${T.batal || 0}${T.belum ? `, ${T.belum} belum di-update` : ''}; total visitor ${T.visitor || 0} orang (${T.lain || 0} di antaranya walk in / tanpa janji).`); }
+    // Walk in: tahu dari mana · sumber Lainnya: sebutkan
+    if (Array.isArray(ekstra.leads)) {
+      const dlm = l => { const x = String(l.tgl || '').slice(0, 10); return (!rentang[0] || x >= rentang[0]) && (!rentang[1] || x <= rentang[1]) && (!fProj || l.project === fProj); };
+      const wi = {}, ln = {};
+      ekstra.leads.filter(dlm).forEach(l => { if (/walk/i.test(l.sumber || '')) { const k = l.walkin_info || '(tidak diisi)'; wi[k] = (wi[k] || 0) + 1; } if (l.sumber === 'Lainnya') { const k = l.sumber_detail || '(tidak disebutkan)'; ln[k] = (ln[k] || 0) + 1; } });
+      const wiL = Object.entries(wi).sort((a, b) => b[1] - a[1]); const lnL = Object.entries(ln).sort((a, b) => b[1] - a[1]);
+      if (wiL.length) R.ringkas.push(`Walk in ${wiL.reduce((a, [, n]) => a + n, 0)} lead — tahu dari: ${wiL.slice(0, 4).map(([k, n]) => `${k} ${n}`).join(' · ')}.` + (wiL.some(([k]) => k === '(tidak diisi)') ? ' Isi "tahu dari mana" di Form Input agar atribusi offline terbaca.' : ''));
+      if (lnL.length) R.ringkas.push(`Sumber "Lainnya" ${lnL.reduce((a, [, n]) => a + n, 0)} lead: ${lnL.slice(0, 4).map(([k, n]) => `${k} ${n}`).join(' · ')}.`);
+    }
+    // Alasan drop (riwayat status)
+    if (ekstra.drop?.drop?.alasan?.length) { const al = ekstra.drop.drop.alasan.filter(a => a.alasan !== '(tanpa alasan)').slice(0, 3); const tanpa = (ekstra.drop.drop.alasan.find(a => a.alasan === '(tanpa alasan)') || {}).n || 0;
+      R.ringkas.push(`${ekstra.drop.drop.total} lead di-drop pada periode${al.length ? ' — alasan terbanyak: ' + al.map(a => `${a.alasan} (${a.n})`).join(' · ') : ''}${tanpa ? `; ${tanpa} tanpa alasan tercatat` : ''}.`); }
     if (sedikit && F.l0 > 0) R.ringkas.push('⚠ Data masih sedikit (< 20 lead) — anggap kesimpulan di bawah sebagai sinyal awal, belum pola tetap.');
 
     const ho = data.handoff || [];
@@ -414,7 +437,7 @@ export default function MarcomPage() {
     if (nOff >= 3) R.saran.push(`Ada ${nOff} lead dari aktivitas offline (${offline.map(r => r.sumber + ' ' + r.n).join(', ')}) tanpa campaign. Daftarkan tiap aktivitas sebagai campaign platform Offline beserta biayanya (cetak, booth, honor) — biaya per lead offline jadi bisa dibandingkan langsung dengan iklan digital.`);
     if (!R.saran.length) R.saran.push('Belum cukup data untuk saran spesifik — jalankan minimal satu campaign ber-UTM dan catat konten secara rutin selama 2–4 minggu.');
     return R;
-  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, totalEng, rrRata, follower, audDomisili, audTujuan, tim, fProj, rentang]); // eslint-disable-line
+  }, [data, totFunnel, paidFunnel, totSpend, spendMap, polaFormat, polaJam, polaTopik, totalEng, rrRata, follower, audDomisili, audTujuan, tim, fProj, rentang, ekstra]); // eslint-disable-line
 
   async function salinResume() {
     if (!resume) return;
@@ -455,6 +478,20 @@ export default function MarcomPage() {
       'Ganti materi: unit nyata + hadiah per tipe tampil di 1 detik pertama, harga "mulai Rp1,5 M" di visual; uji 2–3 variasi kreatif per ad set.');
     add('Iklan', 'Biaya per klik iklan Meta', cpc, cpc !== null ? rp0(cpc) : '—', 'bagus ≤Rp1.500 · cukup ≤Rp3.000', v(cpc, 1500, 3000, true),
       'Persempit lokasi ke area inti persona, matikan penempatan Audience Network, hentikan ad set dengan CTR terendah.');
+    // Google Ads (otomatis via Google Ads Script)
+    const goog = (data.ads || []).filter(x => x.sumber === 'google-api');
+    if (goog.length) {
+      const gImp = goog.reduce((t, x) => t + (Number(x.impresi) || 0), 0), gKlk = goog.reduce((t, x) => t + (Number(x.klik) || 0), 0), gSp = goog.reduce((t, x) => t + (Number(x.spend) || 0), 0), gHasil = goog.reduce((t, x) => t + (Number(x.hasil) || 0), 0);
+      const gCtr = gImp ? gKlk / gImp : null, gCpc = gKlk ? gSp / gKlk : null;
+      add('Iklan', 'CTR Google Ads (klik ÷ impresi)', gCtr, gCtr !== null ? pct(gCtr) : '—', 'bagus ≥3% · cukup ≥1,5% (search)', v(gCtr, 0.03, 0.015),
+        'Rapikan kata kunci: tambah kata kunci negatif (sewa, kontrakan, kos), pakai headline yang menyebut lokasi (Serpong, Rawa Buntu) dan harga; uji 2 RSA per ad group.');
+      add('Iklan', 'Biaya per klik Google Ads', gCpc, gCpc !== null ? rp0(gCpc) : '—', 'bagus ≤Rp3.000 · cukup ≤Rp6.000', v(gCpc, 3000, 6000, true),
+        'Turunkan bid pada kata kunci umum (rumah dijual), fokuskan ke kata kunci lokasi + tipe; aktifkan penjadwalan iklan di jam chat terbanyak.');
+      const leadGoogle = (data.bySumber || []).filter(r => /google/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
+      const rGoog = gHasil ? Math.min(1, leadGoogle / gHasil) : null;
+      add('Niat beli', 'Konversi Google Ads yang tercatat jadi lead', rGoog, gHasil ? `${leadGoogle} dari ${gHasil}` : '—', 'bagus ≥70% · cukup ≥40%', v(rGoog, 0.7, 0.4),
+        'Pastikan tombol WA di landing page memakai pesan berkode campaign Google, dan setiap chat diinput di hari yang sama dengan sumber "Google Ads".');
+    }
     // Audiens organik & retensi Reels (Fase 3)
     {
       const prA = data.persona?.[fProj || 'BIO DISTRICT'];
@@ -489,7 +526,7 @@ export default function MarcomPage() {
     const leadMeta = (data.bySumber || []).filter(r => /facebook|instagram|whatsapp|meta/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
     const rMeta = metaChat ? Math.min(1, leadMeta / metaChat) : null;
     add('Niat beli', 'Chat iklan Meta yang tercatat jadi lead', rMeta, metaChat ? `${leadMeta} dari ${metaChat}` : '—', 'bagus ≥70% · cukup ≥40%', v(rMeta, 0.7, 0.4),
-      'Setiap chat iklan diinput hari itu juga; selesaikan sambungan WA otomatis ke CRM.');
+      'Setiap chat iklan diinput hari itu juga. Nyalakan Asisten AI WhatsApp (menu Asisten AI) agar chat ke nomor official tercatat otomatis sebagai lead dan terbaca di Inbox WhatsApp.');
     const klikWA = (data.ga4 || []).reduce((t, r) => t + Number(r.key_events || 0), 0);
     const leadWeb = (data.bySumber || []).filter(r => /website/i.test(r.kunci)).reduce((a, r) => a + r.l0, 0);
     const rWeb = klikWA ? Math.min(1, leadWeb / klikWA) : null;
@@ -504,6 +541,26 @@ export default function MarcomPage() {
       `Arahkan targeting iklan ke area inti persona${pr ? ` dan usia ${pr.usiaMin}–${pr.usiaMax}` : ''}; tampilkan harga "mulai Rp1,5 M" di materi agar calon pembeli di luar target tersaring sejak awal.`);
     add('Kualitas lead', 'Data kualifikasi lead lengkap (≥3 kolom)', pLengkap, pLengkap !== null ? `${pct(pLengkap)} (${dinilai} dari ${ft.n})` : '—', 'bagus ≥70% · cukup ≥40%', v(pLengkap, 0.7, 0.4),
       'Sebelum oper ke sales, marcom wajib menanyakan domisili, budget, cara bayar, usia, dan tujuan beli (skrip 3 pertanyaan) lalu mengisinya di CRM.');
+    // Janji temu & kunjungan (menu Janjian & Visitor) — dari lead berkualitas sampai datang ke marketing gallery
+    if (ekstra.janji?.total) {
+      const T = ekstra.janji.total;
+      const rJanji = totFunnel.l2 ? Math.min(1, (T.dibuat || 0) / totFunnel.l2) : null;
+      add('Kunjungan', 'Lead berkualitas yang dijadwalkan visit (janji temu ÷ L2)', rJanji, rJanji !== null ? `${pct(rJanji)} (${T.dibuat || 0} dari ${totFunnel.l2})` : '—', 'bagus ≥40% · cukup ≥20%', v(rJanji, 0.4, 0.2),
+        'Setiap lead Warm/Hot diajak memilih hari kunjungan (Sabtu/Minggu wajib ada janji temu); buat janjinya di menu Janjian & Visitor, bukan hanya dicatat di follow up.');
+      const tj = (T.datang || 0) + (T.batal || 0) + (T.belum || 0);
+      const rDatang = tj ? (T.datang || 0) / tj : null;
+      add('Kunjungan', 'Janji temu yang benar-benar datang (show-up rate)', rDatang, rDatang !== null ? `${pct(rDatang)} (${T.datang || 0} datang · ${T.batal || 0} batal · ${T.belum || 0} belum di-update)` : '—', 'bagus ≥60% · cukup ≥40%', v(rDatang, 0.6, 0.4),
+        'Ingatkan H-1 dan pagi hari-H via WA (tombol "Ingatkan via WA"), tawarkan petunjuk rute ke Rawa Buntu, dan pastikan sales mengisi hasil janji temu hari itu juga.');
+      if (T.belum) add('Kunjungan', 'Janji temu belum di-update hasilnya', T.belum, `${T.belum} janji`, 'bagus 0 · cukup ≤2', v(T.belum, 0, 2, true),
+        'Hasil kunjungan (datang / reschedule / batal + alasan) diisi maksimal 1 jam setelah jam janji; Manager memantau di beranda "Perlu perhatian".');
+    }
+    // Alasan drop tercatat
+    if (ekstra.drop?.drop?.total) {
+      const tanpa = (ekstra.drop.drop.alasan.find(a => a.alasan === '(tanpa alasan)') || {}).n || 0;
+      const rAlasan = 1 - tanpa / ekstra.drop.drop.total;
+      add('Kualitas lead', 'Drop yang alasannya tercatat', rAlasan, `${pct(rAlasan)} (${ekstra.drop.drop.total - tanpa} dari ${ekstra.drop.drop.total})`, 'bagus ≥90% · cukup ≥70%', v(rAlasan, 0.9, 0.7),
+        'Alasan drop kini wajib diisi; pakai pilihan baku (tidak ada respon, sudah beli di tempat lain, budget/lokasi tidak sesuai) supaya bisa dirangkum per sumber & campaign.');
+    }
     const l2r = totFunnel.l0 ? totFunnel.l2 / totFunnel.l0 : null;
     add('Kualitas lead', 'Lead berkualitas (L2 ÷ lead masuk)', l2r, l2r !== null ? pct(l2r) : '—', 'bagus ≥25% · cukup ≥15%', v(l2r, 0.25, 0.15),
       'Ajak setiap lead yang membalas menjadwalkan kunjungan weekend; ubah status di setiap follow up agar pergerakan terbaca.');
@@ -513,14 +570,14 @@ export default function MarcomPage() {
     // Penjualan
     const bd = data.bookingDetail || [];
     const hari = (() => { const a1 = rentang[0] ? new Date(rentang[0]) : null; const a2 = rentang[1] ? new Date(rentang[1]) : new Date(); return a1 ? Math.round((a2 - a1) / 86400000) + 1 : 999; })();
-    add('Penjualan', 'Booking dari lead marketing', bd.length, `${bd.length} unit`, 'target Oktober: 2 unit in-house dari marketing', hari < 14 ? '⚪' : bd.length >= 2 ? '🟢' : bd.length === 1 ? '🟡' : '🔴',
-      'Fokus mengundang lead cocok target ke Grand Rewards Weekend dan tutup dengan pilihan reserved hari itu atau pengajuan KPR 3 hari.');
+    add('Penjualan', 'Booking dari lead marketing', bd.length, `${bd.length} unit`, 'target ≥2 unit per bulan dari lead marketing', hari < 14 ? '⚪' : bd.length >= 2 ? '🟢' : bd.length === 1 ? '🟡' : '🔴',
+      'Fokus mengundang lead cocok target ke kunjungan weekend; tutup dengan pilihan Reserved hari itu atau pengajuan KPR 3 hari (simulasi di menu Simulasi Cara Bayar).');
     const hs = bd.map(b => Number(b.hari)).filter(n => !isNaN(n));
     const lama = hs.length ? hs.reduce((a, n) => a + n, 0) / hs.length : null;
     add('Penjualan', 'Lama lead masuk sampai booking', lama, lama !== null ? `${Math.round(lama)} hari` : '—', 'bagus ≤30 hari · cukup ≤60 hari', v(lama, 30, 60, true),
       'Percepat dengan pra-persetujuan KPR sebelum kunjungan dan batas waktu promo hadiah yang jelas.');
     return rows;
-  }, [data, rrRata, totalEng, totFunnel, paidFunnel, totSpend, fProj, rentang]); // eslint-disable-line
+  }, [data, rrRata, totalEng, totFunnel, paidFunnel, totSpend, fProj, rentang, ekstra]); // eslint-disable-line
 
   // ===== Brief Bulan Depan (Fase 3): disusun dari data yang terbukti, bukan template =====
   const brief = useMemo(() => {
@@ -545,7 +602,7 @@ export default function MarcomPage() {
     camp.filter(c => !c.cocok && c.sp >= 1000000).forEach(c => L.iklan.push(`Hentikan atau ganti materi: ${c.k} — ${fmtRp(Math.round(c.sp))} tanpa satu pun lead cocok persona.`));
     rapor.filter(r => r.lapis === 'Iklan' && r.vonis === '🔴').forEach(r => L.iklan.push(`${r.indikator} ${r.txt} → ${r.saran}`));
     if (!L.iklan.length) L.iklan.push('Struktur iklan sudah sehat; uji 1 variasi kreatif baru per campaign setiap 2 minggu.');
-    rapor.filter(r => ['Kualitas lead', 'Niat beli', 'Penjualan'].includes(r.lapis) && r.vonis === '🔴').forEach(r => L.tim.push(`${r.indikator} ${r.txt} → ${r.saran}`));
+    rapor.filter(r => ['Kualitas lead', 'Niat beli', 'Kunjungan', 'Penjualan'].includes(r.lapis) && r.vonis === '🔴').forEach(r => L.tim.push(`${r.indikator} ${r.txt} → ${r.saran}`));
     if (!L.tim.length) L.tim.push('Pertahankan disiplin input: kualifikasi lead lengkap, status diperbarui di setiap follow up.');
     return L;
   }, [data, rapor, polaFormat, polaTopik, polaJam, rrRata, spendMap, fProj]); // eslint-disable-line
