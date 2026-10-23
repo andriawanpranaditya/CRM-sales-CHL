@@ -47,8 +47,13 @@ export default function ReminderBell({ user }) {
   }
 
   useEffect(() => {
+    // Refresh tiap 5 menit HANYA saat layar terlihat (tab di belakang / HP terkunci tidak menarik data);
+    // begitu aplikasi dibuka lagi dan sudah >5 menit, lonceng langsung diperbarui.
+    let terakhir = Date.now();
     load();
-    const t = setInterval(load, 5 * 60 * 1000); // refresh tiap 5 menit
+    const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 5 * 60 * 1000) { terakhir = Date.now(); load(); } };
+    const t = setInterval(segar, 60 * 1000);
+    document.addEventListener('visibilitychange', segar);
 
     // Bunyi "ding" + getar pada interaksi PERTAMA pengguna hari ini bila ada FU jatuh tempo
     // (browser hanya mengizinkan suara setelah pengguna menyentuh halaman)
@@ -69,6 +74,7 @@ export default function ReminderBell({ user }) {
 
     return () => {
       clearInterval(t);
+      document.removeEventListener('visibilitychange', segar);
       window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('keydown', onFirstTouch);
     };

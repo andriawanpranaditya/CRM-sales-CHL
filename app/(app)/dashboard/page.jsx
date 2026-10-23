@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import Link from 'next/link';
 import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
@@ -9,7 +9,10 @@ const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booki
 // hanyaReport: 'lengkap' (Report Word/PDF) | 'excel' (Data Excel) → dipakai menu Report; filterLuar = { d1, d2, proj } dari filter bersama menu Report
 export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const [lastUpd, setLastUpd] = useState(null);
-  function muatSemua(senyap = false) { // senyap = refresh latar belakang (tanpa indikator "Memuat…")
+  const versiRef = useRef(null); // sidik data terakhir yang sudah dimuat (lihat /api/versi)
+  async function muatSemua(senyap = false) { // senyap = refresh latar belakang (tanpa indikator "Memuat…")
+    // ambil sidik DULU: bila ada perubahan saat data sedang ditarik, cek berikutnya tetap mendeteksinya
+    try { versiRef.current = (await api('/api/versi', { silent: true })).v; } catch { versiRef.current = null; }
     return Promise.all([api('/api/leads?all=1', { silent: senyap }), api('/api/followups?all=1', { silent: senyap }), api('/api/trx', { silent: senyap }), api('/api/settings', { silent: senyap }), api('/api/stock', { silent: senyap }), api('/api/kegiatan', { silent: senyap }).catch(() => [])])
       .then(([l, f, t, s, st, kg]) => {
         setKeg(kg || []);
@@ -38,9 +41,21 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
 
   useEffect(() => {
     muatSemua();
-    // Dashboard selalu segar: refresh tiap 60 detik + setiap tab/aplikasi kembali dibuka
-    const t = setInterval(() => muatSemua(true), 60 * 1000);
-    const onVis = () => { if (document.visibilityState === 'visible') muatSemua(true); };
+    // Dashboard tetap segar TANPA menyedot kuota database:
+    // tiap 60 detik (hanya saat layar terlihat) cukup tanya sidik data ke /api/versi (puluhan byte);
+    // data penuh baru ditarik ulang bila ada yang berubah. Tab tersembunyi / HP terkunci = tidak ada polling.
+    let cekTerakhir = 0;
+    const cek = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - cekTerakhir < 15000) return; // focus + visibilitychange sering terpicu bersamaan
+      cekTerakhir = Date.now();
+      try {
+        const { v } = await api('/api/versi', { silent: true });
+        if (!versiRef.current || v !== versiRef.current) muatSemua(true);
+      } catch {}
+    };
+    const t = setInterval(cek, 60 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') cek(); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('focus', onVis);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
@@ -1027,7 +1042,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
         <div><h1>Dashboard</h1>
           <div className="sub">{periodeCustom
             ? <>Data periode terpilih: <b>{bulanLabel}</b> (mengikuti tanggal report) <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => { setD1(''); setD2(''); }}>↺ Kembali ke bulan berjalan</button></>
-            : <>Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</div><div className="sub">Data real-time dari database bersama — auto-refresh tiap menit{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={muatSemua}>↻ Segarkan</button></div></div>
+            : <>Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</div><div className="sub">Data real-time dari database bersama — otomatis diperbarui bila ada data baru{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => muatSemua(true)}>↻ Segarkan</button></div></div>
         <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
       </div>}
       {!hanyaReport && <div className="fu-toolbar">

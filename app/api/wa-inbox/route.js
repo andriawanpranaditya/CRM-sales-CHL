@@ -20,20 +20,25 @@ export async function GET(req) {
   const q = new URL(req.url).searchParams;
   const wa = String(q.get('wa') || '').replace(/[^0-9]/g, '');
   if (wa) {
-    const pesan = await sql`SELECT id, wa, project, lead_code, peran, isi, oleh, created_at FROM wa_percakapan WHERE wa = ${wa} ORDER BY id DESC LIMIT 400`;
-    pesan.reverse();
-    const kode = [...pesan].reverse().find(p => p.lead_code)?.lead_code || null;
+    // ?after=<id>: hanya pesan BARU setelah id itu (dipakai polling 5 detik) — tidak mengirim ulang 400 pesan tiap kali
+    const after = Math.max(0, Number(q.get('after') || 0) || 0);
+    const pesan = after > 0
+      ? await sql`SELECT id, wa, project, lead_code, peran, isi, oleh, created_at FROM wa_percakapan WHERE wa = ${wa} AND id > ${after} ORDER BY id LIMIT 400`
+      : (await sql`SELECT id, wa, project, lead_code, peran, isi, oleh, created_at FROM wa_percakapan WHERE wa = ${wa} ORDER BY id DESC LIMIT 400`).reverse();
+    const kode = [...pesan].reverse().find(p => p.lead_code)?.lead_code
+      || (await sql`SELECT lead_code FROM wa_percakapan WHERE wa = ${wa} AND lead_code IS NOT NULL ORDER BY id DESC LIMIT 1`)[0]?.lead_code || null;
     const l = kode ? (await sql`SELECT id, lead_code, nama, wa, project, status, sales, sumber, walkin_info, campaign, ai_status, ai_ringkasan, created_by, next_fu FROM leads WHERE lead_code = ${kode}`)[0]
       : (await sql`SELECT id, lead_code, nama, wa, project, status, sales, sumber, walkin_info, campaign, ai_status, ai_ringkasan, created_by, next_fu FROM leads l
           WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(l.wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa} ORDER BY id LIMIT 1`)[0];
     if (!bolehLihat(user, l)) return Response.json({ error: 'Percakapan ini bukan milik Anda' }, { status: 403 });
     // tandai sudah dibaca sampai pesan terakhir
     const maxId = pesan.length ? pesan[pesan.length - 1].id : 0;
-    await sql`INSERT INTO wa_baca (username, wa, last_id) VALUES (${user.username}, ${wa}, ${maxId}) ON CONFLICT (username, wa) DO UPDATE SET last_id = GREATEST(wa_baca.last_id, EXCLUDED.last_id)`;
-    const masukTerakhir = [...pesan].reverse().find(p => p.peran === 'user')?.created_at || null;
+    if (maxId) await sql`INSERT INTO wa_baca (username, wa, last_id) VALUES (${user.username}, ${wa}, ${maxId}) ON CONFLICT (username, wa) DO UPDATE SET last_id = GREATEST(wa_baca.last_id, EXCLUDED.last_id)`;
+    const masukTerakhir = [...pesan].reverse().find(p => p.peran === 'user')?.created_at
+      || (await sql`SELECT max(created_at) AS t FROM wa_percakapan WHERE wa = ${wa} AND peran = 'user'`)[0]?.t || null;
     const sisaJam = masukTerakhir ? Math.max(0, 24 - (Date.now() - new Date(masukTerakhir).getTime()) / 3600000) : 0;
     const nomor = l?.project ? await sql`SELECT phone_id, display FROM wa_nomor WHERE project = ${l.project} ORDER BY updated_at DESC LIMIT 1` : [];
-    return Response.json({ wa, pesan, lead: l || null, masukTerakhir, sisaJam, bisaBalas: sisaJam > 0 && nomor.length > 0, nomorPengirim: nomor[0]?.display || null });
+    return Response.json({ wa, pesan, inkremental: after > 0, lead: l || null, masukTerakhir, sisaJam, bisaBalas: sisaJam > 0 && nomor.length > 0, nomorPengirim: nomor[0]?.display || null });
   }
   // Daftar percakapan: satu baris per nomor, pesan terakhir, belum dibaca, lead pemegang
   const rows = await sql`
@@ -42,7 +47,7 @@ export async function GET(req) {
          belum AS (SELECT p.wa, count(*)::int AS n FROM wa_percakapan p LEFT JOIN wa_baca b ON b.wa = p.wa AND b.username = ${user.username}
                    WHERE p.peran = 'user' AND p.id > COALESCE(b.last_id, 0) GROUP BY p.wa),
          kode AS (SELECT DISTINCT ON (wa) wa, lead_code FROM wa_percakapan WHERE lead_code IS NOT NULL ORDER BY wa, id DESC)
-    SELECT a.wa, a.project, a.peran, a.isi, a.created_at AS terakhir, m.t AS masuk_terakhir, COALESCE(b.n, 0) AS belum,
+    SELECT a.wa, a.project, a.peran, left(a.isi, 160) AS isi, a.created_at AS terakhir, m.t AS masuk_terakhir, COALESCE(b.n, 0) AS belum,
            l.lead_code, l.nama, l.status, l.sales, l.ai_status, l.created_by, l.project AS lead_project
     FROM akhir a LEFT JOIN masuk m ON m.wa = a.wa LEFT JOIN belum b ON b.wa = a.wa LEFT JOIN kode k ON k.wa = a.wa
          LEFT JOIN leads l ON l.lead_code = k.lead_code

@@ -29,10 +29,23 @@ export default function WaInbox() {
   const [busy, setBusy] = useState(false);
   const [mobileThread, setMobileThread] = useState(false);
   const bawah = useRef(null);
-  const muatDaftar = () => api('/api/wa-inbox').then(setData).catch(e => toast(e.message));
-  const muatThread = (w = wa, diam = false) => w && api('/api/wa-inbox?wa=' + w).then(t => { setTh(t); if (!diam) setTimeout(() => bawah.current?.scrollIntoView({ block: 'end' }), 50); }).catch(e => toast(e.message));
-  useEffect(() => { muatDaftar(); const t = setInterval(muatDaftar, 8000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (!wa) return; muatThread(wa); const t = setInterval(() => muatThread(wa, true), 5000); return () => clearInterval(t); }, [wa]);
+  const muatDaftar = () => api('/api/wa-inbox', { silent: true }).then(setData).catch(e => toast(e.message));
+  // Polling hemat: saat diam (polling) hanya minta pesan BARU setelah id terakhir; percakapan penuh hanya saat dibuka / setelah aksi
+  const akhirRef = useRef({ wa: '', id: 0 });
+  const muatThread = (w = wa, diam = false) => {
+    if (!w) return;
+    const inkr = diam && akhirRef.current.wa === w && akhirRef.current.id > 0;
+    return api('/api/wa-inbox?wa=' + w + (inkr ? '&after=' + akhirRef.current.id : ''), { silent: diam }).then(t => {
+      if (t.inkremental) setTh(prev => (prev && prev.wa === w ? { ...t, pesan: [...prev.pesan, ...t.pesan] } : t));
+      else setTh(t);
+      if (t.pesan.length) akhirRef.current = { wa: w, id: t.pesan[t.pesan.length - 1].id };
+      else if (!t.inkremental) akhirRef.current = { wa: w, id: 0 };
+      if (!diam || (t.inkremental && t.pesan.length)) setTimeout(() => bawah.current?.scrollIntoView({ block: 'end' }), 50);
+    }).catch(e => toast(e.message));
+  };
+  const terlihat = () => document.visibilityState === 'visible';
+  useEffect(() => { muatDaftar(); const t = setInterval(() => { if (terlihat()) muatDaftar(); }, 15000); return () => clearInterval(t); }, []);
+  useEffect(() => { if (!wa) return; akhirRef.current = { wa: '', id: 0 }; muatThread(wa); const t = setInterval(() => { if (terlihat()) muatThread(wa, true); }, 5000); return () => clearInterval(t); }, [wa]);
   useEffect(() => { const w = new URLSearchParams(window.location.search).get('wa'); if (w) { setWa(w.replace(/[^0-9]/g, '')); setMobileThread(true); } }, []);
 
   const me = data?.me;

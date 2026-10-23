@@ -5,9 +5,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const KOLOM = ['nama_ktp', 'nik', 'npwp', 'email', 'alamat', 'rt_rw', 'kel_desa', 'kecamatan', 'kota_kab', 'provinsi', 'alamat_domisili'];
+let konsumenSiap = false;
 async function siapkanKonsumen(sql) {
+  if (konsumenSiap) return;
   await sql`CREATE TABLE IF NOT EXISTS konsumen (lead_code text PRIMARY KEY, nama_ktp text, nik text, npwp text, email text, alamat text, rt_rw text,
     kel_desa text, kecamatan text, kota_kab text, provinsi text, alamat_domisili text, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
+  konsumenSiap = true;
 }
 
 // GET ?lead_code= → identitas tersimpan (terisi otomatis bila konsumen pernah bertransaksi)

@@ -421,8 +421,12 @@ export default function BerandaPage() {
     const url = !pimpinan ? '' : sebagai === 'pimpinan' ? (proj ? '?project=' + encodeURIComponent(proj) : '') : '?sebagai=' + sebagai;
     const muat = () => api('/api/beranda' + url).then(x => { if (!batal) setD(x); }).catch(e => toast(e.message));
     setD(null); muat();
-    const t = setInterval(muat, 120000); // segarkan tiap 2 menit selama halaman terbuka
-    return () => { batal = true; clearInterval(t); };
+    // segarkan tiap 2 menit HANYA saat layar terlihat; saat aplikasi dibuka lagi setelah >2 menit langsung diperbarui
+    let terakhir = Date.now();
+    const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 120000) { terakhir = Date.now(); muat(); } };
+    const t = setInterval(segar, 30000);
+    document.addEventListener('visibilitychange', segar);
+    return () => { batal = true; clearInterval(t); document.removeEventListener('visibilitychange', segar); };
   }, [me, sebagai, proj]); // eslint-disable-line
 
   return (
