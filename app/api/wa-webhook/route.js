@@ -88,8 +88,13 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   const kode = /\b([A-Z]{2,3})(\d+)-(\d+)\b/i.exec(isi);
   if (kode) {
     try {
-      const c = await sql`SELECT nama FROM mi_campaigns WHERE id = ${Number(kode[2])}`;
-      if (c.length) { campaign = c[0].nama; konten = (kode[1] + kode[2] + '-' + kode[3]).toUpperCase(); }
+      const c = await sql`SELECT nama, platform FROM mi_campaigns WHERE id = ${Number(kode[2])}`;
+      if (c.length) {
+        campaign = c[0].nama; konten = (kode[1] + kode[2] + '-' + kode[3]).toUpperCase();
+        // Sumber lead mengikuti platform campaign dari kode (mis. tombol WA landing page Google → "Google Ads")
+        const pl = String(c[0].platform || '');
+        sumber = /google/i.test(pl) ? 'Google Ads' : /website/i.test(pl) ? 'Website' : /meta|facebook/i.test(pl) ? 'Facebook Ads' : /instagram/i.test(pl) ? 'Instagram' : sumber;
+      }
     } catch {}
   }
   if (ref && ref.source_type === 'ad') {
