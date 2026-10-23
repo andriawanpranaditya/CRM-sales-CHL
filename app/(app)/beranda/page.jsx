@@ -421,12 +421,8 @@ export default function BerandaPage() {
     const url = !pimpinan ? '' : sebagai === 'pimpinan' ? (proj ? '?project=' + encodeURIComponent(proj) : '') : '?sebagai=' + sebagai;
     const muat = () => api('/api/beranda' + url).then(x => { if (!batal) setD(x); }).catch(e => toast(e.message));
     setD(null); muat();
-    // segarkan tiap 2 menit HANYA saat layar terlihat; saat aplikasi dibuka lagi setelah >2 menit langsung diperbarui
-    let terakhir = Date.now();
-    const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 120000) { terakhir = Date.now(); muat(); } };
-    const t = setInterval(segar, 30000);
-    document.addEventListener('visibilitychange', segar);
-    return () => { batal = true; clearInterval(t); document.removeEventListener('visibilitychange', segar); };
+    const t = setInterval(muat, 120000); // segarkan tiap 2 menit selama halaman terbuka
+    return () => { batal = true; clearInterval(t); };
   }, [me, sebagai, proj]); // eslint-disable-line
 
   return (
@@ -461,7 +457,7 @@ function Collection({ me }) {
       <h1 className="bd-title" style={{ margin: 0 }}>{d.perhatian.length ? `${d.perhatian.length} hal perlu ditindaklanjuti${mendesak ? ` · ${mendesak} mendesak` : ''}` : 'Semua terkendali hari ini'}</h1>
       {projek.length > 1 && <div className="theme-switch" role="group" aria-label="Pilih project">{[['', 'Semua project'], ...projek.map(p => [p, p])].map(([v, l]) => <button key={v} aria-pressed={proj === v} onClick={() => setProj(v)}>{l}</button>)}</div>}
     </div>
-    <Pintasan items={[['/collection?tab=tagihan', I.cek, 'Catat pembayaran', true], ['/kpr-proses', I.hitung, 'Proses KPR'], ['/collection?tab=akad', I.kalender, 'Jadwal akad'], ['/kpr', I.hitung, 'Simulasi'], ['/stock', I.peta, 'Master Stock']]} />
+    <Pintasan items={[['/collection?tab=tagihan', I.cek, 'Catat pembayaran', true], ['/collection?tab=kpr', I.hitung, 'Proses KPR'], ['/collection?tab=kontrak', I.kalender, 'Data kontrak'], ['/kpr', I.hitung, 'Simulasi'], ['/stock', I.peta, 'Master Stock']]} />
     <Ringkasan d={d} proj={proj} muat={() => muat(proj)} />
   </>);
 }

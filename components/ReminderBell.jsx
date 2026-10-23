@@ -47,13 +47,8 @@ export default function ReminderBell({ user }) {
   }
 
   useEffect(() => {
-    // Refresh tiap 5 menit HANYA saat layar terlihat (tab di belakang / HP terkunci tidak menarik data);
-    // begitu aplikasi dibuka lagi dan sudah >5 menit, lonceng langsung diperbarui.
-    let terakhir = Date.now();
     load();
-    const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 5 * 60 * 1000) { terakhir = Date.now(); load(); } };
-    const t = setInterval(segar, 60 * 1000);
-    document.addEventListener('visibilitychange', segar);
+    const t = setInterval(load, 5 * 60 * 1000); // refresh tiap 5 menit
 
     // Bunyi "ding" + getar pada interaksi PERTAMA pengguna hari ini bila ada FU jatuh tempo
     // (browser hanya mengizinkan suara setelah pengguna menyentuh halaman)
@@ -74,7 +69,6 @@ export default function ReminderBell({ user }) {
 
     return () => {
       clearInterval(t);
-      document.removeEventListener('visibilitychange', segar);
       window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('keydown', onFirstTouch);
     };
@@ -129,10 +123,10 @@ export default function ReminderBell({ user }) {
                   {data.jatuhTempo.map(r => (<a key={'jt' + r.id} href={'/collection?tab=tagihan&lead=' + r.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--blue)' }}>
                     <b>{r.nama}</b> · {r.unit}<br /><span className="hint">{r.ket} · Rp {Number(r.sisa).toLocaleString('id-ID')} · {r.jatuh_tempo === data.today ? 'hari ini' : 'besok'}</span></a>))}</>}
                 {(data.akad || []).length > 0 && <><div className="bell-sub">🏦 Akad ({data.akad.length})</div>
-                  {data.akad.map(a => (<a key={'ak' + a.id} href={'/kpr-proses?id=' + a.id} className="rem-item" style={{ borderLeftColor: a.lewat ? 'var(--red)' : 'var(--brass)' }}>
+                  {data.akad.map(a => (<a key={'ak' + a.id} href={'/collection?tab=kpr&kpr=' + a.id} className="rem-item" style={{ borderLeftColor: a.lewat ? 'var(--red)' : 'var(--brass)' }}>
                     <b>{a.nama}</b> · {a.unit}<br /><span className="hint">{a.lewat ? 'Akad ' + fmtDate(a.tgl) + ' sudah lewat — isi realisasi' : 'Akad ' + fmtDate(a.tgl)}{a.bank ? ' · ' + a.bank : ''}</span></a>))}</>}
                 {(data.kendala || []).length > 0 && <><div className="bell-sub">⚠ Kendala berkas / bank ({data.kendala.length})</div>
-                  {data.kendala.map(k => (<a key={'kd' + k.id} href={'/kpr-proses?id=' + k.id} className="rem-item" style={{ borderLeftColor: 'var(--brass)' }}>
+                  {data.kendala.map(k => (<a key={'kd' + k.id} href={'/collection?tab=kpr&kpr=' + k.id} className="rem-item" style={{ borderLeftColor: 'var(--brass)' }}>
                     <b>{k.nama}</b> · {k.unit}<br /><span className="hint">{k.kendala} · {k.hari} hari</span></a>))}</>}
               </>}
               {(data.janjian || []).length > 0 && <>
