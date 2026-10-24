@@ -57,7 +57,7 @@ export default function UsersPage() {
       <div className="page-head"><div><h1>Pengguna</h1>
         <div className="sub">Akun sales otomatis muncul di dropdown Sales / PIC. Akses project membatasi semua menu akun itu (lead, follow up, Reserved/Booking, Master Stock, laporan) hanya ke project yang dicentang.</div></div></div>
       <div className="card" style={{ marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 240 }}><b>Target booking per sales</b><div className="hint">Sama untuk semua akun Sales; dipakai di Rapor sales (beranda Sales, Manager, CEO). Satuan: unit Booking per bulan.</div></div>
+        <div style={{ flex: 1, minWidth: 240 }}><b>Target booking per sales</b><div className="hint">Sama untuk semua akun Sales; dipakai di Rapor sales (beranda Sales, Manager, CEO). Satuan: unit Booking per bulan. Agent dan akun uji: hilangkan centang "Masuk rapor" di kolom Status agar tidak ikut dinilai.</div></div>
         <input type="number" min="0" max="50" value={target} onChange={e => setTarget(e.target.value)} style={{ width: 90 }} /><span className="hint">unit / bulan</span>
         <button className="btn btn-primary" style={{ width: 'auto' }} onClick={simpanTarget}>Simpan target</button>
       </div>
@@ -119,7 +119,9 @@ export default function UsersPage() {
                     <button className="sort-btn" style={{ padding: '1px 7px' }} aria-label={'Atur project ' + u.name} onClick={() => setEdProj({ id: u.id, list: u.projects || [] })}>✎</button>
                   </span>)}
               </td>
-              <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span></td>
+              <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span>
+                {u.role === 'sales' && <label className="hint" style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4, cursor: 'pointer', whiteSpace: 'nowrap' }} title="Matikan untuk agent atau akun uji agar tidak masuk Rapor tim sales">
+                  <input type="checkbox" checked={u.rapor !== false} onChange={async e => { try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, rapor: e.target.checked }) }); load(); } catch (er) { toast(er.message); } }} /> Masuk rapor</label>}</td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">
                 <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>

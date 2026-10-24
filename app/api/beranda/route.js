@@ -98,7 +98,8 @@ async function raporSales(sql, { nama, pp, hariIni, awalBulan, user, jj, due, ju
   const pct = x => (Math.round(x * 1000) / 10).toLocaleString('id-ID') + '%';
   const v = (x, bagus, cukup, kecil = false) => x === null || x === undefined || Number.isNaN(x) ? '⚪' : kecil ? (x <= bagus ? '🟢' : x <= cukup ? '🟡' : '🔴') : (x >= bagus ? '🟢' : x >= cukup ? '🟡' : '🔴');
   const rows = [];
-  const add = (lapis, indikator, hasil, patokan, vonis, saran) => rows.push({ lapis, indikator, hasil, patokan, vonis, saran: vonis === '🟢' ? 'Pertahankan.' : vonis === '⚪' ? 'Data bulan ini belum cukup untuk dinilai.' : saran });
+  // add(lapisan, indikator, nilai angka (untuk perhitungan), teks hasil yang ditampilkan, patokan, vonis, saran)
+  const add = (lapis, indikator, nilai, hasil, patokan, vonis, saran) => rows.push({ lapis, indikator, hasil: String(hasil ?? '—'), patokan, vonis, saran: vonis === '🟢' ? 'Pertahankan.' : vonis === '⚪' ? 'Data bulan ini belum cukup untuk dinilai.' : saran });
   const sayaUser = nama ? sql`SELECT username FROM users WHERE name = ${nama}` : null;
   const unames = sayaUser ? (await sayaUser).map(u => u.username) : null;
   const [respon, aktif, hariFu, hw, janjiBln, visit, kual, drop, keg] = await Promise.all([
@@ -201,7 +202,9 @@ async function targetBooking(sql) {
 }
 // ===== Rapor tim: semua akun aktif berperan Sales (sales in-house yang punya login), dihitung dengan aturan yang sama =====
 async function raporTim(sql, { pp, hariIni }) {
-  const semuaSales = await sql`SELECT name, username, projects, COALESCE(wa, '') AS wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`
+  try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS rapor boolean DEFAULT true`; } catch {}
+  // Hanya sales in-house: akun Sales aktif yang tidak dikeluarkan dari rapor (agent / akun uji dimatikan Manager di menu Pengguna)
+  const semuaSales = await sql`SELECT name, username, projects, COALESCE(wa, '') AS wa FROM users WHERE role = 'sales' AND active = true AND COALESCE(rapor, true) = true ORDER BY name`
     .catch(() => sql`SELECT name, username, null AS projects, '' AS wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`);
   // Hanya sales yang memegang project terpilih (akun tanpa batasan project = semua project)
   const daftar = semuaSales.filter(s => !pp || !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => pp.includes(p)));

@@ -21,7 +21,8 @@ export async function GET() {
   const sql = db();
   if (user.role === 'manager') {
     let rows;
-    try { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at, projects FROM users ORDER BY role, name`; }
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS rapor boolean DEFAULT true`; } catch {}
+    try { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at, projects, COALESCE(rapor, true) AS rapor FROM users ORDER BY role, name`; }
     catch { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at FROM users ORDER BY role, name`; }
     return Response.json(rows);
   }
@@ -104,6 +105,11 @@ async function _PATCH(req) {
   }
   if (typeof b.wa === 'string') {
     await sql`UPDATE users SET wa = ${b.wa.trim()} WHERE id = ${b.id}`;
+  }
+  // Ikut / tidak ikut Rapor sales (agent & akun uji dikeluarkan)
+  if (typeof b.rapor === 'boolean') {
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS rapor boolean DEFAULT true`; } catch {}
+    await sql`UPDATE users SET rapor = ${b.rapor} WHERE id = ${b.id}`;
   }
   if (b.role && ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'].includes(b.role)) {
     if (b.role === 'collection') await siapkanPeran(sql);
