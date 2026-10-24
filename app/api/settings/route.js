@@ -36,6 +36,11 @@ async function _PUT(req) {
                 ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(b[key])}`;
     }
   }
+  // Target booking per sales per bulan (sama untuk semua sales) — dipakai Rapor sales di beranda
+  if (b.target_booking !== undefined) {
+    const n = Math.max(0, Math.min(50, Math.round(Number(b.target_booking) || 0)));
+    await sql`INSERT INTO settings (key, items) VALUES ('target_booking', ${JSON.stringify({ n })}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify({ n })}`;
+  }
   if (b.units && typeof b.units === 'object' && !Array.isArray(b.units)) {
     await sql`INSERT INTO settings (key, items) VALUES ('units', ${JSON.stringify(b.units)})
               ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(b.units)}`;

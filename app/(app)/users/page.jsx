@@ -10,6 +10,9 @@ export default function UsersPage() {
   const [edProj, setEdProj] = useState(null); // { id, list } — editor akses project per akun
   const [waEdit, setWaEdit] = useState({});
   const [busy, setBusy] = useState(false);
+  const [target, setTarget] = useState(''); // target booking per sales per bulan (Rapor sales)
+  useEffect(() => { api('/api/settings').then(s => setTarget(String(s.target_booking?.n ?? 2))).catch(() => {}); }, []);
+  async function simpanTarget() { try { await api('/api/settings', { method: 'PUT', body: JSON.stringify({ target_booking: Number(target) }) }); toast('Target booking disimpan'); } catch (e) { toast(e.message); } }
 
   const load = () => api('/api/users').then(setUsers).catch(e => toast(e.message));
   useEffect(() => { load(); api('/api/settings').then(s => setDaftarProj(s.project || [])).catch(() => {}); }, []);
@@ -53,6 +56,11 @@ export default function UsersPage() {
     <>
       <div className="page-head"><div><h1>Pengguna</h1>
         <div className="sub">Akun sales otomatis muncul di dropdown Sales / PIC. Akses project membatasi semua menu akun itu (lead, follow up, Reserved/Booking, Master Stock, laporan) hanya ke project yang dicentang.</div></div></div>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 240 }}><b>Target booking per sales</b><div className="hint">Sama untuk semua akun Sales; dipakai di Rapor sales (beranda Sales, Manager, CEO). Satuan: unit Booking per bulan.</div></div>
+        <input type="number" min="0" max="50" value={target} onChange={e => setTarget(e.target.value)} style={{ width: 90 }} /><span className="hint">unit / bulan</span>
+        <button className="btn btn-primary" style={{ width: 'auto' }} onClick={simpanTarget}>Simpan target</button>
+      </div>
       <div className="card" style={{ marginBottom: 14 }}>
         <h2>Tambah Akun</h2>
         <div className="form-grid">

@@ -92,7 +92,145 @@ async function berandaMarcom(sql, user, hariIni) {
   };
 }
 
-async function berandaSales(sql, user, hariIni, semua) {
+// ===== Rapor sales bulan berjalan: follow up, kunjungan, penjualan, data & kegiatan — dengan vonis bagus / cukup / perlu perbaikan =====
+async function raporSales(sql, { nama, pp, hariIni, awalBulan, user, jj, due, jual, resLama, kprSaya, target = 2 }) {
+  const hariKe = Number(hariIni.slice(8, 10));
+  const pct = x => (Math.round(x * 1000) / 10).toLocaleString('id-ID') + '%';
+  const v = (x, bagus, cukup, kecil = false) => x === null || x === undefined || Number.isNaN(x) ? '⚪' : kecil ? (x <= bagus ? '🟢' : x <= cukup ? '🟡' : '🔴') : (x >= bagus ? '🟢' : x >= cukup ? '🟡' : '🔴');
+  const rows = [];
+  const add = (lapis, indikator, hasil, patokan, vonis, saran) => rows.push({ lapis, indikator, hasil, patokan, vonis, saran: vonis === '🟢' ? 'Pertahankan.' : vonis === '⚪' ? 'Data bulan ini belum cukup untuk dinilai.' : saran });
+  const sayaUser = nama ? sql`SELECT username FROM users WHERE name = ${nama}` : null;
+  const unames = sayaUser ? (await sayaUser).map(u => u.username) : null;
+  const [respon, aktif, hariFu, hw, janjiBln, visit, kual, drop, keg] = await Promise.all([
+    // Lead dioper bulan ini → dihubungi pertama kali dalam 24 jam
+    sql`SELECT a.created_at, (SELECT min(f.created_at) FROM followups f WHERE f.lead_code = a.lead_code AND f.created_at > a.created_at AND COALESCE(f.created_by, '') <> 'auto-wa'
+          AND f.created_by IN (SELECT username FROM users WHERE name = a.ke)) AS fu1
+        FROM lead_assign a JOIN leads l ON l.lead_code = a.lead_code
+        WHERE COALESCE(a.ke, '') <> '' AND (${nama}::text IS NULL OR a.ke = ${nama}) AND (a.created_at AT TIME ZONE 'Asia/Jakarta')::date >= ${awalBulan}::date
+          AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => []),
+    // Lead aktif (bukan Booking/Drop) yang di-follow up dalam 7 hari terakhir
+    sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND f.created_at > now() - interval '7 days'))::int AS fu7
+        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Booking')
+          AND l.created_at < now() - interval '3 days' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
+    // Hari aktif follow up bulan ini
+    sql`SELECT count(DISTINCT (f.created_at AT TIME ZONE 'Asia/Jakarta')::date)::int AS n FROM followups f JOIN leads l ON l.lead_code = f.lead_code
+        WHERE (f.created_at AT TIME ZONE 'Asia/Jakarta')::date >= ${awalBulan}::date AND COALESCE(f.created_by, '') <> 'auto-wa'
+          AND (${unames}::text[] IS NULL OR f.created_by = ANY(${unames}::text[])) AND (${nama}::text IS NULL OR l.sales = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
+    // Lead Hot/Warm yang punya janji temu (terjadwal atau datang 30 hari terakhir)
+    sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM janjian j WHERE j.lead_code = l.lead_code AND (j.status = 'Terjadwal' OR (j.status = 'Datang' AND j.tgl >= (${hariIni}::date - 30)))))::int AS ada
+        FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status IN ('Hot', 'Warm') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ada: 0 }]),
+    // Janji temu bertanggal bulan ini s.d. hari ini
+    sql`SELECT status, count(*)::int AS n FROM janjian j WHERE (${nama}::text IS NULL OR j.sales = ${nama}) AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))
+          AND j.tgl >= ${awalBulan}::date AND j.tgl <= ${hariIni}::date GROUP BY status`.catch(() => []),
+    // Kunjungan 90 hari terakhir yang berlanjut ke Booking
+    sql`SELECT count(DISTINCT j.lead_code)::int AS n, count(DISTINCT j.lead_code) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = j.lead_code AND t.jenis IN ('Booking', 'Closing') AND t.tgl >= j.tgl))::int AS book
+        FROM janjian j WHERE j.status = 'Datang' AND j.tgl >= (${hariIni}::date - 90) AND (${nama}::text IS NULL OR j.sales = ${nama}) AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, book: 0 }]),
+    // Kelengkapan data kualifikasi lead aktif (≥3 dari domisili, budget, cara bayar, usia, tujuan)
+    sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE ((COALESCE(domisili, '') <> '')::int + (COALESCE(budget, 0) > 0)::int + (COALESCE(bayar, '') <> '')::int + (COALESCE(usia, '') <> '')::int + (COALESCE(tujuan, '') <> '')::int) >= 3)::int AS ok
+        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ok: 0 }]),
+    // Drop bulan ini & alasannya
+    sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE COALESCE(alasan, '') <> '')::int AS ok FROM lead_status_log s JOIN leads l ON l.lead_code = s.lead_code
+        WHERE s.ke = 'Drop' AND s.tgl >= ${awalBulan}::date AND (${nama}::text IS NULL OR s.sales_saat = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ok: 0 }]),
+    // Kegiatan (kanvasing, open table, dll.) bulan ini
+    sql`SELECT count(*)::int AS n, COALESCE(sum(jml_lead), 0)::int AS lead FROM kegiatan k WHERE k.tgl >= ${awalBulan}::date AND k.tgl <= ${hariIni}::date
+          AND (${nama}::text IS NULL OR k.created_by = ANY(${unames || []}::text[]) OR COALESCE(k.pic, '') ILIKE ${'%' + (nama || '') + '%'}) AND (${pp}::text[] IS NULL OR k.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, lead: 0 }]),
+  ]);
+
+  // FOLLOW UP
+  const resp = respon.filter(x => x.fu1 || (Date.now() - new Date(x.created_at).getTime()) > 86400000);
+  const cepat = resp.filter(x => x.fu1 && (new Date(x.fu1) - new Date(x.created_at)) <= 86400000).length;
+  const rResp = resp.length ? cepat / resp.length : null;
+  add('Follow up', 'Lead dari Marcom dihubungi < 24 jam', rResp, resp.length ? `${pct(rResp)} (${cepat} dari ${resp.length})` : '—', 'bagus ≥80% · cukup ≥60%', resp.length < 3 ? '⚪' : v(rResp, 0.8, 0.6),
+    'Hubungi lead baru dari Marcom di hari yang sama dioper — lead yang dihubungi < 1 jam jauh lebih mungkin membalas. Cek kotak "lead baru dari Marcom" di atas setiap pagi dan siang.');
+  const tlt = due.filter(r => r.next_fu < hariIni).length;
+  add('Follow up', 'Follow up terlambat (lewat jadwal)', tlt, `${tlt} lead`, 'bagus 0 · cukup ≤3', v(tlt, 0, 3, true),
+    'Selesaikan follow up terlambat sebelum yang baru; isi jadwal follow up berikutnya di setiap catatan follow up agar tidak menumpuk.');
+  const a0 = aktif[0] || { n: 0, fu7: 0 }, rAktif = a0.n ? a0.fu7 / a0.n : null;
+  add('Follow up', 'Lead aktif yang di-follow up dalam 7 hari', rAktif, a0.n ? `${pct(rAktif)} (${a0.fu7} dari ${a0.n})` : '—', 'bagus ≥80% · cukup ≥60%', a0.n < 3 ? '⚪' : v(rAktif, 0.8, 0.6),
+    'Sentuh setiap lead aktif minimal sekali seminggu (info promo, progres unit, ajak visit). Lead yang memang tidak berminat diubah ke Drop dengan alasannya.');
+  const rHari = hariKe ? Math.min(1, (hariFu[0]?.n || 0) / hariKe) : null;
+  add('Follow up', 'Hari aktif follow up bulan ini', rHari, `${hariFu[0]?.n || 0} dari ${hariKe} hari`, 'bagus ≥80% · cukup ≥60% hari', hariKe < 5 ? '⚪' : v(rHari, 0.8, 0.6),
+    'Catat follow up setiap hari kerja, sekecil apa pun (chat, telepon, kirim brosur), supaya riwayat lead lengkap dan manager bisa membantu.');
+
+  // KUNJUNGAN
+  const h0 = hw[0] || { n: 0, ada: 0 }, rJanji = h0.n ? h0.ada / h0.n : null;
+  add('Kunjungan', 'Lead Hot/Warm yang sudah dijadwalkan visit', rJanji, h0.n ? `${pct(rJanji)} (${h0.ada} dari ${h0.n})` : '—', 'bagus ≥50% · cukup ≥30%', h0.n < 2 ? '⚪' : v(rJanji, 0.5, 0.3),
+    'Setiap lead Hot/Warm ditawari dua pilihan waktu kunjungan (mis. Sabtu pagi atau Minggu siang) dan langsung dibuatkan janji di menu Janjian & Visitor.');
+  const jb = Object.fromEntries(janjiBln.map(x => [x.status, x.n])); const datang = jb['Datang'] || 0, batal = jb['Batal'] || 0;
+  const belum = jj.filter(j => j.perlu_update).length, tj = datang + batal + belum, rShow = tj ? datang / tj : null;
+  add('Kunjungan', 'Janji temu yang benar-benar datang', rShow, tj ? `${pct(rShow)} (${datang} datang · ${batal} batal)` : '—', 'bagus ≥60% · cukup ≥40% (min. 3 janji)', tj < 3 ? '⚪' : v(rShow, 0.6, 0.4),
+    'Konfirmasi H-1 dan pagi hari-H lewat tombol "Ingatkan via WA", kirim lokasi & patokan jalan, dan tawarkan jadwal pengganti saat itu juga bila konsumen berhalangan.');
+  add('Kunjungan', 'Janji temu belum di-update hasilnya', belum, `${belum} janji`, 'bagus 0 · cukup ≤1', v(belum, 0, 1, true),
+    'Isi hasil janji temu (datang / reschedule / batal + alasan) paling lambat 1 jam setelah jam janji.');
+
+  // PENJUALAN
+  const nb = jual[0]?.n || 0;
+  add('Penjualan', 'Booking bulan ini', nb, `${nb} unit · Rp ${Number(jual[0]?.nilai || 0).toLocaleString('id-ID')}`, `target ${target} unit per bulan`, !target ? '⚪' : hariKe < 10 && nb < target ? '⚪' : nb >= target ? '🟢' : nb >= Math.ceil(target / 2) ? '🟡' : '🔴',
+    'Fokus ke lead Hot dan yang sudah visit: tawarkan Reserved di hari kunjungan, bantu hitung cicilan di Simulasi Cara Bayar, dan libatkan manager untuk negosiasi penutupan.');
+  const vs = visit[0] || { n: 0, book: 0 }, rVb = vs.n ? vs.book / vs.n : null;
+  add('Penjualan', 'Kunjungan yang berlanjut ke Booking (90 hari)', rVb, vs.n ? `${pct(rVb)} (${vs.book} dari ${vs.n})` : '—', 'bagus ≥20% · cukup ≥10% (min. 5 kunjungan)', vs.n < 5 ? '⚪' : v(rVb, 0.2, 0.1),
+    'Siapkan unit yang tersedia, price list, dan simulasi KPR sebelum konsumen datang; tutup kunjungan dengan langkah berikutnya yang jelas (Reserved, BI checking, atau janji kedua).');
+  const rl = resLama.length;
+  add('Penjualan', 'Reserved lebih dari 7 hari belum Booking', rl, `${rl} unit`, 'bagus 0 · cukup ≤1', v(rl, 0, 1, true),
+    'Hubungi konsumen Reserved lama hari ini: pastikan kendala (dana, pasangan, KPR), atur jadwal Booking, atau lepas unit agar bisa dijual lagi.');
+  const kd = kprSaya.filter(k => k.diam > 3).length;
+  add('Penjualan', 'Proses KPR tidak di-update > 3 hari', kd, `${kd} konsumen`, 'bagus 0 · cukup ≤1', v(kd, 0, 1, true),
+    'Tanyakan progres ke AO bank minimal dua kali seminggu dan catat di Proses KPR; kendala berkas segera disampaikan ke konsumen.');
+
+  // DATA & KEGIATAN
+  const q0 = kual[0] || { n: 0, ok: 0 }, rKual = q0.n ? q0.ok / q0.n : null;
+  add('Data & kegiatan', 'Data kualifikasi lead lengkap (≥3 kolom)', rKual, q0.n ? `${pct(rKual)} (${q0.ok} dari ${q0.n})` : '—', 'bagus ≥70% · cukup ≥40%', q0.n < 3 ? '⚪' : v(rKual, 0.7, 0.4),
+    'Lengkapi domisili, budget, cara bayar, usia, dan tujuan beli di setiap lead (Database Lead → Edit) saat follow up.');
+  const d0 = drop[0] || { n: 0, ok: 0 }, rDrop = d0.n ? d0.ok / d0.n : null;
+  add('Data & kegiatan', 'Lead Drop yang alasannya dicatat', rDrop, d0.n ? `${pct(rDrop)} (${d0.ok} dari ${d0.n})` : '—', 'bagus ≥90% · cukup ≥70%', d0.n < 3 ? '⚪' : v(rDrop, 0.9, 0.7),
+    'Selalu pilih alasan saat mengubah lead ke Drop (tidak ada respon, beli di tempat lain, budget/lokasi tidak sesuai) supaya tim marcom bisa memperbaiki iklan.');
+  const k0 = keg[0] || { n: 0, lead: 0 };
+  add('Data & kegiatan', 'Kegiatan lapangan bulan ini', k0.n, `${k0.n} kegiatan${k0.lead ? ' · ' + k0.lead + ' lead' : ''}`, 'bagus ≥4 · cukup ≥2 per bulan', hariKe < 10 && k0.n < 4 ? '⚪' : v(k0.n, 4, 2),
+    'Jadwalkan minimal satu kegiatan per minggu (kanvasing, open table, presentasi kantor/komunitas) dan catat di menu Kegiatan beserta jumlah lead yang didapat.');
+
+  const n = k => rows.filter(r => r.vonis === k).length;
+  return { bulan: hariIni.slice(0, 7), rows, target, skor: skorRapor(rows), ringkas: { bagus: n('🟢'), cukup: n('🟡'), kurang: n('🔴'), belum: n('⚪') } };
+}
+// Skor 0–100 = (2 × hijau + 1 × kuning) ÷ (2 × indikator yang bisa dinilai); ⚪ tidak dihitung
+function skorRapor(rows) {
+  const g = rows.filter(r => r.vonis === '🟢').length, y = rows.filter(r => r.vonis === '🟡').length, m = rows.filter(r => r.vonis === '🔴').length;
+  return g + y + m ? Math.round((2 * g + y) / (2 * (g + y + m)) * 100) : null;
+}
+async function targetBooking(sql) {
+  try { const r = await sql`SELECT items FROM settings WHERE key = 'target_booking'`; const n = Number(r[0]?.items?.n); return Number.isFinite(n) ? n : 2; } catch { return 2; }
+}
+// ===== Rapor tim: semua akun aktif berperan Sales (sales in-house yang punya login), dihitung dengan aturan yang sama =====
+async function raporTim(sql, { pp, hariIni }) {
+  const semuaSales = await sql`SELECT name, username, projects, COALESCE(wa, '') AS wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`
+    .catch(() => sql`SELECT name, username, null AS projects, '' AS wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`);
+  // Hanya sales yang memegang project terpilih (akun tanpa batasan project = semua project)
+  const daftar = semuaSales.filter(s => !pp || !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => pp.includes(p)));
+  try { await siapkanKpr(sql); await sinkronKpr(sql); } catch (e) { console.error('sinkron kpr tim', e); }
+  const hasil = [];
+  for (let i = 0; i < daftar.length; i += 3) { // 3 sales sekaligus agar database tidak terbebani
+    const batch = await Promise.all(daftar.slice(i, i + 3).map(u => berandaSales(sql, { name: u.name, username: u.username, role: 'sales', projects: pp }, hariIni, false, { tanpaSync: true })
+      .then(b => ({ nama: u.name, wa: u.wa, rapor: b.rapor, jual: b.jual })).catch(e => { console.error('rapor tim ' + u.name, e); return null; })));
+    hasil.push(...batch.filter(x => x && x.rapor));
+  }
+  hasil.sort((a, b) => (b.rapor.skor ?? -1) - (a.rapor.skor ?? -1));
+  const skorAda = hasil.filter(x => x.rapor.skor !== null);
+  const target = hasil[0]?.rapor.target ?? await targetBooking(sql);
+  // Indikator yang merah/kuning di banyak sales sekaligus → bahan briefing
+  const per = {};
+  hasil.forEach(x => x.rapor.rows.forEach(r => { const p = per[r.indikator] || (per[r.indikator] = { indikator: r.indikator, lapis: r.lapis, merah: [], kuning: [] }); if (r.vonis === '🔴') p.merah.push(x.nama); if (r.vonis === '🟡') p.kuning.push(x.nama); }));
+  const umum = Object.values(per).filter(p => p.merah.length + p.kuning.length >= 2).sort((a, b) => (b.merah.length * 2 + b.kuning.length) - (a.merah.length * 2 + a.kuning.length)).slice(0, 4);
+  const pendamping = [...hasil].filter(x => x.rapor.ringkas.kurang >= 3).sort((a, b) => (a.rapor.skor ?? 101) - (b.rapor.skor ?? 101))[0] || null;
+  return {
+    bulan: hariIni.slice(0, 7), target,
+    sales: hasil.map((x, i) => ({ peringkat: i + 1, nama: x.nama, wa: x.wa, skor: x.rapor.skor, ringkas: x.rapor.ringkas, rows: x.rapor.rows, booking: x.jual.n, nilai: x.jual.nilai })),
+    tim: { rata: skorAda.length ? Math.round(skorAda.reduce((a, x) => a + x.rapor.skor, 0) / skorAda.length) : null, merah: hasil.reduce((a, x) => a + x.rapor.ringkas.kurang, 0),
+      booking: hasil.reduce((a, x) => a + x.jual.n, 0), nilai: hasil.reduce((a, x) => a + x.jual.nilai, 0), targetTim: target * hasil.length, jumlah: hasil.length,
+      pendamping: pendamping ? { nama: pendamping.nama, merah: pendamping.rapor.ringkas.kurang, skor: pendamping.rapor.skor, lapis: [...new Set(pendamping.rapor.rows.filter(r => r.vonis === '🔴').map(r => r.lapis))] } : null },
+    umum,
+  };
+}
+
+async function berandaSales(sql, user, hariIni, semua, opsi = {}) {
   const pp = user.projects;
   const awalBulan = hariIni.slice(0, 8) + '01';
   const nama = semua ? null : user.name;
@@ -156,7 +294,7 @@ async function berandaSales(sql, user, hariIni, semua) {
   } catch (e) { console.error('janjian sales', e); }
   try {
     await siapkanKpr(sql);
-    await sinkronKpr(sql);
+    if (!opsi.tanpaSync) await sinkronKpr(sql);
     const kr = await sql`SELECT k.id, k.lead_code, k.unit, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at,
         l.nama, COALESCE(NULLIF(k.project, ''), l.project, '') AS project,
         (SELECT t.jenis FROM transactions t WHERE t.lead_code = k.lead_code ORDER BY t.id DESC LIMIT 1) AS trx_terakhir
@@ -199,8 +337,10 @@ async function berandaSales(sql, user, hariIni, semua) {
   kprSaya.filter(k => k.diam > 3).slice(0, 3).forEach(k => peringatan.push({ level: 'emas', judul: `KPR ${k.nama} tidak di-update ${k.diam} hari`, sub: [k.status.label, k.banks.join(', '), k.kendala].filter(Boolean).join(' · '), href: '/kpr-proses?id=' + k.id, tombol: 'Update' }));
   kprSaya.filter(k => k.status.kategori === 'akad' && k.akad_tgl && k.akad_tgl < hariIni).forEach(k => peringatan.push({ level: 'merah', judul: `Akad ${k.nama} (${k.akad_tgl}) sudah lewat — isi tanggal realisasi`, sub: k.unit || '', href: '/kpr-proses?id=' + k.id, tombol: 'Isi' }));
 
+  const rapor = await raporSales(sql, { nama, pp, hariIni, awalBulan, user, jj, due, jual, resLama, kprSaya, target: await targetBooking(sql) }).catch(e => { console.error('rapor sales', e); return null; });
+
   return {
-    peran: 'sales', hariIni, peringatan, akhirPekan,
+    peran: 'sales', hariIni, peringatan, akhirPekan, rapor,
     agenda: jj.filter(j => j.status === 'Terjadwal' && (j.tgl === hariIni || j.tgl === geser(hariIni, 1)) && !j.perlu_update),
     kprSaya: kprSaya.slice(0, 6), kprJalan: kprSaya.length,
     baruDioper: baru.map(r => ({ ...r, menit: Math.max(0, Math.round((Date.now() - new Date(r.dioper).getTime()) / 60000)) })),
@@ -482,6 +622,20 @@ export async function GET(req) {
   const pimpinan = ['manager', 'ceo'].includes(user.role);
   const peran = pimpinan ? (['sales', 'markom'].includes(q.get('sebagai')) ? q.get('sebagai') : 'pimpinan') : user.role;
   try {
+    // Rapor tim sales (tabel perbandingan) — Manager & CEO; dimuat terpisah agar beranda utama tetap cepat
+    if (q.get('rapor_tim')) {
+      if (!pimpinan) return Response.json({ error: 'Khusus Manager & CEO' }, { status: 403 });
+      const pj = q.get('project') || null;
+      if (pj && user.projects && !user.projects.includes(pj)) return Response.json({ error: 'Akun Anda tidak memegang project ' + pj }, { status: 403 });
+      return Response.json({ ...(await raporTim(sql, { pp: pj ? [pj] : user.projects, hariIni })), bolehUbah: user.role === 'manager' });
+    }
+    // Peringkat sales di tim (beranda Sales) — hanya posisi sendiri, tanpa nilai rekan
+    if (q.get('peringkat')) {
+      if (user.role !== 'sales') return Response.json({ peringkat: null });
+      const t = await raporTim(sql, { pp: user.projects, hariIni });
+      const saya = t.sales.find(x => x.nama === user.name);
+      return Response.json({ peringkat: saya && saya.skor !== null ? saya.peringkat : null, dari: t.sales.filter(x => x.skor !== null).length, skor: saya?.skor ?? null });
+    }
     if (peran === 'pimpinan') {
       const pj = q.get('project') || null;
       if (pj && user.projects && !user.projects.includes(pj)) return Response.json({ error: 'Akun Anda tidak memegang project ' + pj }, { status: 403 });

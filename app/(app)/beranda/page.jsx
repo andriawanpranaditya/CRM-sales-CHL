@@ -194,9 +194,42 @@ function Sales({ d }) {
             <Link className="bd-btn ghost" href={'/kpr-proses?id=' + k.id}>Update</Link></div>))
           : <p className="bd-empty">Tidak ada proses KPR berjalan.</p>}
       </section>
+      {d.rapor && <RaporSales r={d.rapor} />}
       <KartuStok stok={d.stok} />
     </div>
   </>);
+}
+
+// ===== Rapor sales bulan berjalan =====
+const BLN_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+function RaporSales({ r }) {
+  const [buka, setBuka] = useState(null);
+  const [semua, setSemua] = useState(false);
+  const [rank, setRank] = useState(null);
+  useEffect(() => { api('/api/beranda?peringkat=1').then(setRank).catch(() => {}); }, []);
+  const urut = { '🔴': 0, '🟡': 1, '🟢': 2, '⚪': 3 };
+  const lapis = [...new Set(r.rows.map(x => x.lapis))];
+  const perLapis = l => r.rows.filter(x => x.lapis === l);
+  const nilaiLapis = l => { const v = perLapis(l).map(x => x.vonis).filter(x => x !== '⚪'); return !v.length ? '⚪' : v.includes('🔴') ? '🔴' : v.includes('🟡') ? '🟡' : '🟢'; };
+  const fokus = r.rows.filter(x => x.vonis === '🔴' || x.vonis === '🟡').sort((a, b) => urut[a.vonis] - urut[b.vonis]);
+  const bln = BLN_PANJANG[Number(r.bulan.slice(5, 7)) - 1] + ' ' + r.bulan.slice(0, 4);
+  return (<section className="bd-card bd-span2 rs-card">
+    <div className="bd-head"><h2 className="bd-h2">Rapor saya · {bln}</h2>
+      <span className="rs-sum">{rank?.peringkat ? <span className="rs-rank">🏅 Peringkat {rank.peringkat} dari {rank.dari} sales</span> : null}{r.skor !== null && r.skor !== undefined ? <span>Skor {r.skor}</span> : null}<span>🟢 {r.ringkas.bagus} baik</span><span>🟡 {r.ringkas.cukup} cukup</span><span>🔴 {r.ringkas.kurang} perlu diperbaiki</span></span></div>
+    <div className="rs-lapis">{lapis.map(l => (<div key={l} className={'rs-l rs-' + ({ '🟢': 'ok', '🟡': 'cukup', '🔴': 'kurang', '⚪': 'na' }[nilaiLapis(l)])}><span>{nilaiLapis(l)}</span><b>{l}</b>
+      <small>{perLapis(l).filter(x => x.vonis === '🟢').length}/{perLapis(l).filter(x => x.vonis !== '⚪').length || 0} indikator baik</small></div>))}</div>
+    <h3 className="rs-h3">{fokus.length ? 'Fokus perbaikan bulan ini' : 'Semua indikator yang bisa dinilai sudah baik — pertahankan!'}</h3>
+    {fokus.map((x, i) => (<div key={i} className="rs-row" onClick={() => setBuka(buka === x.indikator ? null : x.indikator)}>
+      <span className="rs-v">{x.vonis}</span>
+      <div className="rs-main"><b>{x.indikator}</b><span className="hint">{x.lapis} · {x.hasil} · patokan {x.patokan}</span>
+        {buka === x.indikator ? <span className="rs-saran">💡 {x.saran}</span> : <span className="rs-lagi">Lihat saran ›</span>}</div>
+    </div>))}
+    <button className="sort-btn" style={{ marginTop: 10 }} onClick={() => setSemua(!semua)}>{semua ? 'Sembunyikan rincian' : `Lihat semua ${r.rows.length} indikator`}</button>
+    {semua && <div className="tbl-wrap tbl-compact" style={{ marginTop: 8 }}><table>
+      <thead><tr><th>Aktivitas</th><th>Indikator</th><th className="num">Hasil</th><th>Patokan</th><th></th></tr></thead>
+      <tbody>{lapis.flatMap(l => perLapis(l).map((x, i) => <tr key={l + i}><td data-label="Aktivitas">{i === 0 ? <b>{l}</b> : ''}</td><td data-label="Indikator">{x.indikator}</td><td className="num" data-label="Hasil">{x.hasil}</td><td data-label="Patokan" className="hint">{x.patokan}</td><td data-label="Nilai">{x.vonis}</td></tr>))}</tbody></table>
+      <p className="hint" style={{ margin: '6px 0 0' }}>🟢 baik · 🟡 cukup · 🔴 perlu diperbaiki · ⚪ data bulan ini belum cukup untuk dinilai. Dihitung dari data CRM bulan berjalan (follow up 7 hari dan kunjungan 90 hari terakhir untuk indikator yang menyebutkannya).</p></div>}
+  </section>);
 }
 
 
@@ -397,6 +430,8 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         {!isCeo && <span className="hint">Respon = median jam dari lead dioper (oleh Marcom/manager) sampai FU pertama oleh sales itu, bulan ini. Klik angkanya untuk rincian per lead.</span>}
       </section>
 
+      <RaporTim proj={proj} />
+
       {!isCeo && d.tim && (<section className="bd-card bd-span4">
         <div className="bd-head"><h2 className="bd-h2">Log aktivitas tim hari ini</h2><Link href="/log" className="bd-more">Buka Log Aktivitas ›</Link></div>
         <div><b className="bd-num">{d.tim.aktif}</b> <span className="hint">dari {d.tim.total} akun sudah aktif</span></div>
@@ -459,5 +494,59 @@ function Collection({ me }) {
     </div>
     <Pintasan items={[['/collection?tab=tagihan', I.cek, 'Catat pembayaran', true], ['/collection?tab=kpr', I.hitung, 'Proses KPR'], ['/collection?tab=kontrak', I.kalender, 'Data kontrak'], ['/kpr', I.hitung, 'Simulasi'], ['/stock', I.peta, 'Master Stock']]} />
     <Ringkasan d={d} proj={proj} muat={() => muat(proj)} />
+  </>);
+}
+
+// ===== Rapor tim sales (Manager & CEO): tabel perbandingan per sales =====
+const KOL_TIM = [
+  ['Follow up', [['Lead dari Marcom dihubungi < 24 jam', 'Respon <24 jam'], ['Follow up terlambat (lewat jadwal)', 'FU terlambat'], ['Lead aktif yang di-follow up dalam 7 hari', 'FU 7 hari'], ['Hari aktif follow up bulan ini', 'Hari aktif']]],
+  ['Kunjungan', [['Lead Hot/Warm yang sudah dijadwalkan visit', 'Dijadwal visit'], ['Janji temu yang benar-benar datang', 'Show-up'], ['Janji temu belum di-update hasilnya', 'Belum update']]],
+  ['Penjualan', [['Booking bulan ini', 'Booking'], ['Kunjungan yang berlanjut ke Booking (90 hari)', 'Visit→Booking'], ['Reserved lebih dari 7 hari belum Booking', 'Reserved >7h'], ['Proses KPR tidak di-update > 3 hari', 'KPR diam']]],
+  ['Data & kegiatan', [['Data kualifikasi lead lengkap (≥3 kolom)', 'Data lengkap'], ['Lead Drop yang alasannya dicatat', 'Drop + alasan'], ['Kegiatan lapangan bulan ini', 'Kegiatan']]],
+];
+const nilaiSingkat = h => { const s = String(h || '—'); const m = s.match(/^[\d.,]+%/); return m ? m[0] : s.split(' ')[0]; };
+function RaporTim({ proj }) {
+  const [t, setT] = useState(null);
+  const [err, setErr] = useState('');
+  const [pilih, setPilih] = useState(null);
+  useEffect(() => { setT(null); setErr(''); api('/api/beranda?rapor_tim=1' + (proj ? '&project=' + encodeURIComponent(proj) : '')).then(setT).catch(e => setErr(e.message)); }, [proj]);
+  const bln = t ? BLN_PANJANG[Number(t.bulan.slice(5, 7)) - 1] + ' ' + t.bulan.slice(0, 4) : '';
+  const titik = v => <i className={'rt-dot ' + ({ '🟢': 'g', '🟡': 'y', '🔴': 'r' }[v] || 'n')} />;
+  const sel = (row, ind) => { const x = row.rows.find(r => r.indikator === ind); return x ? <td key={ind} title={`${x.indikator}: ${x.hasil}`}><span className="rt-c">{titik(x.vonis)}<span className={'rt-v ' + ({ '🟢': 'g', '🟡': 'y', '🔴': 'r' }[x.vonis] || 'n')}>{x.vonis === '⚪' && x.hasil === '—' ? '—' : nilaiSingkat(x.hasil)}</span></span></td> : <td key={ind}>—</td>; };
+  const bar = rk => { const n = rk.bagus + rk.cukup + rk.kurang || 1; return <span className="rt-bar"><span style={{ width: rk.bagus / n * 100 + '%', background: 'var(--green)' }} /><span style={{ width: rk.cukup / n * 100 + '%', background: 'var(--brass)' }} /><span style={{ width: rk.kurang / n * 100 + '%', background: 'var(--red)' }} /></span>; };
+  const p = pilih && t ? t.sales.find(x => x.nama === pilih) : null;
+  const pesanWA = s => 'Halo ' + s.nama + ', rapor ' + bln + ' kamu skor ' + (s.skor ?? '-') + '. Yang perlu diperbaiki: ' + s.rows.filter(r => r.vonis === '🔴').map(r => `${r.indikator} (${r.hasil})`).join('; ') + '. Semangat!';
+  return (<>
+    <section className="bd-card bd-span4">
+      <div className="bd-head"><h2 className="bd-h2">Rapor tim sales{bln ? ' · ' + bln : ''}</h2><span className="hint">sales in-house dengan akun login · klik nama untuk rincian</span></div>
+      {err ? <p className="bd-empty">{err}</p> : !t ? <p className="bd-empty">Menghitung rapor tiap sales…</p> : !t.sales.length ? <p className="bd-empty">Belum ada akun Sales aktif.</p> : <>
+        <div className="rt-kpi">
+          <div><span className="hint">Skor rata-rata tim</span><b>{t.tim.rata ?? '—'}<small> / 100</small></b></div>
+          <div><span className="hint">Indikator merah</span><b style={{ color: t.tim.merah ? 'var(--red)' : undefined }}>{t.tim.merah}</b></div>
+          <div><span className="hint">Booking tim</span><b>{t.tim.booking}<small> / target {t.tim.targetTim}</small></b><span className="hint">target {t.target} unit per sales</span></div>
+          <div><span className="hint">Perlu pendampingan</span>{t.tim.pendamping ? <><b>{t.tim.pendamping.nama}</b><span className="hint">{t.tim.pendamping.merah} merah · {t.tim.pendamping.lapis.join(', ').toLowerCase()}</span></> : <b style={{ fontSize: 15 }}>Tidak ada</b>}</div>
+        </div>
+        <div className="tbl-wrap rt-wrap"><table className="rt-tbl">
+          <thead><tr><th rowSpan={2} className="rt-nama">Sales</th><th rowSpan={2}>Skor</th>{KOL_TIM.map(([g, c]) => <th key={g} colSpan={c.length} className="rt-grp">{g}</th>)}</tr>
+            <tr>{KOL_TIM.flatMap(([g, c]) => c.map(([, l], i) => <th key={g + l} className={i === 0 ? 'rt-sep' : ''}>{l}</th>))}</tr></thead>
+          <tbody>{t.sales.map(x => (<tr key={x.nama} className={pilih === x.nama ? 'on' : ''} onClick={() => setPilih(pilih === x.nama ? null : x.nama)}>
+            <td className="rt-nama"><b>{x.skor !== null ? x.peringkat + '. ' : ''}{x.nama}</b></td>
+            <td><b>{x.skor ?? '—'}</b>{bar(x.ringkas)}</td>
+            {KOL_TIM.flatMap(([, c]) => c.map(([ind]) => sel(x, ind)))}</tr>))}</tbody></table></div>
+        <span className="hint">🟢 baik · 🟡 cukup · 🔴 perlu diperbaiki · ⚪ data belum cukup. Skor = (2 × hijau + 1 × kuning) ÷ (2 × indikator yang bisa dinilai) × 100. Target booking diatur Manager di menu Pengguna.</span>
+      </>}
+    </section>
+    {p && <section className="bd-card bd-span2">
+      <div className="bd-head"><h2 className="bd-h2">{p.nama} · rincian</h2><span className={'kp-pill sm ' + ((p.skor ?? 0) >= 70 ? 'kp-ok' : (p.skor ?? 0) >= 50 ? 'kp-wait' : 'kp-no')}>Skor {p.skor ?? '—'}</span></div>
+      {p.rows.filter(r => r.vonis === '🔴' || r.vonis === '🟡').sort((a, b) => (a.vonis === '🔴' ? 0 : 1) - (b.vonis === '🔴' ? 0 : 1)).map((r, i) => (
+        <div key={i} className="rs-row" style={{ cursor: 'default' }}><span className="rs-v">{r.vonis}</span><div className="rs-main"><b>{r.indikator}</b><span className="hint">{r.lapis} · {r.hasil} · patokan {r.patokan}</span><span className="rs-saran">💡 {r.saran}</span></div></div>))}
+      {!p.rows.some(r => r.vonis === '🔴' || r.vonis === '🟡') && <p className="bd-empty">Semua indikator yang bisa dinilai sudah baik.</p>}
+      {t.bolehUbah && p.rows.some(r => r.vonis === '🔴') && <a className="bd-btn" style={{ alignSelf: 'flex-start', marginTop: 8 }} href={'https://wa.me/' + String(p.wa || '').replace(/[^0-9]/g, '').replace(/^0/, '62') + '?text=' + encodeURIComponent(pesanWA(p))} target="_blank" rel="noreferrer">Kirim catatan via WA</a>}
+    </section>}
+    {t && t.umum.length > 0 && <section className={'bd-card ' + (p ? 'bd-span2' : 'bd-span4')}>
+      <div className="bd-head"><h2 className="bd-h2">Masalah yang sama di banyak sales</h2><span className="hint">bahan briefing tim</span></div>
+      {t.umum.map(u => (<div key={u.indikator} className="bd-row"><span className="dot" style={{ background: u.merah.length ? 'var(--red)' : 'var(--brass)' }} />
+        <div className="bd-row-main"><b>{u.indikator}</b><div className="bd-row-sub">{u.lapis} · {u.merah.length ? `merah: ${u.merah.join(', ')}` : ''}{u.merah.length && u.kuning.length ? ' · ' : ''}{u.kuning.length ? `kuning: ${u.kuning.join(', ')}` : ''}</div></div></div>))}
+    </section>}
   </>);
 }
