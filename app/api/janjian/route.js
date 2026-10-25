@@ -10,6 +10,12 @@ const PERAN = ['manager', 'ceo', 'sales', 'markom']; // Marcom: lihat daily visi
 const tglOk = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const jamOk = v => /^\d{2}:\d{2}$/.test(String(v || ''));
 const tglStr = t => (t instanceof Date ? t.toISOString() : String(t || '')).slice(0, 10);
+// Jam janjian wajar 06.00–21.59 (format 24 jam). Mencegah salah AM/PM: 01.30 padahal maksudnya 13.30
+const jamWajar = v => jamOk(v) && v >= '06:00' && v <= '21:59';
+const PESAN_JAM = 'Jam janjian harus antara 06.00–21.59 (format 24 jam) — mis. 13.30 untuk jam 1 siang';
+// Koreksi (salah input tanggal/jam) tanpa dihitung reschedule: maksimal 3 jam sejak janjian dibuat; manager kapan saja
+const BATAS_KOREKSI_JAM = 3;
+const bolehKoreksi = (j, user) => j.status === 'Terjadwal' && (user.role === 'manager' || (Date.now() - new Date(j.created_at).getTime()) <= BATAS_KOREKSI_JAM * 3600000);
 const fmtTgl = t => { const d = tglStr(t); return d ? `${namaHari(d)} ${Number(d.slice(8, 10))}/${Number(d.slice(5, 7))}` : ''; };
 
 async function ambil(sql, user, id) {
@@ -39,24 +45,21 @@ export async function GET(req) {
   const q = new URL(req.url).searchParams;
   const now = sekarangWIB();
   const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
-  // Patokan waktu janjian = bulan berjalan (tgl 1 s.d. akhir bulan)
-  const awalBln = t => t.slice(0, 8) + '01';
-  const akhirBln = t => new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const salesSaya = user.role === 'sales' ? user.name : null;
   const pjMinta = q.get('project') || null;
   if (pjMinta && user.projects && !user.projects.includes(pjMinta)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   const pp = pjMinta ? [pjMinta] : user.projects;
 
-  // ===== Daily visitor satu tanggal (+ grafik harian bulan berjalan s.d. tanggal itu) =====
+  // ===== Daily visitor satu tanggal (+ grafik 7 hari terakhir) =====
   if (q.get('visitor')) {
     const tgl = tglOk(q.get('visitor')) ? q.get('visitor') : now.tgl;
-    const [hari, sebulan] = await Promise.all([
+    const [hari, seminggu] = await Promise.all([
       hitungVisitor(sql, { dari: tgl, sampai: tgl, pp, sales: salesSaya, now }),
-      hitungVisitor(sql, { dari: awalBln(tgl), sampai: tgl, pp, sales: salesSaya, now }),
+      hitungVisitor(sql, { dari: geser(tgl, -6), sampai: tgl, pp, sales: salesSaya, now }),
     ]);
     const rows = hari.filter(v => lihatBaris(user, { project: v.project, sales: v.sales, created_by: v.lead_by }));
     const spark = [];
-    for (let t = awalBln(tgl); t <= tgl; t = geser(t, 1)) spark.push({ tgl: t, hari: namaHari(t), n: sebulan.filter(v => v.tgl === t && v.hitung && lihatBaris(user, { project: v.project, sales: v.sales, created_by: v.lead_by })).length });
+    for (let i = 6; i >= 0; i--) { const t = geser(tgl, -i); spark.push({ tgl: t, hari: namaHari(t), n: seminggu.filter(v => v.tgl === t && v.hitung).length }); }
     let leadsPilih = [];
     if (user.role === 'sales') leadsPilih = await sql`SELECT lead_code, nama, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST LIMIT 500`;
     return Response.json({ tgl, hari: namaHari(tgl), now, rows, ringkas: ringkasVisitor(rows), spark, leads: leadsPilih });
@@ -104,12 +107,12 @@ export async function GET(req) {
     const [jb, vis, upd] = await Promise.all([
       sql`SELECT j.id, j.sales, j.status, j.reschedule_n, j.batal_alasan, j.tgl::text AS tgl, j.jenis, l.nama, j.project, l.created_by AS lead_by
         FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
-        WHERE j.tgl >= ${awal}::date AND j.tgl <= ${akhirBln(now.tgl)}::date AND j.jenis <> ${JENIS_TANPA_JANJI}
+        WHERE j.tgl >= ${awal}::date AND j.tgl <= ${geser(now.tgl, 7)}::date AND j.jenis <> ${JENIS_TANPA_JANJI}
           AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})`,
       hitungVisitor(sql, { dari: awal, sampai: now.tgl, pp, sales: salesSaya, now }),
       sql`SELECT x.waktu, x.oleh, x.aksi, x.isi, j.lead_code, j.sales, j.jenis, j.lokasi, j.project, j.tgl::text AS tgl, j.jam, l.nama, l.created_by AS lead_by
         FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
-        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND (x.waktu AT TIME ZONE 'Asia/Jakarta')::date >= ${awal}::date
+        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND x.waktu > now() - interval '7 days'
           AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})
         ORDER BY x.waktu DESC LIMIT 50`,
     ]);
@@ -119,11 +122,8 @@ export async function GET(req) {
     const ps = n => perSales[n] || (perSales[n] = { sales: n, janji: 0, datang: 0, resch: 0, batal: 0, walkin: 0, tanpa: 0, trx: 0, visitor: 0 });
     bulan.forEach(j => { const x = ps(j.sales || '-'); x.janji++; if (j.status === 'Datang') x.datang++; if (j.reschedule_n) x.resch++; if (j.status === 'Batal') x.batal++; });
     visitor.forEach(v => { const x = ps(v.sales || '-'); x.visitor++; if (v.kategori === 'walkin') x.walkin++; else if (v.kategori === 'tanpa') x.tanpa++; else if (v.kategori === 'trx') x.trx++; });
-    // Janji temu per tanggal sepanjang bulan berjalan: hari yang sudah lewat = semua janji, hari ini & ke depan = yang masih terjadwal
     const depan = [];
-    const jbOk = jb.filter(ok);
-    for (let t = awal; t <= akhirBln(now.tgl); t = geser(t, 1)) depan.push({ tgl: t, hari: namaHari(t), lewat: t < now.tgl, hariIni: t === now.tgl,
-      n: jbOk.filter(j => j.tgl === t && (t < now.tgl ? true : j.status === 'Terjadwal' || j.status === 'Datang')).length });
+    for (let i = 1; i <= 7; i++) { const t = geser(now.tgl, i); depan.push({ tgl: t, hari: namaHari(t), n: jb.filter(j => j.tgl === t && j.status === 'Terjadwal').length }); }
     return Response.json({ now, bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, resch: bulan.filter(j => j.reschedule_n > 0).length,
         batal: bulan.filter(j => j.status === 'Batal').length },
       visitor: ringkasVisitor(vis.filter(ok)), depan, perSales: Object.values(perSales).sort((a, b) => b.visitor - a.visitor || b.janji - a.janji),
@@ -151,7 +151,7 @@ export async function GET(req) {
   rows = [...lama.filter(r => lihatBaris(user, { project: r.project, sales: r.sales, created_by: r.lead_by })), ...rows];
   const ids = rows.map(r => r.id);
   const log = ids.length ? await sql`SELECT janjian_id, waktu, oleh, aksi, isi FROM janjian_log WHERE janjian_id = ANY(${ids}::int[]) ORDER BY waktu DESC` : [];
-  const out = rows.map(r => ({ ...r, hari: namaHari(r.tgl), perlu_update: perluUpdate(r, now), log: log.filter(x => x.janjian_id === r.id) }));
+  const out = rows.map(r => ({ ...r, hari: namaHari(r.tgl), perlu_update: perluUpdate(r, now), bisa_koreksi: bolehKoreksi(r, user), log: log.filter(x => x.janjian_id === r.id) }));
 
   // Lead yang bisa dibuatkan janjian (sales: lead miliknya yang masih aktif)
   let leads = [];
@@ -195,6 +195,8 @@ async function _POST(req) {
   if (!lead.sales) return Response.json({ error: 'Lead ini belum punya sales — oper ke sales dulu' }, { status: 400 });
   if (!JENIS_JANJIAN.includes(b.jenis)) return Response.json({ error: 'Pilih jenis janjian' }, { status: 400 });
   if (!tglOk(b.tgl) || !jamOk(b.jam)) return Response.json({ error: 'Isi tanggal & jam janjian' }, { status: 400 });
+  if (b.tgl < sekarangWIB().tgl) return Response.json({ error: 'Tanggal janjian tidak boleh sebelum hari ini' }, { status: 400 });
+  if (!jamWajar(b.jam)) return Response.json({ error: PESAN_JAM }, { status: 400 });
   const lokasi = String(b.lokasi || '').trim();
   if (!lokasi) return Response.json({ error: 'Pilih / isi lokasi' }, { status: 400 });
   const r = await sql`INSERT INTO janjian (lead_code, project, sales, jenis, lokasi, tgl, jam, peserta, catatan, created_by)
@@ -227,6 +229,8 @@ async function _PATCH(req) {
   if (b.aksi === 'reschedule') {
     if (j.status !== 'Terjadwal') return Response.json({ error: 'Janjian ini sudah ' + j.status.toLowerCase() }, { status: 400 });
     if (!tglOk(b.tgl) || !jamOk(b.jam)) return Response.json({ error: 'Isi tanggal & jam baru' }, { status: 400 });
+    if (b.tgl < sekarangWIB().tgl) return Response.json({ error: 'Tanggal baru tidak boleh sebelum hari ini' }, { status: 400 });
+    if (!jamWajar(b.jam)) return Response.json({ error: PESAN_JAM }, { status: 400 });
     const alasan = String(b.alasan || '').trim();
     if (!alasan) return Response.json({ error: 'Isi alasan reschedule' }, { status: 400 });
     await sql`UPDATE janjian SET tgl = ${b.tgl}, jam = ${b.jam}, reschedule_n = reschedule_n + 1, updated_at = now() WHERE id = ${j.id}`;
@@ -251,14 +255,36 @@ async function _PATCH(req) {
   if (b.aksi === 'datang') {
     if (j.status !== 'Terjadwal') return Response.json({ error: 'Janjian ini sudah ' + j.status.toLowerCase() }, { status: 400 });
     if (b.jam_datang && !jamOk(b.jam_datang)) return Response.json({ error: 'Format jam datang HH:MM' }, { status: 400 });
-    await sql`UPDATE janjian SET status = 'Datang', jam_datang = ${b.jam_datang || j.jam}, unit_dilihat = ${b.unit_dilihat || ''},
+    // Konsumen datang LEBIH AWAL dari jadwal (mis. janjian besok tapi datang hari ini) → kunjungan dicatat di tanggal hari ini
+    const nowD = sekarangWIB();
+    const lebihAwal = lamaTgl > nowD.tgl;
+    const jamD = b.jam_datang || (lebihAwal ? nowD.jam : j.jam);
+    await sql`UPDATE janjian SET status = 'Datang', jam_datang = ${jamD}, unit_dilihat = ${b.unit_dilihat || ''},
       hasil = ${b.hasil || ''}, hasil_catatan = ${b.catatan || ''}, updated_at = now() WHERE id = ${j.id}`;
-    await catatLog(sql, j.id, user, 'Datang', [b.jam_datang ? 'datang ' + b.jam_datang : '', b.unit_dilihat, b.hasil, b.catatan].filter(Boolean).join(' · '));
+    if (lebihAwal) await sql`UPDATE janjian SET tgl = ${nowD.tgl}, jam = ${jamD} WHERE id = ${j.id}`;
+    await catatLog(sql, j.id, user, 'Datang', [lebihAwal ? `datang lebih awal (jadwal ${fmtTgl(lamaTgl)} ${j.jam})` : '', b.jam_datang ? 'datang ' + b.jam_datang : '', b.unit_dilihat, b.hasil, b.catatan].filter(Boolean).join(' · '));
     // Status lead otomatis Site Visit + catatan visit ke riwayat follow up
     if (NAIK_KE_SITEVISIT.includes(j.lead_status)) await sql`UPDATE leads SET status = 'Site Visit', updated_at = now() WHERE lead_code = ${j.lead_code}`;
     await catatFU(sql, user, j.lead_code, `Konsumen datang (${j.jenis.toLowerCase()} ${fmtTgl(lamaTgl)} ${b.jam_datang || j.jam})` +
       [b.unit_dilihat ? ' · unit: ' + b.unit_dilihat : '', b.hasil ? ' · ' + b.hasil : '', b.catatan ? ' · ' + b.catatan : ''].join(''));
     return Response.json({ ok: true, lead_code: j.lead_code, nama: j.nama, aksi: 'Datang' });
+  }
+
+  // Koreksi salah input (tanggal, jam, jenis, lokasi) tanpa dihitung sebagai reschedule
+  if (b.aksi === 'koreksi') {
+    if (j.status !== 'Terjadwal') return Response.json({ error: 'Janjian yang sudah selesai tidak bisa dikoreksi' }, { status: 400 });
+    if (!bolehKoreksi(j, user)) return Response.json({ error: `Koreksi hanya bisa dalam ${BATAS_KOREKSI_JAM} jam sejak janjian dibuat — gunakan Reschedule` }, { status: 400 });
+    if (!tglOk(b.tgl) || !jamOk(b.jam)) return Response.json({ error: 'Isi tanggal & jam' }, { status: 400 });
+    if (b.tgl < sekarangWIB().tgl) return Response.json({ error: 'Tanggal janjian tidak boleh sebelum hari ini' }, { status: 400 });
+    if (!jamWajar(b.jam)) return Response.json({ error: PESAN_JAM }, { status: 400 });
+    const jenis = JENIS_JANJIAN.includes(b.jenis) ? b.jenis : j.jenis;
+    const lokasi = String(b.lokasi || '').trim() || j.lokasi;
+    await sql`UPDATE janjian SET tgl = ${b.tgl}, jam = ${b.jam}, jenis = ${jenis}, lokasi = ${lokasi},
+      peserta = ${'peserta' in b ? b.peserta : j.peserta}, catatan = ${'catatan' in b ? b.catatan : j.catatan}, updated_at = now() WHERE id = ${j.id}`;
+    const isi = `Dari ${fmtTgl(lamaTgl)} ${j.jam} ke ${fmtTgl(b.tgl)} ${b.jam}` + (jenis !== j.jenis ? ` · ${jenis}` : '') + (lokasi !== j.lokasi ? ` · ${lokasi}` : '') + ' (koreksi input)';
+    await catatLog(sql, j.id, user, 'Dikoreksi', isi);
+    await catatFU(sql, user, j.lead_code, 'Janjian dikoreksi: ' + isi);
+    return Response.json({ ok: true, lead_code: j.lead_code, nama: j.nama, aksi: 'Koreksi' });
   }
 
   if (b.aksi === 'ubah') {

@@ -11,8 +11,34 @@ const hariDari = t => t ? HARI[new Date(t + 'T00:00:00Z').getUTCDay()] : '';
 const tglPanjang = t => t ? `${hariDari(t)}, ${Number(t.slice(8, 10))} ${BULAN[Number(t.slice(5, 7)) - 1]} ${t.slice(0, 4)}` : '';
 const tglPendek = t => t ? `${hariDari(t).slice(0, 3)} ${Number(t.slice(8, 10))} ${BULAN[Number(t.slice(5, 7)) - 1]}` : '';
 const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
-const akhirBln = t => t ? new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0)).toISOString().slice(0, 10) : '';
 const jamTitik = j => String(j || '').replace(':', '.');
+// Pemilih jam format 24 jam (jam & menit terpisah) — input "time" bawaan browser bisa tampil AM/PM sehingga 13.30 tercatat 01.30
+const JAM_OPS = Array.from({ length: 16 }, (_, i) => String(i + 6).padStart(2, '0'));   // 06–21
+const MENIT_OPS = ['00', '15', '30', '45'];
+function PilihJam({ value, onChange }) {
+  const [h, m] = String(value || '').split(':');
+  const hh = JAM_OPS.includes(h) ? h : '', mm = MENIT_OPS.includes(m) ? m : (m ? m : '00');
+  const ubah = (a, b) => onChange(a ? `${a}:${b || '00'}` : '');
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <select value={hh} onChange={e => ubah(e.target.value, mm)} style={{ flex: 1 }} aria-label="Jam">
+        <option value="">Jam</option>{JAM_OPS.map(x => <option key={x} value={x}>{x}</option>)}</select>
+      <b>.</b>
+      <select value={MENIT_OPS.includes(mm) ? mm : '00'} onChange={e => ubah(hh, e.target.value)} style={{ flex: 1 }} aria-label="Menit">
+        {MENIT_OPS.map(x => <option key={x} value={x}>{x}</option>)}</select>
+    </div>
+  );
+}
+// Jam sekarang dibulatkan ke bawah per 15 menit (untuk isian jam datang)
+const jamBulat = j => { const [h, m] = String(j || '10:00').split(':'); return `${h}:${String(Math.floor(Number(m) / 15) * 15).padStart(2, '0')}`; };
+// Jam default janjian baru: setengah jam berikutnya (dibulatkan ke 15 menit), dalam rentang 06.00–21.45
+function jamBerikut(jamSekarang) {
+  const [h, m] = String(jamSekarang || '10:00').split(':').map(Number);
+  let t = h * 60 + m + 30; t = Math.ceil(t / 15) * 15;
+  if (t < 6 * 60) t = 10 * 60;
+  if (t > 21 * 60 + 45) return null;
+  return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+}
 
 function Status({ j }) {
   if (j.status === 'Datang') return <span className="kp-pill kp-ok">Datang{j.jam_datang ? ' ' + jamTitik(j.jam_datang) : ''}</span>;
@@ -26,7 +52,6 @@ export default function JanjianPage() {
   const [me, setMe] = useState(null);
   const [d, setD] = useState(null);
   const [filter, setFilter] = useState('visitor');
-  const [bulanDepan, setBulanDepan] = useState(false); // tab Janji temu: bawaan s.d. akhir bulan berjalan
   useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'rekap', 'riwayat'].includes(t)) setFilter(t === 'terbaru' ? 'riwayat' : t); }, []);
   const [fSales, setFSales] = useState('');
   const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
@@ -38,13 +63,12 @@ export default function JanjianPage() {
   const now = d?.now || { tgl: '', jam: '' };
   const rows = (d?.rows || []).filter(r => !fSales || r.sales === fSales);
   const tampil = useMemo(() => {
-    if (filter === 'janji') return rows.filter(r => r.jenis !== 'Datang tanpa janji' && (r.tgl === now.tgl || r.perlu_update || (r.tgl > now.tgl && (bulanDepan || r.tgl <= akhirBln(now.tgl)) && r.status === 'Terjadwal')));
+    if (filter === 'janji') return rows.filter(r => r.jenis !== 'Datang tanpa janji' && (r.tgl === now.tgl || r.perlu_update || (r.tgl > now.tgl && r.tgl <= geser(now.tgl, 7) && r.status === 'Terjadwal')));
     if (filter === 'update') return rows.filter(r => r.perlu_update);
     return rows.filter(r => r.tgl < now.tgl || r.status !== 'Terjadwal').sort((a, b) => (b.tgl + b.jam).localeCompare(a.tgl + a.jam));
-  }, [rows, filter, now.tgl, bulanDepan]); // eslint-disable-line
-  const nBulanDepan = rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl > akhirBln(now.tgl)).length;
+  }, [rows, filter, now.tgl]); // eslint-disable-line
   const jml = {
-    janji: rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl >= now.tgl && r.tgl <= akhirBln(now.tgl) && !r.perlu_update).length,
+    janji: rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl >= now.tgl && r.tgl <= geser(now.tgl, 7) && !r.perlu_update).length,
     update: rows.filter(r => r.perlu_update).length,
   };
   const grup = useMemo(() => {
@@ -56,11 +80,14 @@ export default function JanjianPage() {
   const pimpinan = me && ['manager', 'ceo'].includes(me.role);
 
   function bukaBaru() {
-    setSheet({ mode: 'baru', f: { lead_code: '', jenis: 'Site visit', lokasi: '', tgl: geser(now.tgl || new Date().toISOString().slice(0, 10), 1), jam: '10:00', peserta: '', catatan: '' } });
+    // Default HARI INI (konsumen sering minta datang di hari yang sama); bila sudah malam → besok pukul 10.00
+    const hariIni = now.tgl || new Date().toISOString().slice(0, 10);
+    const jb = jamBerikut(now.jam);
+    setSheet({ mode: 'baru', f: { lead_code: '', jenis: 'Site visit', lokasi: '', tgl: jb ? hariIni : geser(hariIni, 1), jam: jb || '10:00', peserta: '', catatan: '' } });
   }
   const leadPilih = sheet?.mode === 'baru' ? (d?.leads || []).find(l => l.lead_code === sheet.f.lead_code) : null;
   const opsiLokasi = p => (d?.lokasi?.[p] || []);
-  const bentrok = sheet?.mode === 'baru' || sheet?.mode === 'reschedule'
+  const bentrok = sheet?.mode === 'baru' || sheet?.mode === 'reschedule' || sheet?.mode === 'koreksi'
     ? (d?.rows || []).filter(r => r.status === 'Terjadwal' && r.tgl === sheet.f.tgl && r.sales === (sheet.j?.sales || me?.name) && r.id !== sheet.j?.id) : [];
 
   async function kirim() {
@@ -69,7 +96,7 @@ export default function JanjianPage() {
     try {
       if (mode === 'baru') await api('/api/janjian', { method: 'POST', body: JSON.stringify(f) });
       else await api('/api/janjian', { method: 'PATCH', body: JSON.stringify({ aksi: mode, id: j.id, ...f }) });
-      toast({ baru: 'Janjian disimpan — status lead jadi Appointment', reschedule: 'Jadwal baru disimpan', batal: 'Pembatalan dicatat', datang: 'Hasil visit disimpan — status lead jadi Site Visit' }[mode]);
+      toast({ baru: 'Janjian disimpan — status lead jadi Appointment', reschedule: 'Jadwal baru disimpan', koreksi: 'Janjian dikoreksi', batal: 'Pembatalan dicatat', datang: 'Hasil visit disimpan — status lead jadi Site Visit' }[mode]);
       setSheet(null); await muat();
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
@@ -117,8 +144,11 @@ export default function JanjianPage() {
                     : <select value={sheet.f.lokasi} onChange={e => setF({ lokasi: e.target.value })}>
                         <option value="">— pilih —</option>{opsiLokasi(leadPilih?.project).map(x => <option key={x}>{x}</option>)}</select>}
                 {!leadPilih && sheet.f.jenis !== 'Ketemu di luar' && sheet.f.jenis !== 'Online meeting' && <span className="hint">Pilih lead dulu — lokasi mengikuti project lead</span>}</div>
-              <div className="field"><label>Tanggal</label><input type="date" value={sheet.f.tgl} onChange={e => setF({ tgl: e.target.value })} /></div>
-              <div className="field"><label>Jam</label><input type="time" value={sheet.f.jam} onChange={e => setF({ jam: e.target.value })} /></div>
+              <div className="field"><label>Tanggal</label><input type="date" min={now.tgl || undefined} value={sheet.f.tgl} onChange={e => setF({ tgl: e.target.value })} />
+                <span style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button type="button" className={'sort-btn' + (sheet.f.tgl === now.tgl ? ' active' : '')} onClick={() => setF({ tgl: now.tgl })}>Hari ini</button>
+                  <button type="button" className={'sort-btn' + (sheet.f.tgl === geser(now.tgl, 1) ? ' active' : '')} onClick={() => setF({ tgl: geser(now.tgl, 1) })}>Besok</button></span></div>
+              <div className="field"><label>Jam <span className="hint">(24 jam)</span></label><PilihJam value={sheet.f.jam} onChange={v => setF({ jam: v })} /></div>
               <div className="field full"><b className="jj-waktu">{tglPanjang(sheet.f.tgl)}{sheet.f.jam ? ' · pukul ' + jamTitik(sheet.f.jam) : ''}</b>
                 {bentrok.length > 0 && <span className="hint" style={{ color: 'var(--brass-deep)' }}>Anda sudah punya {bentrok.length} janjian di hari itu ({bentrok.map(x => jamTitik(x.jam)).join(', ')})</span>}</div>
               <div className="field"><label>Yang datang</label><input value={sheet.f.peserta} onChange={e => setF({ peserta: e.target.value })} placeholder="mis. konsumen + pasangan" /></div>
@@ -131,12 +161,35 @@ export default function JanjianPage() {
             <h3 style={{ marginTop: 0 }}>Reschedule janjian · {sheet.j.nama}</h3>
             <div className="jj-lama">Jadwal lama: <s>{tglPanjang(sheet.j.tgl)} · {jamTitik(sheet.j.jam)}</s></div>
             <div className="form-grid">
-              <div className="field"><label>Tanggal baru</label><input type="date" value={sheet.f.tgl} onChange={e => setF({ tgl: e.target.value })} /></div>
-              <div className="field"><label>Jam baru</label><input type="time" value={sheet.f.jam} onChange={e => setF({ jam: e.target.value })} /></div>
+              <div className="field"><label>Tanggal baru</label><input type="date" min={now.tgl || undefined} value={sheet.f.tgl} onChange={e => setF({ tgl: e.target.value })} /></div>
+              <div className="field"><label>Jam baru <span className="hint">(24 jam)</span></label><PilihJam value={sheet.f.jam} onChange={v => setF({ jam: v })} /></div>
               <div className="field full"><b className="jj-waktu">{tglPanjang(sheet.f.tgl)}{sheet.f.jam ? ' · pukul ' + jamTitik(sheet.f.jam) : ''}</b>
                 {bentrok.length > 0 && <span className="hint" style={{ color: 'var(--brass-deep)' }}>Sudah ada {bentrok.length} janjian lain di hari itu ({bentrok.map(x => jamTitik(x.jam)).join(', ')})</span>}</div>
               <div className="field full"><label>Alasan reschedule</label><textarea rows={2} value={sheet.f.alasan} onChange={e => setF({ alasan: e.target.value })} placeholder="tulis alasan dari konsumen / sales" /></div>
             </div>
+          </>)}
+
+          {sheet.mode === 'koreksi' && (<>
+            <h3 style={{ marginTop: 0 }}>Koreksi janjian · {sheet.j.nama}</h3>
+            <div className="jj-lama">Tercatat: <s>{tglPanjang(sheet.j.tgl)} · {jamTitik(sheet.j.jam)}</s> · {sheet.j.jenis}</div>
+            <div className="form-grid">
+              <div className="field"><label>Tanggal</label><input type="date" min={now.tgl || undefined} value={sheet.f.tgl} onChange={e => setF({ tgl: e.target.value })} />
+                <span style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button type="button" className={'sort-btn' + (sheet.f.tgl === now.tgl ? ' active' : '')} onClick={() => setF({ tgl: now.tgl })}>Hari ini</button>
+                  <button type="button" className={'sort-btn' + (sheet.f.tgl === geser(now.tgl, 1) ? ' active' : '')} onClick={() => setF({ tgl: geser(now.tgl, 1) })}>Besok</button></span></div>
+              <div className="field"><label>Jam <span className="hint">(24 jam)</span></label><PilihJam value={sheet.f.jam} onChange={v => setF({ jam: v })} /></div>
+              <div className="field"><label>Jenis janjian</label>
+                <select value={sheet.f.jenis} onChange={e => setF({ jenis: e.target.value })}>{(d.JENIS || []).map(x => <option key={x}>{x}</option>)}</select></div>
+              <div className="field"><label>Lokasi</label>
+                {opsiLokasi(sheet.j.project).length && !['Online meeting', 'Ketemu di luar'].includes(sheet.f.jenis)
+                  ? <select value={sheet.f.lokasi} onChange={e => setF({ lokasi: e.target.value })}>{[...new Set([sheet.f.lokasi, ...opsiLokasi(sheet.j.project)].filter(Boolean))].map(x => <option key={x}>{x}</option>)}</select>
+                  : <input value={sheet.f.lokasi} onChange={e => setF({ lokasi: e.target.value })} />}</div>
+              <div className="field full"><b className="jj-waktu">{tglPanjang(sheet.f.tgl)}{sheet.f.jam ? ' · pukul ' + jamTitik(sheet.f.jam) : ''}</b>
+                {bentrok.length > 0 && <span className="hint" style={{ color: 'var(--brass-deep)' }}>Sudah ada {bentrok.length} janjian lain di hari itu ({bentrok.map(x => jamTitik(x.jam)).join(', ')})</span>}</div>
+              <div className="field"><label>Yang datang</label><input value={sheet.f.peserta} onChange={e => setF({ peserta: e.target.value })} /></div>
+              <div className="field"><label>Catatan</label><input value={sheet.f.catatan} onChange={e => setF({ catatan: e.target.value })} /></div>
+            </div>
+            <div className="note" style={{ margin: '10px 0' }}>Untuk membetulkan salah input — <b>tidak dihitung reschedule</b>. Hanya bisa dalam 3 jam sejak janjian dibuat; setelah itu gunakan Reschedule.</div>
           </>)}
 
           {sheet.mode === 'batal' && (<>
@@ -152,8 +205,9 @@ export default function JanjianPage() {
           {sheet.mode === 'datang' && (<>
             <h3 style={{ marginTop: 0 }}>Konsumen datang ✓ · {sheet.j.nama}</h3>
             <div className="jj-lama">{tglPanjang(sheet.j.tgl)} · {jamTitik(sheet.j.jam)} · {sheet.j.jenis}</div>
+            {sheet.j.tgl > now.tgl && <div className="note" style={{ margin: '8px 0' }}>Konsumen datang <b>lebih awal</b> dari jadwal — kunjungan dicatat hari ini ({tglPanjang(now.tgl)}).</div>}
             <div className="form-grid">
-              <div className="field"><label>Jam datang</label><input type="time" value={sheet.f.jam_datang} onChange={e => setF({ jam_datang: e.target.value })} /></div>
+              <div className="field"><label>Jam datang <span className="hint">(24 jam)</span></label><PilihJam value={sheet.f.jam_datang} onChange={v => setF({ jam_datang: v })} /></div>
               <div className="field"><label>Unit dilihat</label><input value={sheet.f.unit_dilihat} onChange={e => setF({ unit_dilihat: e.target.value })} placeholder="mis. Tipe B hoek" /></div>
               <div className="field full"><label>Hasil visit</label>
                 <div className="kp-seg">{(d.HASIL || []).map(x => <button key={x} aria-pressed={sheet.f.hasil === x} onClick={() => setF({ hasil: x })}>{x}</button>)}</div></div>
@@ -164,7 +218,7 @@ export default function JanjianPage() {
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <button className="btn btn-primary" disabled={busy} onClick={kirim} style={sheet.mode === 'batal' ? { background: 'var(--red)' } : undefined}>
-              {{ baru: 'Simpan janjian', reschedule: 'Simpan jadwal baru', batal: 'Simpan pembatalan', datang: 'Simpan hasil visit' }[sheet.mode]}</button>
+              {{ baru: 'Simpan janjian', reschedule: 'Simpan jadwal baru', koreksi: 'Simpan koreksi', batal: 'Simpan pembatalan', datang: 'Simpan hasil visit' }[sheet.mode]}</button>
             <button className="sort-btn" onClick={() => setSheet(null)}>Tutup</button>
           </div>
         </div>)}
@@ -179,7 +233,6 @@ export default function JanjianPage() {
       {filter === 'visitor' && <TabVisitor me={me} fSales={fSales} />}
       {filter === 'rekap' && <TabRekap mode={filter} fSales={fSales} />}
       {filter === 'riwayat' && <TabRiwayat me={me} fSales={fSales} />}
-      {filter === 'janji' && nBulanDepan > 0 && <div className="hint" style={{ margin: '0 0 8px' }}><label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={bulanDepan} onChange={e => setBulanDepan(e.target.checked)} /> Tampilkan juga {nBulanDepan} janji temu bulan depan</label></div>}
       {['visitor', 'rekap', 'riwayat'].includes(filter) ? null : !d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
         <div key={k} className="jj-grup">
           <div className="jj-hari">{k === 'lewat' ? 'Lewat & belum di-update' : (k === now.tgl ? 'Hari ini · ' : k === geser(now.tgl, 1) ? 'Besok · ' : '') + tglPanjang(k)}</div>
@@ -203,7 +256,8 @@ export default function JanjianPage() {
                 {j.catatan && j.status === 'Terjadwal' && <div className="hint">Catatan: {j.catatan}</div>}
                 {j.status === 'Terjadwal' && (me?.role === 'sales' || me?.role === 'manager' || me?.role === 'ceo') && (
                   <div className="jj-aksi">
-                    <button className="d" onClick={() => setSheet({ mode: 'datang', j, f: { jam_datang: now.tgl === j.tgl ? now.jam : j.jam, unit_dilihat: '', hasil: '', catatan: '' } })}>Datang</button>
+                    <button className="d" onClick={() => setSheet({ mode: 'datang', j, f: { jam_datang: j.tgl >= now.tgl ? jamBulat(now.jam) : j.jam, unit_dilihat: '', hasil: '', catatan: '' } })}>Datang</button>
+                    {j.bisa_koreksi && <button onClick={() => setSheet({ mode: 'koreksi', j, f: { tgl: j.tgl < now.tgl ? now.tgl : j.tgl, jam: j.jam, jenis: j.jenis, lokasi: j.lokasi, peserta: j.peserta || '', catatan: j.catatan || '' } })}>✎ Koreksi</button>}
                     <button onClick={() => setSheet({ mode: 'reschedule', j, f: { tgl: j.tgl, jam: j.jam, alasan: '' } })}>Reschedule</button>
                     <button onClick={() => setSheet({ mode: 'batal', j, f: { alasan: '', lanjut: 'fu' } })}>Batal</button>
                     {j.wa && <button onClick={() => bukaWA(j.wa, `Halo ${j.nama || ''}, mengingatkan janjian ${j.jenis.toLowerCase()} ${tglPanjang(j.tgl)} pukul ${jamTitik(j.jam)} di ${j.lokasi}. Sampai bertemu 🙏`)}>Ingatkan via WA</button>}
@@ -247,7 +301,7 @@ function TabVisitor({ me, fSales }) {
           {rk.tanpa ? <span className="kp-pill sm kp-wait">{rk.tanpa} tanpa janji</span> : null}{rk.trx ? <span className="kp-pill sm kp-done">{rk.trx} Reserved/Booking</span> : null}</div></div>
       <div className="card"><span className="hint">Akan datang</span><b className="jj-besar">{rk.akan}</b><span className="hint">janji temu yang belum tiba</span></div>
       <div className="card"><span className="hint">Perlu update</span><b className="jj-besar" style={{ color: rk.update ? 'var(--red)' : undefined }}>{rk.update}</b><span className="hint">jam lewat, hasil belum diisi</span></div>
-      <div className="card"><span className="hint">Bulan ini</span>
+      <div className="card"><span className="hint">7 hari terakhir</span>
         <div className="bd-spark">{(v?.spark || []).map(x => <i key={x.tgl} title={`${x.hari} ${x.tgl.slice(8, 10)}/${x.tgl.slice(5, 7)}: ${x.n}`} style={{ height: Math.max(6, Math.round(x.n / maks * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} />)}</div>
         <span className="hint">{(v?.spark || []).reduce((a, x) => a + x.n, 0)} visitor</span></div>
     </div>
@@ -312,7 +366,7 @@ function TabRekap({ mode, fSales }) {
   const terbaru = d.terbaru.filter(x => !fSales || x.sales === fSales);
   if (mode === 'terbaru') return (
     <div className="card">
-      <div className="bd-head"><h3 style={{ margin: 0 }}>Update janji temu terbaru</h3><span className="hint">bulan ini · terbaru di atas</span></div>
+      <div className="bd-head"><h3 style={{ margin: 0 }}>Update janji temu terbaru</h3><span className="hint">7 hari terakhir · terbaru di atas</span></div>
       {terbaru.length ? <div className="tbl-wrap tbl-compact jj-vtbl" style={{ marginTop: 8 }}><table>
         <thead><tr><th>Diperbarui</th><th>Lead</th><th>Sales</th><th>Janji temu</th><th>Hasil</th><th>Catatan / alasan</th></tr></thead>
         <tbody>{terbaru.map((x, i) => (<tr key={i}>
@@ -322,7 +376,7 @@ function TabRekap({ mode, fSales }) {
           <td data-label="Janji temu">{x.jenis}<span className="sub2">{tglPendek(x.tgl)} {jamTitik(x.jam)}{x.lokasi ? ' · ' + x.lokasi : ''}</span></td>
           <td data-label="Hasil"><span className={'kp-pill sm ' + (x.aksi === 'Datang' ? 'kp-ok' : x.aksi === 'Batal' ? 'kp-no' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{x.aksi}</span></td>
           <td data-label="Catatan / alasan">{x.isi || '—'}</td></tr>))}</tbody></table></div>
-        : <p className="hint">Belum ada hasil janji temu bulan ini.</p>}
+        : <p className="hint">Belum ada hasil janji temu 7 hari terakhir.</p>}
     </div>);
   const ps = d.perSales.filter(x => !fSales || x.sales === fSales);
   const maks = Math.max(1, ...d.depan.map(x => x.n));
@@ -332,8 +386,8 @@ function TabRekap({ mode, fSales }) {
       <h3 style={{ marginTop: 0 }}>Janji temu bulan ini</h3>
       <div className="bd-chips"><span>Total <b>{d.bulan.n}</b></span><span>Datang <b>{d.bulan.datang}{d.bulan.n ? ` (${Math.round(d.bulan.datang / d.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{d.bulan.resch}</b></span><span>Batal <b>{d.bulan.batal}</b></span></div>
       <p className="hint" style={{ margin: '8px 0' }}>Visitor bulan ini: <b>{vis.total}</b> (janji temu {vis.janji} · walk in {vis.walkin} · tanpa janji {vis.tanpa} · Reserved/Booking {vis.trx})</p>
-      <div className="jj-bar jj-bar-bln">{d.depan.map((x, k) => (<div key={x.tgl} title={`${x.hari} ${Number(x.tgl.slice(8, 10))}: ${x.n} janji`} className={x.hariIni ? 'kini' : ''}><i style={{ height: Math.max(x.n ? 6 : 2, Math.round(x.n / maks * 100)) + '%', background: x.hariIni ? 'var(--green)' : ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : x.lewat ? 'var(--line)' : 'var(--side-active-bg)' }} /><span>{k % 5 === 0 || x.hariIni || k === d.depan.length - 1 ? Number(x.tgl.slice(8, 10)) : ''}</span></div>))}</div>
-      <span className="hint">Janji temu per tanggal bulan ini · tanggal lewat = semua janji, hari ini & ke depan = yang terjadwal · akhir pekan emas</span>
+      <div className="jj-bar">{d.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
+      <span className="hint">Janji temu terjadwal 7 hari ke depan · akhir pekan ditandai emas</span>
     </div>
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Per sales bulan ini</h3>
