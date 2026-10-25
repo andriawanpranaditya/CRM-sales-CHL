@@ -101,6 +101,13 @@ export default function JanjianPage() {
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   const setF = patch => setSheet({ ...sheet, f: { ...sheet.f, ...patch } });
+  useEffect(() => {
+    if (!sheet) return;
+    const esc = e => { if (e.key === 'Escape' && !busy) setSheet(null); };
+    document.addEventListener('keydown', esc);
+    const lama = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', esc); document.body.style.overflow = lama; };
+  }, [sheet, busy]);
 
   return (
     <>
@@ -124,8 +131,12 @@ export default function JanjianPage() {
           </div>
         </div>)}
 
+      {/* Form aksi tampil sebagai jendela di tengah layar — dulu muncul di paling atas halaman,
+          sehingga saat tombol Datang/Reschedule/Batal di bawah diklik, formnya tidak terlihat (terkesan tombol tidak berfungsi) */}
       {sheet && (
-        <div className="card jj-sheet">
+        <div onClick={e => { if (e.target === e.currentTarget && !busy) setSheet(null); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 98, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: 'max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom))' }}>
+        <div className="card jj-sheet" role="dialog" aria-modal="true" style={{ width: 'min(720px, 100%)', margin: '24px 0' }}>
           {sheet.mode === 'baru' && (<>
             <h3 style={{ marginTop: 0 }}>Janjian visit baru</h3>
             <div className="form-grid">
@@ -221,6 +232,7 @@ export default function JanjianPage() {
               {{ baru: 'Simpan janjian', reschedule: 'Simpan jadwal baru', koreksi: 'Simpan koreksi', batal: 'Simpan pembatalan', datang: 'Simpan hasil visit' }[sheet.mode]}</button>
             <button className="sort-btn" onClick={() => setSheet(null)}>Tutup</button>
           </div>
+        </div>
         </div>)}
 
       <div className="fu-toolbar">
