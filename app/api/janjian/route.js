@@ -39,21 +39,24 @@ export async function GET(req) {
   const q = new URL(req.url).searchParams;
   const now = sekarangWIB();
   const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  // Patokan waktu janjian = bulan berjalan (tgl 1 s.d. akhir bulan)
+  const awalBln = t => t.slice(0, 8) + '01';
+  const akhirBln = t => new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const salesSaya = user.role === 'sales' ? user.name : null;
   const pjMinta = q.get('project') || null;
   if (pjMinta && user.projects && !user.projects.includes(pjMinta)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   const pp = pjMinta ? [pjMinta] : user.projects;
 
-  // ===== Daily visitor satu tanggal (+ grafik 7 hari terakhir) =====
+  // ===== Daily visitor satu tanggal (+ grafik harian bulan berjalan s.d. tanggal itu) =====
   if (q.get('visitor')) {
     const tgl = tglOk(q.get('visitor')) ? q.get('visitor') : now.tgl;
-    const [hari, seminggu] = await Promise.all([
+    const [hari, sebulan] = await Promise.all([
       hitungVisitor(sql, { dari: tgl, sampai: tgl, pp, sales: salesSaya, now }),
-      hitungVisitor(sql, { dari: geser(tgl, -6), sampai: tgl, pp, sales: salesSaya, now }),
+      hitungVisitor(sql, { dari: awalBln(tgl), sampai: tgl, pp, sales: salesSaya, now }),
     ]);
     const rows = hari.filter(v => lihatBaris(user, { project: v.project, sales: v.sales, created_by: v.lead_by }));
     const spark = [];
-    for (let i = 6; i >= 0; i--) { const t = geser(tgl, -i); spark.push({ tgl: t, hari: namaHari(t), n: seminggu.filter(v => v.tgl === t && v.hitung).length }); }
+    for (let t = awalBln(tgl); t <= tgl; t = geser(t, 1)) spark.push({ tgl: t, hari: namaHari(t), n: sebulan.filter(v => v.tgl === t && v.hitung && lihatBaris(user, { project: v.project, sales: v.sales, created_by: v.lead_by })).length });
     let leadsPilih = [];
     if (user.role === 'sales') leadsPilih = await sql`SELECT lead_code, nama, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST LIMIT 500`;
     return Response.json({ tgl, hari: namaHari(tgl), now, rows, ringkas: ringkasVisitor(rows), spark, leads: leadsPilih });
@@ -101,12 +104,12 @@ export async function GET(req) {
     const [jb, vis, upd] = await Promise.all([
       sql`SELECT j.id, j.sales, j.status, j.reschedule_n, j.batal_alasan, j.tgl::text AS tgl, j.jenis, l.nama, j.project, l.created_by AS lead_by
         FROM janjian j LEFT JOIN leads l ON l.lead_code = j.lead_code
-        WHERE j.tgl >= ${awal}::date AND j.tgl <= ${geser(now.tgl, 7)}::date AND j.jenis <> ${JENIS_TANPA_JANJI}
+        WHERE j.tgl >= ${awal}::date AND j.tgl <= ${akhirBln(now.tgl)}::date AND j.jenis <> ${JENIS_TANPA_JANJI}
           AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})`,
       hitungVisitor(sql, { dari: awal, sampai: now.tgl, pp, sales: salesSaya, now }),
       sql`SELECT x.waktu, x.oleh, x.aksi, x.isi, j.lead_code, j.sales, j.jenis, j.lokasi, j.project, j.tgl::text AS tgl, j.jam, l.nama, l.created_by AS lead_by
         FROM janjian_log x JOIN janjian j ON j.id = x.janjian_id LEFT JOIN leads l ON l.lead_code = j.lead_code
-        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND x.waktu > now() - interval '7 days'
+        WHERE x.aksi IN ('Datang', 'Batal', 'Reschedule') AND (x.waktu AT TIME ZONE 'Asia/Jakarta')::date >= ${awal}::date
           AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) AND (${salesSaya}::text IS NULL OR j.sales = ${salesSaya})
         ORDER BY x.waktu DESC LIMIT 50`,
     ]);
@@ -116,8 +119,11 @@ export async function GET(req) {
     const ps = n => perSales[n] || (perSales[n] = { sales: n, janji: 0, datang: 0, resch: 0, batal: 0, walkin: 0, tanpa: 0, trx: 0, visitor: 0 });
     bulan.forEach(j => { const x = ps(j.sales || '-'); x.janji++; if (j.status === 'Datang') x.datang++; if (j.reschedule_n) x.resch++; if (j.status === 'Batal') x.batal++; });
     visitor.forEach(v => { const x = ps(v.sales || '-'); x.visitor++; if (v.kategori === 'walkin') x.walkin++; else if (v.kategori === 'tanpa') x.tanpa++; else if (v.kategori === 'trx') x.trx++; });
+    // Janji temu per tanggal sepanjang bulan berjalan: hari yang sudah lewat = semua janji, hari ini & ke depan = yang masih terjadwal
     const depan = [];
-    for (let i = 1; i <= 7; i++) { const t = geser(now.tgl, i); depan.push({ tgl: t, hari: namaHari(t), n: jb.filter(j => j.tgl === t && j.status === 'Terjadwal').length }); }
+    const jbOk = jb.filter(ok);
+    for (let t = awal; t <= akhirBln(now.tgl); t = geser(t, 1)) depan.push({ tgl: t, hari: namaHari(t), lewat: t < now.tgl, hariIni: t === now.tgl,
+      n: jbOk.filter(j => j.tgl === t && (t < now.tgl ? true : j.status === 'Terjadwal' || j.status === 'Datang')).length });
     return Response.json({ now, bulan: { n: bulan.length, datang: bulan.filter(j => j.status === 'Datang').length, resch: bulan.filter(j => j.reschedule_n > 0).length,
         batal: bulan.filter(j => j.status === 'Batal').length },
       visitor: ringkasVisitor(vis.filter(ok)), depan, perSales: Object.values(perSales).sort((a, b) => b.visitor - a.visitor || b.janji - a.janji),

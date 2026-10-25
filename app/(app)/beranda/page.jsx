@@ -352,9 +352,9 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
         <Link href="/janjian?tab=visitor" className="rb-k rb-vlink" aria-label="Lihat detail visitor hari ini">
           <div className="rb-lbl"><span>Visitor hari ini</span><span className="rb-more">Lihat detail ›</span></div>
           <div className="rb-big">{d.janjian?.visitor?.total ?? 0}<small>orang</small></div>
-          {d.janjian?.spark && <div className="rb-vbar" aria-hidden="true">{d.janjian.spark.map(x => (
-            <div key={x.tgl}><i style={{ height: Math.max(5, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} /><span>{x.hari.slice(0, 3)}</span></div>))}</div>}
-          <span className="hint">{(d.janjian?.spark || []).reduce((a, x) => a + x.n, 0)} visitor 7 hari terakhir{d.janjian?.visitor?.akanDatang ? ` · ${d.janjian.visitor.akanDatang} akan datang hari ini` : ''}</span>
+          {d.janjian?.spark && <div className="rb-vbar rb-vbar-bln" aria-hidden="true">{d.janjian.spark.map((x, i) => (
+            <div key={x.tgl} title={`${x.hari} ${Number(x.tgl.slice(8, 10))}: ${x.n} visitor`}><i style={{ height: Math.max(5, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} /><span>{d.janjian.spark.length <= 10 || i === 0 || i === d.janjian.spark.length - 1 || (i + 1) % 7 === 0 ? Number(x.tgl.slice(8, 10)) : ''}</span></div>))}</div>}
+          <span className="hint">{(d.janjian?.spark || []).reduce((a, x) => a + x.n, 0)} visitor bulan ini{d.janjian?.visitor?.akanDatang ? ` · ${d.janjian.visitor.akanDatang} akan datang hari ini` : ''}</span>
         </Link>
       </div>
 

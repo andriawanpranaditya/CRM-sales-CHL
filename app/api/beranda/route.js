@@ -544,7 +544,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   try {
     await siapkanJanjian(sql);
     const now = sekarangWIB();
-    const t6 = new Date(Date.parse(hariIni + 'T00:00:00Z') - 6 * 86400000).toISOString().slice(0, 10);
+    const t6 = hariIni.slice(0, 8) + '01'; // awal bulan berjalan
     const [vis, jr] = await Promise.all([
       hitungVisitor(sql, { dari: t6, sampai: hariIni, pp, now }),
       sql`SELECT j.id, j.lead_code, j.project, j.sales, j.jenis, j.lokasi, j.tgl::text AS tgl, j.jam, j.status, l.nama
@@ -552,7 +552,8 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
         WHERE j.status = 'Terjadwal' AND j.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[])) ORDER BY j.tgl, j.jam`,
     ]);
     const spark = [];
-    for (let i = 6; i >= 0; i--) { const t = new Date(Date.parse(hariIni + 'T00:00:00Z') - i * 86400000).toISOString().slice(0, 10); spark.push({ tgl: t, hari: namaHari(t), n: vis.filter(v => v.tgl === t && v.hitung).length }); }
+    // Grafik visitor harian bulan berjalan (tgl 1 s.d. hari ini)
+    for (let t = hariIni.slice(0, 8) + '01'; t <= hariIni; t = new Date(Date.parse(t + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)) spark.push({ tgl: t, hari: namaHari(t), n: vis.filter(v => v.tgl === t && v.hitung).length });
     const lewat = jr.filter(j => perluUpdate(j, now));
     janjian = { visitor: ringkasVisitor(vis.filter(v => v.tgl === hariIni)), spark };
     lewat.slice(0, 3).forEach(j => perhatian.unshift({ level: 'merah', judul: `Janjian ${j.nama || j.lead_code} (${namaHari(j.tgl)} ${j.tgl.slice(8, 10)}/${j.tgl.slice(5, 7)} ${j.jam.replace(':', '.')}) belum di-update`,

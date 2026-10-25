@@ -11,6 +11,7 @@ const hariDari = t => t ? HARI[new Date(t + 'T00:00:00Z').getUTCDay()] : '';
 const tglPanjang = t => t ? `${hariDari(t)}, ${Number(t.slice(8, 10))} ${BULAN[Number(t.slice(5, 7)) - 1]} ${t.slice(0, 4)}` : '';
 const tglPendek = t => t ? `${hariDari(t).slice(0, 3)} ${Number(t.slice(8, 10))} ${BULAN[Number(t.slice(5, 7)) - 1]}` : '';
 const geser = (t, n) => new Date(Date.parse(t + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const akhirBln = t => t ? new Date(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0)).toISOString().slice(0, 10) : '';
 const jamTitik = j => String(j || '').replace(':', '.');
 
 function Status({ j }) {
@@ -25,6 +26,7 @@ export default function JanjianPage() {
   const [me, setMe] = useState(null);
   const [d, setD] = useState(null);
   const [filter, setFilter] = useState('visitor');
+  const [bulanDepan, setBulanDepan] = useState(false); // tab Janji temu: bawaan s.d. akhir bulan berjalan
   useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'rekap', 'riwayat'].includes(t)) setFilter(t === 'terbaru' ? 'riwayat' : t); }, []);
   const [fSales, setFSales] = useState('');
   const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
@@ -36,12 +38,13 @@ export default function JanjianPage() {
   const now = d?.now || { tgl: '', jam: '' };
   const rows = (d?.rows || []).filter(r => !fSales || r.sales === fSales);
   const tampil = useMemo(() => {
-    if (filter === 'janji') return rows.filter(r => r.jenis !== 'Datang tanpa janji' && (r.tgl === now.tgl || r.perlu_update || (r.tgl > now.tgl && r.tgl <= geser(now.tgl, 7) && r.status === 'Terjadwal')));
+    if (filter === 'janji') return rows.filter(r => r.jenis !== 'Datang tanpa janji' && (r.tgl === now.tgl || r.perlu_update || (r.tgl > now.tgl && (bulanDepan || r.tgl <= akhirBln(now.tgl)) && r.status === 'Terjadwal')));
     if (filter === 'update') return rows.filter(r => r.perlu_update);
     return rows.filter(r => r.tgl < now.tgl || r.status !== 'Terjadwal').sort((a, b) => (b.tgl + b.jam).localeCompare(a.tgl + a.jam));
-  }, [rows, filter, now.tgl]); // eslint-disable-line
+  }, [rows, filter, now.tgl, bulanDepan]); // eslint-disable-line
+  const nBulanDepan = rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl > akhirBln(now.tgl)).length;
   const jml = {
-    janji: rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl >= now.tgl && r.tgl <= geser(now.tgl, 7) && !r.perlu_update).length,
+    janji: rows.filter(r => r.jenis !== 'Datang tanpa janji' && r.status === 'Terjadwal' && r.tgl >= now.tgl && r.tgl <= akhirBln(now.tgl) && !r.perlu_update).length,
     update: rows.filter(r => r.perlu_update).length,
   };
   const grup = useMemo(() => {
@@ -176,6 +179,7 @@ export default function JanjianPage() {
       {filter === 'visitor' && <TabVisitor me={me} fSales={fSales} />}
       {filter === 'rekap' && <TabRekap mode={filter} fSales={fSales} />}
       {filter === 'riwayat' && <TabRiwayat me={me} fSales={fSales} />}
+      {filter === 'janji' && nBulanDepan > 0 && <div className="hint" style={{ margin: '0 0 8px' }}><label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}><input type="checkbox" checked={bulanDepan} onChange={e => setBulanDepan(e.target.checked)} /> Tampilkan juga {nBulanDepan} janji temu bulan depan</label></div>}
       {['visitor', 'rekap', 'riwayat'].includes(filter) ? null : !d ? <div className="loading">Memuat…</div> : !grup.length ? <p className="hint">Tidak ada janjian di kelompok ini.</p> : grup.map(([k, list]) => (
         <div key={k} className="jj-grup">
           <div className="jj-hari">{k === 'lewat' ? 'Lewat & belum di-update' : (k === now.tgl ? 'Hari ini · ' : k === geser(now.tgl, 1) ? 'Besok · ' : '') + tglPanjang(k)}</div>
@@ -243,7 +247,7 @@ function TabVisitor({ me, fSales }) {
           {rk.tanpa ? <span className="kp-pill sm kp-wait">{rk.tanpa} tanpa janji</span> : null}{rk.trx ? <span className="kp-pill sm kp-done">{rk.trx} Reserved/Booking</span> : null}</div></div>
       <div className="card"><span className="hint">Akan datang</span><b className="jj-besar">{rk.akan}</b><span className="hint">janji temu yang belum tiba</span></div>
       <div className="card"><span className="hint">Perlu update</span><b className="jj-besar" style={{ color: rk.update ? 'var(--red)' : undefined }}>{rk.update}</b><span className="hint">jam lewat, hasil belum diisi</span></div>
-      <div className="card"><span className="hint">7 hari terakhir</span>
+      <div className="card"><span className="hint">Bulan ini</span>
         <div className="bd-spark">{(v?.spark || []).map(x => <i key={x.tgl} title={`${x.hari} ${x.tgl.slice(8, 10)}/${x.tgl.slice(5, 7)}: ${x.n}`} style={{ height: Math.max(6, Math.round(x.n / maks * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} />)}</div>
         <span className="hint">{(v?.spark || []).reduce((a, x) => a + x.n, 0)} visitor</span></div>
     </div>
@@ -308,7 +312,7 @@ function TabRekap({ mode, fSales }) {
   const terbaru = d.terbaru.filter(x => !fSales || x.sales === fSales);
   if (mode === 'terbaru') return (
     <div className="card">
-      <div className="bd-head"><h3 style={{ margin: 0 }}>Update janji temu terbaru</h3><span className="hint">7 hari terakhir · terbaru di atas</span></div>
+      <div className="bd-head"><h3 style={{ margin: 0 }}>Update janji temu terbaru</h3><span className="hint">bulan ini · terbaru di atas</span></div>
       {terbaru.length ? <div className="tbl-wrap tbl-compact jj-vtbl" style={{ marginTop: 8 }}><table>
         <thead><tr><th>Diperbarui</th><th>Lead</th><th>Sales</th><th>Janji temu</th><th>Hasil</th><th>Catatan / alasan</th></tr></thead>
         <tbody>{terbaru.map((x, i) => (<tr key={i}>
@@ -318,7 +322,7 @@ function TabRekap({ mode, fSales }) {
           <td data-label="Janji temu">{x.jenis}<span className="sub2">{tglPendek(x.tgl)} {jamTitik(x.jam)}{x.lokasi ? ' · ' + x.lokasi : ''}</span></td>
           <td data-label="Hasil"><span className={'kp-pill sm ' + (x.aksi === 'Datang' ? 'kp-ok' : x.aksi === 'Batal' ? 'kp-no' : 'kp-wait')} style={{ whiteSpace: 'nowrap' }}>{x.aksi}</span></td>
           <td data-label="Catatan / alasan">{x.isi || '—'}</td></tr>))}</tbody></table></div>
-        : <p className="hint">Belum ada hasil janji temu 7 hari terakhir.</p>}
+        : <p className="hint">Belum ada hasil janji temu bulan ini.</p>}
     </div>);
   const ps = d.perSales.filter(x => !fSales || x.sales === fSales);
   const maks = Math.max(1, ...d.depan.map(x => x.n));
@@ -328,8 +332,8 @@ function TabRekap({ mode, fSales }) {
       <h3 style={{ marginTop: 0 }}>Janji temu bulan ini</h3>
       <div className="bd-chips"><span>Total <b>{d.bulan.n}</b></span><span>Datang <b>{d.bulan.datang}{d.bulan.n ? ` (${Math.round(d.bulan.datang / d.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{d.bulan.resch}</b></span><span>Batal <b>{d.bulan.batal}</b></span></div>
       <p className="hint" style={{ margin: '8px 0' }}>Visitor bulan ini: <b>{vis.total}</b> (janji temu {vis.janji} · walk in {vis.walkin} · tanpa janji {vis.tanpa} · Reserved/Booking {vis.trx})</p>
-      <div className="jj-bar">{d.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
-      <span className="hint">Janji temu terjadwal 7 hari ke depan · akhir pekan ditandai emas</span>
+      <div className="jj-bar jj-bar-bln">{d.depan.map((x, k) => (<div key={x.tgl} title={`${x.hari} ${Number(x.tgl.slice(8, 10))}: ${x.n} janji`} className={x.hariIni ? 'kini' : ''}><i style={{ height: Math.max(x.n ? 6 : 2, Math.round(x.n / maks * 100)) + '%', background: x.hariIni ? 'var(--green)' : ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : x.lewat ? 'var(--line)' : 'var(--side-active-bg)' }} /><span>{k % 5 === 0 || x.hariIni || k === d.depan.length - 1 ? Number(x.tgl.slice(8, 10)) : ''}</span></div>))}</div>
+      <span className="hint">Janji temu per tanggal bulan ini · tanggal lewat = semua janji, hari ini & ke depan = yang terjadwal · akhir pekan emas</span>
     </div>
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Per sales bulan ini</h3>

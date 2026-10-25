@@ -688,3 +688,7 @@ th.num{text-align:right}
 .rt-v.g{color:var(--green)}.rt-v.y{color:var(--brass-deep)}.rt-v.r{color:var(--red)}.rt-v.n{color:var(--muted)}
 .rt-bar{display:flex;height:6px;border-radius:99px;overflow:hidden;width:54px;margin:4px auto 0;background:var(--line)}.rt-bar span{display:block}
 @media(max-width:760px){.rt-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Janjian: grafik harian satu bulan */
+.jj-bar.jj-bar-bln{gap:3px}.jj-bar.jj-bar-bln>div{font-size:10px}.jj-bar.jj-bar-bln>div.kini span{color:var(--green);font-weight:800}
+.bd-spark{gap:2px}
+.rb-vbar.rb-vbar-bln{gap:2px}.rb-vbar.rb-vbar-bln i{border-radius:3px 3px 1px 1px}
