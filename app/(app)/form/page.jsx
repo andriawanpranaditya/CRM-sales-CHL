@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
+import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
 // Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
@@ -13,54 +14,6 @@ const detailUntuk = l => l.sumber === 'Lainnya' ? DETAIL_LAINNYA
 const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
 
 // ===== Template Follow Up Markom (sumber: template_FU.docx) =====
-// ===== Template FU Sales untuk lead baru tanpa respon: Day-1 / Day-3 / Day-7 =====
-const TSALES = {
-  bio: {
-    nama: 'BIO District Serpong', harga: 'Rp1,55 Miliar, unit ready stock',
-    unggul: [
-      'Hanya *63 private residences* dengan konsep resort living — clubhouse, jogging track & BBQ area di tengah lingkungan hijau 🌿',
-      'Lokasi di jantung Serpong: *3 menit ke Stasiun Rawa Buntu*, dekat AEON Mall, The Breeze, QBIG & ICE BSD, serta sekolah ternama (Sinarmas World Academy, BINUS, Prasetiya Mulya)',
-      '*Booking fee hanya Rp5 juta, DP 0%* (subsidi DP 10%), ilustrasi KPR bunga 2,75% mulai ±Rp7,2 juta/bulan',
-    ],
-  },
-  permai: {
-    nama: 'Permai Indah Cilejit', harga: 'Rp185 juta',
-    unggul: [
-      '*TANPA DP*, biaya KPR, Notaris & AJB *GRATIS* — angsuran seringan biaya kontrakan ✅',
-      'Hanya *4 menit ke Stasiun KRL Cilejit*, 45 menit ke Tanah Abang, 15 menit ke Serpong — pasar & SD hanya selangkah dari rumah',
-      'Konsep *rumah tumbuh* LT 60 m² dengan 2 kamar tidur, lingkungan asri berpagar sawah lindung, hanya *164 unit* dengan legalitas jelas & akses satu pintu',
-    ],
-  },
-};
-function salamJam() { const h = new Date().getHours(); return h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam'; }
-function templateSalesDay(day, l) {
-  const key = /bio/i.test(l.project || '') ? 'bio' : /permai/i.test(l.project || '') ? 'permai' : null;
-  const P = key ? TSALES[key] : { nama: l.project || 'project kami', harga: null, unggul: [] };
-  const nama = l.nama || 'Kak';
-  if (day === 1) {
-    return `Selamat ${salamJam()} Kak ${nama}, semoga hari ini menyenangkan 😊
-
-Menindaklanjuti ketertarikan Kakak terhadap *${P.nama}*${P.harga ? ' (harga mulai *' + P.harga + '*)' : ''}, izinkan kami merangkum keunggulan utamanya:
-${P.unggul.map(u => '• ' + u).join('\n')}
-
-Apabila berkenan, kami dapat mengaturkan jadwal survey lokasi gratis atau simulasi KPR tanpa biaya di waktu yang Kakak tentukan. Cukup balas pesan ini, saya siap membantu. Terima kasih 🙏`;
-  }
-  if (day === 3) {
-    return `Selamat ${salamJam()} Kak ${nama} 🙏
-
-Ada informasi yang sayang untuk dilewatkan: saat ini *${P.nama}* memiliki program penawaran khusus yang berlaku terbatas untuk pembelian periode ini.
-
-Apakah Kakak berkenan kami kirimkan detail penawarannya? Cukup balas *"YA"* pada pesan ini, dan saya akan menghubungi Kakak secara langsung.`;
-  }
-  return `Selamat ${salamJam()} Kak ${nama},
-
-Kami memahami bahwa memilih hunian adalah keputusan penting yang memerlukan waktu dan pertimbangan matang. Karena itu, ini menjadi pesan terakhir dari kami agar tidak mengganggu kenyamanan Kakak 🙏
-
-Kapan pun Kakak kembali mempertimbangkan *${P.nama}*, kami selalu siap melayani melalui nomor ini.
-
-Terima kasih atas waktu dan kepercayaannya. Semoga senantiasa diberikan kesehatan dan kelancaran 🌿`;
-}
-
 // Next Action yang menghentikan jadwal FU (Tgl Next FU dimatikan)
 const TANPA_NEXT = ['Drop', 'Reserved', 'Booking'];
 const DAY_FU = ['Follow Up day-1', 'Follow Up day-3', 'Follow Up day-7', 'Follow Up day-21', 'Follow Up day-60', 'Reply'];
@@ -314,7 +267,7 @@ export default function FormPage() {
     if (tujuan === 'l2s') setL2s(v => ({ ...v, lead_code: kode }));
     else if (tujuan === 'fu') {
       if (me.role === 'markom') setFu(v => ({ ...v, lead_code: kode }));
-      else setFu(v => ({ ...v, lead_code: kode, status: l.status || '', balas: null, wa_pesan: templateSales(l) }));
+      else setFu(v => fuUntukLead(l, v));
     }
   }, [me, leads]); // eslint-disable-line
 
@@ -413,51 +366,58 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     return rec.slice(0, 3);
   }
 
-  // Pilih template sales otomatis: lead belum merespon (New/Cold) -> Day-1 / Day-3 / Day-7 sesuai jumlah FU sebelumnya
-  // Serah terima dari marcom: FU sales dihitung sesudah "Leads to Sales", plus konteks yang ditanyakan lead
-  function infoHandoff(l) {
-    if (!l) return null;
-    const riw = fus.filter(f => f.lead_code === l.lead_code);
-    const h = riw.filter(f => String(f.detail || '').startsWith('Leads to Sales')).sort((a, b) => (b.id || 0) - (a.id || 0))[0];
-    if (!h) return null;
-    const m = /Konteks:\s*([\s\S]+)$/.exec(String(h.detail || ''));
-    return { sesudah: riw.filter(f => (f.id || 0) > (h.id || 0)).length, konteks: m ? m[1].trim() : '' };
-  }
-  function templateHandoff(l, konteks) {
-    const h = new Date().getHours();
-    const salam = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam';
-    const nama = (l && l.nama) ? l.nama : '';
-    const sales = (me && me.name) ? me.name : 'tim Sales';
-    const proj = (l && l.project) ? l.project.replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase()) : 'Bio District';
-    return `Selamat ${salam} Kak ${nama} 🙏\n\nSaya ${sales}, konsultan properti ${proj} — melanjutkan chat Kakak dengan admin kami${konteks ? ' soal ' + konteks : ''}.\n\nSupaya info yang saya kirim pas, rencananya untuk ditempati sendiri atau investasi, Kak? Kalau berkenan, saya juga bisa bantu jadwalkan survey lokasi — lebih nyaman Sabtu atau Minggu?`;
-  }
-
+  // ===== Standar FU wajib: posisi jadwal & pesan rekomendasi dari riwayat lead (lib/fuwajib.js) =====
+  // Template Day-1/3/7 & sapaan umum lama dihapus — pesan kini disusun dari riwayat lead + price list resmi.
+  function stFU(l) { return l ? statusFU(l, fus) : null; }
   function templateSales(l) {
     if (!l) return '';
-    const ho = infoHandoff(l);
-    if (ho && ho.sesudah === 0) return templateHandoff(l, ho.konteks);
-    const n = ho ? ho.sesudah : fus.filter(f => f.lead_code === l.lead_code).length;
-    const belumRespon = !l.status || l.status === 'New' || l.status === 'Cold';
-    if (belumRespon && n === 0) return templateSalesDay(1, l);
-    if (belumRespon && n === 1) return templateSalesDay(3, l);
-    if (belumRespon && n === 2) return templateSalesDay(7, l);
-    return templateWA(l);
+    const st = stFU(l);
+    return susunPesan({ lead: l, riwayat: fus, st: st && st.aktif ? st : { aktif: true, mode: 'percakapan', jenis: 'percakapan' }, salesNama: me && me.name });
   }
-
-  // Template pesan WA percakapan biasa — bebas diedit sales
-  function templateWA(l) {
-    const h = new Date().getHours();
-    const salam = h < 11 ? 'pagi' : h < 15 ? 'siang' : h < 18 ? 'sore' : 'malam';
-    const nama = (l && l.nama) ? l.nama : 'Bapak/Ibu';
-    const proj = (l && l.project) ? ` terkait project ${l.project}` : '';
-    const sales = (me && me.name) ? me.name : 'tim Sales';
-    return `Selamat ${salam} Bapak/Ibu ${nama} 🙏\n\nSaya ${sales} dari Cipta Harmoni Lestari,${proj ? proj + '.' : ' menindaklanjuti komunikasi kita sebelumnya.'} Apakah ada yang bisa kami bantu — info harga terbaru, simulasi pembayaran, atau jadwal survey lokasi?\n\nDitunggu kabar baiknya, terima kasih 🙏`;
+  // Status & Tgl Next FU otomatis mengikuti jadwal wajib dan jawaban "lead membalas?"
+  function jadwalSesudah(v, l) {
+    const st = stFU(l);
+    if (!st || !st.aktif) return null;
+    const today = hariIniWIB();
+    const baru = { id: Number.MAX_SAFE_INTEGER, lead_code: l.lead_code, tgl: v.tgl || today, balas: v.balas, next_action: '', oleh_role: me && me.role, created_by: me && me.username };
+    return { st, ke: st.nFu + 1, sesudah: statusFU({ ...l, status: (v.status && v.status !== 'Drop') ? v.status : 'New', next_fu: null }, [...fus, baru], today), today };
+  }
+  function isiOtomatis(v, l) {
+    const j = l ? jadwalSesudah(v, l) : null;
+    if (!j || v.balas === null) return v;
+    const out = { ...v };
+    if (v.balas === false) {
+      const a = aturStatus({ ke: j.ke, balas: false, statusDipilih: v.status, statusLead: l.status });
+      if (a.otomatis) out.status = a.status;
+      const sesudah = jadwalSesudah(out, l).sesudah;
+      if (['wajib', 'undangan', 'tuntas'].includes(sesudah.mode)) out.next_tgl = sesudah.jatuh;
+      else if (sesudah.mode === 'percakapan' && (!out.next_tgl || out.next_tgl > tambahHari(j.today, MAKS_HARI_PERCAKAPAN))) out.next_tgl = tambahHari(j.today, 3);
+    } else {
+      if (out.status === 'New') out.status = '';
+      if (!out.next_tgl || out.next_tgl > tambahHari(j.today, MAKS_HARI_PERCAKAPAN) || out.next_tgl < j.today) out.next_tgl = tambahHari(j.today, 3);
+    }
+    return out;
+  }
+  function fuUntukLead(l, base) {
+    const st = stFU(l);
+    return { ...base, lead_code: l.lead_code, status: l.status || '', balas: null, next_action: '', next_tgl: '', objection: '',
+      wa_pesan: templateSales(l), detail: st && st.aktif ? st.label : (base.detail || '') };
+  }
+  async function personalisasiAI() {
+    if (!fu.lead_code) return toast('Pilih ID Lead dulu');
+    setBusy(true);
+    try {
+      const r = await api('/api/fu-saran', { method: 'POST', body: JSON.stringify({ lead_code: fu.lead_code, draft: fu.wa_pesan }) });
+      if (r.pesan) { setFu(v => ({ ...v, wa_pesan: r.pesan })); toast('Pesan dipersonalisasi AI — periksa sebelum dikirim'); }
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
 
   async function simpanFU() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
     if (!fu.detail.trim()) return toast(isMarkom ? 'Pilih Day Follow Up dulu' : 'Detail Komunikasi wajib diisi');
     if (!isMarkom && fu.balas === null) return toast('Pilih dulu: apakah lead membalas?');
+    if (!isMarkom && !TANPA_NEXT.includes(fu.next_action) && !fu.status) return toast('Status lead wajib dipilih');
+    if (!isMarkom && fu.balas === true && fu.status === 'New') return toast('Konsumen membalas — status tidak boleh tetap New');
     if (isMarkom && !fu.next_action) return toast('Pilih Next Action: Lanjut Follow Up atau Drop');
     if (isMarkom && fu.next_action === 'Lanjut Follow Up' && !fu.next_tgl) return toast('Isi Tgl Next Follow Up untuk jadwal day berikutnya');
     if ((fu.next_action === 'Drop' || fu.status === 'Drop') && !(fu.objection || '').trim()) return toast('Alasan drop wajib diisi');
@@ -473,9 +433,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     if (urlWA && !diHP) { try { winWA = window.open('', '_blank'); } catch {} }
     setBusy(true);
     try {
-      await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
+      const hasil = await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
+      const info = hasil && hasil.info ? ' · ' + hasil.info : '';
       if (urlWA) {
-        toast(pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲');
+        toast((pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲') + info);
         if (diHP) {
           // HP: skema whatsapp:// — terbuka di WhatsApp biasa MAUPUN WA Business
           setTimeout(() => { bukaWA(leadFu.wa, pesan); }, 350);
@@ -483,7 +444,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           bukaWA(leadFu.wa, pesan, winWA);
         }
       } else {
-        toast(dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : stopFU ? 'Follow up tersimpan — konsumen ' + fu.next_action + ', jadwal FU dihentikan' : 'Follow up tersimpan (lead belum punya nomor WA)');
+        toast((dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : stopFU ? 'Follow up tersimpan — konsumen ' + fu.next_action + ', jadwal FU dihentikan' : 'Follow up tersimpan (lead belum punya nomor WA)') + info);
       }
       setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
       Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
@@ -618,7 +579,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               <b style={{ color: 'var(--red)' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
               <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {leads.find(x => x.lead_code === dup.lead_code)
-                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu({ ...fu, lead_code: dup.lead_code, wa_pesan: l ? templateSales(l) : '' }); setDup(null); }}>↻ Buka di Follow Up</button>
+                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu(l ? fuUntukLead(l, fu) : { ...fu, lead_code: dup.lead_code }); setDup(null); }}>↻ Buka di Follow Up</button>
                   : <span className="hint">Lead ini belum ada di daftar Anda — minta {dup.pembuat_role === 'markom' ? 'Marcom mengopernya lewat Leads to Sales' : 'manager memindahkan PIC-nya'}.</span>}
                 <button className="sort-btn" onClick={() => setDup(null)}>Tutup</button>
               </div>
@@ -632,20 +593,33 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             <select value={fu.lead_code} onChange={e => {
               const l = leads.find(x => x.lead_code === e.target.value);
               if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
-              const otoIsi = !fu.wa_pesan.trim() || fu.wa_pesan.startsWith('Selamat ');
-              setFu({ ...fu, lead_code: e.target.value, status: l ? (l.status || '') : '', balas: null, wa_pesan: (otoIsi && l) ? templateSales(l) : fu.wa_pesan });
+              setFu(l ? fuUntukLead(l, { ...fu, detail: '' }) : { ...fu, lead_code: e.target.value });
             }}>{leadOpt}</select></div>
           {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
+            if (!lSel) return null;
+            const st = stFU(lSel);
             const riw = fus.filter(f => f.lead_code === fu.lead_code).sort((a, b) => (b.id || 0) - (a.id || 0));
-            const rec = rekomendasiFU(lSel, riw);
-            if (!rec.length) return null;
+            const rec = st && st.aktif && st.mode === 'percakapan' ? rekomendasiFU(lSel, riw) : [];
+            const plan = st && st.aktif ? rencanaJadwal(lSel, fus) : [];
+            const telat = st && st.aktif ? st.telat : 0;
             return (
               <div style={{ gridColumn: '1/-1', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px' }}>
-                <b style={{ color: 'var(--brass-deep)' }}>💡 Rekomendasi Follow Up{riw[0] ? ' — analisa FU terakhir ' + fmtDate(riw[0].tgl) : ' — lead belum pernah di-FU'}</b>
-                <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                <b style={{ color: 'var(--brass-deep)' }}>📋 Jadwal FU Wajib — {st && st.aktif ? st.label : 'lead tidak dalam jadwal (status ' + (lSel.status || '-') + ')'}</b>
+                {st && st.aktif ? <div style={{ fontSize: 13.5, marginTop: 4 }}>
+                  Jatuh tempo: <b>{fmtTglPanjang(st.jatuh)}</b>{' '}
+                  {telat > 0 ? <span className="badge b-overdue">TERLAMBAT {telat} HARI</span> : telat === 0 ? <span className="badge b-today">HARI INI</span> : null}
+                  <br />Tujuan: {st.tujuan}
+                </div> : null}
+                {plan.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                  {plan.map(p => <span key={p.label} className={'badge ' + (p.selesai ? (p.balas ? 'b-close' : 'b-new') : p.tgl < hariIniWIB() ? 'b-overdue' : 'b-warm')} style={{ fontWeight: 500 }}>
+                    {p.selesai ? '✓ ' : ''}{p.label} · {fmtDate(p.tgl)}</span>)}
+                </div>}
+                {st && st.mode === 'tuntas' && <div className="hint" style={{ marginTop: 6 }}>Jadwal tuntas tanpa balasan — pilih Next Action <b>Drop</b> (alasan: {ALASAN_TUNTAS}) atau <b>{NURTURE}</b>.</div>}
+                {st && st.mode === 'percakapan' && <div className="hint" style={{ marginTop: 6 }}>Konsumen sudah membalas — FU berikutnya wajib dijadwalkan maksimal {MAKS_HARI_PERCAKAPAN} hari. Bila diam 2 kali berturut-turut, otomatis kembali ke undangan visit weekend.</div>}
+                {rec.length > 0 && <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
                   {rec.map((r, i) => <li key={i} style={{ marginBottom: 5, fontSize: 13.5 }}><b>{r[0]}:</b> {r[1]}</li>)}
-                </ul>
+                </ul>}
               </div>
             );
           })() : null}
@@ -662,9 +636,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             : <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
               <textarea rows={2} {...ff('detail')} /></div>}
           <div className="field" style={{ gridColumn: '1/-1' }}>
-            <label>Pesan WhatsApp <span className="hint">(otomatis terisi template saat lead dipilih{!isMarkom && fu.lead_code ? (() => { const l = leads.find(x => x.lead_code === fu.lead_code); const ho = infoHandoff(l); if (ho && ho.sesudah === 0) return ' — pesan pembuka melanjutkan chat admin'; const n = ho ? ho.sesudah : fus.filter(f => f.lead_code === fu.lead_code).length; const br = l && (!l.status || l.status === 'New' || l.status === 'Cold'); return br && n <= 2 ? ' — Day-' + [1, 3, 7][n] + ' lead belum respon' : ''; })() : ''} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
+            <label>Pesan WhatsApp <span className="hint">({isMarkom ? 'otomatis terisi template saat lead dipilih' : 'rekomendasi disusun dari riwayat lead sesuai jadwal FU wajib'} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
               <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
-                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateSales(leads.find(x => x.lead_code === fu.lead_code)) })}>↺ Isi Template</button>
+                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateSales(leads.find(x => x.lead_code === fu.lead_code)) })}>{isMarkom ? '↺ Isi Template' : '↺ Isi Rekomendasi'}</button>
+              {!isMarkom && fu.lead_code ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }} disabled={busy} onClick={personalisasiAI}>✨ Personalisasi AI</button> : null}
               {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
                 onClick={() => setFu({ ...fu, wa_pesan: '' })}>✕ Kosongkan</button> : null}
             </label>
@@ -672,23 +647,34 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." /></div>
           {!isMarkom && <div className="field"><label>Lead membalas? <span className="req">*</span></label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button type="button" className={'sort-btn' + (fu.balas === true ? ' active' : '')} onClick={() => setFu({ ...fu, balas: true })}>✓ Ya, membalas</button>
-              <button type="button" className={'sort-btn' + (fu.balas === false ? ' active' : '')} onClick={() => setFu({ ...fu, balas: false })}>✕ Belum membalas</button>
+              <button type="button" className={'sort-btn' + (fu.balas === true ? ' active' : '')} onClick={() => setFu(isiOtomatis({ ...fu, balas: true }, leads.find(x => x.lead_code === fu.lead_code)))}>✓ Ya, membalas</button>
+              <button type="button" className={'sort-btn' + (fu.balas === false ? ' active' : '')} onClick={() => setFu(isiOtomatis({ ...fu, balas: false }, leads.find(x => x.lead_code === fu.lead_code)))}>✕ Belum membalas</button>
             </div></div>}
-          {!isMarkom && <div className="field"><label>Status Lead Sekarang</label>
+          {!isMarkom && <div className="field"><label>Status Lead Sekarang <span className="req">*</span></label>
             <select value={fu.status} onChange={e => setFu({ ...fu, status: e.target.value })}>
               <option value="">— pilih —</option>
-              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).map(o => <option key={o}>{o}</option>)}
+              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).filter(o => !(fu.balas === true && o === 'New')).map(o => <option key={o}>{o}</option>)}
             </select>
-            <span className="hint">Ubah bila ada perkembangan — mis. sudah survey → Site Visit</span></div>}
+            <span className="hint">{(() => {
+              const j = fu.lead_code ? jadwalSesudah(fu, leads.find(x => x.lead_code === fu.lead_code)) : null;
+              if (j && fu.balas === false && j.ke >= 2 && fu.status === 'Cold') return 'Otomatis Cold — FU ke-' + j.ke + ' belum ada balasan (status New wajib berganti mulai FU ke-2).';
+              if (fu.balas === true) return 'Konsumen membalas — pilih status sesuai perkembangan (tidak boleh New).';
+              return 'Wajib diisi setiap FU — mis. sudah survey → Site Visit';
+            })()}</span></div>}
           {!isMarkom && fu.next_action !== 'Drop' && fu.status !== 'Drop' && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
           {!isMarkom && <div className="field"><label>Next Action</label>
-            <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: TANPA_NEXT.includes(e.target.value) ? '' : fu.next_tgl })}>
+            <select value={fu.next_action} onChange={e => {
+              const v = e.target.value, st = stFU(leads.find(x => x.lead_code === fu.lead_code));
+              const tuntas = st && (st.mode === 'tuntas' || (st.nFu + 1 >= st.total && fu.balas === false && st.mode !== 'percakapan'));
+              setFu({ ...fu, next_action: v, next_tgl: TANPA_NEXT.includes(v) ? '' : v === NURTURE ? tambahHari(hariIniWIB(), 30) : fu.next_tgl,
+                objection: v === 'Drop' && tuntas && !fu.objection ? ALASAN_TUNTAS : fu.objection });
+            }}>
               <option value="">— pilih —</option>
               <option value="Lanjut Follow Up">Lanjut Follow Up</option>
               <option value="Reserved">Reserved — konsumen sudah reserved</option>
               <option value="Booking">Booking — konsumen sudah booking</option>
               <option value="Drop">Drop</option>
+              {(() => { const st = stFU(leads.find(x => x.lead_code === fu.lead_code)); return st && (st.mode === 'tuntas' || st.mode === 'nurture' || (st.nFu + 1 >= st.total && st.mode !== 'percakapan')) ? <option value={NURTURE}>{NURTURE} — kabar sebulan sekali</option> : null; })()}
             </select></div>}
           {isMarkom && <div className="field"><label>Next Action <span className="req">*</span></label>
             <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl, objection: e.target.value === 'Drop' ? fu.objection : '' })}>
@@ -698,9 +684,19 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             </select></div>}
           {(fu.next_action === 'Drop' || fu.status === 'Drop') && <div className="field"><label>Alasan Drop <span className="req">*</span></label>
             <input value={fu.objection} onChange={e => setFu({ ...fu, objection: e.target.value })} list="dl-alasan-drop" placeholder="mis. tidak ada respon sampai Day-60 / salah sambung / sudah beli di tempat lain" />
-            <datalist id="dl-alasan-drop">{['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'].map(o => <option key={o} value={o} />)}</datalist></div>}
+            <datalist id="dl-alasan-drop">{(isMarkom ? ['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'] : (() => {
+              const l = leads.find(x => x.lead_code === fu.lead_code), st = stFU(l);
+              const pernahBalas = fu.balas === true || fus.some(f => f.lead_code === fu.lead_code && f.balas === true);
+              const dini = st && st.aktif && ['wajib', 'undangan'].includes(st.mode) && !pernahBalas && st.jalur !== 'lama' && !(st.nFu + 1 >= st.total);
+              return dini ? ALASAN_DROP_DINI : [ALASAN_TUNTAS, ...ALASAN_DROP_DINI, ...ALASAN_DROP_LAIN];
+            })()).map(o => <option key={o} value={o} />)}</datalist>
+            {!isMarkom && <span className="hint">Lead yang belum pernah membalas hanya bisa di-Drop sebelum 9 sentuhan untuk: {ALASAN_DROP_DINI.join(', ')}.</span>}</div>}
           {!(isMarkom && fu.next_action === 'Drop') && <div className="field"><label>Tgl Next Follow Up{isMarkom && fu.next_action === 'Lanjut Follow Up' ? <span className="req"> *</span> : null}{TANPA_NEXT.includes(fu.next_action) ? ' (nonaktif — ' + fu.next_action + ')' : ''}</label>
-            <input type="date" {...ff('next_tgl')} disabled={TANPA_NEXT.includes(fu.next_action)} /></div>}
+            <input type="date" {...ff('next_tgl')} disabled={TANPA_NEXT.includes(fu.next_action)}
+              max={!isMarkom && fu.balas === true ? tambahHari(hariIniWIB(), MAKS_HARI_PERCAKAPAN) : undefined} />
+            {!isMarkom && fu.lead_code && fu.balas !== null && !TANPA_NEXT.includes(fu.next_action) ? <span className="hint">{fu.balas
+              ? 'Mode percakapan — maksimal ' + MAKS_HARI_PERCAKAPAN + ' hari ke depan.'
+              : 'Otomatis sesuai jadwal FU wajib — boleh dimajukan, tidak bisa dimundurkan.'}</span> : null}</div>}
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanFU} disabled={busy}>Simpan Follow Up</button>

@@ -47,8 +47,13 @@ export default function ReminderBell({ user }) {
   }
 
   useEffect(() => {
+    // Refresh tiap 5 menit HANYA saat layar terlihat (tab di belakang / HP terkunci tidak menarik data);
+    // begitu aplikasi dibuka lagi dan sudah >5 menit, lonceng langsung diperbarui.
+    let terakhir = Date.now();
     load();
-    const t = setInterval(load, 5 * 60 * 1000); // refresh tiap 5 menit
+    const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 5 * 60 * 1000) { terakhir = Date.now(); load(); } };
+    const t = setInterval(segar, 60 * 1000);
+    document.addEventListener('visibilitychange', segar);
 
     // Bunyi "ding" + getar pada interaksi PERTAMA pengguna hari ini bila ada FU jatuh tempo
     // (browser hanya mengizinkan suara setelah pengguna menyentuh halaman)
@@ -69,6 +74,7 @@ export default function ReminderBell({ user }) {
 
     return () => {
       clearInterval(t);
+      document.removeEventListener('visibilitychange', segar);
       window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('keydown', onFirstTouch);
     };
@@ -92,7 +98,7 @@ export default function ReminderBell({ user }) {
         {user.role !== 'sales' && (r.sales || r.markom)
           ? <span className="hint"> — {r.sales ? r.sales : null}{r.markom ? <span style={{ color: 'var(--blue)' }}>{r.sales ? ' · ' : ''}Marcom: {r.markom}</span> : null}</span>
           : null}
-        <br /><span className="hint">WA: {r.wa || '-'} · Jadwal: {fmtDate(r.next_fu)}</span>
+        <br /><span className="hint">WA: {r.wa || '-'} · Jadwal: {fmtDate(r.next_fu)}{r.fu_label ? ' · ' + r.fu_label : ''}</span>
       </span>
       <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
         <span className={'badge ' + (late ? 'b-overdue' : 'b-today')}>{late ? 'TERLAMBAT' : 'HARI INI'}</span>
@@ -123,10 +129,10 @@ export default function ReminderBell({ user }) {
                   {data.jatuhTempo.map(r => (<a key={'jt' + r.id} href={'/collection?tab=tagihan&lead=' + r.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--blue)' }}>
                     <b>{r.nama}</b> · {r.unit}<br /><span className="hint">{r.ket} · Rp {Number(r.sisa).toLocaleString('id-ID')} · {r.jatuh_tempo === data.today ? 'hari ini' : 'besok'}</span></a>))}</>}
                 {(data.akad || []).length > 0 && <><div className="bell-sub">🏦 Akad ({data.akad.length})</div>
-                  {data.akad.map(a => (<a key={'ak' + a.id} href={'/collection?tab=kpr&kpr=' + a.id} className="rem-item" style={{ borderLeftColor: a.lewat ? 'var(--red)' : 'var(--brass)' }}>
+                  {data.akad.map(a => (<a key={'ak' + a.id} href={'/kpr-proses?id=' + a.id} className="rem-item" style={{ borderLeftColor: a.lewat ? 'var(--red)' : 'var(--brass)' }}>
                     <b>{a.nama}</b> · {a.unit}<br /><span className="hint">{a.lewat ? 'Akad ' + fmtDate(a.tgl) + ' sudah lewat — isi realisasi' : 'Akad ' + fmtDate(a.tgl)}{a.bank ? ' · ' + a.bank : ''}</span></a>))}</>}
                 {(data.kendala || []).length > 0 && <><div className="bell-sub">⚠ Kendala berkas / bank ({data.kendala.length})</div>
-                  {data.kendala.map(k => (<a key={'kd' + k.id} href={'/collection?tab=kpr&kpr=' + k.id} className="rem-item" style={{ borderLeftColor: 'var(--brass)' }}>
+                  {data.kendala.map(k => (<a key={'kd' + k.id} href={'/kpr-proses?id=' + k.id} className="rem-item" style={{ borderLeftColor: 'var(--brass)' }}>
                     <b>{k.nama}</b> · {k.unit}<br /><span className="hint">{k.kendala} · {k.hari} hari</span></a>))}</>}
               </>}
               {(data.janjian || []).length > 0 && <>
@@ -138,6 +144,15 @@ export default function ReminderBell({ user }) {
                     <span className={'badge ' + (j.perlu_update ? 'b-overdue' : j.tgl === data.today ? 'b-today' : 'b-new')}>{j.perlu_update ? 'PERLU UPDATE' : j.tgl === data.today ? 'HARI INI' : 'BESOK'}</span>
                   </a>))}
                 {(data.terlambat.length + data.hariIni.length) > 0 && <div className="bell-sub">Follow up</div>}
+              </>}
+              {(data.belumDisentuh || []).length > 0 && <>
+                <div className="bell-sub">⏱ Lead baru belum disentuh &gt; 1 jam ({data.belumDisentuh.length})</div>
+                {data.belumDisentuh.map(r => (
+                  <a key={'bd' + r.lead_code} href={'/form?tab=fu&lead=' + encodeURIComponent(r.lead_code)} className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                    <span><b>{r.nama}</b> <span className="hint">({r.lead_code}{r.project ? ' · ' + r.project : ''}{user.role !== 'sales' ? ' · ' + r.sales : ''})</span>
+                      <br /><span className="hint">Diterima {r.jam} jam lalu · wajib Sentuhan 1 (Hari 1) segera</span></span>
+                    <span className="badge b-overdue">SEGERA</span>
+                  </a>))}
               </>}
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}

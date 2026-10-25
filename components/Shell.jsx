@@ -13,9 +13,10 @@ const MENUS = [
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
+  { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
   { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
   { href: '/collection', ico: '💰', label: 'Collection & KPR', roles: ['manager', 'ceo', 'collection'] },
-  { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales'] }, // Collection: jadi tab di menu Collection & KPR
+  { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo'] },
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },

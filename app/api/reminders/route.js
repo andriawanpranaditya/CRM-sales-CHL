@@ -1,6 +1,8 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris } from '@/lib/auth';
 import { siapkanJanjian, perluUpdate, sekarangWIB } from '@/lib/janjian';
+import { siapkanFuWajib, riwayatFU } from '@/lib/fuwajib-db';
+import { statusFU } from '@/lib/fuwajib';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,7 @@ export async function GET() {
       total: tunggakan.length + jatuhTempo.length + akad.length + kendala.length });
   }
 
+  try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   let rows = user.role === 'markom'
     // Marcom: pengingat FU seluruh lead tim marcom (nama penginput ikut ditampilkan)
     ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
@@ -65,6 +68,37 @@ export async function GET() {
         ORDER BY next_fu`;
 
   if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
+  // Label sentuhan FU wajib (mis. "Sentuhan 3 dari 9 · Hari 3") untuk tiap pengingat
+  if (user.role !== 'markom' && rows.length) {
+    try {
+      const codes = rows.map(r => r.lead_code);
+      const info = await sql`SELECT lead_code, sales, status, fu_mulai::text AS fu_mulai, fu_jalur, created_at, next_fu::text AS next_fu FROM leads WHERE lead_code = ANY(${codes}::text[])`;
+      const riw = await riwayatFU(sql, codes);
+      const m = Object.fromEntries(info.map(l => [l.lead_code, statusFU(l, riw, today)]));
+      rows = rows.map(r => ({ ...r, fu_label: m[r.lead_code]?.aktif ? m[r.lead_code].label : '' }));
+    } catch (e) { console.error('label fu', e); }
+  }
+  // Lead baru di tangan sales yang belum disentuh > 1 jam sejak diterima (standar FU wajib)
+  let belumDisentuh = [];
+  if (['sales', 'manager', 'ceo'].includes(user.role)) {
+    try {
+      const pemilik = user.role === 'sales' ? user.name : null;
+      belumDisentuh = await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.created_by, a.created_at AS sejak,
+          floor(extract(epoch FROM now() - a.created_at) / 3600)::int AS jam
+        FROM leads l
+        JOIN LATERAL (SELECT created_at FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
+        WHERE l.fu_jalur = 'baru' AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost')
+          AND a.created_at < now() - interval '1 hour' AND a.created_at > now() - interval '14 days'
+          AND (${pemilik}::text IS NULL OR l.sales = ${pemilik})
+          AND NOT EXISTS (SELECT 1 FROM followups f LEFT JOIN users u ON u.username = f.created_by
+            WHERE f.lead_code = l.lead_code AND f.created_at > a.created_at AND COALESCE(u.role, '') <> 'markom'
+              AND COALESCE(f.created_by, '') <> 'auto-wa' AND f.detail NOT LIKE 'Leads to Sales%')
+        ORDER BY a.created_at LIMIT 30`;
+      belumDisentuh = belumDisentuh.filter(r => lihatBaris(user, r));
+      const ada = new Set(belumDisentuh.map(r => r.lead_code));
+      rows = rows.filter(r => !ada.has(r.lead_code)); // tidak tampil dobel
+    } catch (e) { console.error('belum disentuh', e); }
+  }
   const hariIni = rows.filter(r => r.next_fu === today);
   const terlambat = rows.filter(r => r.next_fu < today);
 
@@ -158,5 +192,5 @@ export async function GET() {
         .filter(j => user.role === 'sales' ? true : j.perlu_update);
     } catch (e) { console.error('janjian bell', e); }
   }
-  return Response.json({ today, hariIni, terlambat, stok, celah, aiSiap, janjian, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + stok.length + celah.length + aiSiap.length });
+  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length });
 }

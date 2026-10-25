@@ -2,6 +2,7 @@ import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { sinkronJanjianLead } from '@/lib/janjian';
+import { siapkanFuWajib, mulaiJadwalBaru } from '@/lib/fuwajib-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ async function petakanKodeWA(sql, kode) {
 export async function GET(req) {
   const { user, err } = await requireUser(); if (err) return err;
   const sql = db();
+  try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   await siapkanSumberDetail(sql);
   const semua = new URL(req.url).searchParams.get('all') === '1'; // dipakai dashboard markom
   let rows;
@@ -51,6 +53,7 @@ async function _POST(req) {
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
+  try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   await siapkanStatusLog(sql);
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
@@ -88,6 +91,8 @@ async function _POST(req) {
     try {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${code}, ${''}, ${sales}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
+    // Standar FU wajib: lead yang langsung punya sales mulai dijadwalkan hari ini (Hari 1)
+    if (!['Booking', 'Closing', 'Drop'].includes(b.status || 'New')) { try { await mulaiJadwalBaru(sql, code); } catch (e) { console.error('jadwal fu', e); } }
   }
   return Response.json({ ok: true, id, lead_code: code });
 }
@@ -97,6 +102,7 @@ async function _PATCH(req) {
   const b = await req.json();
   if (!b.id) return Response.json({ error: 'id wajib' }, { status: 400 });
   const sql = db();
+  try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   await siapkanSumberDetail(sql);
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
@@ -145,6 +151,8 @@ async function _PATCH(req) {
     try {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
+    // Standar FU wajib: lead dioper ke sales → jadwal wajib dimulai hari ini (Hari 1, maks. 1 jam)
+    if (!['Booking', 'Closing', 'Drop'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
   }
   // Untuk log aktivitas: field yang benar-benar berubah
   const teks = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '');
