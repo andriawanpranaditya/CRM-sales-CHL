@@ -4,7 +4,7 @@ import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
 
 // Log Aktivitas — siapa login, siapa membuka halaman apa, siapa input/update/hapus data apa (khusus manager)
-const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 const geserHari = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const PERAN = { manager: 'Manager', ceo: 'CEO Project', admin: 'Admin', markom: 'Marcom', sales: 'Sales' };
 const WARNA_AKSI = {

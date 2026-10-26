@@ -603,7 +603,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     // Janjian visit pada periode report (Manager/CEO) — peran lain tidak punya akses, bagian janjian dilewati
     let jjData = null;
     try {
-      const hariJJ = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+      const hariJJ = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
       jjData = await api('/api/janjian?laporan=1&dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ) + '&project=' + encodeURIComponent(proj || ''));
     } catch {}
     // Ringkasan penjualan (Reserved → Booking / Batal) — satu halaman; detail per transaksi ada di menu Report → Laporan Penjualan

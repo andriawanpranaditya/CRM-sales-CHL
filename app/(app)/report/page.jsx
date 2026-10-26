@@ -6,7 +6,7 @@ import Dashboard from '../dashboard/page';
 
 // ===== Menu Report (Manager & CEO): satu filter bersama untuk semua tab =====
 const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['lengkap', 'Report Lengkap'], ['excel', 'Data Excel']];
-const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 const awalBulan = () => hariIni().slice(0, 8) + '01';
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
 const WST = { Booking: 'var(--green)', Batal: 'var(--red)', Reserved: 'var(--brass-deep)' };

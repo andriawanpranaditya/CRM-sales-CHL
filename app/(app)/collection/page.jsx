@@ -1,37 +1,27 @@
 'use client';
-import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
 import InputRupiah from '@/components/InputRupiah';
 import { api, fmtRp, fmtDate, catatUnduh } from '@/components/util';
 import Ringkasan from '@/components/CollectionRingkasan';
-import ProsesKpr from '@/components/ProsesKpr';
 
 // ===== Collection & KPR — divisi Collection (ubah), Manager (ubah), CEO (hanya lihat) =====
-const TAB = [['ringkas', 'Ringkasan'], ['kontrak', 'Data Kontrak'], ['tagihan', 'Tagihan'], ['kpr', 'Proses KPR'], ['ceklis', 'Ceklis Berkas'], ['laporan', 'Laporan']];
+const TAB = [['ringkas', 'Ringkasan'], ['kontrak', 'Data Kontrak'], ['tagihan', 'Tagihan & Pembayaran'], ['ceklis', 'Ceklis Dokumen KPR'], ['laporan', 'Laporan']];
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
 const WST = { Tunggakan: 'kp-no', 'Kurang bayar': 'kp-no', Sebagian: 'kp-wait', Lunas: 'kp-done', 'Belum jatuh tempo': 'kp-run', 'Tidak ada tagihan': 'kp-wait' };
 const hariN = t => ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00Z').getUTCDay()];
-const hariIniISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+const hariIniISO = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 
-export default function CollectionRoute() {
-  return <Suspense fallback={<div className="loading">Memuat Collection &amp; KPR…</div>}><KunciUrl /></Suspense>;
-}
-// Pindah tab lewat tautan (?tab=…&kpr=…) di halaman yang sama → komponen dimuat ulang dengan parameter baru
-function KunciUrl() { const sp = useSearchParams(); return <CollectionPage key={sp.toString()} />; }
-
-function CollectionPage() {
+export default function CollectionPage() {
   const [tab, setTab] = useState('ringkas');
   const [proj, setProj] = useState('');
   const [projek, setProjek] = useState([]);
   const [d, setD] = useState(null);
   const [fokusLead, setFokusLead] = useState('');
-  const [kprId, setKprId] = useState(null); // buka kartu KPR tertentu di tab Proses KPR
-  const keKpr = id => { setKprId(id); setTab('kpr'); window.scrollTo(0, 0); };
   const muat = (p = proj) => api('/api/collection' + (p ? '?project=' + encodeURIComponent(p) : '')).then(setD).catch(e => toast(e.message));
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search); const t = q.get('tab'); if (TAB.some(x => x[0] === t)) setTab(t); if (q.get('lead')) setFokusLead(q.get('lead')); if (q.get('kpr')) setKprId(Number(q.get('kpr')));
+    const q = new URLSearchParams(window.location.search); const t = q.get('tab'); if (TAB.some(x => x[0] === t)) setTab(t); if (q.get('lead')) setFokusLead(q.get('lead'));
     api('/api/settings').then(s => setProjek(s.project || [])).catch(() => {});
     muat('');
   }, []); // eslint-disable-line
@@ -48,11 +38,11 @@ function CollectionPage() {
           {projek.map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}</div>}
       </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
-        {TAB.map(([k, l]) => <button key={k} className={'sort-btn' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}{k === 'tagihan' ? ` (${d.tagihan.filter(r => r.sisa > 0).length})` : k === 'kontrak' ? ` (${d.kontrak.length})` : k === 'kpr' ? ` (${d.kpr.berjalan + d.kpr.sp3k + d.kpr.akad})` : k === 'ceklis' ? ` (${d.kontrak.filter(x => x.kpr).length})` : ''}</button>)}
+        {TAB.map(([k, l]) => <button key={k} className={'sort-btn' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}{k === 'tagihan' ? ` (${d.tagihan.filter(r => r.sisa > 0).length})` : k === 'kontrak' ? ` (${d.kontrak.length})` : k === 'ceklis' ? ` (${d.kontrak.filter(x => x.kpr).length})` : ''}</button>)}
+        <Link href="/kpr-proses" className="sort-btn" style={{ marginLeft: 'auto' }}>🏦 Proses KPR ({d.kpr.berjalan + d.kpr.sp3k + d.kpr.akad}) ›</Link>
       </div>
       {tab === 'ringkas' && <><Ringkasan d={d} proj={proj} muat={() => muat(proj)} /><ResumeTabel d={d} /></>}
-      {tab === 'kontrak' && <DataKontrak d={d} muat={() => muat(proj)} me={d.me} proj={proj} keKpr={keKpr} />}
-      {tab === 'kpr' && <ProsesKpr key={'kpr-' + (kprId || 0) + proj} tertanam projLuar={proj} idAwal={kprId} />}
+      {tab === 'kontrak' && <DataKontrak d={d} muat={() => muat(proj)} me={d.me} proj={proj} />}
       {tab === 'tagihan' && <Tagihan d={d} muat={() => muat(proj)} fokus={fokusLead} />}
       {tab === 'ceklis' && <Ceklis d={d} muat={() => muat(proj)} />}
       {tab === 'laporan' && <><Laporan d={d} proj={proj} /><JadwalAkad d={d} /></>}
@@ -165,7 +155,7 @@ function JadwalAkad({ d }) {
   return (<div className="card">
     <div className="bd-head"><h3 style={{ margin: 0 }}>Jadwal akad</h3><span className="hint">{rows.length} konsumen · dari Proses KPR</span></div>
     {rows.length ? <div className="tbl-wrap tbl-compact jj-vtbl"><table><thead><tr><th>Tanggal</th><th>Konsumen · unit</th><th>Project</th><th>Sales</th><th>Bank</th><th className="num">Nilai</th><th>Status</th></tr></thead>
-      <tbody>{rows.map(a => <tr key={a.id}><td data-label="Tanggal"><b>{hariN(a.tgl)} {fmtDate(a.tgl)}</b></td><td data-label="Konsumen"><Link href={'/collection?tab=kpr&kpr=' + a.id} className="jj-nama">{a.nama}</Link><span className="sub2">{a.unit}</span></td><td data-label="Project">{a.project}</td><td data-label="Sales">{a.sales}</td><td data-label="Bank">{a.bank || '—'}</td><td className="num" data-label="Nilai">{fmtRp(a.nilai)}</td>
+      <tbody>{rows.map(a => <tr key={a.id}><td data-label="Tanggal"><b>{hariN(a.tgl)} {fmtDate(a.tgl)}</b></td><td data-label="Konsumen"><Link href={'/kpr-proses?id=' + a.id} className="jj-nama">{a.nama}</Link><span className="sub2">{a.unit}</span></td><td data-label="Project">{a.project}</td><td data-label="Sales">{a.sales}</td><td data-label="Bank">{a.bank || '—'}</td><td className="num" data-label="Nilai">{fmtRp(a.nilai)}</td>
         <td data-label="Status"><span className={'kp-pill sm ' + (a.lewat ? 'kp-no' : 'kp-wait')}>{a.lewat ? 'Lewat — isi realisasi' : 'Dijadwalkan'}</span></td></tr>)}</tbody></table></div>
       : <p className="hint">Belum ada akad yang dijadwalkan. Jadwal diisi di Proses KPR saat memilih bank akad.</p>}
     <div className="rp-grid2" style={{ marginTop: 12 }}>
@@ -286,25 +276,12 @@ function ResumeTabel({ d }) {
 }
 
 // ===== Data Kontrak per konsumen =====
-const NAMA_BLN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-const labelBln = b => b ? `${NAMA_BLN[Number(b.slice(5, 7)) - 1]} ${b.slice(0, 4)}` : 'Tanpa tanggal';
-const URUT = [['baru', 'Tgl kontrak terbaru'], ['lama', 'Tgl kontrak terlama'], ['remainder', 'Tunggakan terbesar'], ['outstanding', 'Outstanding terbesar'], ['nilai', 'Nilai kontrak terbesar'], ['nama', 'Nama A–Z'], ['unit', 'Unit']];
-function DataKontrak({ d, muat, me, proj, keKpr }) {
+function DataKontrak({ d, muat, me, proj }) {
   const [f, setF] = useState('');
   const [cari, setCari] = useState('');
-  const [bln, setBln] = useState(''); // '' = semua · 'YYYY' = satu tahun · 'YYYY-MM' = satu bulan
-  const [urut, setUrut] = useState('baru');
   const [edit, setEdit] = useState(null);
   const [impor, setImpor] = useState(false);
-  const [kartu, setKartu] = useState(null);
-  const bulanAda = [...new Set(d.kontrak.map(x => (x.tgl_kontrak || '').slice(0, 7)).filter(Boolean))].sort().reverse();
-  const tahunAda = [...new Set(bulanAda.map(b => b.slice(0, 4)))];
-  const cocokBln = x => !bln || (x.tgl_kontrak || '').startsWith(bln);
-  const pembanding = { baru: (a, b) => String(b.tgl_kontrak || '').localeCompare(String(a.tgl_kontrak || '')), lama: (a, b) => String(a.tgl_kontrak || '9').localeCompare(String(b.tgl_kontrak || '9')),
-    remainder: (a, b) => b.remainder - a.remainder, outstanding: (a, b) => b.outstanding - a.outstanding, nilai: (a, b) => b.nilai - a.nilai, nama: (a, b) => a.nama.localeCompare(b.nama), unit: (a, b) => a.unit.localeCompare(b.unit, 'id', { numeric: true }) };
-  const rows = d.kontrak.filter(x => (!f || x.kategori === f) && cocokBln(x) && (!cari.trim() || (x.nama + ' ' + x.unit + ' ' + x.no_kontrak + ' ' + x.sales).toLowerCase().includes(cari.trim().toLowerCase()))).sort(pembanding[urut]);
-  const perBulan = urut === 'baru' || urut === 'lama'; // kelompokkan per bulan kontrak bila diurutkan menurut tanggal
-  const jml = (list, k) => list.reduce((a, x) => a + (x[k] || 0), 0);
+  const rows = d.kontrak.filter(x => (!f || x.kategori === f) && (!cari.trim() || (x.nama + ' ' + x.unit + ' ' + x.no_kontrak + ' ' + x.sales).toLowerCase().includes(cari.trim().toLowerCase())));
   const KAT = ['Lunas', 'Akad KPR', 'Proses KPR', 'Proses Tunai Angsuran', 'Potensi Batal'];
   async function simpan() { try { await api('/api/collection', { method: 'POST', body: JSON.stringify({ aksi: 'ubah_kontrak', ...edit }) }); toast('Data kontrak disimpan'); setEdit(null); muat(); } catch (e) { toast(e.message); } }
   async function jalankanImpor(cek, projekImpor) {
@@ -324,32 +301,24 @@ function DataKontrak({ d, muat, me, proj, keKpr }) {
       <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         <button className={'sort-btn' + (!f ? ' active' : '')} onClick={() => setF('')}>Semua</button>
         {KAT.map(k => <button key={k} className={'sort-btn' + (f === k ? ' active' : '')} onClick={() => setF(k)}>{k} ({d.kontrak.filter(x => x.kategori === k).length})</button>)}
-        <select className="sort-filter" value={bln} onChange={e => setBln(e.target.value)} title="Bulan kontrak">
-          <option value="">Semua bulan</option>
-          {tahunAda.map(t => <optgroup key={t} label={t}><option value={t}>Seluruh {t}</option>{bulanAda.filter(b => b.startsWith(t)).map(b => <option key={b} value={b}>{labelBln(b)}</option>)}</optgroup>)}
-        </select>
-        <select className="sort-filter" value={urut} onChange={e => setUrut(e.target.value)} title="Urutkan">{URUT.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         <input className="sort-filter" placeholder="🔍 nama / unit / no kontrak" value={cari} onChange={e => setCari(e.target.value)} style={{ width: 190 }} />
         {!d.readOnly && ['PERMAI INDAH', 'BIO DISTRICT'].filter(p => !proj || proj === p).map(p => <span key={p} style={{ display: 'inline-flex', gap: 4 }}>
           <button className="sort-btn" disabled={impor} onClick={() => jalankanImpor(true, p)}>🔍 Cek {p === 'BIO DISTRICT' ? 'Bio' : 'Permai'}</button>
           <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={impor} onClick={() => { if (confirm(`Impor data Collection & KPR ${p} dari Report Detail${p === 'BIO DISTRICT' ? ' (snapshot 12 Okt 2026)' : ' 09/2026 + Ceklis Dokumen KPR'}?\n\nKonsumen yang belum ada di CRM dibuat (lead + Booking + kartu KPR), yang sudah ada dilengkapi. Posisi tagihan/pembayaran per tanggal laporan dicatat sebagai saldo awal. Aman diulang.`)) jalankanImpor(false, p); }}>{impor ? '⏳…' : `⬆ Impor ${p === 'BIO DISTRICT' ? 'Bio (12 Okt 2026)' : 'Permai (09/2026)'}`}</button></span>)}
       </span></div>
-    {rows.length > 0 && <div className="ck-total"><span><b>{rows.length}</b> kontrak{bln ? ' · ' + (bln.length === 4 ? 'tahun ' + bln : labelBln(bln)) : ''}{f ? ' · ' + f : ''}</span><span>Nilai <b>{rpM(jml(rows, 'nilai'))}</b></span><span>Terbayar <b>{rpM(jml(rows, 'actual'))}</b></span><span>Outstanding <b>{rpM(jml(rows, 'outstanding'))}</b></span><span style={{ color: jml(rows, 'remainder') ? 'var(--red)' : undefined }}>Tunggakan <b>{rpM(jml(rows, 'remainder'))}</b></span><span className="hint">Klik nama konsumen untuk kartu ringkas &amp; update cepat</span></div>}
     {rows.length ? <div className="tbl-wrap tbl-compact jj-vtbl ck-kontrak"><table>
       <thead><tr><th>Tgl kontrak · No</th><th>Konsumen · unit · skema</th><th>Sales</th><th className="num">Nilai kontrak</th><th className="num">Tagihan JT</th><th className="num">Outstanding</th><th className="num">Actual</th><th className="num">Remainder</th><th>Kategori</th><th>Bank · status KPR</th><th>Catatan</th><th></th></tr></thead>
-      <tbody>{rows.map((x, i) => { const b = (x.tgl_kontrak || '').slice(0, 7); const awal = perBulan && (i === 0 || (rows[i - 1].tgl_kontrak || '').slice(0, 7) !== b); const grup = awal ? rows.filter(y => (y.tgl_kontrak || '').slice(0, 7) === b) : null; return (<React.Fragment key={x.lead_code + x.unit}>
-        {awal && <tr className="ck-grup"><td colSpan={12}><b>{labelBln(b)}</b> · {grup.length} kontrak · nilai {rpM(jml(grup, 'nilai'))} · terbayar {rpM(jml(grup, 'actual'))}{jml(grup, 'remainder') ? <span style={{ color: 'var(--red)' }}> · tunggakan {rpM(jml(grup, 'remainder'))}</span> : null}</td></tr>}
-        <tr style={x.remainder > 0 ? { boxShadow: 'inset 3px 0 0 var(--red)' } : undefined}>
+      <tbody>{rows.map(x => (<tr key={x.lead_code + x.unit} style={x.remainder > 0 ? { boxShadow: 'inset 3px 0 0 var(--red)' } : undefined}>
         <td data-label="Tgl kontrak">{fmtDate(x.tgl_kontrak)}<span className="sub2">{x.no_kontrak || '—'}</span></td>
-        <td data-label="Konsumen"><button className="jj-nama ck-nama" onClick={() => setKartu(x)}>{x.nama}</button><span className="sub2">{x.unit}{x.tipe ? ' · ' + x.tipe : ''}</span><span className="sub2">{x.skema || x.bayar || '—'}</span></td>
+        <td data-label="Konsumen"><Link href={'/leads?lead=' + encodeURIComponent(x.lead_code)} className="jj-nama">{x.nama}</Link><span className="sub2">{x.unit}{x.tipe ? ' · ' + x.tipe : ''}</span><span className="sub2">{x.skema || x.bayar || '—'}</span></td>
         <td data-label="Sales"><span className="clamp2" title={x.sales}>{x.sales || '—'}</span>{(x.sales_tipe || x.sales_kantor) ? <span className="sub2">{[x.sales_tipe, x.sales_kantor].filter(Boolean).join(' · ')}</span> : null}</td>
         <td className="num" data-label="Nilai" title={fmtRp(x.nilai)}>{rpM(x.nilai)}</td><td className="num" data-label="Tagihan JT" title={fmtRp(x.tagihanJT)}>{rpM(x.tagihanJT)}</td><td className="num" data-label="Outstanding" title={fmtRp(x.outstanding)}>{rpM(x.outstanding)}</td><td className="num" data-label="Actual" title={fmtRp(x.actual)}>{rpM(x.actual)}</td>
         <td className="num" data-label="Remainder" title={fmtRp(x.remainder)} style={{ color: x.remainder ? 'var(--red)' : undefined, fontWeight: x.remainder ? 700 : 400 }}>{x.remainder ? rpM(x.remainder) : '—'}{x.remainder > 0 ? <span className="sub2">{['0-30', '31-60', '61-90', '91-120', '>120'].map((l, i) => x.aging[i] ? l : '').filter(Boolean).join(', ')} hari</span> : null}</td>
         <td data-label="Kategori"><span className={'kp-pill sm ' + ({ 'Lunas': 'kp-done', 'Akad KPR': 'kp-ok', 'Proses Tunai Angsuran': 'kp-run', 'Proses KPR': 'kp-wait', 'Potensi Batal': 'kp-no' }[x.kategori] || 'kp-run')} style={{ whiteSpace: 'nowrap' }}>{x.kategori}</span></td>
         <td data-label="Bank">{x.bank || '—'}<span className="sub2">{x.kprStatus}{x.tgl_akad ? ' · akad ' + fmtDate(x.tgl_akad) : x.rencana_akad ? ' · rencana ' + fmtDate(x.rencana_akad) : ''}</span></td>
         <td data-label="Catatan"><span className="clamp2" title={x.catatan || x.kpr?.catatan || ''}>{x.catatan || x.kpr?.catatan || '—'}</span></td>
-        <td><span style={{ display: 'inline-flex', gap: 4 }}>{x.kpr_id && <button className="sort-btn" style={{ padding: '2px 8px' }} onClick={() => keKpr(x.kpr_id)} title="Buka Proses KPR">🏦</button>}
-          {!d.readOnly && <button className="sort-btn" style={{ padding: '2px 8px' }} title="Ubah data kontrak" onClick={() => setEdit({ lead_code: x.lead_code, unit: x.unit, nama: x.nama, no_kontrak: x.no_kontrak || '', skema: x.skema || '', sales_tipe: x.sales_tipe || '', sales_kantor: x.sales_kantor || '', sales_hp: x.sales_hp || '', potensi_batal: x.potensi_batal, catatan: x.catatan || '' })}>✎</button>}</span></td></tr></React.Fragment>); })}</tbody></table></div>
+        <td><span style={{ display: 'inline-flex', gap: 4 }}>{x.kpr_id && <Link className="sort-btn" style={{ padding: '2px 8px', textDecoration: 'none' }} href={'/kpr-proses?id=' + x.kpr_id} title="Buka Proses KPR">🏦</Link>}
+          {!d.readOnly && <button className="sort-btn" style={{ padding: '2px 8px' }} title="Ubah data kontrak" onClick={() => setEdit({ lead_code: x.lead_code, unit: x.unit, nama: x.nama, no_kontrak: x.no_kontrak || '', skema: x.skema || '', sales_tipe: x.sales_tipe || '', sales_kantor: x.sales_kantor || '', sales_hp: x.sales_hp || '', potensi_batal: x.potensi_batal, catatan: x.catatan || '' })}>✎</button>}</span></td></tr>))}</tbody></table></div>
       : <p className="hint">Belum ada kontrak{f ? ' di kategori ini' : ''}. Kontrak terbentuk otomatis dari transaksi Booking, atau lewat tombol Impor Permai.</p>}
     {edit && (<div className="card jj-sheet" style={{ marginTop: 12 }}>
       <h3 style={{ marginTop: 0 }}>Data kontrak — {edit.nama} · {edit.unit}</h3>
@@ -364,80 +333,6 @@ function DataKontrak({ d, muat, me, proj, keKpr }) {
       </div>
       <div style={{ display: 'flex', gap: 8 }}><button className="btn btn-primary" style={{ width: 'auto' }} onClick={simpan}>Simpan</button><button className="sort-btn" onClick={() => setEdit(null)}>Batal</button></div>
     </div>)}
-    {kartu && <KartuKonsumen x={kartu} d={d} muat={muat} keKpr={keKpr} tutup={() => setKartu(null)} />}
-  </div>);
-}
-
-// ===== Kartu konsumen: satu layar untuk membaca posisi & update cepat (bayar, tahap bank, kendala) =====
-const TAHAP_CEPAT = ['Diajukan', 'Kumpul berkas', 'Analisa kredit'];
-function KartuKonsumen({ x, d, muat, keKpr, tutup }) {
-  const ro = d.readOnly;
-  const [k, setK] = useState(null);
-  const [bayar, setBayar] = useState(null);
-  const [ubahBank, setUbahBank] = useState({});
-  const [busy, setBusy] = useState(false);
-  const muatKpr = () => x.kpr_id && api('/api/kpr?id=' + x.kpr_id).then(setK).catch(e => toast(e.message));
-  useEffect(() => { muatKpr(); const esc = e => e.key === 'Escape' && tutup(); window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc); }, [x.lead_code]); // eslint-disable-line
-  const tagihan = d.tagihan.filter(t => t.lead_code === x.lead_code && (!t.unit || t.unit === x.unit) && t.nominal > 0);
-  async function simpanBayar() {
-    setBusy(true);
-    try { await api('/api/collection', { method: 'POST', body: JSON.stringify({ aksi: 'bayar', ...bayar }) }); toast('Pembayaran dicatat'); setBayar(null); muat(); } catch (e) { toast(e.message); } finally { setBusy(false); }
-  }
-  async function simpanBank(b) {
-    const u = ubahBank[b.id]; if (!u) return;
-    setBusy(true);
-    try { await api('/api/kpr', { method: 'PATCH', body: JSON.stringify({ jenis: 'bank', id: b.id, ...u }) }); toast(`${b.bank} diperbarui`); setUbahBank(s0 => ({ ...s0, [b.id]: undefined })); muatKpr(); muat(); } catch (e) { toast(e.message); } finally { setBusy(false); }
-  }
-  const daftarBerkas = k ? (k.berkas[k.kpr.profil] || []) : [];
-  const okBerkas = k ? (k.kpr.berkas || []).filter(b => daftarBerkas.includes(b)).length : 0;
-  const pill = { 'Lunas': 'kp-done', 'Akad KPR': 'kp-ok', 'Proses Tunai Angsuran': 'kp-run', 'Proses KPR': 'kp-wait', 'Potensi Batal': 'kp-no' };
-  return (<div className="ck-kartu-bg" onClick={e => { if (e.target === e.currentTarget) tutup(); }}>
-    <div className="ck-kartu card" role="dialog" aria-label={'Kartu konsumen ' + x.nama}>
-      <div className="bd-head"><div><h3 style={{ margin: 0 }}>{x.nama}</h3><div className="hint">{[x.unit, x.project, x.sales].filter(Boolean).join(' · ')}</div></div>
-        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><span className={'kp-pill sm ' + (pill[x.kategori] || 'kp-run')}>{x.kategori}</span><button className="sort-btn" onClick={tutup} aria-label="Tutup">✕</button></span></div>
-      <div className="hint" style={{ marginTop: 4 }}>{[x.no_kontrak, x.skema || x.bayar, x.tgl_kontrak ? 'kontrak ' + fmtDate(x.tgl_kontrak) : ''].filter(Boolean).join(' · ')}</div>
-
-      <div className="ck-angka">
-        <div><span className="hint">Nilai kontrak</span><b>{rpM(x.nilai)}</b></div>
-        <div><span className="hint">Terbayar</span><b>{rpM(x.actual)}</b></div>
-        <div><span className="hint">Outstanding</span><b>{rpM(x.outstanding)}</b></div>
-        <div><span className="hint">Tunggakan</span><b style={{ color: x.remainder ? 'var(--red)' : undefined }}>{x.remainder ? rpM(x.remainder) : '—'}</b></div>
-      </div>
-      <div className="bd-bar" style={{ height: 8 }}><div style={{ width: (x.nilai ? Math.min(100, Math.round(x.actual / x.nilai * 100)) : 0) + '%', background: 'var(--green)' }} /></div>
-
-      <h4 className="ck-sub">Tagihan</h4>
-      {tagihan.length ? tagihan.map(t => (<div key={t.id} className="ck-baris">
-        <div className="ck-baris-main"><b>{t.ket}</b><span className="hint">{t.jatuh_tempo ? 'jatuh tempo ' + fmtDate(t.jatuh_tempo) : 'belum jatuh tempo'}{t.hariLewat > 0 && t.sisa > 0 ? ` · lewat ${t.hariLewat} hari` : ''}</span></div>
-        <div className="num"><b>{rpM(t.sisa > 0 ? t.sisa : t.nominal)}</b><span className={'kp-pill sm ' + (WST[t.status] || 'kp-run')}>{t.status}</span></div>
-        {!ro && t.sisa > 0 && <button className="sort-btn" onClick={() => setBayar({ tagihan_id: t.id, lead_code: t.lead_code, ket: t.ket, tgl: hariIniISO(), nominal: t.sisa, cara: 'Transfer', catatan: '' })}>Bayar</button>}
-      </div>)) : <p className="hint">Belum ada jadwal tagihan.</p>}
-      {bayar && <div className="ck-form">
-        <b>Catat pembayaran · {bayar.ket}</b>
-        <div className="ck-form-row">
-          <label>Tanggal<input type="date" value={bayar.tgl} onChange={e => setBayar({ ...bayar, tgl: e.target.value })} /></label>
-          <label>Nominal<InputRupiah value={bayar.nominal} onChange={v => setBayar({ ...bayar, nominal: v })} /></label>
-          <label>Cara<select value={bayar.cara} onChange={e => setBayar({ ...bayar, cara: e.target.value })}>{['Transfer', 'Tunai', 'Debit/Kartu', 'Virtual account', 'Lainnya'].map(c => <option key={c}>{c}</option>)}</select></label>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}><button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={simpanBayar}>Simpan</button><button className="sort-btn" onClick={() => setBayar(null)}>Batal</button><span className="hint">Bukti transfer bisa dilampirkan dari tab Tagihan.</span></div>
-      </div>}
-
-      {x.kpr_id && <>
-        <h4 className="ck-sub">KPR {k ? <span className="hint" style={{ fontWeight: 400 }}>· {k.status.label}{k.kpr.akad_realisasi ? ' · akad ' + fmtDate(k.kpr.akad_realisasi) : k.kpr.akad_tgl ? ' · rencana akad ' + fmtDate(k.kpr.akad_tgl) : ''}</span> : null}</h4>
-        {!k ? <div className="hint">Memuat…</div> : <>
-          {k.banks.length ? k.banks.map(b => { const u = ubahBank[b.id] || {}; const bisa = !ro && TAHAP_CEPAT.includes(b.tahap); return (<div key={b.id} className="ck-baris">
-            <div className="ck-baris-main"><b>{b.bank}{b.cabang ? ' ' + b.cabang : ''}</b><span className="hint">{b.ao_nama ? 'AO ' + b.ao_nama : 'AO belum diisi'}{b.tgl_ajukan ? ' · diajukan ' + fmtDate(b.tgl_ajukan) : ''}</span>
-              {bisa ? <input className="sort-filter" style={{ marginTop: 4, width: '100%', boxSizing: 'border-box' }} placeholder="Kendala (kosongkan bila tidak ada)" value={u.kendala ?? (b.kendala || '')} onChange={e => setUbahBank(s0 => ({ ...s0, [b.id]: { ...u, kendala: e.target.value } }))} />
-                : b.kendala ? <span className="hint" style={{ color: 'var(--red)' }}>Kendala: {b.kendala}</span> : null}</div>
-            <div>{bisa ? <select className="sort-filter" value={u.tahap || b.tahap} onChange={e => setUbahBank(s0 => ({ ...s0, [b.id]: { ...u, tahap: e.target.value } }))}>{TAHAP_CEPAT.map(t => <option key={t}>{t}</option>)}</select>
-              : <span className="kp-pill sm kp-run">{b.tahap}</span>}</div>
-            {bisa && ubahBank[b.id] && <button className="sort-btn active" disabled={busy} onClick={() => simpanBank(b)}>Simpan</button>}
-          </div>); }) : <p className="hint">{k.kpr.slik_tgl ? 'SLIK selesai — belum diajukan ke bank.' : 'Belum ada pengajuan bank.'}</p>}
-          <div className="hint" style={{ margin: '6px 0' }}>Berkas {okBerkas}/{daftarBerkas.length} · profil {k.kpr.profil || '—'}. SP3K / ditolak (perlu unggah dokumen), tambah bank, dan akad diisi di detail KPR.</div>
-          <button className="sort-btn" onClick={() => { tutup(); keKpr(x.kpr_id); }}>🏦 Buka detail KPR</button>
-        </>}
-      </>}
-      <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link className="sort-btn" href={'/leads?lead=' + encodeURIComponent(x.lead_code)}>Riwayat lead ›</Link></div>
-    </div>
   </div>);
 }
 
@@ -476,7 +371,7 @@ function Ceklis({ d, muat }) {
       <thead><tr><th className="ck-first">Konsumen · unit</th><th>Profil</th><th>BI checking</th><th>Hasil</th><th>Sertifikat</th>{semuaDoc.map(dc => <th key={dc} title={dc} className="ck-h"><span>{dc.replace(/\s*\(.*\)/, '')}</span></th>)}<th>LPA</th><th>SLF</th><th>Srt. pernyataan</th><th>Bank</th><th>Akad</th><th>Keterangan</th></tr></thead>
       <tbody>{rows.map(x => { const daftar = d.berkas[x.kpr.profil] || []; const ok = (x.kpr.berkas || []).filter(b => daftar.includes(b)).length;
         return (<tr key={x.lead_code}>
-          <td className="ck-first"><Link href={'/collection?tab=kpr&kpr=' + x.kpr_id} className="jj-nama">{x.nama}</Link><span className="sub2">{x.unit} · {x.sales}</span><span className="sub2"><b>{ok}/{daftar.length}</b> berkas</span></td>
+          <td className="ck-first"><Link href={'/kpr-proses?id=' + x.kpr_id} className="jj-nama">{x.nama}</Link><span className="sub2">{x.unit} · {x.sales}</span><span className="sub2"><b>{ok}/{daftar.length}</b> berkas</span></td>
           <td><select className="sort-filter" value={x.kpr.profil} disabled={d.readOnly} onChange={e => ubah(x, 'profil', e.target.value)}>{Object.keys(d.berkas).map(p => <option key={p}>{p}</option>)}</select></td>
           <td>{x.kpr.slik_tgl ? fmtDate(x.kpr.slik_tgl) : '—'}<span className="sub2">{x.kpr.bi_hasil || x.kpr.slik_status || ''}{x.kpr.bi_pinjaman ? ' · ' + x.kpr.bi_pinjaman : ''}</span></td>
           <td><select className="sort-filter" value={x.kpr.bi_status || ''} disabled={d.readOnly} onChange={e => ubah(x, 'bi_status', e.target.value)}><option value="">—</option>{['Lancar', 'Tidak Lancar', 'Proses'].map(o => <option key={o}>{o}</option>)}</select></td>
