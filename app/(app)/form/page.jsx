@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
+import { muatPriceList } from '@/components/usePriceList';
 import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
 const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
@@ -403,6 +404,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     return { ...base, lead_code: l.lead_code, status: l.status || '', balas: null, next_action: '', next_tgl: '', objection: '',
       wa_pesan: templateSales(l), detail: st && st.aktif ? st.label : (base.detail || '') };
   }
+  useEffect(() => { muatPriceList(); }, []); // pesan rekomendasi FU memakai harga & promo price list terbaru
   async function personalisasiAI() {
     if (!fu.lead_code) return toast('Pilih ID Lead dulu');
     setBusy(true);

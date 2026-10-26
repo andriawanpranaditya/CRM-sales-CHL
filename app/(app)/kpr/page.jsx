@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
-import { BIO_TIPE, BIO_IRREG, tipeBio, hargaUnit, PERMAI } from '@/lib/pricelist';
+import { BIO_TIPE, BIO_IRREG, tipeBio, hargaUnit, PERMAI, bungaBio } from '@/lib/pricelist';
+import { usePriceList } from '@/components/usePriceList';
 
 // Data price list & harga per unit: lib/pricelist.js (dipakai juga oleh menu Price List)
 
@@ -101,7 +102,7 @@ function susunJadwal(cara, harga, tglBF, bf, nCicil, bungaCash, dpManual) {
   return rows;
 }
 
-export default function SimulasiCaraBayar() {
+function SimulasiIsi() {
   const [set, setSet] = useState({ project: [], units: {} });
   const [stok, setStok] = useState([]);
   const [proj, setProj] = useState('BIO DISTRICT');
@@ -132,7 +133,7 @@ export default function SimulasiCaraBayar() {
   const [rows, setRows] = useState([]);
   // KPR
   const [tenor, setTenor] = useState(25);
-  const [bunga, setBunga] = useState(2.75);
+  const [bunga, setBunga] = useState(bungaBio());
   const [dbr, setDbr] = useState(40);
   const [penghasilan, setPenghasilan] = useState('');
   const [tahunFix, setTahunFix] = useState(3);        // tahap 1: masa bunga fix (tahun) — bunganya = kolom Bunga di atas
@@ -569,4 +570,11 @@ export default function SimulasiCaraBayar() {
       <Toast />
     </>
   );
+}
+
+// Tunggu price list versi terbaru dari database diterapkan sebelum simulasi dihitung
+export default function SimulasiCaraBayar() {
+  const plv = usePriceList();
+  if (!plv) return <div className="loading">Memuat price list…</div>;
+  return <SimulasiIsi />;
 }

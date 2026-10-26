@@ -316,12 +316,21 @@ function Pimpinan({ d, me, proj, setProj, daftarProj }) {
           <span className="hint">Tanda jadi {rpRingkas(d.reservedAktif?.nilai || 0)} · menunggu naik Booking</span>
           {(d.reservedAktif?.perProject || []).length > 0 && <div className="rb-tags">{d.reservedAktif.perProject.map(p => <span key={p.project} className="kp-pill sm kp-ok">{singkatProj(p.project)} {p.n}</span>)}</div>}
         </section>
-        <Link href="/janjian?tab=visitor" className="rb-k rb-vlink" aria-label="Lihat detail visitor hari ini">
+        <Link href="/janjian?tab=visitor" className="rb-k rb-vlink" aria-label="Lihat detail visitor hari ini" style={{ minWidth: 0, overflow: 'hidden' }}>
           <div className="rb-lbl"><span>Visitor hari ini</span><span className="rb-more">Lihat detail ›</span></div>
           <div className="rb-big">{d.janjian?.visitor?.total ?? 0}<small>orang</small></div>
-          {d.janjian?.spark && <div className="rb-vbar" aria-hidden="true">{d.janjian.spark.map(x => (
-            <div key={x.tgl}><i style={{ height: Math.max(5, Math.round(x.n / Math.max(1, ...d.janjian.spark.map(y => y.n)) * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} /><span>{x.hari.slice(0, 3)}</span></div>))}</div>}
-          <span className="hint">{(d.janjian?.spark || []).reduce((a, x) => a + x.n, 0)} visitor 7 hari terakhir{d.janjian?.visitor?.akanDatang ? ` · ${d.janjian.visitor.akanDatang} akan datang hari ini` : ''}</span>
+          {/* Grafik visitor: berapa pun jumlah harinya (7 hari atau sebulan) tetap muat di kartu — dulu label hari
+              memaksa kartu melebar keluar layar di laptop & HP */}
+          {d.janjian?.spark && (() => {
+            const sp = d.janjian.spark, maks = Math.max(1, ...sp.map(y => y.n)), padat = sp.length > 10;
+            return <div className="rb-vbar" aria-hidden="true" style={{ gap: padat ? 2 : 6, minWidth: 0, overflow: 'hidden' }}>{sp.map((x, i) => (
+              <div key={x.tgl} style={{ minWidth: 0 }}>
+                <i style={{ height: Math.max(5, Math.round(x.n / maks * 100)) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--green)' }} title={`${x.hari} ${x.tgl.slice(8, 10)}/${x.tgl.slice(5, 7)}: ${x.n} visitor`} />
+                <span style={{ whiteSpace: 'nowrap', overflow: 'visible', fontSize: padat ? 9 : undefined }}>
+                  {!padat ? x.hari.slice(0, 3) : (i === 0 || i === sp.length - 1 || x.hari === 'Senin') ? Number(x.tgl.slice(8, 10)) : '\u00a0'}</span>
+              </div>))}</div>;
+          })()}
+          <span className="hint">{(d.janjian?.spark || []).reduce((a, x) => a + x.n, 0)} visitor {(d.janjian?.spark || []).length === 7 ? '7 hari terakhir' : (d.janjian?.spark || []).length ? (d.janjian.spark[0].tgl.endsWith('-01') ? 'bulan ini' : `sejak ${Number(d.janjian.spark[0].tgl.slice(8, 10))}/${Number(d.janjian.spark[0].tgl.slice(5, 7))}`) : ''}{d.janjian?.visitor?.akanDatang ? ` · ${d.janjian.visitor.akanDatang} akan datang hari ini` : ''}</span>
         </Link>
       </div>
 

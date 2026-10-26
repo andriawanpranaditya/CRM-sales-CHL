@@ -4,12 +4,13 @@ import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, catatUnduh } from '@/components/util';
 import { BIO_STANDAR, BIO_IRREG, BIO_PL, BIO_PROMO, tipeBio, PERMAI, PERMAI_PL } from '@/lib/pricelist';
+import { usePriceList } from '@/components/usePriceList';
 
 // ===== Price List: harga resmi per project + ketersediaan unit, siap dibagikan sebagai PDF =====
 const IMG = p => /BIO/i.test(p) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
 const namaRapi = p => String(p || '').replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase());
 
-export default function PriceListPage() {
+function PriceListIsi({ plv }) {
   const [me, setMe] = useState(null);
   const [set, setSet] = useState({ project: [], units: {} });
   const [proj, setProj] = useState('');
@@ -194,7 +195,9 @@ export default function PriceListPage() {
     <>
       <Toast />
       <div className="page-head"><div><h1>Price List</h1>
-        <div className="sub">Price list resmi per project — unduh atau bagikan PDF dengan format price list yang berlaku</div></div></div>
+        <div className="sub">Price list resmi per project — unduh atau bagikan PDF dengan format price list yang berlaku
+          {plv && !plv.bawaan ? <> · diperbarui {plv.oleh} {new Date(plv.waktu).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</> : null}</div></div>
+        {me && ['manager', 'admin'].includes(me.role) && <Link href="/price-list/kelola" className="btn btn-primary">⬆ Update price list</Link>}</div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
         {(set.project || []).map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
       </div>
@@ -253,4 +256,11 @@ export default function PriceListPage() {
       </div>
     </>
   );
+}
+
+// Tunggu price list versi terbaru dari database diterapkan sebelum halaman dirender
+export default function PriceListPage() {
+  const plv = usePriceList();
+  if (!plv) return <div className="loading">Memuat price list…</div>;
+  return <PriceListIsi plv={plv} />;
 }

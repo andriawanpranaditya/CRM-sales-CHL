@@ -37,6 +37,10 @@ export default function SettingsPage() {
       <div className="page-head"><div><h1>Settings</h1>
         <div className="sub">Master data dropdown — satu baris = satu pilihan. Semua form otomatis mengikuti.</div></div></div>
       <div className="note">Daftar <b>Sales / PIC</b> tidak lagi diatur di sini — otomatis mengikuti akun sales aktif di menu <b>Pengguna</b>.</div>
+      <div className="card" style={{ margin: '12px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div><b>🏷 Price List</b><div className="hint">Upload price list baru bila ada perubahan harga, promo, atau ketentuan — bisa juga dilakukan Admin dari menu Price List.</div></div>
+        <a href="/price-list/kelola" className="btn btn-primary">Update price list</a>
+      </div>
       <div className="set-grid">
         {Object.entries(LABELS).map(([k, label]) => (
           <div className="field" key={k}><label>{label}</label>
