@@ -16,6 +16,14 @@ export async function POST(req) {
   if (!user) return Response.json({ error: 'Belum login' }, { status: 401 });
   if (!(await akunAktif(user))) { clearSession(); return Response.json({ error: 'Akun dinonaktifkan', logout: true }, { status: 401 }); }
   const b = await req.json().catch(() => ({}));
+  // Error tampilan dari perangkat pengguna (dikirim layar pemulihan error) — tampil di Log Aktivitas
+  if (b.error) {
+    const hal = String(b.halaman || '').split('?')[0].slice(0, 80);
+    const ua = req.headers.get('user-agent') || '';
+    const versi = (/(?:iPhone|iPad|CPU) OS (\d+)_(\d+)/.exec(ua) || []).slice(1).join('.') ; // versi iOS — penyebab umum error di iPhone lama
+    await catat(db(), { user, aksi: 'Error', modul: 'Aplikasi', detail: (hal + (versi ? ' · iOS ' + versi : '') + ' · ' + String(b.error)).slice(0, 400), halaman: hal, req, pwa: !!b.pwa });
+    return Response.json({ ok: true });
+  }
   if (b.unduh) {
     await catat(db(), { user, aksi: 'Unduh', modul: String(b.modul || '').slice(0, 40), detail: String(b.detail || '').slice(0, 200), req });
     return Response.json({ ok: true });
