@@ -27,7 +27,8 @@ export default function PulihError({ error, reset }) {
   useEffect(() => {
     try {
       fetch('/api/log', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ error: pesan.slice(0, 300) + (error && error.digest ? ' #' + error.digest : ''), halaman: window.location.pathname,
+        // sertakan potongan stack (nama fungsi pemicu) supaya penyebab bisa dilacak dari Log Aktivitas
+        body: JSON.stringify({ error: (pesan.slice(0, 200) + (error && error.digest ? ' #' + error.digest : '') + ' | ' + String((error && error.stack) || '').split('\n').slice(0, 3).join(' < ')).slice(0, 380), halaman: window.location.pathname,
           pwa: window.matchMedia && window.matchMedia('(display-mode: standalone)').matches }) }).catch(() => {});
     } catch {}
     if (POLA_CACHE.test(pesan)) {
