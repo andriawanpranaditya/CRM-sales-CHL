@@ -1,0 +1,1308 @@
+'use client';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Toast, { toast } from '@/components/Toast';
+import Link from 'next/link';
+import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
+
+const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
+
+// hanyaReport: 'lengkap' (Report Word/PDF) | 'excel' (Data Excel) → dipakai menu Report; filterLuar = { d1, d2, proj } dari filter bersama menu Report
+export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
+  const [lastUpd, setLastUpd] = useState(null);
+  const versiRef = useRef(null); // sidik data terakhir yang sudah dimuat (lihat /api/versi)
+  async function muatSemua(senyap = false) { // senyap = refresh latar belakang (tanpa indikator "Memuat…")
+    // ambil sidik DULU: bila ada perubahan saat data sedang ditarik, cek berikutnya tetap mendeteksinya
+    try { versiRef.current = (await api('/api/versi', { silent: true })).v; } catch { versiRef.current = null; }
+    return Promise.all([api('/api/leads?all=1', { silent: senyap }), api('/api/followups?all=1', { silent: senyap }), api('/api/trx', { silent: senyap }), api('/api/settings', { silent: senyap }), api('/api/stock', { silent: senyap }), api('/api/kegiatan', { silent: senyap }).catch(() => [])])
+      .then(([l, f, t, s, st, kg]) => {
+        setKeg(kg || []);
+        setLeads(l); setFus(f); setTrx((t || []).map(x => ({ ...x, nilai_jual: x.nilai_jual ?? x.harga_unit ?? null })));
+        api('/api/alur', { silent: true }).then(al => setAlur((al && al.rows) || [])).catch(() => {}); setSet(s); setStock(st.status || []); setPosisi(st.positions || []);
+        if ((s.project || []).length === 1) setProj(p => p || s.project[0]); // akun satu project: langsung terkunci ke project-nya
+        setLastUpd(new Date());
+      })
+      .catch(e => toast(e.message));
+  }
+  const [leads, setLeads] = useState(null);
+  const [sl, setSl] = useState(null); // ringkasan pergerakan status lead (ikut periode & project)
+  const [fus, setFus] = useState([]);
+  const [trx, setTrx] = useState([]);
+  const [set, setSet] = useState({ status: [], project: [] });
+  const [proj, setProj] = useState('');
+  const [d1, setD1] = useState('');
+  const [d2, setD2] = useState('');
+  const [stock, setStock] = useState([]);
+  const [posisi, setPosisi] = useState([]);
+  const [keg, setKeg] = useState([]);
+  const [alur, setAlur] = useState([]);   // alur penjualan lintas divisi (Harmoni One)
+  const [fotoKeg, setFotoKeg] = useState({});   // { idKegiatan: [dataURL, ...] } — hanya di memori
+  const [panelFoto, setPanelFoto] = useState(false);
+  const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
+  const [srcOpen, setSrcOpen] = useState(false);
+  useEffect(() => { if (filterLuar) { setD1(filterLuar.d1 || ''); setD2(filterLuar.d2 || ''); setProj(filterLuar.proj || ''); } }, [filterLuar?.d1, filterLuar?.d2, filterLuar?.proj]); // eslint-disable-line
+
+  useEffect(() => {
+    muatSemua();
+    // Dashboard tetap segar TANPA menyedot kuota database:
+    // tiap 60 detik (hanya saat layar terlihat) cukup tanya sidik data ke /api/versi (puluhan byte);
+    // data penuh baru ditarik ulang bila ada yang berubah. Tab tersembunyi / HP terkunci = tidak ada polling.
+    let cekTerakhir = 0;
+    const cek = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - cekTerakhir < 15000) return; // focus + visibilitychange sering terpicu bersamaan
+      cekTerakhir = Date.now();
+      try {
+        const { v } = await api('/api/versi', { silent: true });
+        if (!versiRef.current || v !== versiRef.current) muatSemua(true);
+      } catch {}
+    };
+    const t = setInterval(cek, 60 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') cek(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
+  }, []);
+
+  const fLeads = useMemo(() => proj ? (leads || []).filter(l => l.project === proj) : (leads || []), [leads, proj]);
+  const codes = useMemo(() => new Set(fLeads.map(l => l.lead_code)), [fLeads]);
+  const fFus = useMemo(() => proj ? fus.filter(f => codes.has(f.lead_code)) : fus, [fus, codes, proj]);
+  const fTrx = useMemo(() => proj ? trx.filter(t => codes.has(t.lead_code)) : trx, [trx, codes, proj]);
+
+  // Ringkasan pergerakan status lead — ikut periode report (bila diisi) atau bulan berjalan; harus sebelum early return (aturan hook)
+  useEffect(() => {
+    const t = new Date(); const awalBln = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
+    const custom = !!(d1 || d2);
+    const q = '/api/status-log?d1=' + (custom ? (d1 || '') : awalBln) + '&d2=' + (custom ? (d2 || '') : '') + '&project=' + encodeURIComponent(proj || '');
+    api(q, { silent: true }).then(setSl).catch(() => setSl(null));
+  }, [d1, d2, proj, lastUpd]); // eslint-disable-line
+  if (!leads) return <div className="loading">Memuat data dari database…</div>;
+
+  // ===== Periode Dashboard: mengikuti tanggal report bila diisi; bila kosong = BULAN BERJALAN (tgl 1 s/d hari ini) =====
+  const nowD = new Date();
+  const mStart = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-01`;
+  const periodeCustom = !!(d1 || d2);
+  const pStart = periodeCustom ? (d1 || '0000-01-01') : mStart;
+  const pEnd = periodeCustom ? (d2 || '9999-12-31') : '9999-12-31';
+  // ===== Ringkasan alur penjualan lintas divisi =====
+  const alurStat = (() => {
+    const a = proj ? alur.filter(r => r.project === proj) : alur;
+    const st = { menunggu: 0, proses: 0, jadwal: 0, selesai: 0 };
+    const dv = {};
+    const NAMA = { collection: 'Collection & KPR', finance: 'Finance', project: 'Admin Project', markom: 'Marcom', estate: 'Estate' };
+    a.forEach(r => {
+      if (r.bast_at) st.selesai++;
+      else if (r.tgl_serah_terima) st.jadwal++;
+      else if (r.verif_status === 'Terverifikasi') st.proses++;
+      else st.menunggu++;
+      Object.entries(r.progres || {}).forEach(([k, p]) => {
+        if (!NAMA[k]) return;
+        const d = dv[k] || (dv[k] = { nama: NAMA[k], total: 0, selesai: 0, telat: 0 });
+        d.total += p.total; d.selesai += p.selesai; d.telat += p.telat;
+      });
+    });
+    return { ...st, divisi: Object.values(dv) };
+  })();
+  const inMonth = x => { const t = String(x || '').slice(0, 10); return t >= pStart && t <= pEnd; };
+  const fmtTgl = t => new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const mLeads = fLeads.filter(l => inMonth(l.tgl));
+  // Lead dari Marcom & berapa yang sudah diserahkan ke sales
+  const dariMarkom = arr => arr.filter(l => l.creator_role === 'markom');
+  const mMarkom = dariMarkom(mLeads);
+  const mMarkomKeSales = mMarkom.filter(l => (l.sales || '').trim());
+  // Status transaksi per unit = yang TERAKHIR (Reserved yang sudah naik Booking tidak dihitung dua kali)
+  const statusAkhir = arr => {
+    const g = {};
+    [...arr].sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0))
+      .forEach(t => { g[(t.lead_code || '') + '|' + (t.project || '') + '|' + (t.unit || 'x' + t.id)] = t; });
+    return Object.values(g);
+  };
+  const mTrx = statusAkhir(fTrx.filter(t => inMonth(t.tgl)));
+  const periodeKata = (d1 || d2) ? 'periode ini' : 'bulan ini';
+  const bulanLabel = periodeCustom
+    ? (d1 && d2 ? `${fmtTgl(d1)} – ${fmtTgl(d2)}` : d1 ? `sejak ${fmtTgl(d1)}` : `s.d. ${fmtTgl(d2)}`)
+    : nowD.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+  const byStatus = st => mLeads.filter(l => l.status === st).length;
+  // Reminder dari POSISI TERKINI tiap lead (leads.next_fu) — FU yang sudah di-update otomatis hilang dari overdue
+  const rem = { OVERDUE: 0, 'HARI INI': 0, UPCOMING: 0 };
+  fLeads.filter(l => !['Closing', 'Drop', 'Lost'].includes(l.status)).forEach(l => {
+    const r = reminder(l.next_fu); if (r) rem[r[0]]++;
+  });
+  // Nilai: pipeline aktif = budget lead WARM & HOT bulan berjalan
+  const pipeVal = mLeads.filter(l => l.status === 'Warm' || l.status === 'Hot').reduce((a, l) => a + Number(l.budget || 0), 0);
+  const resVal = mTrx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+  const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+  const uniq = jenis => new Set(mTrx.filter(t => t.jenis === jenis).map(t => t.lead_code));
+  const mResSet = uniq('Reserved'), mBookSet = uniq('Booking');
+  // Baris pipeline: Site Visit = status + Walk In; Reserved & Booking dari TRANSAKSI; tanpa Closing
+  const svNDash = mLeads.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
+  const pipeRows = [];
+  (set.status || []).forEach(st => {
+    if (st === 'Booking' || st === 'Closing') return;
+    if (st === 'Site Visit') pipeRows.push({ label: 'Site Visit', val: svNDash, cls: '', hint: '+ Walk In' });
+    else pipeRows.push({ label: st, val: byStatus(st), cls: st === 'Hot' ? ' hot' : (st === 'Lost' || st === 'Drop') ? ' lost' : '' });
+  });
+  const dropIdx = pipeRows.findIndex(r => r.label === 'Drop' || r.label === 'Lost');
+  const trxRows = [
+    { label: 'Reserved', val: mResSet.size, cls: ' hot', hint: 'transaksi' },
+    { label: 'Booking', val: mBookSet.size, cls: ' lost', hint: 'transaksi' },
+  ];
+  if (dropIdx >= 0) pipeRows.splice(dropIdx, 0, ...trxRows); else pipeRows.push(...trxRows);
+  const max = Math.max(1, ...pipeRows.map(r => r.val));
+  // Sertakan juga sales yang punya transaksi bulan ini walau lead-nya masuk bulan sebelumnya
+  const salesNames = [...new Set([...mLeads.map(l => l.sales), ...mTrx.map(t => t.sales)].filter(Boolean))];
+  const perSales = (jenis, sName) => new Set(mTrx.filter(t => t.jenis === jenis && t.sales === sName).map(t => t.lead_code)).size;
+  // Grafik sumber lead bulan berjalan
+  const srcCount = {};
+  mLeads.forEach(l => { const k = l.sumber || 'Tidak diisi'; srcCount[k] = (srcCount[k] || 0) + 1; });
+  const srcRows = Object.entries(srcCount).sort((a, b) => b[1] - a[1]);
+  const srcMax = Math.max(1, ...srcRows.map(x => x[1]));
+  const walkD = {};
+  mLeads.filter(l => /walk/i.test(l.sumber || '') && l.walkin_info).forEach(l => { walkD[l.walkin_info] = (walkD[l.walkin_info] || 0) + 1; });
+  const walkDStr = Object.entries(walkD).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ');
+
+  async function downloadExcel() {
+    catatUnduh('Dashboard', 'Excel data CRM');
+    const ExcelJS = (await import('exceljs')).default;
+    const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+    const potong = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+
+    // ===== Pilihan aktif: project (filter atas) + periode (d1/d2) + sumber (multi-pilih) =====
+    const srcLow = srcSel.map(x => x.toLowerCase());
+    const cocokSumber = sm => {
+      if (!srcSel.length) return true;
+      return srcLow.includes(String(sm || '').toLowerCase().trim());
+    };
+    const dlmPeriode = x => {
+      const d = String(x || '').slice(0, 10);
+      if (d1 && (!d || d < d1)) return false;
+      if (d2 && (!d || d > d2)) return false;
+      return true;
+    };
+    const cocokProj = pr => !proj || pr === proj;
+    const leadSrcMap = {}; leads.forEach(l => { leadSrcMap[l.lead_code] = l.sumber || ''; });
+    const cocokLead = l => cocokProj(l.project) && dlmPeriode(l.tgl) && cocokSumber(l.sumber);
+    const cocokFU = f => cocokProj(f.project) && dlmPeriode(f.tgl) && cocokSumber(leadSrcMap[f.lead_code]);
+    const cocokTrx = t => cocokProj(t.project) && dlmPeriode(t.tgl) && cocokSumber(leadSrcMap[t.lead_code]);
+
+    // Urut kronologis berdasarkan TANGGAL (masuk/kejadian); tanggal sama -> urut nomor
+    const t10 = x => String(x || '9999-12-31').slice(0, 10);
+    const noUrut = c => Number(String(c || '').replace(/[^0-9]/g, '')) || 0;
+    const leadsX = [...leads].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || noUrut(a.lead_code) - noUrut(b.lead_code));
+    const fusX = [...fus].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || (a.id || 0) - (b.id || 0));
+    const trxX = [...trx].sort((a, b) => t10(a.tgl).localeCompare(t10(b.tgl)) || (a.id || 0) - (b.id || 0));
+
+    const labelSrc = !srcSel.length ? 'Semua Sumber' : srcSel.join(' + ');
+    const labelPer = (d1 || d2) ? `${d1 ? dd(d1) : '…'} s/d ${d2 ? dd(d2) : '…'}` : 'Seluruh periode';
+    const labelProj = proj || 'Semua Project';
+    const subInfo = `Project: ${labelProj} · Periode: ${labelPer} · Sumber: ${labelSrc} — hanya data pada pilihan ini yang diunduh. · copyright © 2026 by Andriawanp`;
+
+    const INK = 'FF1C2B23', GREEN = 'FF23694A', BRASS = 'FFC9922E', LINE = 'FFD8D6CC',
+      ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF',
+      AMBER_BG = 'FFFBF1DC', GREEN_BG = 'FFE4EFE8', RED_BG = 'FFF9E7E3';
+    const STATUS_BG = { New: 'FFE5EEF6', Cold: 'FFE8EAEE', Warm: AMBER_BG, Hot: 'FFF6E3C0', Appointment: 'FFE5EEF6', 'Site Visit': 'FFE5EEF6', Booking: GREEN_BG, Closing: GREEN, Lost: RED_BG, Drop: RED_BG };
+    const JENIS_BG = { Reserved: AMBER_BG, Booking: GREEN_BG, Closing: GREEN_BG, Batal: RED_BG };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'CRM Sales CHL';
+    // Ringkasan dibuat PALING AWAL agar menjadi sheet pertama saat file dibuka
+    const rs = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
+    const thin = { style: 'thin', color: { argb: LINE } };
+    const border = { top: thin, left: thin, bottom: thin, right: thin };
+
+    const buatSheet = (nama, judul, cols, rows, opsi = {}) => {
+      const ws = wb.addWorksheet(nama, { views: [{ state: 'frozen', ySplit: 4 }] });
+      ws.columns = cols.map(c => ({ width: c.w }));
+      ws.mergeCells(1, 1, 1, cols.length);
+      const t = ws.getCell(1, 1);
+      t.value = judul;
+      t.font = { name: 'Calibri', size: 15, bold: true, color: { argb: WHITE } };
+      t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
+      t.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      ws.getRow(1).height = 30;
+      ws.mergeCells(2, 1, 2, cols.length);
+      ws.getCell(2, 1).value = opsi.sub || subInfo;
+      ws.getCell(2, 1).font = { size: 9, color: { argb: 'FF6B7A70' } };
+      ws.getRow(3).height = 4;
+      const hr = ws.getRow(4);
+      cols.forEach((c, i2) => {
+        const cell = hr.getCell(i2 + 1);
+        cell.value = c.h;
+        cell.font = { bold: true, size: 10, color: { argb: WHITE } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+        cell.alignment = { vertical: 'middle', horizontal: c.num ? 'right' : 'left', wrapText: true };
+        cell.border = { top: thin, left: thin, right: thin, bottom: { style: 'medium', color: { argb: BRASS } } };
+      });
+      hr.height = 22;
+      // Baris di luar pilihan (project / periode / sumber) TIDAK ikut diunduh — sama seperti report Word
+      const baris = opsi.cocok ? rows.filter(r => opsi.cocok(r._raw)) : rows;
+      let tampak = baris.length;
+      baris.forEach((r, ri) => {
+        const row = ws.getRow(5 + ri);
+        cols.forEach((c, ci) => {
+          const cell = row.getCell(ci + 1);
+          cell.value = r[c.k];
+          cell.font = { size: 10 };
+          cell.alignment = { vertical: 'top', horizontal: c.num ? 'right' : 'left', wrapText: !!c.wrap };
+          if (c.num) cell.numFmt = '#,##0';
+          cell.border = border;
+          if (ri % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+          if (opsi.warnaSel) {
+            const bg = opsi.warnaSel(c, r);
+            if (bg) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              cell.font = bg === GREEN ? { size: 10, bold: true, color: { argb: WHITE } } : { size: 10, bold: true };
+            }
+          }
+        });
+      });
+      if (!baris.length) { ws.getCell(5, 2).value = 'Tidak ada data pada pilihan ini.'; ws.getCell(5, 2).font = { italic: true, color: { argb: 'FF6B7A70' } }; }
+      ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(baris.length, 1), column: cols.length } };
+      return { ws, tampak };
+    };
+
+    // ===== Data terpilih utk Ringkasan =====
+    const pl = leads.filter(cocokLead);
+    const pf = fus.filter(cocokFU);
+    const pt = statusAkhir(trx.filter(cocokTrx));
+    const lastFU = {};
+    fus.forEach(f => {
+      const key = f.lead_code, cur = lastFU[key];
+      const rank = String(f.tgl || '').slice(0, 10) + String(f.id).padStart(9, '0');
+      if (!cur || rank > cur._rank) lastFU[key] = { ...f, _rank: rank };
+    });
+
+    // ===== Sheet data (baris di luar pilihan tidak diunduh) =====
+    buatSheet('Database Lead', 'DATABASE LEAD', [
+      { h: 'ID Lead', k: 'id', w: 11 }, { h: 'Tanggal', k: 'tgl', w: 11 },
+      { h: 'Nama', k: 'nama', w: 20 }, { h: 'WhatsApp', k: 'wa', w: 13 }, { h: 'Email', k: 'email', w: 18 },
+      { h: 'Domisili', k: 'dom', w: 13 }, { h: 'Sumber', k: 'src', w: 14 }, { h: 'Info Walk In', k: 'wi', w: 14 }, { h: 'Detail Sumber', k: 'sd', w: 22, wrap: true },
+      { h: 'Project', k: 'proj', w: 15 }, { h: 'Tipe', k: 'tipe', w: 9 }, { h: 'Budget (Rp)', k: 'budget', w: 13, num: true },
+      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Status', k: 'status', w: 10 },
+      { h: 'Next FU', k: 'nfu', w: 10 }, { h: 'Tgl FU Terakhir', k: 'futgl', w: 12 },
+      { h: 'Update FU Terakhir', k: 'fuupd', w: 34, wrap: true }, { h: 'Catatan', k: 'cat', w: 22, wrap: true },
+      { h: 'Riwayat Transaksi', k: 'riw', w: 34, wrap: true },
+      { h: 'Diinput Oleh', k: 'inp', w: 14 }, { h: 'Asal Lead', k: 'asal', w: 16 },
+    ], leadsX.map(l => {
+      const lf = lastFU[l.lead_code];
+      return {
+        _raw: l,
+        id: l.lead_code, tgl: dd(l.tgl), nama: l.nama, wa: l.wa || '', email: l.email || '',
+        dom: l.domisili || '', src: l.sumber || 'Tidak diisi', wi: l.walkin_info || '', sd: l.sumber_detail || '', proj: l.project || '-',
+        tipe: l.tipe || '', budget: Number(l.budget) || 0, bayar: l.bayar || '', sales: l.sales || '',
+        status: l.status, nfu: dd(l.next_fu),
+        futgl: lf ? dd(lf.tgl) : '', fuupd: lf ? potong(lf.detail, 180) : 'Belum ada follow up',
+        cat: l.catatan || '',
+        riw: [...trx].filter(t => t.lead_code === l.lead_code)
+          .sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0))
+          .map(t => t.jenis + ' ' + dd(t.tgl) + (t.unit ? ' (' + t.unit + ')' : '')).join(' → '),
+        inp: l.created_by || '-',
+        asal: l.creator_role === 'markom' ? (l.sales ? 'Marcom → Sales' : 'Marcom (belum diserahkan)') : 'Non-Marcom',
+      };
+    }), { cocok: cocokLead, warnaSel: (c, r) => c.k === 'status' ? STATUS_BG[r.status] : (c.k === 'fuupd' && r.fuupd === 'Belum ada follow up' ? RED_BG : null) });
+
+    buatSheet('Follow Up', 'RIWAYAT FOLLOW UP', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 },
+      { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
+      { h: 'Sumber', k: 'src', w: 13 },
+      { h: 'Detail Komunikasi', k: 'det', w: 40, wrap: true }, { h: 'Objection', k: 'obj', w: 22, wrap: true },
+      { h: 'Next Action', k: 'na', w: 15 }, { h: 'Tgl Next FU', k: 'nfu', w: 11 },
+    ], fusX.map(f => ({
+      _raw: f,
+      tgl: dd(f.tgl), id: f.lead_code, nama: f.nama || '', sales: f.sales || '',
+      proj: f.project || '-', src: leadSrcMap[f.lead_code] || '', det: f.detail, obj: f.objection || '',
+      na: f.next_action || '', nfu: dd(f.next_tgl),
+    })), { cocok: cocokFU, warnaSel: (c, r) => c.k === 'na' && r.na === 'Drop' ? RED_BG : null });
+
+    // Status transaksi per unit diambil yang TERAKHIR; tahapan sebelumnya jadi riwayat di kolom Catatan
+    const urutTgl = (a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || (a.id || 0) - (b.id || 0);
+    const grupTrx = {};
+    [...trx].sort(urutTgl).forEach(t => {
+      const key = (t.lead_code || '') + '|' + (t.project || '') + '|' + (t.unit || 'x' + t.id);
+      (grupTrx[key] = grupTrx[key] || []).push(t);
+    });
+    const trxRingkas = Object.values(grupTrx).map(g => {
+      const akhir = g[g.length - 1];
+      const riwayat = g.slice(0, -1).map(x => x.jenis + ' ' + dd(x.tgl)).join(' → ');
+      const catAsli = (akhir.catatan || '').trim();
+      return { ...akhir, catatan: riwayat && !catAsli.includes('Reserved tgl')
+        ? riwayat + ' → ' + akhir.jenis + (catAsli ? ' · ' + catAsli : '') : catAsli };
+    }).sort(urutTgl);
+
+    buatSheet('Transaksi', 'TRANSAKSI (RESERVED · BOOKING · BATAL)', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'ID Lead', k: 'id', w: 11 },
+      { h: 'Nama', k: 'nama', w: 18 }, { h: 'Sales', k: 'sales', w: 11 }, { h: 'Project', k: 'proj', w: 15 },
+      { h: 'Sumber', k: 'src', w: 13 },
+      { h: 'Blok/Unit', k: 'unit', w: 15 }, { h: 'Jenis', k: 'jenis', w: 10 },
+      { h: 'Nilai Reserved / Booking (Rp)', k: 'nilai', w: 19, num: true },
+      { h: 'Nilai Transaksi (Rp)', k: 'njual', w: 18, num: true },
+      { h: 'Cara Bayar', k: 'bayar', w: 10 }, { h: 'Catatan / Riwayat Status', k: 'cat', w: 30, wrap: true },
+    ], trxRingkas.map(t => ({
+      _raw: t,
+      tgl: dd(t.tgl), id: t.lead_code, nama: t.nama || '', sales: t.sales || '',
+      proj: t.project || '-', src: leadSrcMap[t.lead_code] || '', unit: t.unit || '', jenis: t.jenis,
+      nilai: Number(t.nilai) || 0, njual: Number(t.nilai_jual) || 0, bayar: t.bayar || '', cat: t.catatan || '',
+    })), { cocok: cocokTrx, warnaSel: (c, r) => c.k === 'jenis' ? JENIS_BG[r.jenis] : null });
+
+    // ===== RINGKASAN (angka & grafik dari data terpilih) =====
+    rs.columns = [{ width: 2 }, { width: 26 }, { width: 11 }, { width: 30 }, { width: 22 }, { width: 8 }, { width: 2 }];
+    rs.mergeCells('A1:G1');
+    rs.getCell('A1').value = 'REPORT CRM SALES — CIPTA HARMONI LESTARI';
+    rs.getCell('A1').font = { size: 16, bold: true, color: { argb: WHITE } };
+    rs.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: INK } };
+    rs.getCell('A1').alignment = { vertical: 'middle', indent: 1 };
+    rs.getRow(1).height = 34;
+    rs.mergeCells('A2:G2');
+    rs.getCell('A2').value = 'Diunduh ' + dd(new Date().toISOString()) + ' · ' + subInfo;
+    rs.getCell('A2').font = { size: 9, color: { argb: 'FF6B7A70' } };
+
+    let R = 4;
+    const secHead = txt => {
+      rs.mergeCells(R, 2, R, 6);
+      const c = rs.getCell(R, 2);
+      c.value = txt; c.font = { bold: true, size: 11, color: { argb: WHITE } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+      c.alignment = { indent: 1 }; R++;
+    };
+    const bar = (n, mx, warna) => ({ richText: [{ text: '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / Math.max(1, mx) * 15))), font: { color: { argb: warna || GREEN }, bold: true } }] });
+    const rp2 = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+    const resSet = new Set(pt.filter(t => t.jenis === 'Reserved').map(t => t.lead_code));
+    const bookSet = new Set(pt.filter(t => t.jenis === 'Booking').map(t => t.lead_code));
+    const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+
+    secHead('RINGKASAN');
+    [['Lead Masuk', pl.length, ''], ['Follow Up', pf.length, ''],
+     ['Reserved (lead) — belum diakui penjualan', resSet.size, 'Nilai: ' + rp2(resV)], ['Booking (lead) — penjualan diakui', bookSet.size, 'Nilai: ' + rp2(bookV)]]
+      .forEach((k, i2) => {
+        const row = rs.getRow(R);
+        row.getCell(2).value = k[0]; row.getCell(2).font = { bold: true };
+        row.getCell(3).value = k[1]; row.getCell(3).font = { bold: true, size: 13, color: { argb: i2 >= 2 ? BRASS : GREEN } }; row.getCell(3).alignment = { horizontal: 'center' };
+        rs.mergeCells(R, 4, R, 5); row.getCell(4).value = k[2]; row.getCell(4).font = { size: 10, color: { argb: 'FF6B7A70' } };
+        [2, 3, 4, 5, 6].forEach(ci => { row.getCell(ci).border = border; if (i2 % 2 === 1) row.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+        R++;
+      });
+    R++;
+
+    secHead('RESERVED & BOOKING — penjualan diakui pada tanggal Booking');
+    const rbMax = Math.max(resSet.size, bookSet.size);
+    [['Reserved', resSet.size, resV, BRASS], ['Booking', bookSet.size, bookV, 'FFB3402F']].forEach(([j, n, v, w]) => {
+      const row = rs.getRow(R);
+      row.getCell(2).value = j; row.getCell(2).font = { bold: true };
+      row.getCell(3).value = n; row.getCell(3).alignment = { horizontal: 'center' };
+      row.getCell(4).value = bar(n, rbMax, w);
+      row.getCell(5).value = rp2(v);
+      [2, 3, 4, 5, 6].forEach(ci => row.getCell(ci).border = border);
+      R++;
+    });
+    R++;
+
+    const seksi = (judul, entries) => {
+      if (!entries.length) return;
+      secHead(judul);
+      const mx = Math.max(1, ...entries.map(x => x[1]));
+      const tot = entries.reduce((a, x) => a + x[1], 0);
+      entries.forEach(([k, v]) => {
+        const row = rs.getRow(R);
+        row.getCell(2).value = k;
+        row.getCell(3).value = v; row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(4).value = bar(v, mx);
+        row.getCell(5).value = Math.round(v / tot * 100) + '%'; row.getCell(5).alignment = { horizontal: 'center' };
+        [2, 3, 4, 5, 6].forEach(ci => row.getCell(ci).border = border);
+        R++;
+      });
+      R++;
+    };
+    const hitung = (arr, fn) => Object.entries(arr.reduce((a, x) => { const k = (fn(x) || '').trim(); if (k) a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    // Lead dari Marcom & serah terima ke sales
+    (() => {
+      const mk = pl.filter(l => l.creator_role === 'markom');
+      const ke = mk.filter(l => (l.sales || '').trim()).length;
+      if (!pl.length) return;
+      secHead('LEAD DARI MARCOM');
+      [['Lead masuk ke Marcom', mk.length, pl.length ? Math.round(mk.length / pl.length * 100) + '% dari total lead' : ''],
+       ['Sudah diserahkan ke Sales', ke, mk.length ? Math.round(ke / mk.length * 100) + '% dari lead Marcom' : ''],
+       ['Belum diserahkan', mk.length - ke, mk.length ? Math.round((mk.length - ke) / mk.length * 100) + '% dari lead Marcom' : ''],
+       ['Lead sumber lain (walk in / sales / manager)', pl.length - mk.length, '']].forEach(([lbl, n, ket], i2) => {
+        const row = rs.getRow(R);
+        row.getCell(2).value = lbl; row.getCell(2).font = { bold: i2 === 0, size: 10 };
+        row.getCell(3).value = n; row.getCell(3).alignment = { horizontal: 'center' };
+        row.getCell(3).font = { bold: true, size: 12, color: { argb: i2 === 1 ? BRASS : i2 === 2 ? 'FFB3402F' : GREEN } };
+        rs.mergeCells(R, 4, R, 5);
+        row.getCell(4).value = ket; row.getCell(4).font = { size: 9.5, color: { argb: 'FF6B7A70' } };
+        [2, 3, 4, 5].forEach(ci => { row.getCell(ci).border = border; if (i2 % 2 === 1) row.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } }; });
+        R++;
+      });
+      R++;
+    })();
+
+    seksi('SUMBER LEAD', hitung(pl, l => l.sumber || 'Tidak diisi'));
+    seksi('SUMBER VISIT (LEAD YANG SUDAH DATANG)', hitung(pl, l => /walk/i.test(l.sumber || '') ? (l.walkin_info || 'Walk In (tanpa info)') : (l.status === 'Site Visit' ? (l.sumber || 'Tidak diisi') : '')));
+    seksi('DOMISILI (TOP 12)', hitung(pl, l => l.domisili));
+
+    // ===== MASTER STOCK — posisi unit & nilai (sumber kebenaran stok, bukan hanya transaksi aplikasi) =====
+    const projStok = (set.project || []).filter(p2 => !proj || p2 === proj);
+    if (projStok.length) {
+      secHead('MASTER STOCK — POSISI UNIT' + (proj ? ' · ' + proj : ''));
+      const hr2 = rs.getRow(R);
+      ['Project', 'Total', 'Terjual', 'Reserved', 'Tersedia', 'Nilai Terjual (Rp)'].forEach((t2, i2) => {
+        const c2 = hr2.getCell(2 + i2);
+        c2.value = t2; c2.font = { bold: true, size: 9.5, color: { argb: WHITE } };
+        c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4C7A63' } };
+        c2.alignment = { horizontal: i2 === 0 ? 'left' : 'right' }; c2.border = border;
+      });
+      R++;
+      projStok.forEach((p2, i2) => {
+        const su = (stock || []).filter(u => u.project === p2);
+        const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
+        const total = ((set.units || {})[p2] || []).length;
+        const row = rs.getRow(R);
+        const isi = [p2, total, mer.length, kun.length, Math.max(0, total - mer.length - kun.length),
+          mer.reduce((a, u) => a + (Number(u.nilai) || 0), 0)];
+        isi.forEach((v2, k2) => {
+          const c2 = row.getCell(2 + k2);
+          c2.value = v2;
+          c2.font = { size: 10, bold: k2 === 0 };
+          c2.alignment = { horizontal: k2 === 0 ? 'left' : 'right' };
+          if (k2 === 5) c2.numFmt = '#,##0';
+          if (k2 === 2) c2.font = { size: 10, bold: true, color: { argb: 'FFB3402F' } };
+          if (k2 === 3) c2.font = { size: 10, bold: true, color: { argb: BRASS } };
+          c2.border = border;
+          if (i2 % 2 === 1) c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+        });
+        R++;
+      });
+      const ket = rs.getRow(R);
+      rs.mergeCells(R, 2, R, 7);
+      ket.getCell(2).value = 'Sumber: Master Stock (transaksi aplikasi + data weekly report). KPI Reserved/Booking di atas hanya menghitung transaksi yang diinput lewat aplikasi.';
+      ket.getCell(2).font = { italic: true, size: 8.5, color: { argb: 'FF6B7A70' } };
+      R += 2;
+    }
+
+
+    // Sheet Kegiatan — mengikuti filter project & periode
+    const kgX = (keg || []).filter(k => {
+      const t = String(k.tgl || '').slice(0, 10);
+      return (!proj || k.project === proj) && (!d1 || t >= d1) && (!d2 || t <= d2);
+    }).sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')));
+    buatSheet('Kegiatan', 'KEGIATAN SALES & MARKETING', [
+      { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 }, { h: 'Jenis Kegiatan', k: 'jenis', w: 28 },
+      { h: 'Project', k: 'proj', w: 15 }, { h: 'Lokasi / Tempat', k: 'lok', w: 26 }, { h: 'PIC / Peserta', k: 'pic', w: 20 },
+      { h: 'Jumlah Lead', k: 'lead', w: 12, num: true }, { h: 'Biaya (Rp)', k: 'biaya', w: 15, num: true },
+      { h: 'Biaya per Lead (Rp)', k: 'perlead', w: 17, num: true }, { h: 'Catatan Hasil', k: 'cat', w: 34, wrap: true },
+    ], kgX.map(k => ({
+      tgl: dd(k.tgl), bulan: String(k.tgl || '').slice(0, 7), jenis: k.jenis, proj: k.project || '-',
+      lok: k.lokasi || '', pic: k.pic || '', lead: Number(k.jml_lead) || 0, biaya: Number(k.biaya) || 0,
+      perlead: Number(k.jml_lead) ? Math.round(Number(k.biaya || 0) / Number(k.jml_lead)) : 0,
+      cat: k.catatan || '',
+    })), { sub: 'Kegiatan pada pilihan project & periode. Foto dokumentasi hanya tersedia di report Word/PDF. · copyright © 2026 by Andriawanp' });
+
+    // ===== Sheet Stok (posisi terkini) =====
+    // Nilai unit = nilai terkini pada Master Stock (transaksi: nilai transaksi/booking · manual: nilai kontrak impor)
+    const nilaiUnit = u => Number(u.nilai) || 0;
+    // Daftar unit bertanda + sales/agent (mengikuti pemilik lead bila dari transaksi)
+    buatSheet('Unit Terjual', 'DAFTAR UNIT TERJUAL & RESERVED', [
+      { h: 'Project', k: 'p', w: 16 }, { h: 'Blok / Unit', k: 'u', w: 16 },
+      { h: 'Status', k: 'st', w: 11 }, { h: 'Nama Pembeli', k: 'n', w: 26 },
+      { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'Nilai (Rp)', k: 'v', w: 17, num: true },
+      { h: 'ID Lead', k: 'id', w: 11 },
+    ], [...(stock || []).filter(u => !proj || u.project === proj)].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
+      p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : 'Reserved',
+      n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '').replace(/\(manual\)/i, '').trim() || '-',
+      sa: u.sales || '-', v: Number(u.nilai) || 0, id: u.lead_code || '-',
+    })), { sub: 'Posisi unit per hari ini — sales/agent otomatis mengikuti pemilik lead untuk unit bertransaksi. · copyright © 2026 by Andriawanp' });
+
+    buatSheet('Stok', 'STOK & NILAI PENJUALAN PER PROJECT', [
+      { h: 'Project', k: 'p', w: 18 }, { h: 'Total Stok', k: 'tot', w: 11, num: true },
+      { h: 'Terjual', k: 'jual', w: 10, num: true }, { h: 'Reserved', k: 'res', w: 10, num: true },
+      { h: 'Tersedia', k: 'sisa', w: 10, num: true }, { h: '% Terjual', k: 'pct', w: 10 },
+      { h: 'Nilai Penjualan (Rp)', k: 'nj', w: 19, num: true }, { h: 'Nilai Reserved (Rp)', k: 'nr', w: 19, num: true },
+    ], (set.project || []).filter(p2 => !proj || p2 === proj).map(p2 => {
+      const total = ((set.units || {})[p2] || []).length;
+      const su = stock.filter(u => u.project === p2);
+      const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
+      return {
+        p: p2, tot: total, jual: mer.length, res: kun.length,
+        sisa: Math.max(0, total - mer.length - kun.length),
+        pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
+        nj: mer.reduce((a, u) => a + nilaiUnit(u), 0),
+        nr: kun.reduce((a, u) => a + nilaiUnit(u), 0),
+      };
+    }), { sub: 'Posisi stok per hari ini (transaksi + penandaan Master Stock)' + (proj ? ' — project: ' + proj : '') + '. Tidak terpengaruh filter periode & sumber. · copyright © 2026 by Andriawanp' });
+
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'CRM_CHL_Data.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // Render siteplan + marker jadi gambar (untuk disisipkan ke report Word)
+  async function gambarSiteplan(pj) {
+    const src = /BIO/i.test(pj) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
+    const posP = posisi.filter(p => p.project === pj);
+    const stP = {}; stock.filter(u => u.project === pj).forEach(u => { stP[u.unit] = u; });
+    const mk = posP.map(p => ({ x: Number(p.x), y: Number(p.y), u: stP[p.unit] })).filter(m => m.u);
+    const img = new Image(); img.src = src;
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+    const W = Math.min(img.naturalWidth || 1600, 1800);
+    const H = Math.round((img.naturalHeight || 1000) * (W / (img.naturalWidth || 1600)));
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+    let R = Math.max(7, Math.round(W * 0.006));
+    if (mk.length > 1) {
+      let minJ = Infinity;
+      for (let i = 0; i < mk.length; i++) for (let j = i + 1; j < mk.length; j++) {
+        const dx = (mk[i].x - mk[j].x) / 100 * W, dy = (mk[i].y - mk[j].y) / 100 * H;
+        const d2 = Math.sqrt(dx * dx + dy * dy);
+        if (d2 > 0 && d2 < minJ) minJ = d2;
+      }
+      if (isFinite(minJ)) R = Math.max(4, Math.min(R, Math.round(minJ * 0.42)));
+    }
+    mk.forEach(m => {
+      const cx = m.x / 100 * W, cy = m.y / 100 * H;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fillStyle = m.u.warna === 'merah' ? '#B3402F' : '#C9922E'; ctx.fill();
+      ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+    });
+    return { url: cv.toDataURL('image/jpeg', 0.85), w: W, h: H };
+  }
+
+  // Kompres foto di perangkat — tidak pernah dikirim/disimpan ke server
+  function kompresFoto(file, maks = 1200, mutu = 0.72) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const sc = Math.min(1, maks / Math.max(img.width, img.height));
+          const cv = document.createElement('canvas');
+          cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL('image/jpeg', mutu));
+        };
+        img.onerror = rej; img.src = fr.result;
+      };
+      fr.onerror = rej; fr.readAsDataURL(file);
+    });
+  }
+  async function pilihFoto(idKeg, files) {
+    const ambil = [...files].slice(0, 6);
+    try {
+      const hasil = [];
+      for (const f of ambil) hasil.push(await kompresFoto(f));
+      setFotoKeg(x => ({ ...x, [idKeg]: [...(x[idKeg] || []), ...hasil].slice(0, 6) }));
+      toast(hasil.length + ' foto siap dilampirkan');
+    } catch { toast('Foto gagal dibaca'); }
+  }
+  const kegPeriode = () => keg.filter(k => {
+    const t = String(k.tgl || '').slice(0, 10);
+    return (!proj || k.project === proj) && (!d1 || t >= d1) && (!d2 || t <= d2);
+  });
+
+  async function downloadWord(mode = 'word') {
+    catatUnduh('Dashboard', 'Report Sales & Marketing (' + (mode === 'pdf' ? 'PDF' : 'Word') + ')');
+    // Ambil logo sebagai base64 agar tertanam di dokumen Word
+    let logoTag = '';
+    try {
+      const blob = await fetch('/icon-192.png').then(r => r.blob());
+      const dataUrl = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      logoTag = `<img src="${dataUrl}" width="72" height="72" style="border-radius:12px" alt="CHL"/>`;
+    } catch {}
+    // Data modul Analisa Marcom — bila akun tidak punya akses, bagian marcom dilewati
+    let mi = null;
+    try { mi = await api('/api/marcom?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
+    let slr = null;
+    try { slr = await api('/api/status-log?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
+    // Proses KPR (Sales/Manager/CEO) — peran lain tidak punya akses, bagian KPR dilewati
+    let kprData = null;
+    try { kprData = await api('/api/kpr'); } catch {}
+    // Janjian visit pada periode report (Manager/CEO) — peran lain tidak punya akses, bagian janjian dilewati
+    let jjData = null;
+    try {
+      const hariJJ = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+      jjData = await api('/api/janjian?laporan=1&dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ) + '&project=' + encodeURIComponent(proj || ''));
+    } catch {}
+    // Ringkasan penjualan (Reserved → Booking / Batal) — satu halaman; detail per transaksi ada di menu Report → Laporan Penjualan
+    let lpData = null;
+    try { lpData = await api('/api/laporan-penjualan?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
+    const inPeriod = t => {
+      if (!t) return !d1 && !d2;
+      const x = String(t).slice(0, 10);
+      return (!d1 || x >= d1) && (!d2 || x <= d2);
+    };
+    const pl = fLeads.filter(l => inPeriod(l.tgl));
+    const pf = fFus.filter(f => inPeriod(f.tgl) && f.created_by !== 'auto-wa');
+    const pt = statusAkhir(fTrx.filter(t => inPeriod(t.tgl)));
+    const projLabel = proj || 'Semua Project';
+    const ST = set.status || [];
+    const cnt = st => pl.filter(l => l.status === st).length;
+    // Booking & Closing dihitung dari TRANSAKSI yang benar-benar diinput (lead unik), bukan dari status pipeline
+    const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
+    const trxLeads = jenis => new Set(pt.filter(t => t.jenis === jenis).map(t => t.lead_code));
+    const bookSet = trxLeads('Booking'), resSet = trxLeads('Reserved');
+    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+    const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    // Site Visit pipeline = status Site Visit + lead Walk In (sudah datang langsung)
+    const svN = pl.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
+    // Sebaran sumber lead
+    const bySumber = {};
+    pl.forEach(l => { const k = l.sumber || 'Tidak diisi'; bySumber[k] = (bySumber[k] || 0) + 1; });
+    const sumberRows = Object.entries(bySumber).sort((a, b) => b[1] - a[1]);
+    const maxS = Math.max(1, ...sumberRows.map(x => x[1]));
+    const bar = n => '<span style="color:#23694A;letter-spacing:1px">' + '▰'.repeat(Math.max(1, Math.round(n / maxS * 16))) + '</span>';
+    const byWalk = {};
+    pl.filter(l => /walk/i.test(l.sumber || '') && l.walkin_info).forEach(l => { byWalk[l.walkin_info] = (byWalk[l.walkin_info] || 0) + 1; });
+    const walkTotal = pl.filter(l => /walk/i.test(l.sumber || '')).length;
+    const walkTanpa = walkTotal - Object.values(byWalk).reduce((a, b) => a + b, 0);
+    const walkDetail = Object.entries(byWalk).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).concat(walkTanpa > 0 ? ['Tanpa info ' + walkTanpa] : []).join(', ');
+    const rp = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+    const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+    const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
+    // Sales dengan lead pada periode ATAU transaksi pada periode (mis. lead masuk bulan lalu, Booking bulan ini)
+    const salesNs = [...new Set([...pl.map(l => l.sales), ...pt.map(t => t.sales || salesOf[t.lead_code])].filter(Boolean))];
+    const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const trxByLead = {};
+    [...fTrx].sort((a, b) => a.id - b.id).forEach(t => { trxByLead[t.lead_code] = { jenis: t.jenis, unit: t.unit || '', tgl: t.tgl }; });
+    const recos = fLeads.filter(l => l.status === 'Warm' || l.status === 'Hot')
+      .map(l => {
+        const myFus = fus.filter(f => f.lead_code === l.lead_code)
+          .sort((a, b) => String(a.tgl).localeCompare(String(b.tgl)) || a.id - b.id);
+        const last = myFus[myFus.length - 1];
+        const nfu = l.next_fu || (last && last.next_tgl) || null;
+        const overdue = nfu && new Date(nfu) < now;
+        return { ...l, last, myFus, nfu, overdue, deal: trxByLead[l.lead_code] || null };
+      })
+      .sort((a, b) => (b.status === 'Hot') - (a.status === 'Hot') || (b.overdue === true) - (a.overdue === true));
+
+    // ===== Rekap stok per project (kondisi saat ini: transaksi + manual) =====
+    // Nilai per unit = transaksi terakhir non-Batal unit tsb
+    const lastVal = {};
+    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
+      if (!t.unit || !t.project) return;
+      const key = t.project + '|' + t.unit;
+      if (t.jenis === 'Batal') delete lastVal[key];
+      else lastVal[key] = Number(t.nilai) || 0;
+    });
+    const projList = proj ? [proj] : (set.project || []);
+    const stokRows = projList.map(p2 => {
+      const total = ((set.units || {})[p2] || []).length;
+      const su = stock.filter(u => u.project === p2);
+      const merahU = su.filter(u => u.warna === 'merah');
+      const kuningU = su.filter(u => u.warna === 'kuning');
+      // Nilai = NILAI TRANSAKSI (harga jual) unit terkini; unit tanda manual memakai nilai kontrak dari impor
+      const nilaiU = u => Number(u.nilai) || lastVal[p2 + '|' + u.unit] || 0;
+      const nJual = merahU.reduce((a, u) => a + nilaiU(u), 0);
+      const nRes = kuningU.reduce((a, u) => a + nilaiU(u), 0);
+      return { p: p2, total, merah: merahU.length, kuning: kuningU.length, nJual, nRes };
+    });
+
+    // Peta siteplan tiap project (gambar dengan marker)
+    let petaHtml = '';
+    for (const pj of (proj ? [proj] : (set.project || []))) {
+      try {
+        const g = await gambarSiteplan(pj);
+        const adaTanda = stock.filter(u => u.project === pj);
+        const nJ = adaTanda.filter(u => u.warna === 'merah').length, nR = adaTanda.length - nJ;
+        // Word memakai atribut width/height (px) — dipatok agar utuh dalam satu halaman A4 potret
+        const LEBAR = 620, TINGGI_MAKS = 620;
+        let wImg = LEBAR, hImg = Math.round(LEBAR * g.h / g.w);
+        if (hImg > TINGGI_MAKS) { hImg = TINGGI_MAKS; wImg = Math.round(TINGGI_MAKS * g.w / g.h); }
+        petaHtml += `<h3 style="color:#23694A;margin:10px 0 4px">${esc(pj)} — ${nJ} terjual, ${nR} reserved</h3>
+<p><img src="${g.url}" width="${wImg}" height="${hImg}" style="width:${wImg}px;height:${hImg}px" /></p>`;
+      } catch { petaHtml += `<p class="muted">Siteplan ${esc(pj)} tidak dapat dimuat.</p>`; }
+    }
+
+    // ===== BAGIAN MARCOM (seksi 7-10) — data baru, tanpa mengulang bagian sales di atas =====
+    let marcomHtml = '';
+    if (mi) {
+      const mkCodes = new Set(pl.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
+      const mkt = mi.marketing || null; // definisi hasil marketing dari Analisa Marcom (marcom, campaign, kanal marketing, walk in via media marketing)
+      const bdet = mi.bookingDetail || [];
+      // Transaksi dihitung dari SEMUA lead ber-asal Marcom (lead boleh masuk periode sebelumnya — penjualan diakui pada tanggal Booking)
+      const mkAll = new Set(fLeads.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
+      const resM = pt.filter(t => t.jenis === 'Reserved' && mkAll.has(t.lead_code));
+      const bookM = pt.filter(t => t.jenis === 'Booking' && mkAll.has(t.lead_code));
+      const resMn = new Set(resM.map(t => t.lead_code)).size, bookMn = new Set(bookM.map(t => t.lead_code)).size;
+      const resMv = resM.reduce((a, t) => a + Number(t.nilai || 0), 0);
+      const bookMv = bookM.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+      const spendMap = Object.fromEntries((mi.spend || []).map(x => [x.kunci, Number(x.spend) || 0]));
+      const totSpend = Object.values(spendMap).reduce((a, b) => a + b, 0);
+      const perR = (sp, n) => (sp > 0 && n > 0) ? rp(Math.round(sp / n)) : '—';
+      const rpS = v => { v = Number(v) || 0; if (!v) return '—'; if (v >= 1e9) return 'Rp' + (v / 1e9).toFixed(2).replace('.', ',') + ' M'; if (v >= 1e6) return 'Rp' + (v / 1e6).toFixed(1).replace('.', ',') + ' jt'; return 'Rp' + Math.round(v).toLocaleString('id-ID'); };
+      const perS = (sp, n) => (sp > 0 && n > 0) ? rpS(sp / n) : '—';
+      const barW = (n, mx, w = '#23694A') => '<span style="color:' + w + ';letter-spacing:1px">' + '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / Math.max(1, mx) * 16))) + '</span>';
+      const bc = mi.byCampaign || []; const bcMax = Math.max(1, ...bc.map(r => r.l0), 1);
+      const bk = mi.byKonten || []; const bkMax = Math.max(1, ...bk.map(r => r.l0), 1);
+      const konten = mi.contents || [];
+      const erOf = x => { const r = Number(x.reach) || 0; if (!r) return null; return ((Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0)) / r; };
+      const pctEr = x => x === null ? '—' : (x * 100).toFixed(1) + '%';
+      const gF = {};
+      konten.forEach(x => { const k = x.format || '-'; gF[k] = gF[k] || { n: 0, reach: 0, eng: 0 }; gF[k].n++; gF[k].reach += Number(x.reach) || 0; gF[k].eng += (Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0); });
+      const polaF = Object.entries(gF).map(([f, v]) => ({ f, n: v.n, reach: v.reach, er: v.reach ? v.eng / v.reach : null })).sort((a, b) => (b.er || 0) - (a.er || 0));
+      const erMax = Math.max(0.0001, ...polaF.map(r => r.er || 0));
+      const jamB = j => { const h = parseInt(String(j || '').split(/[:.]/)[0], 10); if (isNaN(h)) return null; return h < 10 ? 'Pagi (<10)' : h < 15 ? 'Siang (10–14)' : h < 19 ? 'Sore (15–18)' : 'Malam (≥19)'; };
+      const gJ = {};
+      konten.forEach(x => { const b = jamB(x.jam); if (!b) return; gJ[b] = gJ[b] || { reach: 0, eng: 0 }; gJ[b].reach += Number(x.reach) || 0; gJ[b].eng += (Number(x.like_n) || 0) + (Number(x.komentar) || 0) + (Number(x.share_n) || 0) + (Number(x.save_n) || 0); });
+      const polaJ = Object.entries(gJ).map(([b, v]) => ({ b, er: v.reach ? v.eng / v.reach : null })).sort((a, b) => (b.er || 0) - (a.er || 0));
+      const timMap = Object.fromEntries((mi.timLead || []).map(r => [r.username, r]));
+      const tim = (mi.timKonten || []).map(u => ({ ...u, ...(timMap[u.username] || { l0: 0, l2: 0, l3: 0, nilai: 0 }) }));
+      const n0 = x => Number(x || 0).toLocaleString('id-ID');
+
+      marcomHtml = `<h1 style="margin-top:32px;border-top:3px solid #23694A;padding-top:14px;page-break-before:always">BAGIAN MARKETING</h1>
+<p class="muted">Aktivitas & performa tim Marketing Communication — sumber: menu Analisa Marcom.</p>
+
+<h2>7. PENJUALAN DARI LEAD MARKETING</h2>
+<table>
+<tr><th style="text-align:center">LEAD MARKETING MASUK</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th><th style="text-align:center">CLOSING RATE</th></tr>
+<tr>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${mkt ? mkt.leadMasuk : mkCodes.size}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#C9922E">${mkt ? mkt.reserved : resMn}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#B3402F">${mkt ? mkt.booking : bookMn}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${(() => { const lm = mkt ? mkt.leadMasuk : mkCodes.size, bk = mkt ? mkt.booking : bookMn; return lm ? Math.round(bk / lm * 100) + '%' : '0%'; })()}</td>
+</tr>
+<tr class="muted"><td style="text-align:center">lead dari marcom, campaign, kanal marketing & walk in via media marketing</td><td style="text-align:center">Nilai: <b>${rp(mkt ? mkt.nilaiReserved : resMv)}</b></td><td style="text-align:center">Nilai: <b>${rp(mkt ? mkt.nilaiBooking : bookMv)}</b></td><td style="text-align:center">Booking ÷ lead marketing masuk</td></tr>
+</table>
+<p class="muted" style="font-size:8.5pt">Reserved/Booking dihitung pada tanggal transaksi periode ini dari lead marketing (kapan pun lead-nya masuk). Lead referral, kanvasing, dan WA langsung ke sales tidak dihitung sebagai hasil marketing${mi.bookingLain ? ` (${mi.bookingLain} booking periode ini)` : ''}.</p>
+${bdet.length ? `<h3>Detail Booking: dari Lead Masuk sampai Booking</h3>
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:14%">Lead</th><th style="width:25%">Asal</th><th style="width:10%">Sales</th><th style="width:12%">Lead Masuk</th><th style="width:12%">Booking</th><th style="width:8%;text-align:center">Lama (hari)</th><th style="width:8%;text-align:center">Follow Up</th><th style="width:11%">Nilai</th></tr>
+${bdet.map(b => `<tr><td><b>${esc(b.lead_code)}</b>${b.unit ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.unit) + '</span>' : ''}</td><td>${/walk/i.test(b.sumber) ? 'Walk In via ' + esc(b.walkin_info || '-') : esc(b.sumber)}${b.campaign && b.campaign !== '(tanpa data)' ? '<br/><span class="muted" style="font-size:8.5pt">' + esc(b.campaign) + '</span>' : ''}</td><td>${esc(b.sales || '—')}</td><td>${fmtDate(b.tgl_lead)}</td><td>${fmtDate(b.tgl_booking)}</td><td style="text-align:center"><b>${b.hari}</b></td><td style="text-align:center">${b.nfu}</td><td style="white-space:nowrap">${rpS(b.nilai)}</td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Rata-rata ${Math.round(bdet.reduce((a, b) => a + Number(b.hari || 0), 0) / bdet.length)} hari dari lead masuk sampai booking.</p>` : ''}
+
+<h2>8. CAMPAIGN &amp; IKLAN DIGITAL (CLOSED-LOOP)</h2>
+${(() => {
+  const paid = bc.filter(r => r.kunci !== '(tanpa data)').reduce((t, r) => ({ l0: t.l0 + r.l0, l2: t.l2 + r.l2, l3: t.l3 + r.l3 }), { l0: 0, l2: 0, l3: 0 });
+  const baris = bc.filter(r => r.kunci !== '(tanpa data)').map(r => ({ ...r, sp: spendMap[r.kunci] || 0 }));
+  Object.entries(spendMap).forEach(([k, v]) => { if (v > 0 && k !== '(tanpa data)' && !baris.find(r => r.kunci === k)) baris.push({ kunci: k, l0: 0, l2: 0, l3: 0, nilai: 0, sp: v }); });
+  baris.sort((x, y) => y.sp - x.sp || y.l0 - x.l0);
+  const tanpa = bc.find(r => r.kunci === '(tanpa data)');
+  const td = 'style="text-align:center"', nw = 'style="white-space:nowrap"';
+  return `<p class="muted">Total belanja iklan periode: <b>${rp(totSpend)}</b> · untuk ${paid.l0} lead ber-campaign · CPL ${perR(totSpend, paid.l0)} · CPQL ${perR(totSpend, paid.l2)} · Biaya per Booking ${perR(totSpend, paid.l3)}</p>
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:33%">Campaign</th><th style="width:12%">Spend</th><th style="width:6%;text-align:center">L0</th><th style="width:6%;text-align:center">L2</th><th style="width:6%;text-align:center">L3</th><th style="width:13%">Nilai Booking</th><th style="width:12%">CPQL</th><th style="width:12%">Biaya/Booking</th></tr>
+${baris.length || tanpa ? baris.map(r => `<tr><td style="word-wrap:break-word"><b>${esc(r.kunci)}</b></td><td ${nw}>${rpS(r.sp)}</td><td ${td}>${r.l0}</td><td ${td}><b>${r.l2}</b></td><td ${td}><b>${r.l3}</b></td><td ${nw}>${rpS(r.nilai)}</td><td ${nw}>${perS(r.sp, r.l2)}</td><td ${nw}>${perS(r.sp, r.l3)}</td></tr>`).join('') + (tanpa ? `<tr class="muted"><td>(tanpa data)</td><td>—</td><td ${td}>${tanpa.l0}</td><td ${td}>${tanpa.l2}</td><td ${td}>${tanpa.l3}</td><td ${nw}>${rpS(tanpa.nilai)}</td><td>—</td><td>—</td></tr>` : '') : '<tr><td colspan="8">Belum ada data campaign pada periode ini.</td></tr>'}
+</table>`;
+})()}
+<p class="muted" style="font-size:8.5pt">L0 lead masuk · L2 lead berkualitas (Warm/Hot/Site Visit+) · L3 Booking/Closing · CPQL = spend ÷ L2. Campaign tanpa lead tetap ditampilkan agar jumlah spend sama dengan total. Baris "(tanpa data)" = lead tanpa jejak campaign.</p>
+${bk.length ? `<h3>Kreatif Penghasil Lead (utm_content)</h3>
+<table><tr><th>Kode Kreatif</th><th style="width:50px;text-align:center">L0</th><th style="width:50px;text-align:center">L2</th><th style="width:60px;text-align:center">Booking</th><th>Grafik</th></tr>
+${bk.map(r => `<tr><td><b>${esc(r.kunci)}</b></td><td style="text-align:center">${r.l0}</td><td style="text-align:center"><b>${r.l2}</b></td><td style="text-align:center">${r.l3}</td><td>${barW(r.l0, bkMax, '#C9922E')}</td></tr>`).join('')}
+</table>` : ''}
+
+<h2>9. KONTEN ORGANIK — DETAIL PER KONTEN (${konten.length} konten)</h2>
+<table style="font-size:7.5pt;table-layout:fixed;width:100%"><tr><th style="width:46px">Tanggal</th><th style="width:44px">Platform</th><th style="width:50px">Format</th><th style="width:215px">Topik</th><th style="width:26px">Jam</th><th style="width:38px;text-align:center">Reach</th><th style="width:28px;text-align:center">Like</th><th style="width:38px;text-align:center">Kmt/DM</th><th style="width:28px;text-align:center">Share</th><th style="width:28px;text-align:center">Save</th><th style="width:34px;text-align:center">Views</th><th style="width:36px;text-align:center">View Full</th><th style="width:32px;text-align:center">Klik Bio</th><th style="width:30px;text-align:center">ER</th></tr>
+${konten.length ? konten.map(x => `<tr><td>${fmtDate(x.tgl)}</td><td>${esc(x.platform)}</td><td>${esc(x.format)}</td><td><b>${esc(x.topik || x.format || '—')}</b></td><td>${esc(x.jam || '—')}</td><td style="text-align:center">${n0(x.reach)}</td><td style="text-align:center">${n0(x.like_n)}</td><td style="text-align:center">${n0(x.komentar)}</td><td style="text-align:center">${n0(x.share_n)}</td><td style="text-align:center">${n0(x.save_n)}</td><td style="text-align:center">${n0(x.view3)}</td><td style="text-align:center">${n0(x.view_full)}</td><td style="text-align:center">${n0(x.klik_bio)}</td><td style="text-align:center"><b>${pctEr(erOf(x))}</b></td></tr>`).join('') : '<tr><td colspan="14">Belum ada konten tercatat pada periode ini.</td></tr>'}
+</table>
+<p class="muted" style="font-size:8.5pt">Angka = performa terakhir yang di-update tim Marcom. ER = (like + komentar + share + save) ÷ reach.</p>
+${polaF.length ? `<h3>Analisa: Pola Konten yang Menang</h3>
+<table><tr><th>Format</th><th style="width:45px;text-align:center">Jml</th><th style="width:95px">Total Reach</th><th style="width:55px;text-align:center">ER</th><th>Grafik ER</th></tr>
+${polaF.map(r => `<tr><td>${esc(r.f)}</td><td style="text-align:center">${r.n}</td><td>${n0(r.reach)}</td><td style="text-align:center"><b>${pctEr(r.er)}</b></td><td>${barW(r.er || 0, erMax, '#C9922E')}</td></tr>`).join('')}
+</table>
+${polaJ.length ? `<p class="muted">Jam tayang terbaik (ER): ${polaJ.map(j => esc(j.b) + ' ' + pctEr(j.er)).join(' · ')}</p>` : ''}` : ''}
+
+`;
+    }
+
+    const html = `<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Report Sales & Marketing</title>
+<style>
+body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1C2B23}
+h1{font-size:20pt;color:#23694A;margin:0} h2{font-size:13pt;color:#23694A;border-bottom:2px solid #C9922E;padding-bottom:4px;margin-top:24px}
+table{border-collapse:collapse;width:100%;font-size:10pt} th{background:#1C2B23;color:#fff;padding:6px 8px;text-align:left}
+td{border:1px solid #D8D6CC;padding:5px 8px;vertical-align:top}
+.hot{background:#F6E3C0} .warm{background:#FBF1DC}
+.badge-over{color:#B3402F;font-weight:bold} .muted{color:#6B7A70}
+.kpi{display:inline-block;border:1px solid #D8D6CC;padding:8px 16px;margin:4px 8px 4px 0}
+.kpi b{font-size:16pt;color:#23694A}
+h2{page-break-inside:avoid;page-break-after:avoid}
+h3{page-break-after:avoid}
+table{page-break-inside:auto} tr{page-break-inside:avoid} img{page-break-inside:avoid}
+</style></head><body>
+<table style="border:none;width:100%"><tr>
+<td style="border:none;width:84px;vertical-align:middle">${logoTag}</td>
+<td style="border:none;vertical-align:middle">
+<p style="letter-spacing:3px;color:#C9922E;font-weight:bold;margin:0">CIPTA HARMONI LESTARI</p>
+<h1>REPORT SALES &amp; MARKETING</h1>
+</td></tr></table>
+<p class="muted">Project: <b>${esc(projLabel)}</b> &nbsp;|&nbsp; Periode: <b>${esc(periode)}</b> &nbsp;|&nbsp; Dibuat: ${dd(new Date().toISOString())} &nbsp;|&nbsp; Sumber: crm-sales-chl.vercel.app</p>
+
+<h2>1. RINGKASAN EKSEKUTIF</h2>
+<table>
+<tr><th style="text-align:center">LEAD MASUK</th><th style="text-align:center">FOLLOW UP</th><th style="text-align:center">RESERVED</th><th style="text-align:center">BOOKING</th></tr>
+<tr>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${pl.length}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#23694A">${pf.length}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#C9922E">${resSet.size}</td>
+<td style="text-align:center;font-size:20pt;font-weight:bold;color:#B3402F">${bookSet.size}</td>
+</tr>
+<tr class="muted">
+<td style="text-align:center">lead baru pada periode</td>
+<td style="text-align:center">aktivitas follow up</td>
+<td style="text-align:center">Nilai: <b>${rp(resV)}</b></td>
+<td style="text-align:center">Nilai: <b>${rp(bookV)}</b></td>
+</tr>
+</table>
+
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sebaran Sumber Lead (${pl.length} lead)</h3>
+<table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${sumberRows.length ? sumberRows.map(([k, v]) => `<tr><td>${esc(k)}${/walk/i.test(k) && walkDetail ? '<br/><span class="muted" style="font-size:8.5pt">via: ' + esc(walkDetail) + '</span>' : ''}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / Math.max(1, pl.length) * 100)}%</td><td>${bar(v)}</td></tr>`).join('') : '<tr><td colspan="4">Tidak ada lead pada periode ini.</td></tr>'}
+</table>
+
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Lead dari Marcom</h3>
+${(() => {
+      const mk = pl.filter(l => l.creator_role === 'markom');
+      const ke = mk.filter(l => (l.sales || '').trim());
+      const belum = mk.length - ke.length;
+      const pct = mk.length ? Math.round(ke.length / mk.length * 100) : 0;
+      return `<table><tr><th>Keterangan</th><th style="width:80px">Jumlah</th><th style="width:70px">%</th><th>Grafik</th></tr>
+<tr><td><b>Lead masuk ke Marcom</b></td><td style="text-align:center"><b>${mk.length}</b></td><td style="text-align:center">${pl.length ? Math.round(mk.length / pl.length * 100) : 0}% dari total lead</td><td>${bar(mk.length)}</td></tr>
+<tr><td>Sudah diserahkan ke Sales</td><td style="text-align:center"><b>${ke.length}</b></td><td style="text-align:center">${pct}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(mk.length && ke.length ? 1 : 0, Math.round(pct / 100 * 16)))}</span></td></tr>
+<tr><td>Belum diserahkan</td><td style="text-align:center"><b>${belum}</b></td><td style="text-align:center">${mk.length ? 100 - pct : 0}%</td><td><span style="color:#B3402F;letter-spacing:1px">${'▰'.repeat(Math.max(belum ? 1 : 0, Math.round((100 - pct) / 100 * 16)))}</span></td></tr>
+</table>
+<p class="muted" style="font-size:8.5pt">Lead Marcom = lead yang diinput akun Marcom pada periode ini; "diserahkan" bila lead sudah memiliki Sales/PIC.</p>`;
+    })()}
+
+<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Reserved &amp; Booking</h3>
+<p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking — unit berstatus Reserved belum dihitung sebagai penjualan.</p>
+<table><tr><th>Jenis</th><th style="width:60px">Jumlah</th><th>Grafik</th><th style="width:150px">Nilai</th></tr>
+${(() => {
+      const rbMax = Math.max(1, resSet.size, bookSet.size);
+      const bar2 = (n, warna) => '<span style="color:' + warna + ';letter-spacing:1px">' + '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / rbMax * 16))) + '</span>';
+      return `<tr><td><b>Reserved</b></td><td style="text-align:center"><b>${resSet.size}</b></td><td>${bar2(resSet.size, '#C9922E')}</td><td>${rp(resV)}</td></tr>
+<tr><td><b>Booking</b></td><td style="text-align:center"><b>${bookSet.size}</b></td><td>${bar2(bookSet.size, '#B3402F')}</td><td>${rp(bookV)}</td></tr>`;
+    })()}
+</table>
+
+${(() => {
+      // Sumber Visit = lead yang sudah DATANG: Walk In (label = info tahu dari mana) + status Site Visit dari sumber mana pun (label = sumbernya)
+      const byVisit = {};
+      pl.forEach(l => {
+        let label = null;
+        if (/walk/i.test(l.sumber || '')) label = 'Walk In — ' + (l.walkin_info || 'tanpa info');
+        else if (l.status === 'Site Visit') label = l.sumber || 'Tidak diisi';
+        if (label) byVisit[label] = (byVisit[label] || 0) + 1;
+      });
+      const vRows = Object.entries(byVisit).sort((a, b) => b[1] - a[1]);
+      if (!vRows.length) return '';
+      const vMax = Math.max(1, ...vRows.map(x => x[1]));
+      const vTot = vRows.reduce((a, x) => a + x[1], 0);
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sumber Visit — asal lead yang sudah datang (${vTot} lead)</h3>
+<table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${vRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / vTot * 100)}%</td><td><span style="color:#C9922E;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / vMax * 16)))}</span></td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Baris "Walk In — …" dirinci menurut info "tahu dari mana"; totalnya ${pl.filter(l => /walk/i.test(l.sumber || '')).length} lead = angka Walk In pada Sebaran Sumber Lead. Lead sumber lain dihitung bila statusnya sudah Site Visit (${vTot - pl.filter(l => /walk/i.test(l.sumber || '')).length} lead) — karena itu total tabel ini wajar berbeda dari baris mana pun di Sebaran Sumber Lead.</p>`;
+    })()}
+
+${(() => {
+      const byDom = {};
+      pl.forEach(l => { const k = (l.domisili || '').trim(); if (k) byDom[k] = (byDom[k] || 0) + 1; });
+      const domRows = Object.entries(byDom).sort((a, b) => b[1] - a[1]).slice(0, 12);
+      if (!domRows.length) return '';
+      const dMax = Math.max(1, ...domRows.map(x => x[1]));
+      const dTot = domRows.reduce((a, x) => a + x[1], 0);
+      return `<h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Domisili Lead (Top ${domRows.length})</h3>
+<table><tr><th>Domisili</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
+${domRows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center"><b>${v}</b></td><td style="text-align:center">${Math.round(v / dTot * 100)}%</td><td><span style="color:#23694A;letter-spacing:1px">${'▰'.repeat(Math.max(1, Math.round(v / dMax * 16)))}</span></td></tr>`).join('')}
+</table>`;
+    })()}
+
+<h2>2. STATUS PIPELINE <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi status SAAT INI dari lead yang masuk pada periode; Reserved &amp; Booking dilaporkan dari transaksi pada Ringkasan; pergerakan status selama periode ada di 2B)</span></h2>
+<table><tr><th>Status</th><th>Jumlah</th></tr>
+${ST.filter(st => st !== 'Booking' && st !== 'Closing').map(st => {
+      const val = st === 'Site Visit' ? svN : cnt(st);
+      const note = st === 'Site Visit' ? ' <span class="muted" style="font-size:8.5pt">(status Site Visit + lead Walk In)</span>' : '';
+      return `<tr${st === 'Hot' ? ' class="hot"' : st === 'Warm' ? ' class="warm"' : ''}><td>${st}${note}</td><td>${val}</td></tr>`;
+    }).join('')}
+</table>
+
+${slr ? `<h2>2B. PERGERAKAN STATUS LEAD PADA PERIODE <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(dihitung dari setiap perubahan status, bukan status akhir)</span></h2>
+<table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th>Lead masuk</th><th>Dioper ke sales</th><th>Naik ke berkualitas</th><th>Site Visit</th><th>Reserved</th><th>Booking</th><th>Drop</th><th>Drop marcom / sales</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${slr.masuk}</td><td>${slr.oper}</td><td>${slr.naikKualitas}</td><td>${slr.transisi['Site Visit'] || 0}</td><td>${slr.transisi['Reserved'] || 0}</td><td>${(slr.transisi['Booking'] || 0) + (slr.transisi['Closing'] || 0)}</td><td style="color:#B3402F">${slr.drop.total}</td><td>${slr.drop.marcom} / ${slr.drop.sales}</td></tr></table>
+${slr.drop.alasan.length ? `<h3>Alasan drop terbanyak</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:70%">Alasan</th><th style="width:15%;text-align:center">Lead</th><th style="width:15%;text-align:center">Porsi</th></tr>${slr.drop.alasan.slice(0, 8).map(a => `<tr><td>${a.alasan === '(tanpa alasan)' ? '<b style="color:#B3402F">Tanpa alasan</b> — alasan drop tidak diisi sales' : esc(a.alasan)}</td><td style="text-align:center"><b>${a.n}</b></td><td style="text-align:center">${slr.drop.total ? Math.round(a.n / slr.drop.total * 100) : 0}%</td></tr>`).join('')}<tr style="font-weight:bold;background:#F5F2EA"><td>Total drop pada periode (dengan riwayat)</td><td style="text-align:center">${slr.drop.total}</td><td style="text-align:center">100%</td></tr></table>` : ''}
+${slr.drop.perkiraan ? `<p class="muted" style="font-size:8.5pt;background:#FFF8E6;border:1px solid #F0DCA6;border-radius:6px;padding:6px 10px"><b>Catatan:</b> ${slr.drop.perkiraan} lead lain berstatus Drop sejak sebelum ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'pencatat riwayat aktif'}, saat CRM belum mencatat riwayat perubahan status, sehingga tanggal dan alasan drop-nya tidak diketahui. Lead ini tidak dimasukkan ke tabel alasan dan angka per sales.</p>` : ''}
+${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper: a.oper + r.oper, kualitas: a.kualitas + r.kualitas, visit: a.visit + r.visit, booking: a.booking + r.booking, drop: a.drop + r.drop, masih: a.masih + r.masih, dropLama: a.dropLama + r.dropLama }), { oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 });
+      const c = 'style="text-align:center"';
+      return `<h3>Per sales — lead yang dioper pada periode dan perkembangannya</h3><table style="width:100%;table-layout:fixed;font-size:9.5pt"><tr><th style="width:18%">Sales</th><th ${c}>Dioper</th><th ${c}>Berkualitas</th><th ${c}>Site Visit</th><th ${c}>Booking</th><th ${c}>Drop</th><th ${c}>Masih diproses</th><th ${c}>Konversi ke berkualitas</th><th ${c} style="color:#E2BE7A">Drop lead lama*</th></tr>
+      ${slr.perSales.map(r => `<tr><td><b>${esc(r.sales)}</b></td><td ${c}>${r.oper}</td><td ${c}>${r.kualitas}</td><td ${c}>${r.visit}</td><td ${c}><b>${r.booking}</b></td><td ${c}>${r.drop}</td><td ${c}>${r.masih}</td><td ${c}>${r.konversi}%</td><td ${c} class="muted">${r.dropLama}</td></tr>`).join('')}
+      <tr style="font-weight:bold;background:#F5F2EA"><td>Total</td><td ${c}>${T.oper}</td><td ${c}>${T.kualitas}</td><td ${c}>${T.visit}</td><td ${c}>${T.booking}</td><td ${c}>${T.drop}</td><td ${c}>${T.masih}</td><td ${c}>${T.oper ? Math.round(T.kualitas / T.oper * 100) : 0}%</td><td ${c}>${T.dropLama}</td></tr></table>
+      <p class="muted" style="font-size:8.5pt">Angka Dioper s.d. Masih diproses hanya dari lead yang dioper ke sales tsb <b>pada periode ini</b>, diikuti perkembangannya sampai hari ini — jadi Drop tidak melebihi Dioper. Booking dari lead lama tetap tampil di Bagian 3 dan Laporan Penjualan. *Drop lead lama = lead yang dioper sebelum periode (atau tanpa oper) tetapi di-drop pada periode ini.</p>`; })() : ''}
+<p class="muted" style="font-size:8.5pt">Lead New tanpa perkembangan: ${slr.aging.n7} lead > 7 hari (${slr.aging.n14} > 14 hari). Riwayat status dicatat otomatis sejak ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'update terpasang'}; periode sebelum itu hanya memiliki status akhir.</p>` : ''}
+<h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
+<table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
+${salesNs.length ? salesNs.map(sn => {
+      const mine = pl.filter(l => l.sales === sn);
+      const punya = (t, jenis) => t.jenis === jenis && (t.sales || salesOf[t.lead_code]) === sn;
+      const rs = new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
+      const bk = new Set(pt.filter(t => punya(t, 'Booking')).map(t => t.lead_code)).size;
+      const rate = mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%');
+      return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${rate}</b></td></tr>`;
+    }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}
+</table>
+<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking dihitung dari TANGGAL TRANSAKSI pada periode — sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
+
+<h2>4. MASTER STOCK — PETA SITEPLAN</h2>
+<p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
+${petaHtml}
+
+${(() => {
+      const kg = kegPeriode();
+      if (!kg.length) return '';
+      const lead = kg.reduce((a, k) => a + (Number(k.jml_lead) || 0), 0);
+      const biaya = kg.reduce((a, k) => a + (Number(k.biaya) || 0), 0);
+      const perJenis = {};
+      kg.forEach(k => { perJenis[k.jenis] = (perJenis[k.jenis] || 0) + 1; });
+      const galeri = kg.map(k => {
+        const fotos = fotoKeg[k.id] || [];
+        if (!fotos.length) return '';
+        return `<h3 style="color:#23694A;margin:12px 0 4px">${esc(k.jenis)} — ${esc(k.lokasi)} · ${fmtDate(k.tgl)}</h3>
+<p class="muted">${esc(k.project || '-')}${k.pic ? ' · PIC: ' + esc(k.pic) : ''} · ${k.jml_lead || 0} lead${k.catatan ? ' · ' + esc(k.catatan) : ''}</p>
+<table style="border:none"><tr>${fotos.map((f, i) => `<td style="border:none;padding:4px;width:50%"><img src="${f}" width="300" height="225" style="width:300px;height:225px" /></td>${i % 2 === 1 ? '</tr><tr>' : ''}`).join('')}</tr></table>`;
+      }).join('');
+      return `<h2>5. AKTIVITAS SALES &amp; MARKETING</h2>
+<table><tr><th>Tanggal</th><th>Jenis</th><th>Lokasi</th><th>Project</th><th>PIC</th><th style="width:60px">Lead</th><th style="width:110px">Biaya</th></tr>
+${kg.map(k => `<tr><td>${fmtDate(k.tgl)}</td><td>${esc(k.jenis)}</td><td><b>${esc(k.lokasi)}</b></td><td>${esc(k.project || '-')}</td><td>${esc(k.pic || '-')}</td><td style="text-align:center"><b>${k.jml_lead || 0}</b></td><td>${Number(k.biaya) ? rp(k.biaya) : '-'}</td></tr>`).join('')}
+<tr><td colspan="5"><b>TOTAL ${kg.length} kegiatan</b></td><td style="text-align:center"><b>${lead}</b></td><td><b>${rp(biaya)}</b></td></tr>
+</table>
+<p class="muted">${Object.entries(perJenis).sort((a, b) => b[1] - a[1]).map(([j, n]) => j + ' ' + n + '×').join(' · ')}${lead ? ' · biaya per lead ' + rp(Math.round(biaya / lead)) : ''}</p>
+${galeri ? '<h3 style="color:#23694A;margin-top:14px">Dokumentasi Kegiatan</h3>' + galeri : ''}
+
+`;
+    })()}<h2>6. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
+<table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>
+${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning)}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
+${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
+</table>
+<p class="muted">Nilai Penjualan memakai <b>Nilai Transaksi</b> (harga jual unit) dari transaksi terakhir tiap unit; unit hasil penandaan manual memakai nilai kontrak yang tercatat di Master Stock. Unit tanpa nilai tercatat terhitung pada jumlah namun bernilai Rp 0.</p>
+
+${(() => {
+      if (!kprData || !Array.isArray(kprData.rows)) return '';
+      const semua = kprData.rows.filter(k => !k.batal && k.status.kategori !== 'menunggu' && (!proj || k.project === proj));
+      if (!semua.length) return '';
+      const kat = c => semua.filter(k => k.status.kategori === c);
+      const selesaiP = kat('selesai').filter(k => inPeriod(k.akad_realisasi));
+      const ditolakP = kat('ditolak').filter(k => inPeriod(k.updated_at));
+      const berjalan = kat('berjalan');
+      const perTahap = {};
+      berjalan.forEach(k => { perTahap[k.status.label] = (perTahap[k.status.label] || 0) + 1; });
+      const URUT = ['Verifikasi & SLIK', 'Siap diajukan ke bank', 'Diajukan', 'Kumpul berkas', 'Analisa kredit'];
+      const labelReport = k => ({ selesai: 'Selesai', akad: 'Rencana akad', sp3k: 'SP3K terbit', ditolak: 'Ditolak' })[k.status.kategori] || k.status.label;
+      const warna = k => ({ selesai: '#23694A', akad: '#23694A', sp3k: '#23694A', ditolak: '#B3402F' })[k.status.kategori] || '#28527A';
+      const baris = [...kat('akad'), ...kat('sp3k'), ...berjalan, ...selesaiP, ...ditolakP];
+      return `<h2>6B. PROSES KPR <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi per hari ini; Selesai = akad sudah terealisasi pada periode)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Berjalan</th><th style="text-align:center">SP3K belum pilih akad</th><th style="text-align:center">Rencana akad</th><th style="text-align:center">Selesai (periode)</th><th style="text-align:center">Ditolak (periode)</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${berjalan.length}</td><td>${kat('sp3k').length}</td><td>${kat('akad').length}</td><td style="color:#23694A">${selesaiP.length}</td><td style="color:#B3402F">${ditolakP.length}</td></tr></table>
+${berjalan.length ? `<p class="muted">Berjalan per tahap: ${URUT.filter(t => perTahap[t]).map(t => t + ' ' + perTahap[t]).join(' · ')}</p>` : ''}
+<table style="font-size:9pt"><tr><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Bank</th><th>Status</th><th>Rencana akad</th><th>Realisasi akad</th><th>Kendala</th></tr>
+${baris.map(k => `<tr><td><b>${esc(k.nama || k.lead_code)}</b></td><td>${esc([k.project, k.unit].filter(Boolean).join(' · ') || '-')}</td><td>${esc(k.sales || '-')}</td>
+<td>${esc((k.banks || []).map(b => b.bank).join(', ') || '-')}</td><td style="color:${warna(k)};font-weight:bold">${esc(labelReport(k))}</td>
+<td>${k.akad_tgl ? fmtDate(k.akad_tgl) : '-'}</td><td>${k.akad_realisasi ? fmtDate(k.akad_realisasi) : '-'}</td><td>${esc(k.kendala || '-')}</td></tr>`).join('')}
+</table>
+<p class="muted" style="font-size:8.5pt">Proses KPR dihitung sejak konsumen Booking. Status mengikuti tahap bank yang paling maju; konsumen yang diajukan ke lebih dari satu bank tercantum semua bank-nya. Selesai = tanggal realisasi akad sudah diisi.</p>`;
+    })()}
+${(() => {
+      if (!jjData || !Array.isArray(jjData.perSales) || !jjData.perSales.length) return '';
+      const P = jjData.perSales, T = jjData.total || {}, c = 'style="text-align:right"';
+      const hariN = t => ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(t + 'T00:00:00Z').getUTCDay()];
+      const warnaSt = { Reschedule: '#8A5F14', Batal: '#B3402F', 'Belum di-update': '#B3402F', 'Akan datang': '#2D5D8E' };
+      return `<h2>6C. JANJIAN VISIT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(kejadian pada periode report — dihitung dari riwayat janji temu, bukan tanggal janji)</span></h2>
+<table style="font-size:9pt"><tr><th>Sales</th><th ${c}>Janji temu dibuat</th><th ${c}>Datang</th><th ${c}>Reschedule</th><th ${c}>Batal</th><th ${c}>Belum di-update</th><th ${c}>Akan datang</th><th ${c}>Walk in / tanpa janji</th><th ${c}>Total visitor</th></tr>
+${P.map(p => `<tr><td><b>${esc(p.sales)}</b></td><td ${c}>${p.dibuat}</td><td ${c} style="color:#23694A;text-align:right">${p.datang}</td><td ${c}>${p.resch}</td><td ${c} style="color:#B3402F;text-align:right">${p.batal}</td><td ${c} style="${p.belum ? 'color:#B3402F;font-weight:bold;' : ''}text-align:right">${p.belum}</td><td ${c}>${p.akan}</td><td ${c}>${p.lain}</td><td ${c}><b>${p.visitor}</b></td></tr>`).join('')}
+<tr style="font-weight:bold;background:#F5F2EA"><td>Total</td><td ${c}>${T.dibuat || 0}</td><td ${c}>${T.datang || 0}</td><td ${c}>${T.resch || 0}</td><td ${c}>${T.batal || 0}</td><td ${c}>${T.belum || 0}</td><td ${c}>${T.akan || 0}</td><td ${c}>${T.lain || 0}</td><td ${c}>${T.visitor || 0}</td></tr></table>
+<p class="muted" style="font-size:8.5pt">Janji temu dibuat = dibuat pada periode · Datang / Reschedule / Batal = kejadian yang dicatat pada periode (satu janji temu bisa reschedule lalu datang) · Belum di-update = jam janji sudah lewat tanpa hasil · Akan datang = masih terjadwal setelah periode · Walk in / tanpa janji = visitor lain pada periode · Total visitor = seluruh orang yang datang pada periode (satu orang dihitung sekali per hari).</p>
+${jjData.rincian.length ? `<p style="margin:8px 0 4px"><b>Rincian reschedule, batal, belum di-update, dan akan datang</b></p>
+<table style="font-size:9pt"><tr><th>Tanggal · jam</th><th>Lead</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan / alasan</th></tr>
+${jjData.rincian.slice(0, 60).map(x => { const ev = x.status === 'Reschedule' || x.status === 'Batal'; const tglK = ev ? new Date(x.waktu) : null; const tk = ev && !isNaN(tglK) ? `${['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][tglK.getDay()]} ${tglK.toLocaleDateString('id-ID')} ${tglK.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}<br><span class="muted">dicatat · janji ${fmtDate(x.tgl)}</span>` : `${hariN(x.tgl)} ${fmtDate(x.tgl)} ${esc(String(x.jam || '').slice(0, 5).replace(':', '.'))}`; return `<tr><td>${tk}</td><td><b>${esc(x.nama || x.lead_code)}</b><br><span class="muted">${esc(x.project || '')}</span></td><td>${esc(x.sales || '-')}</td>
+<td>${esc(x.jenis || '')}<br><span class="muted">${esc(x.lokasi || '')}</span></td><td style="color:${warnaSt[x.status] || '#10251E'};font-weight:bold">${esc(x.status)}</td><td>${esc(x.ket || '-')}</td></tr>`; }).join('')}</table>` : ''}`;
+    })()}
+${(() => {
+      if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';
+      const L = lpData.rows, bk = L.filter(x => x.status === 'Booking'), bt = L.filter(x => x.status === 'Batal'), rv = L.filter(x => x.status === 'Reserved');
+      const nilaiL = bk.reduce((a, x) => a + (x.harga || 0), 0), lm = bk.filter(x => x.lama != null).map(x => x.lama), rataL = lm.length ? (lm.reduce((a, b) => a + b, 0) / lm.length).toFixed(1) : '-';
+      const rp2 = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+      const rek = (judul, kunci) => { const daftar = [...new Set(L.map(x => kunci(x)))]; return `<p style="margin:8px 0 4px"><b>${judul}</b></p><table style="font-size:9pt"><tr><th>Nama</th><th style="text-align:right">Unit</th><th style="text-align:right">Booking</th><th style="text-align:right">Batal</th><th style="text-align:right">Reserved</th><th style="text-align:right">Nilai penjualan</th></tr>
+        ${daftar.map(n => { const tt = L.filter(x => kunci(x) === n), bb = tt.filter(x => x.status === 'Booking'); return `<tr><td><b>${esc(n)}</b></td><td style="text-align:right">${tt.length}</td><td style="text-align:right">${bb.length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Batal').length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Reserved').length}</td><td style="text-align:right">${rp2(bb.reduce((a, x) => a + (x.harga || 0), 0))}</td></tr>`; }).join('')}</table>`; };
+      return `<h2>6D. RINGKASAN PENJUALAN <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(Reserved → Booking / Batal pada periode report)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Konsumen</th><th style="text-align:center">Booking</th><th style="text-align:center">Batal</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Konversi</th><th style="text-align:center">Nilai penjualan</th><th style="text-align:center">Rata-rata hari ke Booking</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${L.length}</td><td style="color:#23694A">${bk.length}</td><td style="color:#B3402F">${bt.length}</td><td style="color:#8A5F14">${rv.length}</td><td>${Math.round(bk.length / L.length * 100)}%</td><td>${rp2(nilaiL)}</td><td>${rataL}</td></tr></table>
+${rek('Per cara bayar', x => (x.bayar || 'Belum diisi').replace(/\s*\d+x$/i, ''))}
+${rek('Per sales', x => x.sales || '-')}
+<p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking. Detail per konsumen (tanggal Reserved, Booking, nominal, cara bayar, status KPR) ada di menu Report → Laporan Penjualan (Excel/PDF).</p>`;
+    })()}
+${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
+</body></html>`;
+
+    if (mode === 'pdf') {
+      // Report PDF: buka jendela cetak berisi report yang sama -> pilih "Save as PDF"
+      const w = window.open('', '_blank');
+      if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
+      w.document.open();
+      w.document.write(html.replace('</head>', '<style>@page{size:A4 portrait;margin:14mm} body{background:#fff} table{page-break-inside:auto} tr{page-break-inside:avoid} h2{page-break-after:avoid}</style></head>'));
+      w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
+      toast('Jendela cetak terbuka — pilih "Save as PDF" sebagai printer 📄');
+      return;
+    }
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Report_Sales_Marketing_CHL_${(proj || 'Semua').replace(/\s+/g, '')}_${d1 || 'awal'}_${d2 || 'kini'}.doc`;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Report Word terunduh');
+  }
+
+  return (
+    <>
+      {!hanyaReport && <div className="page-head">
+        <div><h1>Dashboard</h1>
+          <div className="sub">{periodeCustom
+            ? <>Data periode terpilih: <b>{bulanLabel}</b> (mengikuti tanggal report) <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => { setD1(''); setD2(''); }}>↺ Kembali ke bulan berjalan</button></>
+            : <>Data bulan berjalan: 1 {bulanLabel.split(' ')[0]} – {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</div><div className="sub">Data real-time dari database bersama — otomatis diperbarui bila ada data baru{lastUpd ? ' · diperbarui ' + lastUpd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''} <button className="sort-btn" style={{ padding: '2px 9px', marginLeft: 6 }} onClick={() => muatSemua(true)}>↻ Segarkan</button></div></div>
+        <div className="stamp">Data per: <b>{new Date().toLocaleDateString('id-ID')}</b></div>
+      </div>}
+      {!hanyaReport && <div className="fu-toolbar">
+        <span className="hint" style={{ fontWeight: 600 }}>Filter project:</span>
+        {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
+        {(set.project || []).map(p => (
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+      </div>}
+      <div className="card" style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+        {!hanyaReport && <div className="field" style={{ minWidth: 150 }}><label>Periode — Dari Tanggal</label>
+          <input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>}
+        {!hanyaReport && <div className="field" style={{ minWidth: 150 }}><label>Sampai Tanggal</label>
+          <input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>}
+        {hanyaReport === 'excel' && <div style={{ position: 'relative', display: 'inline-block' }}>
+          <button className="sort-btn" style={{ fontWeight: 700 }} onClick={() => setSrcOpen(o => !o)}>
+            Sumber: {srcSel.length === 0 ? 'Semua' : srcSel.length <= 2 ? srcSel.join(', ') : srcSel.length + ' dipilih'} ▾
+          </button>
+          {srcOpen && (<>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setSrcOpen(false)} />
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 10px 28px rgba(28,43,35,.16)', padding: '10px 12px', minWidth: 240, maxHeight: 300, overflowY: 'auto' }}>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer', fontWeight: 700 }}>
+                <input type="checkbox" checked={!srcSel.length} onChange={() => setSrcSel([])} /> Semua Sumber
+              </label>
+              <div style={{ borderTop: '1px solid var(--line)', margin: '4px 0' }} />
+              {(set.sumber || []).map(sm => (
+                <label key={sm} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 2px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={srcSel.includes(sm)}
+                    onChange={() => setSrcSel(srcSel.includes(sm) ? srcSel.filter(x => x !== sm) : [...srcSel, sm])} /> {sm}
+                </label>))}
+              <div style={{ textAlign: 'right', marginTop: 6 }}>
+                <button className="sort-btn active" onClick={() => setSrcOpen(false)}>Selesai</button>
+              </div>
+            </div>
+          </>)}
+        </div>}
+        {hanyaReport === 'lengkap' && <button className="sort-btn" style={{ borderColor: 'var(--brass)', color: 'var(--brass-deep)', fontWeight: 700 }}
+          onClick={() => setPanelFoto(v => !v)} title="Lampirkan foto kegiatan ke report Word/PDF">
+          📸 Foto Kegiatan{Object.values(fotoKeg).reduce((a, x) => a + x.length, 0) ? ` (${Object.values(fotoKeg).reduce((a, x) => a + x.length, 0)})` : ''}
+        </button>}
+        {hanyaReport === 'lengkap' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('word')}>⬇ Report Word</button>}
+        {hanyaReport === 'lengkap' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => downloadWord('pdf')}>📄 Report PDF</button>}
+        {hanyaReport === 'excel' && <button className="btn btn-primary" style={{ width: 'auto' }} onClick={downloadExcel}>⬇ Download Excel</button>}
+        {!hanyaReport && <span className="hint">Report Word/PDF, Laporan Penjualan, dan Data Excel ada di menu <Link href="/report"><b>Report ›</b></Link></span>}
+        {hanyaReport === 'lengkap' && panelFoto && (
+          <div style={{ flexBasis: '100%', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+            <b style={{ color: 'var(--brass-deep)' }}>📸 Lampirkan foto kegiatan</b>
+            <div className="hint" style={{ marginBottom: 6 }}>Foto diperkecil di perangkat ini lalu ditempel ke report — <b>tidak disimpan di aplikasi</b> dan hilang saat halaman ditutup.</div>
+            {kegPeriode().length ? kegPeriode().map(k => (
+              <div key={k.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '5px 0', borderTop: '1px solid var(--brass-line)' }}>
+                <span style={{ minWidth: 230, fontSize: 13 }}>📅 {fmtDate(k.tgl)} · <b>{k.jenis}</b> · {k.lokasi}</span>
+                <label className="sort-btn" style={{ padding: '3px 10px', cursor: 'pointer' }}>Pilih Foto
+                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => pilihFoto(k.id, e.target.files)} /></label>
+                <span className="hint">{(fotoKeg[k.id] || []).length ? '● '.repeat((fotoKeg[k.id] || []).length) + `${(fotoKeg[k.id] || []).length} foto` : 'belum ada foto'}</span>
+                {(fotoKeg[k.id] || []).length ? <button className="sort-btn" style={{ padding: '2px 8px' }}
+                  onClick={() => setFotoKeg(x => { const y = { ...x }; delete y[k.id]; return y; })}>✕ Kosongkan</button> : null}
+              </div>)) : <span className="hint">Tidak ada kegiatan pada project &amp; rentang tanggal yang dipilih.</span>}
+          </div>
+        )}
+        {hanyaReport === 'lengkap' && <span className="hint">Report mengikuti filter periode &amp; project di atas; isinya lead, follow up, booking, stok, KPR, janjian, dan marketing, plus satu halaman ringkasan penjualan. Detail per transaksi ada di tab Laporan Penjualan.</span>}
+        {hanyaReport === 'excel' && <span className="hint">Excel berisi data mentah lead, follow up, dan transaksi sesuai periode &amp; project, dan juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>}
+      </div>
+      {!hanyaReport && (<>
+      <div className="grid kpis">
+        {[['Total Lead', mLeads.length], ['Hot', byStatus('Hot')],
+          ['Reserved', mResSet.size], ['Booking', mBookSet.size]]
+          .map(([l, v]) => <div className="kpi" key={l}><div className="lbl">{l}</div><div className="val">{v}</div></div>)}
+      </div>
+      {alur.length > 0 && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h2>Alur Penjualan — posisi seluruh transaksi</h2>
+          <div className="grid kpis" style={{ marginBottom: 10 }}>
+            {[
+              ['Menunggu verifikasi', alurStat.menunggu, '#7A5A18'],
+              ['Proses divisi berjalan', alurStat.proses, '#274E7A'],
+              ['Menuju serah terima', alurStat.jadwal, '#3D6B2E'],
+              ['Sudah serah terima', alurStat.selesai, '#2F6E6A'],
+            ].map(([l, v, c]) => (
+              <div className="kpi" key={l} style={{ '--c': c }}>
+                <div className="lbl">{l}</div><div className="val">{v}</div></div>))}
+          </div>
+          <div className="pipe">
+            {alurStat.divisi.map(d => (
+              <div className="pipe-row" key={d.nama}>
+                <span>{d.nama}{d.telat > 0 ? <span className="hint" style={{ color: 'var(--red)', fontWeight: 700 }}> · {d.telat} terlambat</span> : null}</span>
+                <div className="bar"><div className="fill" style={{
+                  width: (d.total ? d.selesai / d.total * 100 : 0) + '%',
+                  background: d.telat > 0 ? '#8A2F2F' : undefined }} /></div>
+                <span className="n">{d.selesai}/{d.total}</span>
+              </div>))}
+          </div>
+          <div className="hint">Rincian per konsumen ada di menu Papan Alur.</div>
+        </div>)}
+
+      <div className="grid two-col">
+        <div className="card">
+          <h2>Status Pipeline <span className="hint">(status saat ini dari lead yang masuk {periodeKata}; pergerakan selama periode ada di kartu di bawah)</span></h2>
+          <div className="pipe">
+            {pipeRows.map(r => (
+              <div className={'pipe-row' + r.cls} key={r.label}>
+                <span>{r.label}{r.hint ? <span className="hint" style={{ fontWeight: 400 }}> ({r.hint})</span> : null}</span>
+                <div className="bar"><div className="fill" style={{ width: (r.val / max * 100) + '%' }} /></div>
+                <span className="n">{r.val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="card">
+            <h2>Reminder Follow-Up</h2>
+            <div className="rem-line overdue"><span>Overdue (terlewat)</span><span className="n">{rem.OVERDUE}</span></div>
+            <div className="rem-line today"><span>Hari Ini</span><span className="n">{rem['HARI INI']}</span></div>
+            <div className="rem-line upcoming"><span>Upcoming</span><span className="n">{rem.UPCOMING}</span></div>
+          </div>
+          <div className="card">
+            <h2>Nilai (Rp) — {bulanLabel}</h2>
+            <div className="money-line"><span>Pipeline Aktif <span className="hint">(budget Warm & Hot {periodeKata})</span></span><b>{fmtRp(pipeVal)}</b></div>
+            <div className="money-line"><span>Nilai Reserved <span className="hint">(belum diakui penjualan)</span></span><b>{fmtRp(resVal)}</b></div>
+            <div className="money-line"><span>Nilai Booking <span className="hint">(penjualan diakui)</span></span><b>{fmtRp(bookVal)}</b></div>
+          </div>
+        </div>
+      </div>
+      {sl && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <h2>Pergerakan Status Lead <span className="hint">({periodeCustom ? bulanLabel : 'bulan berjalan'} · dihitung dari setiap perubahan status, bukan status akhir)</span></h2>
+          <div className="kpi-grid kpi-compact" style={{ marginBottom: 10 }}>
+            {[['Lead masuk', sl.masuk], ['Dioper ke sales', sl.oper], ['Naik ke berkualitas', sl.naikKualitas], ['Site Visit', sl.transisi['Site Visit'] || 0], ['Reserved', sl.transisi['Reserved'] || 0], ['Booking', (sl.transisi['Booking'] || 0) + (sl.transisi['Closing'] || 0)], ['Drop', sl.drop.total], ['Drop oleh marcom / sales', `${sl.drop.marcom} / ${sl.drop.sales}`]].map(([l, v]) => (
+              <div className="kpi" key={l}><div className="kpi-label">{l}</div><div className="kpi-val">{v}</div></div>))}
+          </div>
+          <div className="grid two-col">
+            <div>
+              <h3 style={{ margin: '0 0 6px' }}>Alasan drop terbanyak</h3>
+              {sl.drop.alasan.length ? <div className="tbl-wrap tbl-compact"><table><thead><tr><th>Alasan</th><th className="num">Lead</th></tr></thead>
+                <tbody>{sl.drop.alasan.slice(0, 6).map(a => <tr key={a.alasan}><td>{a.alasan === '(tanpa alasan)' ? <b style={{ color: 'var(--red)' }}>Tanpa alasan</b> : a.alasan}</td><td className="num"><b>{a.n}</b></td></tr>)}</tbody></table></div>
+                : <p className="hint">Belum ada lead yang di-drop pada periode ini.</p>}
+              <h3 style={{ margin: '12px 0 6px' }}>Lead aktif saat ini</h3>
+              <div className="hint">{Object.entries(sl.aktifAkhir).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
+              <h3 style={{ margin: '12px 0 6px' }}>Lead New tanpa perkembangan</h3>
+              <div className="hint">{sl.aging.n7} lead New &gt; 7 hari ({sl.aging.n14} di antaranya &gt; 14 hari){sl.aging.daftar.length ? ': ' + sl.aging.daftar.slice(0, 8).map(a => `${a.lead_code} (${a.hari} hr${a.sales ? ', ' + a.sales : ', marcom'})`).join(', ') : ''}</div>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px' }}>Per sales — lead yang dioper pada periode dan perkembangannya</h3>
+              <div className="tbl-wrap tbl-compact"><table>
+                <thead><tr><th>Sales</th><th className="num">Dioper</th><th className="num">Berkualitas</th><th className="num">Site Visit</th><th className="num">Booking</th><th className="num">Drop</th><th className="num">Masih diproses</th><th className="num" title="Drop lead yang dioper sebelum periode">Drop lead lama</th></tr></thead>
+                <tbody>{sl.perSales.length ? sl.perSales.map(r => <tr key={r.sales}><td><b>{r.sales}</b></td><td className="num">{r.oper}</td><td className="num">{r.kualitas}</td><td className="num">{r.visit}</td><td className="num"><b>{r.booking}</b></td><td className="num" style={{ color: r.drop ? 'var(--red)' : undefined }}>{r.drop}</td><td className="num">{r.masih}</td><td className="num hint">{r.dropLama}</td></tr>)
+                  : <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--muted)', padding: 14 }}>Belum ada lead yang dioper pada periode ini.</td></tr>}</tbody>
+              </table></div>
+            </div>
+          </div>
+          <p className="hint" style={{ marginTop: 8 }}>{sl.drop.perkiraan ? `${sl.drop.perkiraan} lead berstatus Drop sejak sebelum riwayat dicatat (alasan tidak diketahui) tidak dihitung di tabel alasan & per sales. ` : ''}Riwayat status dicatat otomatis sejak {sl.mulaiRiwayat ? fmtDate(sl.mulaiRiwayat) : 'update ini terpasang'}; periode sebelum itu hanya punya status akhir.</p>
+        </div>
+      )}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2>Kegiatan Sales — {bulanLabel}</h2>
+        {(() => {
+          const mk = keg.filter(k => inMonth(k.tgl) && (!proj || k.project === proj));
+          const lead = mk.reduce((a, k) => a + (Number(k.jml_lead) || 0), 0);
+          const biaya = mk.reduce((a, k) => a + (Number(k.biaya) || 0), 0);
+          const perJenis = {};
+          mk.forEach(k => { perJenis[k.jenis] = (perJenis[k.jenis] || 0) + 1; });
+          return (<>
+            <div className="kpi-grid">
+              <div className="kpi"><div className="kpi-label">Total Kegiatan</div>
+                <div className="kpi-val" style={{ color: 'var(--green)' }}>{mk.length}</div></div>
+              <div className="kpi"><div className="kpi-label">Lead dari Kegiatan</div>
+                <div className="kpi-val" style={{ color: 'var(--brass)' }}>{lead}</div></div>
+              <div className="kpi"><div className="kpi-label">Biaya Kegiatan</div>
+                <div className="kpi-val" style={{ fontSize: 18 }}>{fmtRp(biaya)}</div></div>
+              <div className="kpi"><div className="kpi-label">Biaya per Lead</div>
+                <div className="kpi-val" style={{ fontSize: 18 }}>{lead ? fmtRp(Math.round(biaya / lead)) : '—'}</div></div>
+            </div>
+            <div className="hint" style={{ marginTop: 8 }}>
+              {Object.keys(perJenis).length ? Object.entries(perJenis).sort((a, b) => b[1] - a[1]).map(([j, n]) => `${j} ${n}×`).join(' · ') : 'Belum ada kegiatan bulan ini.'}
+            </div>
+          </>);
+        })()}
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h2>Lead Diinput Marcom — {bulanLabel} <span className="hint">(berdasarkan akun yang menginput; hasil marketing yang lebih luas ada di Analisa Marcom)</span></h2>
+        <div className="kpi-grid">
+          <div className="kpi"><div className="kpi-label">Lead Masuk ke Marcom</div>
+            <div className="kpi-val" style={{ color: 'var(--green)' }}>{mMarkom.length}</div>
+            <div className="hint">diinput oleh akun Marcom {periodeKata}</div></div>
+          <div className="kpi"><div className="kpi-label">Sudah Diserahkan ke Sales</div>
+            <div className="kpi-val" style={{ color: 'var(--brass)' }}>{mMarkomKeSales.length}</div>
+            <div className="hint">{mMarkom.length ? Math.round(mMarkomKeSales.length / mMarkom.length * 100) + '% dari lead Marcom' : '—'}</div></div>
+          <div className="kpi"><div className="kpi-label">Belum Diserahkan</div>
+            <div className="kpi-val" style={{ color: mMarkom.length - mMarkomKeSales.length ? 'var(--red)' : 'var(--ink)' }}>{mMarkom.length - mMarkomKeSales.length}</div>
+            <div className="hint">masih di antrean Marcom</div></div>
+          <div className="kpi"><div className="kpi-label">Lead Sumber Lain</div>
+            <div className="kpi-val">{mLeads.length - mMarkom.length}</div>
+            <div className="hint">walk in / input sales &amp; manager</div></div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <h2>Sumber Lead — {bulanLabel} ({mLeads.length} lead)</h2>
+        {srcRows.length ? (
+          <div className="pipe">
+            {srcRows.map(([k, v]) => (
+              <div className="pipe-row" key={k}>
+                <span>{k}</span>
+                <div className="bar"><div className="fill" style={{ width: (v / srcMax * 100) + '%' }} /></div>
+                <span className="n">{v}</span>
+              </div>
+            ))}
+          </div>
+        ) : <div className="hint">Belum ada lead masuk {periodeKata}.</div>}
+        {walkDStr && <div className="hint" style={{ marginTop: 8 }}>Walk In via: {walkDStr}</div>}
+      </div>
+
+      <div style={{ marginTop: 14 }} className="tbl-wrap">
+        <table>
+          <thead><tr><th>Sales / PIC</th><th className="num">Total</th><th className="num">Warm</th><th className="num">Hot</th>
+            <th className="num">Reserved</th><th className="num">Booking</th><th className="num">Closing Rate</th></tr></thead>
+          <tbody>
+            {salesNames.length ? salesNames.map(s => {
+              const mine = mLeads.filter(l => l.sales === s);
+              const c = st => mine.filter(l => l.status === st).length;
+              const rs = perSales('Reserved', s);
+              const bk = perSales('Booking', s);
+              return <tr key={s}>
+                <td data-label="Sales"><b>{s}</b></td>
+                <td className="num" data-label="Total">{mine.length}</td>
+                <td className="num" data-label="Warm">{c('Warm')}</td>
+                <td className="num" data-label="Hot">{c('Hot')}</td>
+                <td className="num" data-label="Reserved">{rs}</td>
+                <td className="num" data-label="Booking"><b>{bk}</b></td>
+                <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%')}</b></td>
+              </tr>;
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead {periodeKata}.</td></tr>}
+            {salesNames.length ? <tr><td colSpan={7} className="hint" style={{ padding: '6px 10px' }}>
+              Total/Warm/Hot dihitung dari lead yang MASUK {periodeKata}; Reserved &amp; Booking dari transaksi {periodeKata} (termasuk lead lama). Closing Rate = Booking ÷ total lead {periodeKata}, bertanda — bila sales belum punya lead baru {periodeKata}.
+            </td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+      </>)}
+      <Toast />
+    </>
+  );
+}

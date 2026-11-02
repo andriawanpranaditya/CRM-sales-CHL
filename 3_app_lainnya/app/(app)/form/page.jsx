@@ -1,0 +1,1131 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import Toast, { toast } from '@/components/Toast';
+import PasswordInput from '@/components/PasswordInput';
+import { bacaKartu } from '@/lib/ocr';
+import KameraKartu from '@/components/KameraKartu';
+import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
+import InputRupiah from '@/components/InputRupiah';
+import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
+
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
+// Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
+const DETAIL_LAINNYA = { label: 'Sumber lainnya — sebutkan', ph: 'mis. brosur di minimarket, papan nama proyek', wajib: true };
+const DETAIL_WALKIN_LAINNYA = { label: 'Walk In — tahu dari mana, sebutkan', ph: 'mis. lewat depan lokasi, diajak teman, brosur', wajib: true };
+const detailUntuk = l => l.sumber === 'Lainnya' ? DETAIL_LAINNYA
+  : /walk/i.test(l.sumber || '') && l.walkin_info === 'Lainnya' ? DETAIL_WALKIN_LAINNYA : null;
+const WALKIN_INFO = ['Banner / Spanduk', 'Billboard', 'Website', 'Instagram', 'Facebook Ads', 'Google Ads', 'Tiktok', 'WhatsApp', 'Referral', 'Pameran / Event', 'Kanvasing', 'Marketplace Properti', 'Lainnya'];
+
+// ===== Template Follow Up Markom (sumber: template_FU.docx) =====
+// Next Action yang menghentikan jadwal FU (Tgl Next FU dimatikan)
+const TANPA_NEXT = ['Drop', 'Reserved', 'Booking'];
+const DAY_FU = ['Follow Up day-1', 'Follow Up day-3', 'Follow Up day-7', 'Follow Up day-21', 'Follow Up day-60', 'Reply'];
+const TFU_BIO = {
+  'Follow Up day-1': `Terima kasih sudah menghubungi BIO District 🌿
+
+Hunian modern READY TO MOVE IN dengan konsep BIOphilic di Central Serpong yang mengutamakan ruang hijau, kenyamanan, dan akses strategis ke pusat kota, dirancang untuk kualitas hidup & nilai jangka panjang.
+
+Our Concept,
+https://youtu.be/YF9TM-EKebA?si=IwqrmGbKXumP9OGZ
+
+Untuk info premium offers atau jadwal kunjungan, ketik: ✨INFO✨ dan kami akan bantu untuk mendapatkan hunian terbaik.
+
+Don't miss the Golden Chance!`,
+  'Follow Up day-3': `Halo Bapak/Ibu 😊
+Kami ingin menyapa kembali terkait ketertarikan Anda dengan hunian BIO District 🌿
+
+Kami dengan senang hati memberikan informasi lebih lanjut sesuai kebutuhan & preferensi Anda 🙌
+
+Kunjungi Website kami untuk update premium offers terbaru https://biodistrictofficial.com/
+
+Balas: INFO✨ dan kami akan bantu kirimkan informasi lebih lanjut 📲`,
+  'Follow Up day-7': `Halo Bapak/Ibu, semoga kabar baik selalu untuk Anda 😊
+
+Banyak dari calon penghuni kami awalnya hanya mencari rumah, namun akhirnya memilih tempat yang benar-benar bisa mendukung kualitas hidup, lebih tenang, lebih hijau, dan tetap dekat dengan pusat aktivitas.
+https://youtu.be/ylxNy7EVryE?si=UXmDFPLkKJryDlJ5
+
+Balas: INFO✨ dan kami akan bantu kirimkan informasi lebih lanjut 📲`,
+  'Follow Up day-21': `*attach e-brosur*
+
+Halo Bapak/Ibu 😊
+Kami menyapa kembali dari BIO District 🌿
+
+Kami ingin menginformasikan bahwa saat ini terdapat pembaruan terkait premium offers yang mungkin dapat menjadi pertimbangan Anda.
+Agar tidak terlewat, kami mengundang Bapak/Ibu untuk datang langsung melihat show unit dan merasakan konsep BIOphilic Living yang kami hadirkan 🌿
+Dengan kunjungan langsung, kami juga bisa bantu arahkan pilihan unit terbaik yang masih tersedia sesuai preferensi Bapak/Ibu.
+
+📅 Apakah Bapak/Ibu berkenan untuk kami jadwalkan kunjungan dalam waktu dekat?😊
+
+Terima kasih atas waktu dan perhatian Anda 🌿`,
+  'Follow Up day-60': `Halo Bapak/Ibu 😊
+Kami kembali menghubungi terkait hunian di BIO District 🌿
+
+Kami kirimkan video virtual tour Type B untuk membantu Bapak/Ibu melihat langsung konsep ruang dan kenyamanan unit kami dari rumah.
+
+Virtual tour Type B URL Link:
+https://www.youtube.com/watch?si=1MoK1LuT-xKJE2sQ&v=zQEJXY9AHRo&feature=youtu.be
+
+Video ini dapat membantu memberikan gambaran lebih jelas mengenai konsep BIOphilic Living yang kami hadirkan. Hunian yang dirancang untuk kenyamanan, ruang hijau, dan kualitas hidup yang lebih baik.
+
+Jika setelah melihat videonya Bapak/Ibu tertarik untuk survey langsung ke show unit, kami dengan senang hati siap bantu jadwalkan kunjungan sesuai waktu yang fleksibel 😊
+
+Balas VISIT✨ untuk detail unit tersedia atau penjadwalan visit.`,
+  'Reply': `Halo Kak {nama}, hope you doing well👋
+Terima kasih telah menghubungi BIO District Serpong🏡
+
+Perkenalkan, saya {officer}, Relation Officer BIO District.
+mohon lengkapi data berikut untuk kami kirimkan detail mengenai BIO District:
+Nama lengkap :
+Domisili :
+tujuan pembelian (hunian / investasi):
+
+Salam Hangat,
+BIO District Serpong`,
+};
+const TFU_PERMAI = `Halo Bapak/Ibu, terima kasih atas minat Anda terhadap rumah di Permai Indah🏡
+Sebagai bentuk apresiasi terhadap calon pemilik, berikut informasi terkait benefit & promo eksklusif yang sedang berlaku:
+✅ Biaya KPR GRATIS
+✅ Biaya Notaris GRATIS
+✅ AJB GRATIS
+✅ TANPA DP
+Mohon bantuan untuk mengisi data berikut agar tim konsultasi rumah kami dapat segera menghubungi dan memberikan Anda informasi yang Anda inginkan:
+Nama:
+Domisili:
+Tujuan Pembelian (Tempat Tinggal / Investasi):`;
+
+export default function FormPage() {
+  const [tab, setTab] = useState('lead');
+  const [set, setSet] = useState(null);
+  const [me, setMe] = useState(null);
+  const [leads, setLeads] = useState([]);
+  const [lead, setLead] = useState({ ...EMPTY, tgl: todayISO() });
+  const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
+  const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '', konteks: '' });
+  const [dup, setDup] = useState(null); // info lead duplikat dari server
+  const [salesWA, setSalesWA] = useState([]);
+  const [l2sDone, setL2sDone] = useState(null);
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', harga_unit: '', catatan: '', project: '', bayar: '', unit: '', nama_ktp: '', no_ktp: '', npwp: '', alamat_ktp: '', ktp_alamat: '', ktp_rtrw: '', ktp_kel: '', ktp_kec: '', ktp_kota: '', ktp_prov: '', alamat_domisili: '', email: '', skema_harga: '' });
+  const [stok, setStok] = useState([]);
+  const [berkas, setBerkas] = useState(null);
+  const [upBusy, setUpBusy] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showList, setShowList] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [pwOld, setPwOld] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [fus, setFus] = useState([]);
+  const [editId, setEditId] = useState(null);
+
+  async function refresh() {
+    const [s, l, u, f, st] = await Promise.all([api('/api/settings'), api('/api/leads'), api('/api/auth/me'), api('/api/followups'), api('/api/stock')]);
+    setSet(s); setLeads(l); setMe(u); setFus(f); setStok(st.status || []);
+    if (u.role === 'sales') setLead(x => ({ ...x, sales: u.name }));
+  }
+  useEffect(() => { refresh().catch(e => toast(e.message)); }, []);
+
+  useEffect(() => {
+    setBerkas(null);
+    if (trx.lead_code && trx.project && trx.unit) {
+      api('/api/berkas?project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code))
+        .then(setBerkas).catch(() => {});
+    }
+  }, [trx.lead_code, trx.project, trx.unit]);
+
+  function kecilkanFoto(file) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const max = 1400;
+        const sc = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = rej;
+      img.src = url;
+    });
+  }
+
+  async function hapusBerkas(jenisB) {
+    const nama = { ktp: 'KTP', transfer: 'Bukti Transfer', npwp: 'NPWP', lainnya: 'Dokumen pendukung' }[jenisB] || 'Berkas';
+    if (!confirm('Hapus ' + nama + ' yang sudah diunggah?')) return;
+    setUpBusy(jenisB);
+    try {
+      await api('/api/berkas', { method: 'DELETE', body: JSON.stringify({
+        project: trx.project, unit: trx.unit, lead_code: trx.lead_code, jenis: jenisB }) });
+      const st = await api('/api/berkas?project=' + encodeURIComponent(trx.project) +
+        '&unit=' + encodeURIComponent(trx.unit) + '&lead_code=' + encodeURIComponent(trx.lead_code));
+      setBerkas(st);
+      toast(nama + ' dihapus — silakan unggah ulang');
+    } catch (e) { toast(e.message); } finally { setUpBusy(''); }
+  }
+
+  async function uploadBerkas(jenisB, file) {
+    if (!file) return;
+    if (!trx.lead_code || !trx.project || !trx.unit) return toast('Pilih ID Lead, Project & Blok/Unit dulu');
+    setUpBusy(jenisB);
+    try {
+      let dataUrl;
+      if (file.type.startsWith('image/')) dataUrl = await kecilkanFoto(file);
+      else if (file.type === 'application/pdf') {
+        if (file.size > 2 * 1024 * 1024) throw new Error('PDF maksimal 2 MB');
+        dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+      } else throw new Error('Format harus foto (JPG/PNG) atau PDF');
+      const mime = dataUrl.slice(5, dataUrl.indexOf(';'));
+      const data = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      await api('/api/berkas', {
+        method: 'POST',
+        body: JSON.stringify({ project: trx.project, unit: trx.unit, lead_code: trx.lead_code, jenis: jenisB, filename: file.name, mime, data }),
+      });
+      toast(({ ktp: 'KTP', transfer: 'Bukti Transfer', npwp: 'NPWP', lainnya: 'Dokumen pendukung' }[jenisB] || 'Berkas') + ' terupload ✔');
+      setBerkas(b => ({ ...(b || {}), [jenisB]: true }));
+      if ((jenisB === 'ktp' || jenisB === 'npwp') && file.type.startsWith('image/')) bacaDariFoto(jenisB, file);
+    } catch (e) { toast(e.message); } finally { setUpBusy(''); }
+  }
+
+  // Mengisi identitas dari foto — berjalan di perangkat ini; hasilnya usulan yang wajib diperiksa.
+  // Kartu NPWP model baru biasanya terbaca paling bersih (nomor, NIK, nama, alamat), sehingga
+  // nilainya diutamakan atas pembacaan KTP yang sering meleset satu-dua huruf.
+  async function bacaDariFoto(jenisB, file) {
+    setBaca(b => ({ ...b, [jenisB]: 'membaca 0%' }));
+    try {
+      const r = await bacaKartu(file, jenisB, pct => setBaca(b => ({ ...b, [jenisB]: 'membaca ' + pct + '%' })));
+      const st = {};
+      if (jenisB === 'ktp') {
+        setTrx(t => {
+          const u = { ...t };
+          if (r.nik && (!u.no_ktp || baca.no_ktp !== 'npwp')) { u.no_ktp = r.nik; st.no_ktp = r.nikRagu.length ? 'ragu:' + r.nikRagu.map(x => x + 1).join(',') : 'ktp'; }
+          if (r.nama && !u.nama_ktp) { u.nama_ktp = r.nama; st.nama_ktp = 'ktp'; }
+          const bg = r.bagian || {};
+          [['ktp_alamat', bg.alamat], ['ktp_rtrw', bg.rtrw], ['ktp_kel', bg.kel], ['ktp_kec', bg.kec], ['ktp_kota', bg.kota], ['ktp_prov', bg.prov]]
+            .forEach(([k, v]) => { if (v && !u[k]) { u[k] = v; st[k] = 'ktp'; } });
+          return u;
+        });
+      } else {
+        setTrx(t => {
+          const u = { ...t };
+          if (r.npwp) { u.npwp = r.npwp.length === 15
+            ? r.npwp.slice(0, 2) + '.' + r.npwp.slice(2, 5) + '.' + r.npwp.slice(5, 8) + '.' + r.npwp.slice(8, 9) + '-' + r.npwp.slice(9, 12) + '.' + r.npwp.slice(12)
+            : r.npwp; st.npwp = 'npwp'; }
+          if (r.nik) { u.no_ktp = r.nik; st.no_ktp = 'npwp'; }             // font kartu NPWP bersih — menimpa hasil KTP
+          if (r.nama) { u.nama_ktp = r.nama; st.nama_ktp = 'npwp'; }
+          const bg = r.bagian || {};
+          // Baris jalan & RT/RW: kartu NPWP lebih bersih, boleh menimpa hasil baca KTP
+          [['ktp_alamat', bg.alamat], ['ktp_rtrw', bg.rtrw]]
+            .forEach(([k, v]) => { if (v && (!u[k] || baca[k] === 'ktp')) { u[k] = v; st[k] = 'npwp'; } });
+          // Kelurahan/kecamatan & kota/provinsi ditulis menyatu di kartu NPWP — hanya mengisi bila masih kosong,
+          // dipecah memakai kecamatan/provinsi yang sudah diketahui dari KTP
+          const potong = (teks, ekor) => (ekor && teks.toUpperCase().endsWith(' ' + ekor.toUpperCase()) ? teks.slice(0, -ekor.length).trim() : teks);
+          if (bg.kel && !u.ktp_kel) { u.ktp_kel = potong(bg.kel, u.ktp_kec); st.ktp_kel = 'npwp'; }
+          if (bg.kota && !u.ktp_kota) { u.ktp_kota = potong(bg.kota, u.ktp_prov); st.ktp_kota = 'npwp'; }
+          return u;
+        });
+      }
+      const terisi = Object.keys(st).length;
+      setBaca(b => ({ ...b, ...st, [jenisB]: terisi ? 'selesai' : 'gagal' }));
+      toast(terisi ? 'Data dari foto ' + (jenisB === 'ktp' ? 'KTP' : 'NPWP') + ' terisi — periksa kembali'
+        : 'Tidak ada data yang dapat dibaca dari foto ' + (jenisB === 'ktp' ? 'KTP' : 'NPWP') + ' — ketik manual');
+      setTimeout(cekKembar, 300);
+    } catch { setBaca(b => ({ ...b, [jenisB]: 'gagal' })); }
+  }
+
+  // Keterangan di bawah kolom yang terisi dari foto
+  const ketBaca = k => {
+    const v = baca[k]; if (!v) return null;
+    const teks = v.startsWith('ragu:') ? '⚠ dibaca dari KTP — digit ke ' + v.slice(5) + ' ragu, cocokkan dengan kartunya'
+      : v === 'ktp' ? '✔ dibaca dari foto KTP — cocokkan dengan kartunya'
+      : v === 'npwp' ? '✔ dibaca dari kartu NPWP' : null;
+    return teks ? <span className="hint" style={{ display: 'block', color: v.startsWith('ragu') ? 'var(--red)' : '#8a5f14' }}>{teks}</span> : null;
+  };
+  const gayaBaca = k => (baca[k] ? { borderColor: baca[k].startsWith('ragu') ? 'var(--red)' : '#C9A227', background: '#FFFBEE' } : {});
+
+  // Gabungan bagian alamat KTP menjadi satu baris
+  const alamatKtpGabung = t => {
+    const rt = t.ktp_rtrw ? 'RT/RW ' + t.ktp_rtrw : '';
+    return [t.ktp_alamat, rt, t.ktp_kel ? 'Kel. ' + t.ktp_kel : '', t.ktp_kec ? 'Kec. ' + t.ktp_kec : '', t.ktp_kota, t.ktp_prov]
+      .map(x => String(x || '').trim()).filter(Boolean).join(', ');
+  };
+  // Nominal ditampilkan dengan pemisah ribuan titik, disimpan sebagai angka
+  const fmtRibuan = v => { const d = String(v ?? '').replace(/\D/g, ''); return d ? Number(d).toLocaleString('id-ID') : ''; };
+  const isiNominal = k => ({
+    value: fmtRibuan(trx[k]), inputMode: 'numeric',
+    onChange: e => { const d = e.target.value.replace(/\D/g, ''); setTrx(t => ({ ...t, [k]: d })); if (baca[k]) setBaca(b => { const n = { ...b }; delete n[k]; return n; }); },
+  });
+
+  const F = (obj, setObj) => (k, extra = {}) => ({
+    value: obj[k] ?? '',
+    onChange: e => { setObj({ ...obj, [k]: e.target.value }); if (baca[k]) setBaca(b => { const n = { ...b }; delete n[k]; return n; }); },
+    ...extra,
+  });
+  const fl = F(lead, setLead), ff = F(fu, setFu), ft = F(trx, setTrx);
+  const opsi = (k, saring) => [''].concat((set?.[k] || []).filter(o => !saring || saring(o))).map(o => <option key={k + o} value={o}>{o || '— pilih —'}</option>);
+  // Lead yang diinput sales berasal dari walk in, referensi, pameran, kanvasing, dll — sumber iklan digital (lead Marcom) disembunyikan
+  const SUMBER_IKLAN = /instagram|facebook|meta|google|tiktok|website|iklan|ads|whatsapp|youtube/i;
+  const leadOpt = [<option key="" value="">— pilih —</option>].concat(
+    leads.map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama}</option>));
+
+  async function simpanLead() {
+    if (!lead.nama.trim()) return toast('Nama Konsumen wajib diisi');
+    if (!isMarkom && !lead.sales) return toast('Sales / PIC wajib dipilih');
+    if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
+    { const dt = detailUntuk(lead); if (dt?.wajib && !String(lead.sumber_detail || '').trim()) return toast('Isi ' + dt.label.toLowerCase()); }
+    if (lead.status === 'Drop' && !String(lead.alasan || '').trim()) return toast('Alasan drop wajib diisi');
+    setBusy(true);
+    try {
+      if (editId) {
+        await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
+        toast('Lead berhasil diperbarui');
+      } else {
+        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify(lead) });
+        toast('Lead tersimpan — ' + d.lead_code);
+      }
+      setEditId(null); setDup(null);
+      setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
+      setLeads(await api('/api/leads'));
+    } catch (e) {
+      if (e.status === 409 && e.data && e.data.dup) {
+        setDup(e.data.dup);
+        if (['administrator', 'headsales', 'salesmanager', 'ceo', 'ceogrup'].includes(me?.role) && confirm(e.message + '\n\nTetap simpan sebagai lead TERPISAH? (khusus administrator)')) {
+          try {
+            const d2 = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, force: true }) });
+            toast('Lead tersimpan (dipaksa) — ' + d2.lead_code); setDup(null);
+            setLead({ ...EMPTY, tgl: todayISO(), sales: '' }); setLeads(await api('/api/leads'));
+          } catch (e2) { toast(e2.message); }
+        } else toast(e.message);
+      } else toast(e.message);
+    } finally { setBusy(false); }
+  }
+
+  function mulaiEdit(l) {
+    setEditId(l.id);
+    setTab('lead');
+    const d10 = x => x ? String(x).slice(0, 10) : '';
+    setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
+      kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
+      budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || ''});
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
+  }
+
+  function batalEdit() {
+    setEditId(null);
+    setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
+  }
+  const isMarkom = me && me.role === 'markom';
+  useEffect(() => { if (isMarkom) api('/api/users').then(setSalesWA).catch(() => {}); }, [isMarkom]);
+  const [camps, setCamps] = useState([]);
+  const bolehCampaign = me && ['markom', 'administrator', 'headsales', 'salesmanager'].includes(me.role);
+  useEffect(() => { if (bolehCampaign) api('/api/marcom?list=campaign').then(setCamps).catch(() => {}); }, [bolehCampaign]);
+  useEffect(() => { if (isMarkom && tab === 'trx') setTab('lead'); }, [isMarkom, tab]);
+
+  // Akun satu project: project langsung terisi di form lead baru
+  useEffect(() => { if ((set?.project || []).length === 1 && !lead.project && !editId) setLead(v => ({ ...v, project: set.project[0] })); }, [set, lead.project, editId]); // eslint-disable-line
+
+  // Tautan langsung dari Beranda / lonceng: /form?tab=fu|l2s|trx|lead&lead=KODE — dijalankan sekali setelah data siap
+  const tautanDiproses = useRef(false);
+  useEffect(() => {
+    if (tautanDiproses.current || !me || !leads.length) return;
+    tautanDiproses.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('tab'), kode = q.get('lead');
+    // Dari Database Lead: /form?edit=LEAD-0123 → langsung mode edit lead tsb
+    const kodeEdit = q.get('edit');
+    if (kodeEdit) {
+      const le = leads.find(x => x.lead_code === kodeEdit);
+      if (le) mulaiEdit(le); else toast('Lead ' + kodeEdit + ' tidak ditemukan atau bukan milik Anda');
+      return;
+    }
+    const sah = me.role === 'markom' ? ['lead', 'fu', 'l2s'] : ['lead', 'fu', 'trx'];
+    const tujuan = sah.includes(t) ? t : (kode ? 'fu' : null);
+    if (tujuan) setTab(tujuan);
+    const l = kode ? leads.find(x => x.lead_code === kode) : null;
+    if (!l) return;
+    if (tujuan === 'l2s') setL2s(v => ({ ...v, lead_code: kode }));
+    else if (tujuan === 'fu') {
+      if (me.role === 'markom') setFu(v => ({ ...v, lead_code: kode }));
+      else setFu(v => fuUntukLead(l, v));
+    }
+  }, [me, leads]); // eslint-disable-line
+
+  // Template FU markom sesuai project & day
+  function templateDayFU(day, l) {
+    if (!day) return '';
+    const proj = (l && l.project) || '';
+    if (/permai/i.test(proj)) return TFU_PERMAI;
+    const t = TFU_BIO[day] || '';
+    return t.replace('{nama}', (l && l.nama) || 'Kak').replace('{officer}', (me && me.name) || 'tim BIO District');
+  }
+  // Template pesan oper lead ke sales (Leads to Sales)
+  function templateL2S(l, salesName, konteks) {
+    if (!l) return '';
+    return `Halo ${salesName || '[Sales]'} 👋
+Ada lead baru untuk segera di-follow up:
+
+🆔 ID Lead: ${l.lead_code} (sudah ada di CRM Anda — langsung follow up di tab Follow Up, JANGAN input ulang)
+🧑 Nama: ${l.nama || '-'}
+📱 No. WA: ${l.wa || '-'}
+🏠 Project: ${l.project || '-'}
+🔎 Sumber: ${l.sumber || '-'}
+📝 Keterangan: ${l.catatan || '-'}
+💬 Yang ditanyakan lead: ${konteks || '-'}
+
+Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini. Mohon sapa paling lambat 1 jam & LANJUTKAN topik di atas (jangan mulai dari awal). Template pembuka sudah otomatis tersedia di tab Follow Up. Semangat closing! 💪`;
+  }
+  async function kirimL2S() {
+    if (!l2s.lead_code) return toast('Pilih ID Lead dulu');
+    if (!l2s.sales) return toast('Pilih Sales tujuan dulu');
+    if (!(l2s.konteks || '').trim()) return toast('Isi dulu apa yang ditanyakan lead — sales butuh konteks untuk melanjutkan chat');
+    const lObj = leads.find(x => x.lead_code === l2s.lead_code);
+    const sObj = salesWA.find(x => x.name === l2s.sales);
+    if (!sObj || !sObj.wa) return toast('Sales ini belum punya No. WA — minta manager mengisinya di menu Pengguna');
+    const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let winWA = null;
+    if (!diHP) { try { winWA = window.open('', '_blank'); } catch {} }
+    setBusy(true);
+    try {
+      await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: lObj.id, sales: l2s.sales }) });
+      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: 'Leads to Sales → ' + l2s.sales + ' · Konteks: ' + l2s.konteks.trim(), wa_pesan: l2s.pesan }) });
+      toast('Lead dioper ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲');
+      if (diHP) setTimeout(() => { bukaWA(sObj.wa, l2s.pesan); }, 350);
+      else bukaWA(sObj.wa, l2s.pesan, winWA);
+      setL2sDone({ nama: lObj.nama, wa: lObj.wa, project: lObj.project, sales: l2s.sales, salesWa: sObj.wa });
+      setL2s({ lead_code: '', tgl: todayISO(), pesan: '', sales: '', konteks: '' });
+      refresh().catch(() => {});
+    } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
+  }
+
+  // 💡 Pelatih penjualan: rekomendasi follow up berdasarkan analisa FU terakhir lead
+  function rekomendasiFU(l, riwayat) {
+    if (!l) return [];
+    const rec = [];
+    const last = riwayat[0] || null;
+    const hari = last && last.tgl ? Math.floor((Date.now() - new Date(last.tgl).getTime()) / 86400000) : null;
+    const ob = ((last && (last.objection || '')) + ' ' + (last && (last.detail || ''))).toLowerCase();
+    const st = l.status;
+
+    if (!last) {
+      rec.push(['Respon kilat ⚡', 'Lead belum pernah di-follow up — hubungi HARI INI. Lead yang disentuh <24 jam jauh lebih besar peluang closing-nya. Perkenalan singkat, lalu gali kebutuhan: tipe yang dicari, budget, dan rencana pakai (huni/investasi). Tutup dengan janji konkret: kirim pricelist + ajakan pilih jadwal survey.']);
+    }
+    if (/harga|mahal|budget|dp|uang muka|angsuran|cicil|kpr/.test(ob)) {
+      rec.push(['Jinakkan objection harga 💰', 'Jangan berdebat soal mahal — pindahkan ke angka bulanan: kirim simulasi angsuran paling ringan & bandingkan dengan biaya sewa/kontrakan. Tanyakan angka nyaman per bulannya, lalu carikan tipe/skema yang masuk. Kalau tetap berat, tawarkan unit alternatif tanpa menurunkan gengsi pilihannya.']);
+    }
+    if (/istri|suami|keluarga|orang tua|diskusi|pikir|rembuk/.test(ob)) {
+      rec.push(['Libatkan pengambil keputusan 👨‍👩‍👧', 'Keputusan properti jarang diambil sendirian. Ajak pasangan/keluarga ikut site visit — beri 2 pilihan waktu konkret (Sabtu pagi / Minggu sore). Kirim materi ringkas (foto unit + harga + akses) yang gampang di-forward ke keluarganya, biar dia yang "jualan" di rumah.']);
+    }
+    if (/jauh|lokasi|akses|angkot|transport|stasiun|macet|jalan/.test(ob)) {
+      rec.push(['Jual akses, bukan jarak 🛣', 'Objection lokasi dilawan dengan bukti: kirim video rute dari titik transport terdekat, share loc, dan rencana pengembangan area. Tawarkan jemput/antar survey — begitu merasakan sendiri rutenya, keberatan biasanya cair.']);
+    }
+    if (last && hari !== null && hari >= 7 && rec.length < 3) {
+      rec.push(['Bangunkan kembali 🔄', `Sudah ${hari} hari tanpa kabar. Jangan buka dengan "bagaimana kabarnya, jadi ambil?" — kirim VALUE baru: unit favoritnya mulai menipis, promo bulan ini, atau progres pembangunan. Lead lama merespon info baru, bukan tagihan keputusan.`]);
+    }
+    if (st === 'Hot' && rec.length < 3) {
+      rec.push(['Kunci komitmen 🔒', 'Lead sudah panas — jangan biarkan dingin oleh waktu. Tawarkan reserved / tanda jadi ringan untuk MENGUNCI unit & harga hari ini, plus deadline halus: "harga menyesuaikan bulan depan" atau "unit ini sedang ditanyakan orang lain". Hot yang tidak diberi alasan memutuskan hari ini akan jadi Warm minggu depan.']);
+    }
+    if (st === 'Site Visit' && rec.length < 3) {
+      rec.push(['Panaskan selagi hangat 🔥', 'Dia sudah datang — itu sinyal serius. Follow up maksimal H+1: tanya unit mana yang paling berkesan, jawab keraguannya, lalu langsung tawarkan reserved unit favoritnya sebelum dilihat orang lain.']);
+    }
+    if (st === 'Appointment' && rec.length < 3) {
+      rec.push(['Amankan janji 📅', 'Konfirmasi H-1 + kirim share location & nama Anda. Siapkan data unit + simulasi sesuai profilnya supaya saat bertemu langsung ke inti. Janji yang tidak dikonfirmasi = kursi kosong.']);
+    }
+    if (st === 'Booking' && rec.length < 3) {
+      rec.push(['Kawal & panen referral 🤝', 'Kawal kelengkapan berkas & jadwal pembayaran biar tidak batal di tengah jalan. Dan ini momen emas: pembeli yang baru deal sedang senang-senangnya — minta referral: "siapa teman/saudara yang juga lagi cari rumah?"']);
+    }
+    if (st === 'Warm' && rec.length < 3) {
+      rec.push(['Naikkan suhu 🌡', 'Kirim satu info bernilai (tipe terlaris / sisa unit / promo) + satu pertanyaan terbuka tentang pertimbangan utamanya. Lalu ajak site visit dengan 2 pilihan waktu — pertanyaan "mau Sabtu atau Minggu?" lebih ampuh daripada "kapan ada waktu?"']);
+    }
+    if ((st === 'New' || st === 'Cold') && last && rec.length < 3) {
+      rec.push(['Gali kebutuhan dulu 🎯', 'Jangan buru-buru jualan — bertanyalah: tipe yang dicari, budget, kapan rencana beli, untuk siapa. Lead yang merasa didengar jauh lebih mudah diajak survey. Baru setelah itu tembakkan unit yang paling pas.']);
+    }
+    if (last && !last.next_tgl && rec.length < 3) {
+      rec.push(['Selalu tinggalkan jejak 📌', 'FU terakhir tidak punya jadwal lanjutan. Akhiri setiap chat dengan janji konkret ("saya info promonya Jumat ya") dan isi Tgl Next Follow Up — lead tanpa jadwal = lead yang menguap.']);
+    }
+    return rec.slice(0, 3);
+  }
+
+  // ===== Standar FU wajib: posisi jadwal & pesan rekomendasi dari riwayat lead (lib/fuwajib.js) =====
+  // Template Day-1/3/7 & sapaan umum lama dihapus — pesan kini disusun dari riwayat lead + price list resmi.
+  function stFU(l) { return l ? statusFU(l, fus) : null; }
+  function templateSales(l) {
+    if (!l) return '';
+    const st = stFU(l);
+    return susunPesan({ lead: l, riwayat: fus, st: st && st.aktif ? st : { aktif: true, mode: 'percakapan', jenis: 'percakapan' }, salesNama: me && me.name });
+  }
+  // Status & Tgl Next FU otomatis mengikuti jadwal wajib dan jawaban "lead membalas?"
+  function jadwalSesudah(v, l) {
+    const st = stFU(l);
+    if (!st || !st.aktif) return null;
+    const today = hariIniWIB();
+    const baru = { id: Number.MAX_SAFE_INTEGER, lead_code: l.lead_code, tgl: v.tgl || today, balas: v.balas, next_action: '', oleh_role: me && me.role, created_by: me && me.username };
+    return { st, ke: st.nFu + 1, sesudah: statusFU({ ...l, status: (v.status && v.status !== 'Drop') ? v.status : 'New', next_fu: null }, [...fus, baru], today), today };
+  }
+  function isiOtomatis(v, l) {
+    const j = l ? jadwalSesudah(v, l) : null;
+    if (!j || v.balas === null) return v;
+    const out = { ...v };
+    if (v.balas === false) {
+      const a = aturStatus({ ke: j.ke, balas: false, statusDipilih: v.status, statusLead: l.status });
+      if (a.otomatis) out.status = a.status;
+      const sesudah = jadwalSesudah(out, l).sesudah;
+      if (['wajib', 'undangan', 'tuntas'].includes(sesudah.mode)) out.next_tgl = sesudah.jatuh;
+      else if (sesudah.mode === 'percakapan' && (!out.next_tgl || out.next_tgl > tambahHari(j.today, MAKS_HARI_PERCAKAPAN))) out.next_tgl = tambahHari(j.today, 3);
+    } else {
+      if (out.status === 'New') out.status = '';
+      if (!out.next_tgl || out.next_tgl > tambahHari(j.today, MAKS_HARI_PERCAKAPAN) || out.next_tgl < j.today) out.next_tgl = tambahHari(j.today, 3);
+    }
+    return out;
+  }
+  function fuUntukLead(l, base) {
+    const st = stFU(l);
+    return { ...base, lead_code: l.lead_code, status: l.status || '', balas: null, next_action: '', next_tgl: '', objection: '',
+      wa_pesan: templateSales(l), detail: st && st.aktif ? st.label : (base.detail || '') };
+  }
+  async function personalisasiAI() {
+    if (!fu.lead_code) return toast('Pilih ID Lead dulu');
+    setBusy(true);
+    try {
+      const r = await api('/api/fu-saran', { method: 'POST', body: JSON.stringify({ lead_code: fu.lead_code, draft: fu.wa_pesan }) });
+      if (r.pesan) { setFu(v => ({ ...v, wa_pesan: r.pesan })); toast('Pesan dipersonalisasi AI — periksa sebelum dikirim'); }
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+
+  async function simpanFU() {
+    if (!fu.lead_code) return toast('Pilih ID Lead dulu');
+    if (!fu.detail.trim()) return toast(isMarkom ? 'Pilih Day Follow Up dulu' : 'Detail Komunikasi wajib diisi');
+    if (!isMarkom && fu.balas === null) return toast('Pilih dulu: apakah lead membalas?');
+    if (!isMarkom && !TANPA_NEXT.includes(fu.next_action) && !fu.status) return toast('Status lead wajib dipilih');
+    if (!isMarkom && fu.balas === true && fu.status === 'New') return toast('Konsumen membalas — status tidak boleh tetap New');
+    if (isMarkom && !fu.next_action) return toast('Pilih Next Action: Lanjut Follow Up atau Drop');
+    if (isMarkom && fu.next_action === 'Lanjut Follow Up' && !fu.next_tgl) return toast('Isi Tgl Next Follow Up untuk jadwal day berikutnya');
+    if ((fu.next_action === 'Drop' || fu.status === 'Drop') && !(fu.objection || '').trim()) return toast('Alasan drop wajib diisi');
+    // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
+    const leadFu = leads.find(x => x.lead_code === fu.lead_code);
+    const pesan = (fu.wa_pesan || '').trim();
+    const dropFU = fu.next_action === 'Drop';
+    const stopFU = TANPA_NEXT.includes(fu.next_action); // Drop / Reserved / Booking: tidak perlu buka WA
+    const urlWA = (leadFu && leadFu.wa && !stopFU) ? waLink(leadFu.wa, pesan) : null;
+    const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // Desktop: buka tab kosong secara sinkron dulu (lolos popup blocker), lalu diarahkan setelah tersimpan
+    let winWA = null;
+    if (urlWA && !diHP) { try { winWA = window.open('', '_blank'); } catch {} }
+    setBusy(true);
+    try {
+      const hasil = await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
+      const info = hasil && hasil.info ? ' · ' + hasil.info : '';
+      if (urlWA) {
+        toast((pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲') + info);
+        if (diHP) {
+          // HP: skema whatsapp:// — terbuka di WhatsApp biasa MAUPUN WA Business
+          setTimeout(() => { bukaWA(leadFu.wa, pesan); }, 350);
+        } else {
+          bukaWA(leadFu.wa, pesan, winWA);
+        }
+      } else {
+        toast((dropFU ? 'Follow up tersimpan — lead ditandai Drop, pengingat dimatikan' : stopFU ? 'Follow up tersimpan — konsumen ' + fu.next_action + ', jadwal FU dihentikan' : 'Follow up tersimpan (lead belum punya nomor WA)') + info);
+      }
+      setFu({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
+      Promise.all([api('/api/leads'), api('/api/followups'), api('/api/stock')]).then(([l, f, st]) => { setLeads(l); setFus(f); setStok(st.status || []); });
+    } catch (e) { if (winWA) { try { winWA.close(); } catch {} } toast(e.message); } finally { setBusy(false); }
+  }
+  const [kembar, setKembar] = useState(null);   // peringatan identitas milik lead lain
+  const [baca, setBaca] = useState({});           // { ktp|npwp: 'membaca 40%' | 'terisi' | 'gagal' }
+  const [hargaUnit, setHargaUnit] = useState(null); // { ada, harga_standar, harga_allin } untuk unit terpilih
+  const [kamera, setKamera] = useState('');         // jenis berkas yang sedang difoto lewat kamera aplikasi
+  const [adaKamera, setAdaKamera] = useState(false);  // ditentukan di browser agar render server & klien sama
+  useEffect(() => { setAdaKamera(Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)); }, []);
+
+  // Begitu unit dipilih, ambil daftar harganya
+  useEffect(() => {
+    if (!trx.project || !trx.unit) { setHargaUnit(null); return; }
+    let batal = false;
+    api('/api/harga?project=' + encodeURIComponent(trx.project) + '&unit=' + encodeURIComponent(trx.unit))
+      .then(h => { if (!batal) setHargaUnit(h); }).catch(() => { if (!batal) setHargaUnit(null); });
+    return () => { batal = true; };
+  }, [trx.project, trx.unit]);
+
+  function pilihHarga(skema) {
+    if (!hargaUnit || !hargaUnit.ada) return;
+    const nilai = skema === 'All In' ? hargaUnit.harga_allin : hargaUnit.harga_standar;
+    setTrx(t => ({ ...t, skema_harga: skema, harga_unit: nilai ? String(nilai) : t.harga_unit }));
+  }
+  async function cekKembar() {
+    const nik = (trx.no_ktp || '').replace(/\D/g, '');
+    if (!trx.lead_code || (nik.length !== 16 && !trx.email && !trx.npwp)) { setKembar(null); return; }
+    const l = leads.find(x => x.lead_code === trx.lead_code);
+    try {
+      const r = await api('/api/konsumen/cek?lead_code=' + encodeURIComponent(trx.lead_code) +
+        '&nik=' + nik + '&email=' + encodeURIComponent(trx.email || '') +
+        '&hp=' + encodeURIComponent((l && l.wa) || '') + '&npwp=' + encodeURIComponent(trx.npwp || (l && l.npwp) || ''));
+      setKembar(r.kembar && r.kembar.length ? r.kembar[0] : null);
+    } catch { setKembar(null); }
+  }
+
+  async function simpanTrx() {
+    if (!trx.lead_code) return toast('Pilih ID Lead dulu');
+    if (!Number(trx.nilai)) return toast('Nilai Reserved/Booking wajib diisi angka');
+    if (trx.jenis !== 'Batal') {
+      if (!trx.nama_ktp.trim()) return toast('Nama sesuai KTP wajib diisi');
+      if ((trx.no_ktp || '').replace(/\D/g, '').length !== 16) return toast('NIK wajib 16 digit angka');
+      if (kembar) return toast(kembar.pesan);
+      if (!trx.email.trim()) return toast('Email konsumen wajib diisi');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trx.email.trim())) return toast('Format email tidak valid');
+      if (!trx.alamat_domisili.trim()) return toast('Alamat domisili wajib diisi');
+    }
+    // Cara bayar wajib; alamat lengkap sudah diperiksa di atas dan menjadi
+    // sumber Domisili konsumen (Domisili di tab Lead Baru hanya informasi awal)
+    if (trx.jenis !== 'Batal') {
+      const l = leads.find(x => x.lead_code === trx.lead_code);
+      if (!String(trx.bayar || '').trim() && !(l && String(l.bayar || '').trim())) {
+        return toast('Cara bayar belum dipilih.');
+      }
+    }
+    if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.ktp && berkas.transfer) {
+      return toast('KTP konsumen wajib diunggah sebelum transaksi disimpan.');
+    }
+    if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.transfer) {
+      return toast('Upload Bukti Transfer dulu untuk transaksi pertama di unit ini.');
+    }
+    setBusy(true);
+    try {
+      await api('/api/trx', { method: 'POST', body: JSON.stringify({ ...trx, alamat_ktp: alamatKtpGabung(trx) }) });
+      toast('Transaksi tersimpan — status pipeline ter-update');
+      setKembar(null); setBaca({});
+      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', harga_unit: '', catatan: '', project: '', bayar: '', unit: '', nama_ktp: '', no_ktp: '', npwp: '', alamat_ktp: '', ktp_alamat: '', ktp_rtrw: '', ktp_kel: '', ktp_kec: '', ktp_kota: '', ktp_prov: '', alamat_domisili: '', email: '', skema_harga: '' });
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+
+  if (!set) return <div className="loading">Memuat…</div>;
+  return (
+    <>
+      <div className="page-head"><div><h1>Form Input</h1>
+        <div className="sub">Data langsung tersimpan ke database bersama. Tanda <span style={{ color: 'var(--red)' }}>*</span> wajib diisi.</div></div></div>
+      {/* Tab utama halaman: kartu langkah bernomor (beda jelas dari chip filter di bawahnya) */}
+      <div className="tab-langkah" role="tablist" aria-label="Jenis input">
+        {(isMarkom
+          ? [['lead', 'Lead Baru', 'Konsumen baru masuk'], ['fu', 'Follow Up', 'Catat hasil FU'], ['l2s', 'Leads to Sales', 'Oper ke sales']]
+          : [['lead', 'Lead Baru', 'Walk in / referensi'], ['fu', 'Follow Up', 'Catat hasil FU wajib'], ['trx', 'Reserved / Booking', 'Transaksi & berkas']]).map(([k, t, ket], i) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>
+            <span className="tl-no">{i + 1}</span>
+            <span className="tl-teks"><b>{t}</b><small>{ket}</small></span>
+          </button>))}
+      </div>
+
+      {tab === 'lead' && <div className="card" style={editId ? { borderColor: 'var(--brass)', borderWidth: 2 } : undefined}>
+        {editId && <div className="note">✏️ Sedang mengedit lead <b>{leads.find(l => l.id === editId)?.lead_code}</b> — perbaiki datanya lalu klik <b>Update Lead</b>, atau <b>Batal</b> untuk kembali input baru.</div>}
+        <div className="form-grid">
+          <div className="field"><label>Tanggal Lead</label><input type="date" {...fl('tgl')} /></div>
+          <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
+          <div className="field"><label>WhatsApp</label><input {...fl('wa')} placeholder="08xxxxxxxxxx" /></div>
+          <div className="field"><label>Email</label><input type="email" {...fl('email')} /></div>
+          <div className="field"><label>Domisili <span className="hint">(pilih dari saran atau ketik area baru)</span></label>
+            {(() => {
+              const saran = [...new Set([...(set.domisili || []), ...leads.map(x => String(x.domisili || '').trim()).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+              return (<>
+                <input list="dl-domisili" {...fl('domisili')} placeholder="mis. Gading Serpong"
+                  onBlur={e => { const v = e.target.value.trim(); const c = saran.find(x => x.toLowerCase() === v.toLowerCase()); setLead(cur => ({ ...cur, domisili: c || v })); }} />
+                <datalist id="dl-domisili">{saran.map(x => <option key={x} value={x} />)}</datalist>
+              </>);
+            })()}</div>
+          {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
+          <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber', isMarkom || bolehCampaign ? null : x => x === lead.sumber || !SUMBER_IKLAN.test(x))}</select></div>
+          {bolehCampaign && <div className="field"><label>Kode Iklan <span className="hint">(bila ada di chat pertama, mis. BD14-2)</span></label>
+            <input {...fl('kode_wa')} placeholder="kosongkan bila tidak ada" style={{ textTransform: 'uppercase' }} />
+            {(() => { const mm = /^([A-Z]{2,3})(\d+)-(\d+)$/.exec(String(lead.kode_wa || '').trim().toUpperCase().replace(/[()\s]/g, '')); const cp = mm && (camps || []).find(c => String(c.id) === mm[2]); return lead.kode_wa ? <span className="hint" style={{ color: mm ? 'var(--green)' : 'var(--red)' }}>{mm ? (cp ? '✓ Campaign: ' + cp.nama : '✓ Format benar — campaign diisi otomatis saat disimpan') : 'Format kode tidak dikenali (contoh: BD14-2)'}</span> : null; })()}</div>}
+          {bolehCampaign && <div className="field"><label>Campaign <span className="hint">(analisa marcom)</span></label>
+            <select {...fl('campaign')}><option value="">— tanpa campaign —</option>
+              {camps.map(cp => <option key={cp.id} value={cp.nama}>{cp.nama}</option>)}
+              {lead.campaign && !camps.find(cp => cp.nama === lead.campaign) && <option value={lead.campaign}>{lead.campaign}</option>}
+            </select></div>}
+          {bolehCampaign && <div className="field"><label>Konten / Kreatif <span className="hint">(utm_content)</span></label>
+            <input {...fl('konten')} placeholder="contoh: reels-01" /></div>}
+          {!isMarkom && /walk/i.test(lead.sumber || '') && (
+            <div className="field"><label>Walk In — tahu dari mana? <span className="req">*</span></label>
+              <select value={lead.walkin_info || ''} onChange={e => setLead({ ...lead, walkin_info: e.target.value })}>
+                <option value="">— pilih —</option>
+                {WALKIN_INFO.map(w => <option key={w}>{w}</option>)}
+              </select></div>
+          )}
+          {(() => { const dt = detailUntuk(lead); return dt ? (
+            <div className="field"><label>{dt.label} {dt.wajib ? <span className="req">*</span> : null}</label>
+              <input value={lead.sumber_detail || ''} onChange={e => setLead({ ...lead, sumber_detail: e.target.value })} placeholder={dt.ph} maxLength={200} /></div>) : null; })()}
+          <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
+          {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
+          {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
+          <div className="field"><label>Rentang Usia</label><select {...fl('usia')}>
+            {['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'].map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
+          {!isMarkom && <div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
+          {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
+          {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
+            {me?.role === 'sales'
+              ? <input value={me.name} disabled />
+              : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}</select>}
+          </div>}
+          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
+            {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>
+          {lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
+            <input value={lead.alasan || ''} onChange={e => setLead({ ...lead, alasan: e.target.value })} list="dl-alasan-drop-lead" placeholder="mis. tidak ada respon sampai Day-60 / sudah beli di tempat lain" />
+            <datalist id="dl-alasan-drop-lead">{['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'].map(o => <option key={o} value={o} />)}</datalist></div>}
+          <div className="field"><label>Tgl Next Follow Up</label><input type="date" {...fl('next_fu')} /></div>
+          <div className="field"><label>Catatan</label><input {...fl('catatan')} /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" onClick={simpanLead} disabled={busy}>{editId ? 'Update Lead' : 'Simpan Lead'}</button>
+          {editId && <button className="btn btn-ghost" onClick={batalEdit}>Batal</button>}
+          <span className="hint">{editId ? 'Perubahan langsung tersimpan ke database.' : 'ID Lead dibuat otomatis oleh sistem.'}</span>
+          {dup && (
+            <div style={{ flexBasis: '100%', background: 'var(--red-soft)', border: '1px solid var(--red)', borderRadius: 10, padding: '10px 14px', marginTop: 8 }}>
+              <b style={{ color: 'var(--red)' }}>🛑 Nomor WA sudah terdaftar:</b> {dup.lead_code} — <b>{dup.nama}</b> · {dup.project || '-'} · status {dup.status} · PIC {dup.sales || 'belum ada'}{dup.pembuat_role === 'markom' ? ' · dari Marcom ' + dup.pembuat : ''}
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {leads.find(x => x.lead_code === dup.lead_code)
+                  ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu(l ? fuUntukLead(l, fu) : { ...fu, lead_code: dup.lead_code }); setDup(null); }}>↻ Buka di Follow Up</button>
+                  : <span className="hint">Lead ini belum ada di daftar Anda — minta {dup.pembuat_role === 'markom' ? 'Marcom mengopernya lewat Leads to Sales' : 'manager memindahkan PIC-nya'}.</span>}
+                <button className="sort-btn" onClick={() => setDup(null)}>Tutup</button>
+              </div>
+            </div>)}
+        </div>
+      </div>}
+
+      {tab === 'fu' && <div className="card">
+        <div className="form-grid">
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={fu.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
+              setFu(l ? fuUntukLead(l, { ...fu, detail: '' }) : { ...fu, lead_code: e.target.value });
+            }}>{leadOpt}</select></div>
+          {!isMarkom && fu.lead_code ? (() => {
+            const lSel = leads.find(x => x.lead_code === fu.lead_code);
+            if (!lSel) return null;
+            const st = stFU(lSel);
+            const riw = fus.filter(f => f.lead_code === fu.lead_code).sort((a, b) => (b.id || 0) - (a.id || 0));
+            const rec = st && st.aktif && st.mode === 'percakapan' ? rekomendasiFU(lSel, riw) : [];
+            const plan = st && st.aktif ? rencanaJadwal(lSel, fus) : [];
+            const telat = st && st.aktif ? st.telat : 0;
+            return (
+              <div style={{ gridColumn: '1/-1', background: 'var(--brass-soft)', border: '1px solid var(--brass-line)', borderRadius: 10, padding: '10px 14px' }}>
+                <b style={{ color: 'var(--brass-deep)' }}>📋 Jadwal FU Wajib — {st && st.aktif ? st.label : 'lead tidak dalam jadwal (status ' + (lSel.status || '-') + ')'}</b>
+                {st && st.aktif ? <div style={{ fontSize: 13.5, marginTop: 4 }}>
+                  Jatuh tempo: <b>{fmtTglPanjang(st.jatuh)}</b>{' '}
+                  {telat > 0 ? <span className="badge b-overdue">TERLAMBAT {telat} HARI</span> : telat === 0 ? <span className="badge b-today">HARI INI</span> : null}
+                  <br />Tujuan: {st.tujuan}
+                </div> : null}
+                {plan.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                  {plan.map(p => <span key={p.label} className={'badge ' + (p.selesai ? (p.balas ? 'b-close' : 'b-new') : p.tgl < hariIniWIB() ? 'b-overdue' : 'b-warm')} style={{ fontWeight: 500 }}>
+                    {p.selesai ? '✓ ' : ''}{p.label} · {fmtDate(p.tgl)}</span>)}
+                </div>}
+                {st && st.mode === 'tuntas' && <div className="hint" style={{ marginTop: 6 }}>Jadwal tuntas tanpa balasan — pilih Next Action <b>Drop</b> (alasan: {ALASAN_TUNTAS}) atau <b>{NURTURE}</b>.</div>}
+                {st && st.mode === 'percakapan' && <div className="hint" style={{ marginTop: 6 }}>Konsumen sudah membalas — FU berikutnya wajib dijadwalkan maksimal {MAKS_HARI_PERCAKAPAN} hari. Bila diam 2 kali berturut-turut, otomatis kembali ke undangan visit weekend.</div>}
+                {rec.length > 0 && <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                  {rec.map((r, i) => <li key={i} style={{ marginBottom: 5, fontSize: 13.5 }}><b>{r[0]}:</b> {r[1]}</li>)}
+                </ul>}
+              </div>
+            );
+          })() : null}
+          <div className="field"><label>Tanggal Follow Up</label><input type="date" {...ff('tgl')} /></div>
+          {isMarkom
+            ? <div className="field"><label>Day Follow Up <span className="req">*</span></label>
+              <select value={fu.detail} onChange={e => {
+                const l = leads.find(x => x.lead_code === fu.lead_code);
+                setFu({ ...fu, detail: e.target.value, wa_pesan: templateDayFU(e.target.value, l) });
+              }}>
+                <option value="">— pilih day —</option>
+                {DAY_FU.map(d => <option key={d}>{d}</option>)}
+              </select></div>
+            : <div className="field" style={{ gridColumn: '1/-1' }}><label>Detail Komunikasi <span className="req">*</span></label>
+              <textarea rows={2} {...ff('detail')} /></div>}
+          <div className="field" style={{ gridColumn: '1/-1' }}>
+            <label>Pesan WhatsApp <span className="hint">({isMarkom ? 'otomatis terisi template saat lead dipilih' : 'rekomendasi disusun dari riwayat lead sesuai jadwal FU wajib'} — silakan edit sesuka hati; setelah Simpan, WA terbuka tinggal klik kirim)</span>
+              <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
+                onClick={() => setFu({ ...fu, wa_pesan: isMarkom ? templateDayFU(fu.detail, leads.find(x => x.lead_code === fu.lead_code)) : templateSales(leads.find(x => x.lead_code === fu.lead_code)) })}>{isMarkom ? '↺ Isi Template' : '↺ Isi Rekomendasi'}</button>
+              {!isMarkom && fu.lead_code ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }} disabled={busy} onClick={personalisasiAI}>✨ Personalisasi AI</button> : null}
+              {fu.wa_pesan ? <button type="button" className="sort-btn" style={{ marginLeft: 6, padding: '2px 9px' }}
+                onClick={() => setFu({ ...fu, wa_pesan: '' })}>✕ Kosongkan</button> : null}
+            </label>
+            <textarea rows={5} value={fu.wa_pesan} onChange={e => setFu({ ...fu, wa_pesan: e.target.value })}
+              placeholder="Pilih lead dulu — template pesan akan terisi otomatis di sini." />
+            {fu.lead_code && (() => {
+              const l = leads.find(x => x.lead_code === fu.lead_code);
+              const n = String((l && l.wa) || '').replace(/[^0-9]/g, '').replace(/^0/, '62').replace(/^8/, '628');
+              return n ? <a className="sort-btn" style={{ display: 'inline-block', marginTop: 6 }} href={'/wa-inbox?wa=' + n + '&teks=' + encodeURIComponent(fu.wa_pesan || '')}>
+                💬 Kirim lewat nomor official (Inbox WhatsApp)</a> : null;
+            })()}
+            <span className="hint" style={{ display: 'block' }}>Nomor official: dalam 24 jam sejak konsumen membalas, pesan ini bisa langsung dikirim; di luar itu pakai 📨 Kirim template di Inbox (tercatat otomatis sebagai sentuhan FU).</span></div>
+          {!isMarkom && <div className="field"><label>Lead membalas? <span className="req">*</span></label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className={'sort-btn' + (fu.balas === true ? ' active' : '')} onClick={() => setFu(isiOtomatis({ ...fu, balas: true }, leads.find(x => x.lead_code === fu.lead_code)))}>✓ Ya, membalas</button>
+              <button type="button" className={'sort-btn' + (fu.balas === false ? ' active' : '')} onClick={() => setFu(isiOtomatis({ ...fu, balas: false }, leads.find(x => x.lead_code === fu.lead_code)))}>✕ Belum membalas</button>
+            </div></div>}
+          {!isMarkom && <div className="field"><label>Status Lead Sekarang <span className="req">*</span></label>
+            <select value={fu.status} onChange={e => setFu({ ...fu, status: e.target.value })}>
+              <option value="">— pilih —</option>
+              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).filter(o => !(fu.balas === true && o === 'New')).map(o => <option key={o}>{o}</option>)}
+            </select>
+            <span className="hint">{(() => {
+              const j = fu.lead_code ? jadwalSesudah(fu, leads.find(x => x.lead_code === fu.lead_code)) : null;
+              if (j && fu.balas === false && j.ke >= 2 && fu.status === 'Cold') return 'Otomatis Cold — FU ke-' + j.ke + ' belum ada balasan (status New wajib berganti mulai FU ke-2).';
+              if (fu.balas === true) return 'Konsumen membalas — pilih status sesuai perkembangan (tidak boleh New).';
+              return 'Wajib diisi setiap FU — mis. sudah survey → Site Visit';
+            })()}</span></div>}
+          {!isMarkom && fu.next_action !== 'Drop' && fu.status !== 'Drop' && <div className="field"><label>Objection</label><input {...ff('objection')} /></div>}
+          {!isMarkom && <div className="field"><label>Next Action</label>
+            <select value={fu.next_action} onChange={e => {
+              const v = e.target.value, st = stFU(leads.find(x => x.lead_code === fu.lead_code));
+              const tuntas = st && (st.mode === 'tuntas' || (st.nFu + 1 >= st.total && fu.balas === false && st.mode !== 'percakapan'));
+              setFu({ ...fu, next_action: v, next_tgl: TANPA_NEXT.includes(v) ? '' : v === NURTURE ? tambahHari(hariIniWIB(), 30) : fu.next_tgl,
+                objection: v === 'Drop' && tuntas && !fu.objection ? ALASAN_TUNTAS : fu.objection });
+            }}>
+              <option value="">— pilih —</option>
+              <option value="Lanjut Follow Up">Lanjut Follow Up</option>
+              <option value="Reserved">Reserved — konsumen sudah reserved</option>
+              <option value="Booking">Booking — konsumen sudah booking</option>
+              <option value="Drop">Drop</option>
+              {(() => { const st = stFU(leads.find(x => x.lead_code === fu.lead_code)); return st && (st.mode === 'tuntas' || st.mode === 'nurture' || (st.nFu + 1 >= st.total && st.mode !== 'percakapan')) ? <option value={NURTURE}>{NURTURE} — kabar sebulan sekali</option> : null; })()}
+            </select></div>}
+          {isMarkom && <div className="field"><label>Next Action <span className="req">*</span></label>
+            <select value={fu.next_action} onChange={e => setFu({ ...fu, next_action: e.target.value, next_tgl: e.target.value === 'Drop' ? '' : fu.next_tgl, objection: e.target.value === 'Drop' ? fu.objection : '' })}>
+              <option value="">— pilih —</option>
+              <option value="Lanjut Follow Up">Lanjut Follow Up — jadwalkan day berikutnya</option>
+              <option value="Drop">Drop — hentikan follow up</option>
+            </select></div>}
+          {(fu.next_action === 'Drop' || fu.status === 'Drop') && <div className="field"><label>Alasan Drop <span className="req">*</span></label>
+            <input value={fu.objection} onChange={e => setFu({ ...fu, objection: e.target.value })} list="dl-alasan-drop" placeholder="mis. tidak ada respon sampai Day-60 / salah sambung / sudah beli di tempat lain" />
+            <datalist id="dl-alasan-drop">{(isMarkom ? ['Tidak ada respon sampai Day-60', 'Nomor tidak aktif / salah sambung', 'Sudah beli di tempat lain', 'Budget tidak sesuai', 'Lokasi tidak sesuai', 'Hanya bertanya / tidak berminat', 'Minta tidak dihubungi lagi'] : (() => {
+              const l = leads.find(x => x.lead_code === fu.lead_code), st = stFU(l);
+              const pernahBalas = fu.balas === true || fus.some(f => f.lead_code === fu.lead_code && f.balas === true);
+              const dini = st && st.aktif && ['wajib', 'undangan'].includes(st.mode) && !pernahBalas && st.jalur !== 'lama' && !(st.nFu + 1 >= st.total);
+              return dini ? ALASAN_DROP_DINI : [ALASAN_TUNTAS, ...ALASAN_DROP_DINI, ...ALASAN_DROP_LAIN];
+            })()).map(o => <option key={o} value={o} />)}</datalist>
+            {!isMarkom && <span className="hint">Lead yang belum pernah membalas hanya bisa di-Drop sebelum 9 sentuhan untuk: {ALASAN_DROP_DINI.join(', ')}.</span>}</div>}
+          {!(isMarkom && fu.next_action === 'Drop') && <div className="field"><label>Tgl Next Follow Up{isMarkom && fu.next_action === 'Lanjut Follow Up' ? <span className="req"> *</span> : null}{TANPA_NEXT.includes(fu.next_action) ? ' (nonaktif — ' + fu.next_action + ')' : ''}</label>
+            <input type="date" {...ff('next_tgl')} disabled={TANPA_NEXT.includes(fu.next_action)}
+              max={!isMarkom && fu.balas === true ? tambahHari(hariIniWIB(), MAKS_HARI_PERCAKAPAN) : undefined} />
+            {!isMarkom && fu.lead_code && fu.balas !== null && !TANPA_NEXT.includes(fu.next_action) ? <span className="hint">{fu.balas
+              ? 'Mode percakapan — maksimal ' + MAKS_HARI_PERCAKAPAN + ' hari ke depan.'
+              : 'Otomatis sesuai jadwal FU wajib — boleh dimajukan, tidak bisa dimundurkan.'}</span> : null}</div>}
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" onClick={simpanFU} disabled={busy}>Simpan Follow Up</button>
+          <span className="hint">Reminder MERAH = overdue, KUNING = hari ini, HIJAU = upcoming.</span>
+        </div>
+      </div>}
+
+      {isMarkom && tab === 'l2s' && <div className="card">
+        <div className="note" style={{ marginBottom: 10 }}>📮 <b>Leads to Sales</b> — oper lead ke sales: pilih lead & sales tujuan, pesan berisi data konsumen tersusun otomatis, klik <b>Kirim</b> → lead resmi berpindah ke sales tsb & WhatsApp sales terbuka berisi pesannya.</div>
+        <div className="form-grid">
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={l2s.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, l2s.konteks) : l2s.pesan });
+            }}>{leadOpt}</select></div>
+          <div className="field"><label>Tanggal</label><input type="date" value={l2s.tgl} onChange={e => setL2s({ ...l2s, tgl: e.target.value })} /></div>
+          <div className="field"><label>Sales Tujuan <span className="req">*</span></label>
+            <select value={l2s.sales} onChange={e => {
+              const l = leads.find(x => x.lead_code === l2s.lead_code);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, sales: e.target.value, pesan: (oto && l) ? templateL2S(l, e.target.value, l2s.konteks) : l2s.pesan });
+            }}>
+              <option value="">— pilih sales —</option>
+              {salesWA.filter(u2 => {
+                // hanya sales yang memegang project lead ini (sales tanpa batasan project tampil untuk semua)
+                const lp = (leads.find(x => x.lead_code === l2s.lead_code) || {}).project;
+                return !lp || !Array.isArray(u2.projects) || !u2.projects.length || u2.projects.includes(lp);
+              }).map(u2 => <option key={u2.id} value={u2.name}>{u2.name}{u2.wa ? '' : ' (belum ada No. WA)'}</option>)}
+            </select></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}><label>Yang Ditanyakan / Diminati Lead <span className="req">*</span> <span className="hint">(konteks agar sales melanjutkan obrolan, bukan mulai dari awal)</span></label>
+            <input value={l2s.konteks} onChange={e => {
+              const l = leads.find(x => x.lead_code === l2s.lead_code);
+              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+              setL2s({ ...l2s, konteks: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, e.target.value) : l2s.pesan });
+            }} placeholder="mis. harga tipe A & bisa KPR, minta e-brochure, tanya akses ke stasiun" /></div>
+          <div className="field" style={{ gridColumn: '1/-1' }}>
+            <label>Pesan WhatsApp ke Sales <span className="hint">(otomatis berisi nama, nomor WA & keterangan konsumen — bebas diedit)</span>
+              <button type="button" className="sort-btn" style={{ marginLeft: 8, padding: '2px 9px' }}
+                onClick={() => setL2s({ ...l2s, pesan: templateL2S(leads.find(x => x.lead_code === l2s.lead_code), l2s.sales, l2s.konteks) })}>↺ Isi Template</button>
+            </label>
+            <textarea rows={7} value={l2s.pesan} onChange={e => setL2s({ ...l2s, pesan: e.target.value })}
+              placeholder="Pilih lead & sales — pesan akan tersusun otomatis di sini." /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" onClick={kirimL2S} disabled={busy}>📲 Kirim</button>
+          <span className="hint">Lead otomatis berpindah menjadi milik sales terpilih & tercatat di riwayat follow up.</span>
+        </div>
+        {l2sDone && (() => {
+          const nomorSales = String(l2sDone.salesWa || '').replace(/[^0-9]/g, '').replace(/^62/, '0');
+          const proj = (l2sDone.project || 'Bio District').replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase());
+          const kabar = `Halo Kak ${l2sDone.nama || ''} 🙏 Terima kasih sudah tertarik dengan ${proj}. Untuk info lengkap, simulasi pembayaran & jadwal survey, Kakak akan dihubungi langsung oleh ${l2sDone.sales}, konsultan properti kami, dari nomor ${nomorSales}. Mohon disimpan ya Kak, supaya chat-nya tidak terlewat 😊`;
+          return (
+            <div className="note" style={{ marginTop: 12, borderLeft: '4px solid var(--brass)' }}>
+              <b>Langkah terakhir — kabari lead</b> supaya ia mengenali nomor {l2sDone.sales} dan tidak mengabaikannya:
+              <div style={{ margin: '8px 0', fontStyle: 'italic' }}>{kabar}</div>
+              {l2sDone.wa
+                ? <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => { bukaWA(l2sDone.wa, kabar); setL2sDone(null); }}>📲 Kabari Lead</button>
+                : <span className="hint">Lead ini belum punya nomor WA di CRM.</span>}
+              <button className="sort-btn" style={{ marginLeft: 8 }} onClick={() => setL2sDone(null)}>Lewati</button>
+            </div>
+          );
+        })()}
+      </div>}
+
+      {tab === 'trx' && <div className="card">
+        <div className="form-grid">
+          <div className="field"><label>ID Lead <span className="req">*</span></label>
+            <select value={trx.lead_code} onChange={e => {
+              const l = leads.find(x => x.lead_code === e.target.value);
+              setKembar(null);
+              setTrx({ ...trx, lead_code: e.target.value, project: (l && l.project) || trx.project, bayar: (l && l.bayar) || trx.bayar,
+                nama_ktp: (l && (l.nama_ktp || '')) || '', no_ktp: (l && (l.no_ktp || '')) || '',
+                alamat_domisili: (l && (l.alamat_domisili || '')) || '',
+                email: (l && (l.email || '')) || '' });
+            }}>{leadOpt}</select></div>
+          <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
+          <div className="field"><label>Blok / Unit</label>
+            {(set.units && set.units[trx.project] && set.units[trx.project].length)
+              ? (() => {
+                  const stMap = {};
+                  stok.forEach(u2 => { if (u2.project === trx.project) stMap[u2.unit] = u2; });
+                  return <select {...ft('unit')}>
+                    <option value="">— pilih —</option>
+                    {set.units[trx.project].map(u => {
+                      const st = stMap[u];
+                      // Unit tertutup tetap bisa dipilih oleh LEAD PEMILIKNYA (untuk naik ke Booking/Closing atau Batal)
+                      const milikSendiri = st && st.lead_code && st.lead_code === trx.lead_code;
+                      const kunci = !!st && !milikSendiri;
+                      const label = !st ? u
+                        : (st.warna === 'merah' ? '🔴 ' : '🟡 ') + u +
+                          (milikSendiri ? ' — unit lead ini' : st.warna === 'merah' ? ' — TERJUAL' : ' — RESERVED');
+                      return <option key={'u' + u} value={u} disabled={kunci}>{label}</option>;
+                    })}
+                  </select>;
+                })()
+              : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
+            <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih.</span>
+          </div>
+          <div className="field"><label>Cara Bayar</label><select {...ft('bayar')}>{opsi('bayar')}</select></div>
+
+          {trx.unit && (
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <label>Harga Unit {trx.unit}</label>
+              {!hargaUnit ? <span className="hint">Memuat harga…</span>
+              : !hargaUnit.ada || (!hargaUnit.harga_standar && !hargaUnit.harga_allin) ? (
+                <span className="hint" style={{ color: 'var(--red)' }}>
+                  Harga unit ini belum ditetapkan di Master Stock — isi Nilai Transaksi secara manual.</span>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[['Standar', hargaUnit.harga_standar], ['All In', hargaUnit.harga_allin]].filter(([, v]) => v > 0).map(([sk, v]) => (
+                    <button key={sk} type="button" className={'sort-btn' + (trx.skema_harga === sk ? ' active' : '')}
+                      style={{ padding: '8px 14px', fontWeight: 700 }} onClick={() => pilihHarga(sk)}>
+                      Harga {sk} — Rp {Number(v).toLocaleString('id-ID')}</button>))}
+                  <span className="hint" style={{ margin: 0, alignSelf: 'center' }}>
+                    {trx.skema_harga ? '✔ Nilai Transaksi terisi dari Harga ' + trx.skema_harga : 'pilih salah satu untuk mengisi Nilai Transaksi'}
+                    {hargaUnit.sumber === 'tipe' ? ' · harga tipe ' + hargaUnit.tipe : hargaUnit.hoek ? ' · harga khusus hoek' : ''}</span>
+                </div>)}
+            </div>)}
+
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label style={{ color: 'var(--em-700, #0E4C3B)' }}>1 · Berkas Transaksi — Bukti Transfer, KTP &amp; NPWP wajib</label>
+            <span className="hint" style={{ display: 'block', marginBottom: 6 }}>Unggah dulu: NIK, nama, dan alamat di bagian berikutnya terisi otomatis dari foto KTP / NPWP.</span>
+            {!(trx.lead_code && trx.project && trx.unit) ? (
+              <span className="hint">Pilih ID Lead, Project &amp; Blok/Unit dulu untuk mengelola berkas.</span>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {berkas && berkas.adaTrxSebelumnya && (
+                  <div className="note" style={{ marginBottom: 2 }}>
+                    ✔ Berkas transaksi unit ini sudah tersimpan — update ke Booking/Batal <b>tidak perlu unggah ulang</b>.
+                    Berkas tetap dapat diganti bila ada yang keliru.
+                  </div>)}
+                {berkas && berkas.terkunci && (
+                  <div className="note" style={{ marginBottom: 2, background: '#EDF3EF', borderColor: '#BBD3B5', color: '#12604B' }}>
+                    🔒 Transaksi sudah diverifikasi Admin Sales — berkas terkunci dan tidak dapat diubah.
+                  </div>)}
+                {[['transfer', 'Bukti Transfer', true], ['ktp', 'KTP', true],
+                  ['npwp', 'NPWP', true], ['lainnya', 'Dokumen Lain', false]]
+                  .map(([kode, nama, wajib]) => (
+                  <div key={kode} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <b style={{ fontSize: 12.5, minWidth: 110 }}>{nama} {wajib && <span className="req">*</span>}</b>
+                    {berkas && berkas[kode] ? (
+                      <>
+                        <span className="badge b-close">✔ TERUNGGAH</span>
+                        <button type="button" className="sort-btn" style={{ padding: '4px 10px' }}
+                          onClick={() => window.open('/api/berkas?view=1&jenis=' + kode +
+                            '&project=' + encodeURIComponent(trx.project) +
+                            '&unit=' + encodeURIComponent(trx.unit) +
+                            '&lead_code=' + encodeURIComponent(trx.lead_code), '_blank')}>Lihat</button>
+                        {!(berkas && berkas.terkunci) && <>
+                          {adaKamera ? (
+                            <button type="button" className="sort-btn" style={{ padding: '4px 10px' }} disabled={upBusy !== ''}
+                              onClick={() => setKamera(kode)}>📷 Foto ulang</button>
+                          ) : (
+                            <label className="sort-btn" style={{ padding: '4px 10px', cursor: 'pointer' }}>
+                              📷 Foto ulang
+                              <input type="file" hidden accept="image/*" capture="environment" disabled={upBusy !== ''}
+                                onChange={e => { if (e.target.files[0]) uploadBerkas(kode, e.target.files[0]); e.target.value = ''; }} />
+                            </label>)}
+                          <label className="sort-btn" style={{ padding: '4px 10px', cursor: 'pointer' }}>
+                            Galeri / PDF
+                            <input type="file" hidden accept="image/*,application/pdf" disabled={upBusy !== ''}
+                              onChange={e => { if (e.target.files[0]) uploadBerkas(kode, e.target.files[0]); e.target.value = ''; }} />
+                          </label>
+                          <button type="button" className="sort-btn" style={{ padding: '4px 10px', color: 'var(--red)' }}
+                            disabled={upBusy !== ''} onClick={() => hapusBerkas(kode)}>Hapus</button>
+                        </>}
+                      </>
+                    ) : (
+                      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                        {adaKamera ? (
+                          <button type="button" className="sort-btn" style={{ padding: '5px 11px', fontWeight: 700 }} disabled={upBusy !== ''}
+                            onClick={() => setKamera(kode)}>📷 Ambil foto</button>
+                        ) : (
+                          <label className="sort-btn" style={{ padding: '5px 11px', cursor: 'pointer', fontWeight: 700 }}>📷 Ambil foto
+                            <input type="file" hidden accept="image/*" capture="environment" disabled={upBusy !== ''}
+                              onChange={e => { if (e.target.files[0]) uploadBerkas(kode, e.target.files[0]); e.target.value = ''; }} /></label>)}
+                        <label className="sort-btn" style={{ padding: '5px 11px', cursor: 'pointer' }}>Galeri / PDF
+                          <input type="file" hidden accept="image/*,application/pdf" disabled={upBusy !== ''}
+                            onChange={e => { if (e.target.files[0]) uploadBerkas(kode, e.target.files[0]); e.target.value = ''; }} /></label>
+                      </span>
+                    )}
+                    {upBusy === kode && <span className="hint">Memproses…</span>}
+                  </div>))}
+                <span className="hint">Bukti Transfer, KTP, dan NPWP konsumen wajib diunggah pada transaksi pertama unit ini
+                  sesuai Kebijakan &amp; Prosedur Penjualan. Bila konsumen belum memiliki NPWP, transaksi tetap dapat
+                  disimpan namun memerlukan dispensasi Kepala Divisi sebelum diverifikasi Admin Sales.
+                  Slot Dokumen Lain untuk kartu keluarga, surat nikah, atau berkas pendukung lain yang dipersyaratkan.
+                  Selama transaksi belum diverifikasi, berkas yang keliru dapat diganti atau dihapus.
+                  Foto dikompres otomatis; PDF maks 2 MB.</span>
+              </div>
+            )}
+          </div>
+          <div className="field" style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+            <label style={{ color: 'var(--em-700, #0E4C3B)' }}>2 · Identitas Konsumen — tercetak pada Formulir Pemesanan Unit</label>
+          </div>
+          <div className="field"><label>Nama sesuai KTP <span className="req">*</span></label>
+            <input {...ft('nama_ktp')} placeholder="terisi otomatis dari foto KTP / NPWP" autoComplete="off" style={gayaBaca('nama_ktp')} />
+            {ketBaca('nama_ktp')}</div>
+          <div className="field"><label>NIK (No. KTP) <span className="req">*</span></label>
+            <input {...ft('no_ktp')} inputMode="numeric" maxLength={20} placeholder="16 digit — terisi otomatis dari foto" autoComplete="off"
+              onBlur={cekKembar} style={gayaBaca('no_ktp')} />
+            {(baca.ktp || '').startsWith('membaca') && <span className="hint" style={{ display: 'block' }}>⏳ {baca.ktp} dari foto KTP{Number((baca.ktp.match(/\d+/) || [0])[0]) >= 60 ? ' — memeriksa tiap baris' : ''}</span>}
+            {ketBaca('no_ktp')}</div>
+          <div className="field"><label>No. NPWP</label>
+            <input {...ft('npwp')} placeholder="00.000.000.0-000.000 — terisi otomatis dari foto NPWP" autoComplete="off"
+              onBlur={cekKembar} style={gayaBaca('npwp')} />
+            {(baca.npwp || '').startsWith('membaca') && <span className="hint" style={{ display: 'block' }}>⏳ {baca.npwp} dari foto NPWP</span>}
+            {ketBaca('npwp')}</div>
+          <div className="field"><label>Email <span className="req">*</span></label>
+            <input type="email" {...ft('email')} placeholder="nama@email.com" autoComplete="off" onBlur={cekKembar} /></div>
+          <div className="field" style={{ gridColumn: '1 / -1', marginBottom: 0 }}><label>Alamat sesuai KTP — susunan seperti di kartu</label></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Alamat</label>
+            <input {...ft('ktp_alamat')} placeholder="mis. PERUM KORPRI AE/19" style={gayaBaca('ktp_alamat')} />{ketBaca('ktp_alamat')}</div>
+          <div className="field"><label>RT/RW</label>
+            <input {...ft('ktp_rtrw')} placeholder="006/004" style={gayaBaca('ktp_rtrw')} />{ketBaca('ktp_rtrw')}</div>
+          <div className="field"><label>Kel/Desa</label>
+            <input {...ft('ktp_kel')} placeholder="KEDAUNG WETAN" style={gayaBaca('ktp_kel')} />{ketBaca('ktp_kel')}</div>
+          <div className="field"><label>Kecamatan</label>
+            <input {...ft('ktp_kec')} placeholder="NEGLASARI" style={gayaBaca('ktp_kec')} />{ketBaca('ktp_kec')}</div>
+          <div className="field"><label>Kota/Kabupaten</label>
+            <input {...ft('ktp_kota')} placeholder="KOTA TANGERANG" style={gayaBaca('ktp_kota')} />{ketBaca('ktp_kota')}</div>
+          <div className="field"><label>Provinsi</label>
+            <input {...ft('ktp_prov')} placeholder="BANTEN" style={gayaBaca('ktp_prov')} />{ketBaca('ktp_prov')}</div>
+          {kembar && (
+            <div className="field" style={{ gridColumn: '1 / -1' }}>
+              <div className="note" style={{ background: '#FBEDEC', borderColor: '#EED3D1', color: '#7A2822', margin: 0 }}>
+                ⚠ <b>{kembar.pesan}</b>
+              </div>
+            </div>)}
+          <div className="field" style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span>Alamat Domisili <span className="req">*</span></span>
+              <button type="button" className="sort-btn" style={{ padding: '3px 10px', fontWeight: 700 }}
+                disabled={!alamatKtpGabung(trx)} title={alamatKtpGabung(trx) ? 'Salin alamat KTP ke domisili' : 'Isi alamat KTP dulu'}
+                onClick={() => { setTrx(t => ({ ...t, alamat_domisili: alamatKtpGabung(t) })); setBaca(b => ({ ...b, alamat_domisili: 'ktp' })); }}>
+                ⇩ Sama dengan KTP</button>
+            </label>
+            <textarea {...ft('alamat_domisili')} rows={2} style={gayaBaca('alamat_domisili')}
+              placeholder="alamat lengkap tempat tinggal saat ini — bila sama dengan KTP, tekan tombol di atas" />
+            {baca.alamat_domisili === 'ktp' && <span className="hint" style={{ display: 'block', color: '#8a5f14' }}>✔ disalin dari alamat KTP</span>}
+            <span className="hint">Terisi otomatis bila konsumen ini pernah bertransaksi. Periksa kembali sebelum menyimpan — data ini
+              yang dipakai pada dokumen resmi dan diverifikasi Admin Sales.</span></div>
+          <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
+            <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
+          <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
+          <div className="field"><label>Nilai Reserved / Booking (Rp) <span className="req">*</span></label>
+            <input type="text" {...isiNominal('nilai')} placeholder="uang yang dibayarkan saat ini" /></div>
+          <div className="field"><label>Nilai Transaksi (Rp)</label>
+            <input type="text" inputMode="numeric" value={fmtRibuan(trx.harga_unit)}
+              onChange={e => { const d = e.target.value.replace(/\D/g, ''); setTrx({ ...trx, harga_unit: d, skema_harga: trx.skema_harga && hargaUnit &&
+                d === String(trx.skema_harga === 'All In' ? hargaUnit.harga_allin : hargaUnit.harga_standar) ? trx.skema_harga : '' }); }}
+              placeholder="harga jual unit" style={trx.skema_harga ? { borderColor: '#C9A227', background: '#FFFBEE' } : {}} />
+            <div className="hint" style={{ marginTop: 4 }}>Harga jual unit. Dipakai Admin Sales untuk Surat Pesanan &amp; PPJB,
+              serta menghitung ambang komisi 20%.</div></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Catatan</label><input {...ft('catatan')} /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" onClick={simpanTrx} disabled={busy}>Simpan Transaksi</button>
+          <span className="hint">Booking/Batal meng-update status pipeline otomatis (Batal → Drop). Reserved tidak mengubah status.</span>
+        </div>
+      </div>}
+      <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-ghost" style={{ flex: '2 1 240px' }} onClick={() => setShowPw(false) || setShowList(v => !v)}>
+          {showList ? '▲ Tutup Daftar' : '▼ Lihat Lead & Hasil Follow Up Saya (' + leads.length + ' lead)'}
+        </button>
+        <button className="btn btn-ghost" style={{ flex: '1 1 160px' }} onClick={() => setShowList(false) || setShowPw(v => !v)}>
+          🔑 Ganti Password
+        </button>
+      </div>
+
+      {showPw && <div className="card" style={{ marginTop: 12 }}>
+        <h2>Ganti Password Saya</h2>
+        <div className="form-grid">
+          <div className="field"><label>Password Lama</label>
+            <PasswordInput value={pwOld} onChange={e => setPwOld(e.target.value)}
+              autoComplete="current-password" /></div>
+          <div className="field"><label>Password Baru (min. 5 karakter)</label>
+            <PasswordInput value={pwNew} onChange={e => setPwNew(e.target.value)}
+              autoComplete="new-password" /></div>
+        </div>
+        <div className="form-foot">
+          <button className="btn btn-primary" disabled={busy} onClick={async () => {
+            if (!pwOld || !pwNew) return toast('Isi password lama dan baru');
+            setBusy(true);
+            try {
+              await api('/api/users', { method: 'PUT', body: JSON.stringify({ oldPassword: pwOld, newPassword: pwNew }) });
+              toast('Password berhasil diganti — pakai password baru saat login berikutnya');
+              setPwOld(''); setPwNew(''); setShowPw(false);
+            } catch (e) { toast(e.message); } finally { setBusy(false); }
+          }}>Simpan Password Baru</button>
+        </div>
+      </div>}
+
+      {showList && <div style={{ marginTop: 12 }}>
+        <div className="tbl-wrap"><table>
+          <thead><tr><th>ID Lead</th><th>Nama</th><th>Status</th><th>FU Terakhir</th><th>Hasil / Next Action</th><th>Next FU</th><th>Aksi</th></tr></thead>
+          <tbody>
+            {leads.length ? [...leads].reverse().map(l => {
+              const myFus = fus.filter(f => f.lead_code === l.lead_code);
+              const last = myFus[0];
+              const nfu = l.next_fu || (last && last.next_tgl);
+              const r = reminder(nfu);
+              return <tr key={l.lead_code}>
+                <td data-label="ID Lead"><span className="id-tag">{l.lead_code}</span></td>
+                <td data-label="Nama"><b>{l.nama}</b>{myFus.length > 0 && <span className="hint"> · {myFus.length}x FU</span>}</td>
+                <td data-label="Status"><span className={'badge ' + (BADGE[l.status] || 'b-cold')}>{l.status}</span></td>
+                <td data-label="FU Terakhir">{last ? <>{fmtDate(last.tgl)}<br /><span className="hint">{last.detail}</span></> : <span style={{ color: 'var(--muted)' }}>belum ada</span>}</td>
+                <td data-label="Hasil / Next Action">{last ? (last.next_action || last.objection || '—') : '—'}</td>
+                <td data-label="Next FU">{nfu ? <>{fmtDate(nfu)}{r && <> <span className={'badge ' + r[1]}>{r[0]}</span></>}</> : '—'}</td>
+                <td data-label="Aksi"><button className="sort-btn" onClick={() => mulaiEdit(l)}>✏️ Edit</button></td>
+              </tr>;
+            }) : <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada lead — input lead pertama Anda di tab 1.</td></tr>}
+          </tbody>
+        </table></div>
+      </div>}
+
+      {kamera && (
+        <KameraKartu jenis={kamera} onTutup={() => setKamera('')}
+          onHasil={f => { const k = kamera; setKamera(''); uploadBerkas(k, f); }} />)}
+      <Toast />
+    </>
+  );
+}
