@@ -1047,9 +1047,9 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
       </div>}
       {!hanyaReport && <div className="fu-toolbar">
         <span className="hint" style={{ fontWeight: 600 }}>Filter project:</span>
-        {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
+        {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
         {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>}
       <div className="card" style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
         {!hanyaReport && <div className="field" style={{ minWidth: 150 }}><label>Periode — Dari Tanggal</label>

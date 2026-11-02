@@ -507,11 +507,15 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     <>
       <div className="page-head"><div><h1>Form Input</h1>
         <div className="sub">Data langsung tersimpan ke database bersama. Tanda <span style={{ color: 'var(--red)' }}>*</span> wajib diisi.</div></div></div>
-      <div className="form-tabs">
+      {/* Tab utama halaman: kartu langkah bernomor (beda jelas dari chip filter di bawahnya) */}
+      <div className="tab-langkah" role="tablist" aria-label="Jenis input">
         {(isMarkom
-          ? [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['l2s', '3 · Leads to Sales']]
-          : [['lead', '1 · Lead Baru'], ['fu', '2 · Follow Up'], ['trx', '3 · Reserved / Booking']]).map(([k, t]) => (
-          <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{t}</button>))}
+          ? [['lead', 'Lead Baru', 'Konsumen baru masuk'], ['fu', 'Follow Up', 'Catat hasil FU'], ['l2s', 'Leads to Sales', 'Oper ke sales']]
+          : [['lead', 'Lead Baru', 'Walk in / referensi'], ['fu', 'Follow Up', 'Catat hasil FU wajib'], ['trx', 'Reserved / Booking', 'Transaksi & berkas']]).map(([k, t, ket], i) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>
+            <span className="tl-no">{i + 1}</span>
+            <span className="tl-teks"><b>{t}</b><small>{ket}</small></span>
+          </button>))}
       </div>
 
       {tab === 'lead' && <div className="card" style={editId ? { borderColor: 'var(--brass)', borderWidth: 2 } : undefined}>

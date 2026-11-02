@@ -34,11 +34,11 @@ export default function CollectionPage() {
       <div className="page-head"><div><h1>Collection &amp; KPR{ro ? <span className="hint" style={{ fontSize: 13, marginLeft: 8 }}>· hanya lihat</span> : null}</h1>
         <div className="sub">Tagihan &amp; pembayaran konsumen, proses KPR, jadwal akad — jadwal tagihan terbentuk otomatis dari skema cara bayar price list</div></div>
         {projek.length > 1 && <div className="fu-toolbar" style={{ margin: 0 }}>
-          <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua project</button>
-          {projek.map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}</div>}
+          <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua project</button>
+          {projek.map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}</div>}
       </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
-        {TAB.map(([k, l]) => <button key={k} className={'sort-btn' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}{k === 'tagihan' ? ` (${d.tagihan.filter(r => r.sisa > 0).length})` : k === 'kontrak' ? ` (${d.kontrak.length})` : k === 'ceklis' ? ` (${d.kontrak.filter(x => x.kpr).length})` : ''}</button>)}
+        {TAB.map(([k, l]) => <button key={k} className={'sort-btn tab-utama' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}{k === 'tagihan' ? ` (${d.tagihan.filter(r => r.sisa > 0).length})` : k === 'kontrak' ? ` (${d.kontrak.length})` : k === 'ceklis' ? ` (${d.kontrak.filter(x => x.kpr).length})` : ''}</button>)}
         <Link href="/kpr-proses" className="sort-btn" style={{ marginLeft: 'auto' }}>🏦 Proses KPR ({d.kpr.berjalan + d.kpr.sp3k + d.kpr.akad}) ›</Link>
       </div>
       {tab === 'ringkas' && <><Ringkasan d={d} proj={proj} muat={() => muat(proj)} /><ResumeTabel d={d} /></>}
@@ -362,7 +362,7 @@ function Ceklis({ d, muat }) {
   return (<div className="card">
     <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Ceklis dokumen KPR ({rows.length})</h3>
       <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        {profilAda.map(p => <button key={p} className={'sort-btn' + (profilAktif === p ? ' active' : '')} onClick={() => setFProfil(p)}>{p} ({semuaKpr.filter(x => x.kpr.profil === p).length})</button>)}
+        {profilAda.map(p => <button key={p} className={'sort-btn chip-proyek' + (profilAktif === p ? ' active' : '')} onClick={() => setFProfil(p)}>{p} ({semuaKpr.filter(x => x.kpr.profil === p).length})</button>)}
         <input className="sort-filter" placeholder="🔍 nama / unit" value={cari} onChange={e => setCari(e.target.value)} style={{ width: 160 }} />
         <button className="sort-btn" title="Geser ke kiri" onClick={() => geser(-420)}>◀</button><button className="sort-btn" title="Geser ke kanan" onClick={() => geser(420)}>▶</button>
       </span></div>

@@ -72,9 +72,9 @@ export default function BookingPage() {
         <div className="sub">Transaksi — status pipeline konsumen ter-update otomatis{per ? ' · periode ' + labelPeriode(per) : ''}</div></div>
         <div className="stamp"><b>{rows.length}</b> transaksi</div></div>
       <div className="fu-toolbar">
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
+        <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
         {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
         <button className={'sort-btn' + (ringkas ? ' active' : '')} onClick={() => setRingkas(r => !r)}
           title="Ringkas: satu baris per unit dengan status terakhir">
           {ringkas ? '✓ Status Terakhir' : 'Semua Riwayat'}

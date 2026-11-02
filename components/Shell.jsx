@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import BusyIndicator from '@/components/BusyIndicator';
+import IkonMenu from '@/components/IkonMenu';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -167,7 +168,7 @@ export default function Shell({ user, children }) {
         <nav className="nav">
           {menus.map(m => (
             <Link key={m.href} href={m.href} className={path === m.href || path.startsWith(m.href + '/') ? 'active' : ''}>
-              <span className="ico">{m.ico}</span><span>{m.label}</span>
+              <span className="ico"><IkonMenu href={m.href} cadangan={m.ico} /></span><span>{m.label}</span>
             </Link>
           ))}
         </nav>
@@ -178,17 +179,23 @@ export default function Shell({ user, children }) {
           </div>
         </div>
         <div className="side-foot">
-          <span><span className="u-name">{user.name}</span>
-            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : user.role === 'collection' ? 'Collection & KPR' : 'Sales — Form Input'}</span></span>
-          <span style={{ display: 'flex', gap: 4 }}>
-            <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)">🧹</button>
-            <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑</button>
+          <div className="side-user"><span className="u-name">{user.name}</span>
+            <span className="u-role">{user.role === 'manager' ? 'Manager — Akses Penuh' : user.role === 'ceo' ? 'CEO Project — Pantau & Input' : user.role === 'admin' ? 'Admin — Lihat Data' : user.role === 'markom' ? 'Marcom — Lead Digital' : user.role === 'collection' ? 'Collection & KPR' : 'Sales — Form Input'}</span></div>
+          <div className="side-tombol">
+            <button className="btn-logout" onClick={segarkanAplikasi} title="Segarkan aplikasi (bersihkan cache)" aria-label="Segarkan aplikasi">🧹</button>
+            <button className="btn-logout" onClick={gantiPassword} title="Ganti password">🔑 Password</button>
             <button className="btn-logout" onClick={logout}>Keluar</button>
-          </span>
+          </div>
         </div>
       </aside>
       <main className="main">
-        <div className="bell-desktop"><ReminderBell user={user} /></div>
+        {/* Laptop: tombol tema & lonceng melayang di kanan atas pita judul, sejajar tepi kanan konten */}
+        <div className="atas-kanan">
+          <button className="theme-btn" onClick={() => pilihTema(tema === 'dark' ? 'light' : 'dark')}
+            aria-label={tema === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'} title={tema === 'dark' ? 'Mode terang' : 'Mode gelap'}>
+            {tema === 'dark' ? <IkonMatahari /> : <IkonBulan />}</button>
+          <ReminderBell user={user} />
+        </div>
         <BusyIndicator />
         {children}
         <div className="copyright">copyright &copy; 2026 by Andriawanp</div>

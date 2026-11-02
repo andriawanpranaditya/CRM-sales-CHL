@@ -652,8 +652,8 @@ export default function MarcomPage() {
       </div>
 
       <div className="fu-toolbar" style={{ marginBottom: 8 }}>
-        {(set.project || []).length !== 1 && <button className={'sort-btn' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>}
-        {(set.project || []).map(p => <button key={p} className={'sort-btn' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
+        {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>}
+        {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
       </div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
         {[['bulan', 'Bulan Ini'], ['perbulan', 'Per Bulan'], ['semua', 'Sejak Sep 2026'], ['custom', 'Pilih Tanggal']].map(([v, t]) => (

@@ -237,7 +237,7 @@ export default function JanjianPage() {
 
       <div className="fu-toolbar">
         {[['visitor', 'Daily visitor'], ['janji', 'Janji temu'], ['update', 'Perlu update'], ['riwayat', 'Riwayat & update'], ['rekap', 'Rekap bulan ini']].map(([k, l]) => (
-          <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)} style={k === 'update' && jml.update ? { color: filter === k ? undefined : 'var(--red)' } : undefined}>
+          <button key={k} className={'sort-btn tab-utama' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)} style={k === 'update' && jml.update ? { color: filter === k ? undefined : 'var(--red)' } : undefined}>
             {l}{jml[k] != null ? ` (${jml[k]})` : ''}</button>))}
         {pimpinan && <select className="sort-filter" value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{salesList.map(s => <option key={s}>{s}</option>)}</select>}
       </div>

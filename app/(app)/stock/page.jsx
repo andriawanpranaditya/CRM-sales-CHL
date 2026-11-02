@@ -256,9 +256,9 @@ export default function StockPage() {
       )}
       <div className="fu-toolbar">
         {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')}
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')}
             onClick={() => { setProj(p); setPlacing(null); setSelUnit(''); }}>{p}</button>))}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', maxWidth: '100%' }}>
           <button className="sort-btn" onClick={() => zoomTo(zoom - 0.5)}>🔍−</button>
           <b style={{ minWidth: 46, textAlign: 'center' }}>{Math.round(zoom * 100)}%</b>
           <button className="sort-btn" onClick={() => zoomTo(zoom + 0.5)}>🔍+</button>

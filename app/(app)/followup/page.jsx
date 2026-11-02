@@ -37,9 +37,9 @@ export default function FollowUpPage() {
       <div className="page-head"><div><h1>Follow Up</h1>
         <div className="sub">Histori komunikasi per konsumen — reminder hanya menempel di follow up terbaru tiap lead</div></div></div>
       <div className="fu-toolbar">
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
+        <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua Project</button>
         {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>
       <div className="fu-toolbar">
         <span className="hint" style={{ fontWeight: 600 }}>Urutkan:</span>

@@ -86,7 +86,7 @@ export default function WaInbox() {
         <div className="sub">Chat calon pembeli dari WhatsApp Cloud API — AI menjawab lebih dulu, tim bisa ambil alih kapan saja{data.nomor?.length ? ' · nomor: ' + data.nomor.map(n => `${fmtWA(n.display)} (${n.project || '?'})`).join(', ') : ' · belum ada nomor terhubung (menunggu pesan pertama lewat webhook)'}</div></div></div>
       <div className="fu-toolbar" style={{ marginBottom: 10 }}>
         {[['semua', 'Semua'], ['belum', 'Belum dibalas'], ['ai', 'AI aktif'], ['orang', 'Minta orang'], ['sudah', 'Sudah dioper']].map(([k, lb]) => (
-          <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)}>{lb} ({jml(k)})</button>))}
+          <button key={k} className={'sort-btn tab-utama' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)}>{lb} ({jml(k)})</button>))}
       </div>
       <div className={'wa-wrap' + (mobileThread ? ' thread' : '')}>
         <div className="wa-list card">

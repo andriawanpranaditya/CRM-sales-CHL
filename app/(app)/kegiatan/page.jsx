@@ -102,8 +102,8 @@ export default function KegiatanPage() {
 
       {tab === 'daftar' && (<>
         <div className="fu-toolbar">
-          <button className={'sort-btn' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>
-          {(set.project || []).map(p => <button key={p} className={'sort-btn' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
+          <button className={'sort-btn chip-proyek' + (!fProj ? ' active' : '')} onClick={() => setFProj('')}>Semua Project</button>
+          {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (fProj === p ? ' active' : '')} onClick={() => setFProj(p)}>{p}</button>)}
           <select className="sort-filter" value={fJenis} onChange={e => setFJenis(e.target.value)}>
             <option value="">Semua Jenis</option>{JENIS.map(j => <option key={j}>{j}</option>)}
           </select>

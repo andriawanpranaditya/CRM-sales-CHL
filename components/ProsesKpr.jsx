@@ -71,8 +71,8 @@ export default function ProsesKprPage({ tertanam = false, projLuar = null, idAwa
       </div>}
       {!tertanam && projek.length > 1 && me && me.role !== 'sales' && <div className="fu-toolbar" style={{ marginBottom: 10 }}>
         <span className="hint" style={{ fontWeight: 600 }}>Project:</span>
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
-        {projek.map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
+        <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
+        {projek.map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
       </div>}
 
       {aturBerkas && (
@@ -94,7 +94,7 @@ export default function ProsesKprPage({ tertanam = false, projLuar = null, idAwa
       <div className="fu-toolbar">
         {tertanam && me?.role === 'manager' && <button className="sort-btn" onClick={() => setAturBerkas(JSON.parse(JSON.stringify(data?.berkas || {})))}>⚙ Atur daftar berkas</button>}
         {[['berjalan', 'Berjalan'], ['sp3k', 'SP3K (pilih akad)'], ['akad', 'Rencana akad'], ['selesai', 'Done'], ['ditolak', 'Ditolak'], ['menunggu', 'Menunggu Booking'], ['batal', 'Transaksi batal']].map(([k, l]) => (
-          (!['batal', 'menunggu'].includes(k) || jumlah[k]) ? <button key={k} className={'sort-btn' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)}>{l} ({jumlah[k]})</button> : null))}
+          (!['batal', 'menunggu'].includes(k) || jumlah[k]) ? <button key={k} className={'sort-btn tab-utama' + (filter === k ? ' active' : '')} onClick={() => setFilter(k)}>{l} ({jumlah[k]})</button> : null))}
         <input className="sort-filter" placeholder="Cari nama / unit / bank…" value={cari} onChange={e => setCari(e.target.value)} style={{ minWidth: 180 }} />
       </div>
 

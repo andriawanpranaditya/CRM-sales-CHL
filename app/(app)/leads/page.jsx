@@ -178,12 +178,16 @@ export default function LeadsPage() {
       </div>
       {tab === 'lead' && <>
       <div className="fu-toolbar">
-        <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
+        <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>
         {(set.project || []).map(p => (
-          <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
+          <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>))}
       </div>
       <div className="fu-toolbar">
-        <input type="date" className="sort-filter" style={{ marginLeft: 0 }} value={fDate} onChange={e => setFDate(e.target.value)} title="Filter tanggal lead masuk" />
+        <label className="filter-tgl" title="Filter tanggal lead masuk">
+          <span>📅 Tanggal masuk</span>
+          <input type="date" className="sort-filter" style={{ marginLeft: 0 }} value={fDate} onChange={e => setFDate(e.target.value)} aria-label="Tanggal lead masuk" />
+          {fDate && <button type="button" className="sort-btn" style={{ padding: '2px 8px' }} onClick={() => setFDate('')} aria-label="Hapus filter tanggal">✕</button>}
+        </label>
         {fDate && <button className="sort-btn" onClick={() => setFDate('')}>✕ Tanggal</button>}
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fSales} onChange={e => setFSales(e.target.value)}>
           <option value="">Semua Sales</option>

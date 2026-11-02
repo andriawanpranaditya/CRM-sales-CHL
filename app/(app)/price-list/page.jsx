@@ -199,7 +199,7 @@ function PriceListIsi({ plv }) {
           {plv && !plv.bawaan ? <> · diperbarui {plv.oleh} {new Date(plv.waktu).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</> : null}</div></div>
         {me && ['manager', 'admin'].includes(me.role) && <Link href="/price-list/kelola" className="btn btn-primary">⬆ Update price list</Link>}</div>
       <div className="fu-toolbar" style={{ marginBottom: 12 }}>
-        {(set.project || []).map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
+        {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
       </div>
 
       <div className="card pl-share">
