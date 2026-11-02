@@ -1,0 +1,115 @@
+import { db, siapkanStatusLog } from '@/lib/db';
+import { requireUser } from '@/lib/auth';
+import { jagaProyek, jsonProyek } from '@/lib/akses-proyek';
+
+export const dynamic = 'force-dynamic';
+
+const KUALITAS = ['Warm', 'Hot', 'Appointment', 'Site Visit'];
+const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit'];
+
+// Pengisian satu kali: lead yang sudah berstatus Drop bulan ini sebelum pencatat aktif, diberi riwayat dari tanggal terakhir diubah
+let dropAwalSiap = false;
+async function isiRiwayatDropAwal(sql) {
+  if (dropAwalSiap) return;
+  try {
+    await sql`INSERT INTO lead_status_log (lead_code, jenis, dari, ke, sales_saat, oleh, alasan, tgl, created_at)
+      SELECT l.lead_code, 'status', NULL, 'Drop', COALESCE(l.sales, ''), l.created_by,
+        COALESCE(NULLIF((SELECT f.objection FROM followups f WHERE f.lead_code = l.lead_code AND f.next_action = 'Drop' ORDER BY f.id DESC LIMIT 1), ''), '(riwayat perkiraan — sebelum pencatat aktif)'),
+        (COALESCE(l.updated_at, now()) + interval '7 hours')::date, COALESCE(l.updated_at, now())
+      FROM leads l
+      WHERE l.status = 'Drop' AND COALESCE(l.updated_at, now()) >= date_trunc('month', now() + interval '7 hours')
+        AND NOT EXISTS (SELECT 1 FROM lead_status_log s WHERE s.lead_code = l.lead_code AND s.ke = 'Drop')`;
+    // Reserved/Booking/Closing: ambil dari tabel transaksi (tanggalnya pasti), untuk transaksi yang belum punya catatan riwayat
+    await sql`INSERT INTO lead_status_log (lead_code, jenis, dari, ke, sales_saat, oleh, alasan, tgl, created_at)
+      SELECT t.lead_code, 'status', NULL, t.jenis, COALESCE(l.sales, ''), t.created_by,
+        'Transaksi (riwayat dari data transaksi)', t.tgl, COALESCE(t.created_at, now())
+      FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis IN ('Reserved', 'Booking', 'Closing') AND t.tgl IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM lead_status_log s WHERE s.lead_code = t.lead_code AND s.ke = t.jenis AND s.tgl = t.tgl)`;
+    dropAwalSiap = true;
+  } catch (e) { console.error('isiRiwayatDropAwal', e); }
+}
+
+// Ringkasan pergerakan status lead per periode (dari riwayat yang dicatat trigger database)
+async function _GET(req) {
+  const { user, err } = await requireUser(); if (err) return err;
+  const sql = db();
+  await siapkanStatusLog(sql);
+  await isiRiwayatDropAwal(sql);
+  const url = new URL(req.url);
+  const d1 = url.searchParams.get('d1') || null, d2 = url.searchParams.get('d2') || null;
+  let proj = url.searchParams.get('project') || null;
+  // Akun per project: dipaksa ke project yang diizinkan
+  if (user.projects && (!proj || !user.projects.includes(proj))) proj = user.projects[0];
+  const hariIni = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+
+  const log = await sql`
+    SELECT s.*, l.project, l.nama, COALESCE(u.role, '') AS oleh_role
+    FROM lead_status_log s JOIN leads l ON l.lead_code = s.lead_code LEFT JOIN users u ON u.username = s.oleh
+    WHERE (${d1}::date IS NULL OR s.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR s.tgl <= ${d2}::date)
+      AND (${proj}::text IS NULL OR l.project = ${proj})
+    ORDER BY s.id`;
+  const masuk = await sql`SELECT count(*)::int AS n FROM leads
+    WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date) AND (${proj}::text IS NULL OR project = ${proj})`;
+  const aktif = await sql`SELECT status, count(*)::int AS n FROM leads
+    WHERE status = ANY(${AKTIF}::text[]) AND (${d2}::date IS NULL OR tgl <= ${d2}::date) AND (${proj}::text IS NULL OR project = ${proj}) GROUP BY status`;
+  const agingRows = await sql`SELECT lead_code, nama, sales, created_by, tgl, (${hariIni}::date - tgl)::int AS hari FROM leads
+    WHERE status = 'New' AND tgl <= ${hariIni}::date - 7 AND (${proj}::text IS NULL OR project = ${proj}) ORDER BY tgl ASC LIMIT 200`;
+  const awal = await sql`SELECT min(created_at) AS mulai FROM lead_status_log WHERE COALESCE(alasan, '') NOT LIKE '%(riwayat%'`;
+
+  const st = log.filter(r => r.jenis === 'status'), op = log.filter(r => r.jenis === 'oper');
+  const transisi = {};
+  st.forEach(r => { transisi[r.ke] = (transisi[r.ke] || 0) + 1; });
+  const naikKualitas = new Set(st.filter(r => KUALITAS.includes(r.ke)).map(r => r.lead_code)).size;
+  // Drop "riwayat perkiraan" = lead yang sudah Drop sebelum pencatat riwayat aktif (tanggal & alasan tidak diketahui) → tidak masuk tabel alasan & per sales
+  const perkiraan = r => /\(riwayat perkiraan/.test(r.alasan || '');
+  const dropSemua = st.filter(r => r.ke === 'Drop'), dropRows = dropSemua.filter(r => !perkiraan(r)), dropPerkiraan = dropSemua.length - dropRows.length;
+  const posisiMarcom = r => !r.sales_saat || r.oleh_role === 'markom';
+  const alasan = {};
+  dropRows.forEach(r => { const a = (r.alasan || '').trim() || '(tanpa alasan)'; alasan[a] = (alasan[a] || 0) + 1; });
+
+  // ===== Per sales = COHORT lead yang DIOPER pada periode, diikuti perkembangannya sampai sekarang =====
+  const perSales = {};
+  const ps = n => { if (!n) return null; perSales[n] = perSales[n] || { sales: n, oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 }; return perSales[n]; };
+  const cohort = new Map(); // lead_code → { sales, sejak }  (oper terakhir pada periode)
+  op.forEach(r => { if (r.ke) cohort.set(r.lead_code, { sales: r.ke, sejak: r.created_at }); });
+  const kodes = [...cohort.keys()];
+  const [lanjut, kini] = kodes.length ? await Promise.all([
+    sql`SELECT lead_code, ke, created_at FROM lead_status_log WHERE jenis = 'status' AND lead_code = ANY(${kodes}::text[])`,
+    sql`SELECT lead_code, status FROM leads WHERE lead_code = ANY(${kodes}::text[])`,
+  ]) : [[], []];
+  const statusKini = Object.fromEntries(kini.map(x => [x.lead_code, x.status]));
+  const MAJU = [...KUALITAS, 'Site Visit', 'Booking', 'Closing'];
+  cohort.forEach((c, kode) => {
+    const x = ps(c.sales); if (!x) return;
+    x.oper++;
+    const ev = lanjut.filter(e => e.lead_code === kode && new Date(e.created_at) >= new Date(c.sejak)).map(e => e.ke);
+    const now = statusKini[kode] || '';
+    const ada = s => ev.includes(s) || now === s;
+    if (ev.some(k => MAJU.includes(k)) || MAJU.includes(now)) x.kualitas++;
+    if (ada('Site Visit') || ['Booking', 'Closing'].includes(now)) x.visit++;
+    if (ada('Booking') || ada('Closing')) x.booking++;
+    if (now === 'Drop') x.drop++;
+  });
+  Object.values(perSales).forEach(x => { x.masih = Math.max(0, x.oper - x.booking - x.drop); x.konversi = x.oper ? Math.round(x.kualitas / x.oper * 100) : 0; });
+  // Drop lead lama: drop pada periode untuk lead yang TIDAK dioper ke sales tsb pada periode ini
+  dropRows.forEach(r => { const x = ps(r.sales_saat); if (!x) return; const c = cohort.get(r.lead_code); if (!c || c.sales !== r.sales_saat) x.dropLama++; });
+  return jsonProyek(user, {
+    mulaiRiwayat: awal[0]?.mulai || null,
+    masuk: masuk[0]?.n || 0, oper: op.length, transisi, naikKualitas,
+    drop: {
+      total: dropRows.length, perkiraan: dropPerkiraan,
+      marcom: dropRows.filter(posisiMarcom).length,
+      sales: dropRows.filter(r => !posisiMarcom(r)).length,
+      alasan: Object.entries(alasan).map(([a, n]) => ({ alasan: a, n })).sort((x, y) => y.n - x.n),
+      daftar: dropRows.slice(-50).reverse().map(r => ({ lead_code: r.lead_code, nama: r.nama, tgl: r.tgl, posisi: posisiMarcom(r) ? 'Marcom' : (r.sales_saat || 'Sales'), alasan: r.alasan || '' })),
+    },
+    perSales: Object.values(perSales).sort((a, b) => b.oper - a.oper || b.booking - a.booking),
+    aktifAkhir: Object.fromEntries(AKTIF.map(k => [k, (aktif.find(r => r.status === k) || {}).n || 0])),
+    aging: { n7: agingRows.length, n14: agingRows.filter(r => r.hari > 14).length, daftar: agingRows.slice(0, 15) },
+    me: user.role,
+  });
+}
+
+// Akses per project: data & aksi project lain ditolak (lib/akses-proyek.js)
+export const GET = jagaProyek(_GET, {});
