@@ -154,7 +154,15 @@ export async function GET() {
         if ((mM[t] || 0) - c.meta >= 2) celah.push({ tgl: t, sumber: 'Iklan Meta (chat WA)', platform: mM[t], crm: c.meta });
         if ((mG[t] || 0) - c.web >= 3) celah.push({ tgl: t, sumber: 'Website (klik WA)', platform: mG[t], crm: c.web });
       }
-      celah.sort((a, b) => b.tgl.localeCompare(a.tgl));
+      // Ringkas: satu baris per sumber (bukan per hari) — rentang tanggal ditulis sekali, angka dijumlahkan
+      const ringkas = {};
+      for (const c of celah) {
+        const r = ringkas[c.sumber] || (ringkas[c.sumber] = { sumber: c.sumber, dari: c.tgl, sampai: c.tgl, platform: 0, crm: 0, hari: 0 });
+        r.platform += c.platform || 0; r.crm += c.crm || 0; r.hari += 1;
+        if (c.tgl < r.dari) r.dari = c.tgl;
+        if (c.tgl > r.sampai) r.sampai = c.tgl;
+      }
+      celah = Object.values(ringkas).sort((a, b) => (b.platform - b.crm) - (a.platform - a.crm));
       // Total 7 hari terakhir (termasuk hari ini) — supaya angka per hari tidak disalahartikan sebagai total
       try {
         const m7 = await sql`SELECT COALESCE(sum(hasil), 0)::int AS n FROM mi_ads WHERE sumber = 'meta-api' AND tgl BETWEEN ${today}::date - 6 AND ${today}::date`;

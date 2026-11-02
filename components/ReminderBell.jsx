@@ -165,20 +165,18 @@ export default function ReminderBell({ user }) {
                   </a>))}
               </>}
               {(data.celah || []).length > 0 && <>
-                <div className="bell-sub">📩 Lead masuk belum tercatat ({data.celah.length})</div>
-                {data.celahTotal && (
-                  <div className="rem-item" style={{ borderLeftColor: 'var(--brass)', cursor: 'default' }}>
-                    <span><b>Total 7 hari terakhir ({fmtDate(data.celahTotal.dari)}–{fmtDate(data.celahTotal.sampai)})</b><br />
-                      <span className="hint">Website: <b>{data.celahTotal.web.platform}</b> klik WA (GA4) vs <b>{data.celahTotal.web.crm}</b> lead Website di CRM · Iklan Meta: <b>{data.celahTotal.meta.platform}</b> percakapan vs <b>{data.celahTotal.meta.crm}</b> lead FB/IG/WA di CRM. Data GA4 & Meta 1–2 hari terakhir belum lengkap.</span></span>
-                  </div>
-                )}
-                {data.celah.map(c => (
-                  <a key={c.tgl + c.sumber} href="/form" className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
-                    <span><b>{fmtDate(c.tgl)} · {c.sumber}</b><br />
-                      <span className="hint">Platform mencatat <b>{c.platform}</b>{c.sumber.startsWith('Website') ? ' klik WA' : ' percakapan WA'}, baru <b>{c.crm}</b> lead tercatat di CRM — cek chat WA, input lead yang belum masuk.</span></span>
-                    <span className="badge b-overdue">+{c.platform - c.crm}</span>
-                  </a>
-                ))}
+                <div className="bell-sub">📩 Lead masuk belum tercatat</div>
+                {data.celah.map(c => {
+                  const web = c.sumber.startsWith('Website');
+                  const t7 = data.celahTotal ? (web ? data.celahTotal.web : data.celahTotal.meta) : null;
+                  return (
+                    <a key={c.sumber} href="/form" className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                      <span><b>{c.sumber}</b> <span className="hint">· {c.dari === c.sampai ? fmtDate(c.dari) : fmtDate(c.dari) + '–' + fmtDate(c.sampai)}</span><br />
+                        <span className="hint">Platform <b>{c.platform}</b>{web ? ' klik WA' : ' percakapan'}, CRM baru <b>{c.crm}</b> lead
+                          {t7 ? <> · 7 hari: {t7.platform} vs {t7.crm}</> : null} — cek chat WA &amp; input lead yang belum masuk.</span></span>
+                      <span className="badge b-overdue">+{c.platform - c.crm}</span>
+                    </a>);
+                })}
               </>}
               {(data.stok || []).length > 0 && <>
                 <div className="bell-sub">🗺 Penjualan baru — tandai di Master Stock ({data.stok.length})</div>
