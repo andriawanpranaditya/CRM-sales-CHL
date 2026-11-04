@@ -692,4 +692,152 @@ th.num{text-align:right}
 .jj-bar.jj-bar-bln{gap:3px}.jj-bar.jj-bar-bln>div{font-size:10px}.jj-bar.jj-bar-bln>div.kini span{color:var(--green);font-weight:800}
 .bd-spark{gap:2px}
 .rb-vbar.rb-vbar-bln{gap:2px}.rb-vbar.rb-vbar-bln i{border-radius:3px 3px 1px 1px}
+
+
+/* =====================================================================
+   TAMPILAN CHL — selaras dengan Harmoni One
+   Terang: latar krem, sidebar hijau botol, tulisan menu emas lembut (logo CHL)
+   Gelap : latar hijau tua, sidebar hijau lebih gelap, emas lembut sebagai aksen
+   Semua perbedaan terang/gelap lewat token, berlaku untuk tema pilihan akun & tema yang ikut HP
+   ===================================================================== */
+:root{--paper:#F6F1E6; --card:#FFFDF8; --line:#E6DECC; --ink:#1A2A23; --muted:#5E6A60;
+  --green:#1F6A50; --green-soft:#E3EFE8; --on-green:#FFFDF8; --green-hover:#185640; --gold:#E6CC8A; --on-gold:#173F33;
+  --gray-soft:#EFE9DC; --hover:#F8F2E6; --input-bg:#FFFDF8; --detail-bg:#FBF7EE;
+  --side-bg:#1E4A3C; --side-fg:#E3C988; --side-strong:#F3DFA8; --side-muted:rgba(227,201,136,.62); --side-line:rgba(237,231,216,.12);
+  --side-active-bg:#E6CC8A; --side-active-fg:#173F33; --side-hover:rgba(237,231,216,.07);
+  --head-bg:#1E4A3C; --head-fg:#F3E9D2; --toast-bg:#1E4A3C; --toast-fg:#FFFDF8;
+  --aktif-bg:#1F6A50; --aktif-fg:#FFFDF8; --aktif-no-bg:#E6CC8A; --aktif-no-fg:#173F33; --proyek-aktif-fg:#F3DFA8; --aktif-ket:rgba(255,253,248,.8);
+  --sorot:rgba(31,106,80,.08); --cincin:0 0 0 3px rgba(201,154,46,.35);
+  --nav-bg:#1E4A3C; --nav-fg:#E3C988; --nav-aktif-bg:#E6CC8A; --nav-aktif-fg:#173F33;
+  --kartu-emas:#E9D08F;}
+:root[data-theme="dark"]{--paper:#154235; --card:#1C4E40; --line:#2E6A57; --ink:#F4EFE3; --muted:#AFC3B9;
+  --green:#E3C46F; --green-soft:#235B4B; --on-green:#133A2F; --green-hover:#EBCF82; --gold:#D9BE78; --on-gold:#133A2F;
+  --brass:#E3C46F; --brass-soft:#3B4A30; --brass-line:#4E5F3C; --brass-deep:#F6D27A;
+  --gray-soft:#235B4B; --hover:#235B4B; --input-bg:#17483B; --detail-bg:#18463A;
+  --side-bg:#0F3329; --side-fg:#DCC283; --side-strong:#F0D99C; --side-muted:rgba(220,194,131,.6); --side-line:rgba(220,230,224,.10);
+  --side-active-bg:#D9BE78; --side-active-fg:#133A2F; --side-hover:rgba(220,230,224,.06);
+  --head-bg:#0F3329; --head-fg:#F3E9D2; --toast-bg:#0F3329; --toast-fg:#F4EFE3;
+  --aktif-bg:#E6CC8A; --aktif-fg:#133A2F; --aktif-no-bg:#133A2F; --aktif-no-fg:#E6CC8A; --proyek-aktif-fg:#133A2F; --aktif-ket:rgba(19,58,47,.75);
+  --sorot:rgba(242,193,78,.10); --cincin:0 0 0 3px rgba(242,193,78,.35);
+  --nav-bg:#0F3329; --nav-fg:#DCC283; --nav-aktif-bg:#D9BE78; --nav-aktif-fg:#133A2F;
+  --kartu-emas:#D9BE78; color-scheme:dark;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#154235; --card:#1C4E40; --line:#2E6A57; --ink:#F4EFE3; --muted:#AFC3B9;
+  --green:#E3C46F; --green-soft:#235B4B; --on-green:#133A2F; --green-hover:#EBCF82; --gold:#D9BE78; --on-gold:#133A2F;
+  --brass:#E3C46F; --brass-soft:#3B4A30; --brass-line:#4E5F3C; --brass-deep:#F6D27A;
+  --gray-soft:#235B4B; --hover:#235B4B; --input-bg:#17483B; --detail-bg:#18463A;
+  --side-bg:#0F3329; --side-fg:#DCC283; --side-strong:#F0D99C; --side-muted:rgba(220,194,131,.6); --side-line:rgba(220,230,224,.10);
+  --side-active-bg:#D9BE78; --side-active-fg:#133A2F; --side-hover:rgba(220,230,224,.06);
+  --head-bg:#0F3329; --head-fg:#F3E9D2; --toast-bg:#0F3329; --toast-fg:#F4EFE3;
+  --aktif-bg:#E6CC8A; --aktif-fg:#133A2F; --aktif-no-bg:#133A2F; --aktif-no-fg:#E6CC8A; --proyek-aktif-fg:#133A2F; --aktif-ket:rgba(19,58,47,.75);
+  --sorot:rgba(242,193,78,.10); --cincin:0 0 0 3px rgba(242,193,78,.35);
+  --nav-bg:#0F3329; --nav-fg:#DCC283; --nav-aktif-bg:#D9BE78; --nav-aktif-fg:#133A2F;
+  --kartu-emas:#D9BE78; color-scheme:dark;}}
+
+/* ---------- Sidebar laptop: menempel, sudut kanan membulat, kapsul aktif emas ---------- */
+@media(min-width:761px){
+  .sidebar{border-right:0;border-top-right-radius:26px;border-bottom-right-radius:26px;box-shadow:6px 0 28px rgba(20,40,32,.12)}
+  .brand{border-bottom:1px solid var(--side-line)}
+  .brand .logo{color:var(--side-fg)}
+  .brand .logo span{color:var(--side-active-bg)}
+  .brand small{color:var(--side-muted)}
+  .nav a{position:relative;color:var(--side-fg)}
+  .nav a .ico{color:inherit;display:flex;transition:transform .18s ease}
+  .nav a:not(.active):hover{background:var(--side-hover);color:var(--side-strong);transform:translateX(3px)}
+  .nav a:not(.active):hover .ico{transform:scale(1.12)}
+  .nav a.active{background:var(--side-active-bg);color:var(--side-active-fg);box-shadow:0 6px 16px -8px rgba(0,0,0,.45)}
+  .nav a.active::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--side-active-bg)}
+  .nav a:active{transform:scale(.97)}
+  .side-theme{display:none}
+  .side-foot{flex-direction:column;align-items:stretch;gap:10px;color:var(--side-muted);border-top:1px solid var(--side-line)}
+  .side-foot .u-name{color:var(--side-strong)}
+  .side-foot .u-role{display:block;margin-top:2px;line-height:1.35;color:var(--side-active-bg)}
+  .side-tombol{display:flex;gap:6px}
+  .side-tombol .btn-logout{flex:1;height:34px;padding:0 8px;white-space:nowrap;font-weight:700;color:var(--side-strong);border:1px solid rgba(237,231,216,.28);background:transparent}
+  .side-tombol .btn-logout:first-child{flex:0 0 38px}
+  .side-tombol .btn-logout:hover{background:var(--side-hover);border-color:var(--side-strong)}
+  /* tombol tema & lonceng: melayang di kanan atas, tanpa menambah baris kosong */
+  .bell-desktop{display:none}
+  .atas-kanan{position:sticky;top:0;height:0;z-index:16;display:flex;justify-content:flex-end;align-items:flex-start;gap:8px;overflow:visible}
+  .atas-kanan > *{margin-top:-8px}
+  .atas-kanan .theme-btn,.atas-kanan .bell-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:none;display:inline-flex;align-items:center;justify-content:center}
+  .page-head{padding-right:110px}
+  .bd-top{padding-right:104px}
+}
+.atas-kanan svg,.theme-btn svg{flex:none;max-width:none}
+@media(max-width:760px){.atas-kanan{display:none}}
+
+/* ---------- Menu bawah HP: menempel diam di dasar layar, tulisan emas, terpilih = kotak emas ---------- */
+@media(max-width:760px){
+  .sidebar{left:0;right:0;bottom:0;border-radius:0;border:0;padding:4px 4px calc(4px + env(safe-area-inset-bottom,0));background:var(--nav-bg);box-shadow:0 -4px 18px rgba(20,40,32,.20)}
+  .nav{-webkit-mask-image:linear-gradient(to right,#000 88%,transparent);mask-image:linear-gradient(to right,#000 88%,transparent)}
+  .nav::after{content:"";flex:0 0 24px}
+  .nav a,.nav a .ico{color:var(--nav-fg)}
+  .nav a{transition:background-color .2s,color .2s,transform .12s}
+  .nav a .ico{display:flex;transition:transform .2s ease}
+  .nav a.active,.nav a.active .ico{background:var(--nav-aktif-bg);color:var(--nav-aktif-fg)}
+  .nav a.active .ico{background:transparent;transform:translateY(-2px) scale(1.08)}
+  .nav a.active{box-shadow:0 6px 14px -8px rgba(0,0,0,.5)}
+  .nav a:active{transform:scale(.92)}
+  .main{padding-bottom:calc(104px + env(safe-area-inset-bottom,0))}
+}
+
+/* ---------- Interaktif: respons saat disorot & disentuh ---------- */
+button,a,.sort-btn,.rem-item{-webkit-tap-highlight-color:transparent}
+button,.sort-btn,.btn,.tab-langkah button,.theme-switch button,.rem-item{transition:background-color .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .12s ease}
+button:focus-visible,a:focus-visible,.sort-btn:focus-visible{outline:none;box-shadow:var(--cincin)}
+button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
+.sort-btn{cursor:pointer}
+@media(hover:hover){
+  .sort-btn:not(.active):hover{background:var(--sorot);border-color:var(--brass);color:var(--ink);transform:translateY(-1px)}
+  .rem-item:hover{transform:translateY(-1px)}
+  .btn:hover{filter:brightness(1.05)}
+}
+.theme-switch button:active{transform:scale(.96)}
+@media(hover:hover){.theme-switch button[aria-pressed="false"]:hover{background:var(--sorot);color:var(--ink)}}
+
+/* ---------- Tab utama halaman: Form Input (kartu langkah bernomor) ---------- */
+.tab-langkah{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px}
+.tab-langkah button{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:16px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;min-height:64px;font-family:inherit}
+.tab-langkah .tl-no{flex:none;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;background:var(--gray-soft);color:var(--muted)}
+.tab-langkah .tl-teks{display:flex;flex-direction:column;min-width:0}
+.tab-langkah .tl-teks b{font-size:14.5px;line-height:1.2}
+.tab-langkah .tl-teks small{font-size:12px;color:var(--muted);margin-top:2px}
+@media(hover:hover){.tab-langkah button:not(.active):hover{border-color:var(--brass);transform:translateY(-2px);box-shadow:0 8px 20px -10px rgba(20,40,32,.35)}}
+.tab-langkah button.active{background:var(--aktif-bg);border-color:var(--aktif-bg);color:var(--aktif-fg);box-shadow:0 10px 24px -12px rgba(20,40,32,.55)}
+.tab-langkah button.active .tl-no{background:var(--aktif-no-bg);color:var(--aktif-no-fg)}
+.tab-langkah button.active .tl-teks small{color:var(--aktif-ket)}
+@media(max-width:760px){
+  .tab-langkah{gap:6px}
+  .tab-langkah button{flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:5px;min-height:70px;padding:8px 6px;border-radius:14px}
+  .tab-langkah .tl-no{width:26px;height:26px;font-size:12.5px}
+  .tab-langkah .tl-teks b{font-size:12.5px}
+  .tab-langkah .tl-teks small{display:none}
+}
+
+/* ---------- Tab utama halaman lain (Database Lead, Janjian, Report, Collection, Marcom, dll.) ---------- */
+.form-tabs button,.tab-utama{font-weight:700;font-size:13.5px;padding:10px 18px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;cursor:pointer}
+@media(hover:hover){.form-tabs button:not(.active):hover,.tab-utama:not(.active):hover{border-color:var(--brass);transform:translateY(-2px);box-shadow:0 8px 20px -10px rgba(20,40,32,.35);background:var(--card)}}
+.form-tabs button.active,.tab-utama.active{background:var(--aktif-bg);border-color:var(--aktif-bg);color:var(--aktif-fg);box-shadow:0 10px 22px -12px rgba(20,40,32,.55)}
+@media(max-width:760px){.form-tabs button,.tab-utama{padding:9px 13px;font-size:12.5px;min-height:42px}}
+
+/* ---------- Chip project: ikon gedung, huruf tegas, aktif = isi penuh ---------- */
+.chip-proyek,.theme-switch[aria-label="Pilih project"] button{display:inline-flex;align-items:center;gap:7px;font-weight:800;letter-spacing:.3px;font-size:12px;
+  padding:8px 14px 8px 11px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);height:auto}
+.chip-proyek::before,.theme-switch[aria-label="Pilih project"] button::before{content:"";width:14px;height:14px;flex:none;background:currentColor;opacity:.75;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21V6l8-3 8 3v15'/%3E%3Cpath d='M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01'/%3E%3C/svg%3E") center/contain no-repeat;
+          mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21V6l8-3 8 3v15'/%3E%3Cpath d='M9 21v-5h6v5M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01'/%3E%3C/svg%3E") center/contain no-repeat}
+.chip-proyek.active,.theme-switch[aria-label="Pilih project"] button[aria-pressed="true"]{background:var(--aktif-bg);border-color:var(--aktif-bg);color:var(--proyek-aktif-fg);box-shadow:0 6px 16px -8px rgba(20,40,32,.6)}
+.chip-proyek.active::before{opacity:1}
+@media(hover:hover){.chip-proyek:not(.active):hover,.theme-switch[aria-label="Pilih project"] button[aria-pressed="false"]:hover{border-color:var(--brass);background:var(--sorot);transform:translateY(-1px);color:var(--ink)}}
+.theme-switch[aria-label="Pilih project"]{background:transparent;border:0;padding:0;gap:6px;flex-wrap:wrap}
+
+/* ---------- Kartu emas, label kecil, filter tanggal, baris pilihan di HP ---------- */
+.rb-emas{background:var(--kartu-emas)}
+.stamp{color:var(--ink)}
+.filter-tgl{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;font-weight:700;color:var(--muted)}
+.filter-tgl input[type=date]{min-width:150px}
+@media(max-width:760px){
+  .theme-switch{display:flex;flex-wrap:wrap;max-width:100%;border-radius:16px}
+  .theme-switch button{height:auto;min-height:30px;padding:5px 10px;line-height:1.2;text-align:center}
+}
 .rp-posisi{margin-bottom:6px;border-top:4px solid var(--brass)}

@@ -6,7 +6,7 @@ import Dashboard from '../dashboard/page';
 
 // ===== Menu Report (Manager & CEO): satu filter bersama untuk semua tab =====
 const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['lengkap', 'Report Lengkap'], ['excel', 'Data Excel']];
-const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 const awalBulan = () => hariIni().slice(0, 8) + '01';
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
 const WST = { Booking: 'var(--green)', Batal: 'var(--red)', Reserved: 'var(--brass-deep)', 'Ganti kontrak': 'var(--muted)' };
@@ -36,8 +36,8 @@ export default function ReportPage() {
         <div className="field"><label>Sampai tanggal</label><input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
         <div className="field"><label>Project</label>
           <div className="fu-toolbar" style={{ margin: 0 }}>
-            {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
-            {(set.project || []).map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
+            {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
+            {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
           </div></div>
         {(tab === 'sales' || tab === 'penjualan') && <div className="field"><label>Sales</label>
           <select value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{(set.sales || []).map(s => <option key={s}>{s}</option>)}</select></div>}
@@ -49,7 +49,7 @@ export default function ReportPage() {
           </div></div>
       </div>
 
-      <div className="fu-toolbar rp-tabs">{TAB.map(([k, l]) => <button key={k} className={'sort-btn' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="fu-toolbar rp-tabs">{TAB.map(([k, l]) => <button key={k} className={'sort-btn tab-utama' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
 
       {tab === 'sales' && <TabSales proj={proj} d1={d1} d2={d2} fSales={fSales} set={set} />}
       {tab === 'penjualan' && <TabPenjualan proj={proj} d1={d1} d2={d2} fSales={fSales} me={me} />}
@@ -129,7 +129,6 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
     return { nama: x, n: tt.length, booking: bb.length, batal: tt.filter(r => r.status === 'Batal').length, reserved: tt.filter(r => r.status === 'Reserved').length, nilai: bb.reduce((a, r) => a + (r.harga || 0), 0), rata: l.length ? l.reduce((a, b) => a + b, 0) / l.length : null }; });
   const perBayar = rekap('bayar', [...new Set(rows.map(r => (r.bayar || 'Belum diisi').replace(/\s*\d+x$/i, '')))]);
   const perProject = rekap('project', [...new Set(rows.map(r => r.project))]);
-  const perSales = rekap('sales', [...new Set(rows.map(r => r.sales || '-'))]);
   const ringkas = { n: rows.length, booking: bk.length, batal: bt.length, reserved: rv.length, nilai, tj, bf, rata, konversi: rows.length ? bk.length / rows.length : 0 };
 
   async function unduhExcel() {
@@ -139,7 +138,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
   }
   function unduhPdf() {
     const w = window.open('', '_blank'); if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
-    w.document.open(); w.document.write(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me, kum: d.kumulatif })); w.document.close();
+    w.document.open(); w.document.write(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum: d.kumulatif })); w.document.close();
     w.onload = () => { w.focus(); w.print(); }; setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
     catatUnduh('Report', 'Laporan Penjualan (PDF)'); toast('Jendela cetak terbuka — pilih "Save as PDF" 📄');
   }
@@ -164,7 +163,6 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         <div className="card"><h3 style={{ marginTop: 0 }}>Per cara bayar</h3><TabelRekap rows={perBayar} total /></div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Per project</h3><TabelRekap rows={perProject} konversi /></div>
       </div>
-      <div className="card" style={{ marginTop: 12 }}><h3 style={{ marginTop: 0 }}>Kinerja per sales</h3><TabelRekap rows={perSales} konversi rata /></div>
 
       <div className="card" style={{ marginTop: 12 }}>
         <h3 style={{ marginTop: 0 }}>Detail transaksi — dari Reserved sampai Booking / Batal</h3>
@@ -234,7 +232,7 @@ function TabelRekap({ rows, total, konversi, rata }) {
     </tbody></table></div>);
 }
 
-// ---------- Excel: Ringkasan (rumus), Detail, Per Sales, Proses KPR, Keterangan ----------
+// ---------- Excel: Posisi s.d. hari ini, Kontrak Batal, Ringkasan (rumus), Detail, Proses KPR, Keterangan ----------
 async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook(); wb.creator = 'CRM Sales CHL';
@@ -344,20 +342,6 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
   rs.getCell(`A${b2 + 2}`).value = 'Catatan: penjualan diakui pada tanggal Booking (bukan Reserved). Satu unit dihitung sekali. Status terakhir = kejadian paling akhir (Batal > Booking > Reserved).'; rs.getCell(`A${b2 + 2}`).font = { name: 'Arial', italic: true, size: 9, color: { argb: 'FF5B6E66' } };
   [40, 18, 48, 10, 15, 22, 12].forEach((w, i) => { rs.getColumn(i + 1).width = w; }); rs.views = [{ showGridLines: false }];
 
-  // ---- Per Sales ----
-  const sp = wb.addWorksheet('Per Sales');
-  judul(sp, 'Kinerja per sales', 'Dihitung otomatis dari Detail Transaksi');
-  head(sp, 4, ['Sales', 'Reserved', 'Booking', 'Batal', 'Masih Reserved', 'Konversi', 'Nilai penjualan (Rp)', 'Rata-rata hari ke Booking']);
-  const salesL = [...new Set(rows.map(r => r.sales || '-'))].sort();
-  salesL.forEach((s, i) => { const r = 5 + i; sp.getCell(`A${r}`).value = s;
-    sp.getCell(`B${r}`).value = { formula: `COUNTIFS(${R('G')},A${r})` }; sp.getCell(`C${r}`).value = { formula: `COUNTIFS(${R('G')},A${r},${R('Q')},"Booking")` };
-    sp.getCell(`D${r}`).value = { formula: `COUNTIFS(${R('G')},A${r},${R('Q')},"Batal")` }; sp.getCell(`E${r}`).value = { formula: `COUNTIFS(${R('G')},A${r},${R('Q')},"Reserved")` };
-    sp.getCell(`F${r}`).value = { formula: `IFERROR(C${r}/B${r},0)` }; sp.getCell(`F${r}`).numFmt = PCT;
-    sp.getCell(`G${r}`).value = { formula: `SUMIFS(${R('M')},${R('G')},A${r},${R('Q')},"Booking")` }; sp.getCell(`G${r}`).numFmt = RP;
-    sp.getCell(`H${r}`).value = { formula: `IFERROR(AVERAGEIFS(${R('R')},${R('G')},A${r},${R('Q')},"Booking"),"-")` }; sp.getCell(`H${r}`).numFmt = '0.0';
-    rapikan(sp, r, 8, i % 2 === 1); sp.getCell(`A${r}`).font = { name: 'Arial', bold: true }; });
-  [14, 11, 10, 9, 15, 11, 22, 22].forEach((w, i) => { sp.getColumn(i + 1).width = w; }); sp.views = [{ showGridLines: false }];
-
   // ---- Proses KPR ----
   const kp = wb.addWorksheet('Proses KPR');
   judul(kp, 'Proses KPR — status terakhir konsumen KPR', 'Proses KPR dihitung sejak Booking. Konsumen yang batal tercatat "Dihentikan".');
@@ -384,7 +368,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
 }
 
 // ---------- PDF: HTML siap cetak (A4 mendatar) ----------
-function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me, kum }) {
+function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum }) {
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const warna = { Booking: '#1E6A4C', Batal: '#B4482A', Reserved: '#7A5414', 'Ganti kontrak': '#5B6E66' };
   const rek = (judul, data, konversi, rata) => `<h3>${judul}</h3><table><tr><th>Nama</th><th class="r">Unit</th><th class="r">Booking</th><th class="r">Batal</th><th class="r">Reserved</th><th class="r">Nilai penjualan</th><th class="r">${konversi ? 'Konversi' : 'Porsi'}</th>${rata ? '<th class="r">Rata-rata hari</th>' : ''}</tr>
@@ -408,7 +392,6 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
     .map(([l, v, k], i) => `<div class="${i === 5 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
   <p class="muted">Tanda jadi diterima <b>${fmtRp(ringkas.tj)}</b> · Booking fee diterima <b>${fmtRp(ringkas.bf)}</b> · Rata-rata Reserved → Booking <b>${ringkas.rata.toLocaleString('id-ID', { maximumFractionDigits: 1 })} hari</b></p>
   <div class="dua"><div>${rek('Per cara bayar', perBayar, false)}</div><div>${rek('Per project', perProject, true)}</div></div>
-  ${rek('Kinerja per sales', perSales, true, true)}
   <h2 style="page-break-before:always">Detail transaksi — dari Reserved sampai Booking / Batal</h2>
   <p class="muted">Satu baris = satu konsumen/unit. Hari = lama Reserved ke Booking. Kolom terakhir = update status terakhir (akad / rencana akad / proses KPR / cara bayar cash).</p>
   <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Reserved · tanda jadi</th><th>Booking · BF</th><th>Harga jual</th><th>Cara bayar</th><th>Status</th><th>Hari</th><th>Update status terakhir</th></tr>
