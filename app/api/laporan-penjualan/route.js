@@ -74,6 +74,18 @@ export async function GET(req) {
     g.terakhir = t.jenis; g.updated = t.created_at;
     grup.set(k, g);
   }
+  // Booking fee hanya ditampilkan bila terkonfirmasi:
+  //  · kontrak hasil impor data lama ("Import Kontrak" / "Import Penjualan") tidak membawa BF di sumbernya — nilai bawaan impor tidak dipakai
+  //  · kontrak batal dari buku penjualan: BF = uang yang dibayar konsumen (kolom Payment di sheet Batal)
+  //  · transaksi yang diinput tim di CRM: sesuai inputnya
+  for (const g of grup.values()) {
+    if (/^import/i.test(g.sumber || '')) { g.nilai_booking = 0; g.nilai_reserved = 0; g.bf_sumber = ''; }
+    else g.bf_sumber = g.nilai_booking ? 'input CRM' : '';
+    if (g.dana_dibayar != null && g.dana_dibayar > 0) {
+      if (g.tgl_booking) { g.nilai_booking = g.dana_dibayar; g.bf_sumber = 'buku penjualan (Payment)'; }
+      else { g.nilai_reserved = g.dana_dibayar; }
+    }
+  }
   let rows = [...grup.values()].map(g => {
     // Ganti kontrak (kontrak lama dibatalkan lalu langsung diganti kontrak baru konsumen yang sama) bukan penjualan baru dan bukan batal
     g.status = g.terakhir === 'Batal' ? (g.ganti ? 'Ganti kontrak' : 'Batal') : g.tgl_booking ? 'Booking' : 'Reserved';
