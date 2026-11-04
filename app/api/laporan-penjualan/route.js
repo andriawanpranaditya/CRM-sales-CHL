@@ -39,12 +39,12 @@ export async function GET(req) {
   await siapkanKpr(sql);
 
   const trx = await sql`SELECT t.id, t.lead_code, t.jenis, t.tgl::text AS tgl, t.nilai, t.nilai_jual, t.catatan, t.unit, t.cicilan, t.created_at,
-      t.no_kontrak, t.skema, t.harga_cash, t.dana_dibayar, t.dana_hangus, t.dana_refund, t.batal_refund,
+      t.no_kontrak, t.skema, t.harga_cash, t.dana_dibayar, t.dana_hangus, t.dana_refund, t.batal_refund, t.ganti_kontrak,
       COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar,
       l.nama, l.tipe, l.sales, l.sumber, l.walkin_info, l.campaign, l.created_by AS lead_by
     FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
     WHERE (${pj}::text IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ${pj}) AND (${sales}::text IS NULL OR l.sales = ${sales})
-    ORDER BY t.lead_code, t.tgl, t.id`;
+    ORDER BY t.lead_code, t.tgl, CASE WHEN t.jenis = 'Batal' THEN 0 ELSE 1 END, t.id`;
   // Gabungkan per konsumen + unit
   const grup = new Map();
   for (const t of trx) {
@@ -55,7 +55,7 @@ export async function GET(req) {
       tgl_batal: null, alasan_batal: '', catatan: '', terakhir: '', updated: null, no_kontrak: '', skema: '', harga_cash: null, dana_dibayar: null, dana_hangus: null, dana_refund: null, batal_refund: null };
     if (t.jenis === 'Reserved' && !g.tgl_reserved) { g.tgl_reserved = t.tgl; g.nilai_reserved = Number(t.nilai || 0); }
     if ((t.jenis === 'Booking' || t.jenis === 'Closing') && !g.tgl_booking) { g.tgl_booking = t.tgl; g.nilai_booking = Number(t.nilai || 0); }
-    if (t.jenis === 'Batal') { g.tgl_batal = t.tgl; g.alasan_batal = t.catatan || ''; g.dana_dibayar = t.dana_dibayar != null ? Number(t.dana_dibayar) : null; g.dana_hangus = t.dana_hangus != null ? Number(t.dana_hangus) : null; g.dana_refund = t.dana_refund != null ? Number(t.dana_refund) : null; g.batal_refund = t.batal_refund; }
+    if (t.jenis === 'Batal') { g.tgl_batal = t.tgl; g.alasan_batal = t.catatan || ''; g.dana_dibayar = t.dana_dibayar != null ? Number(t.dana_dibayar) : null; g.dana_hangus = t.dana_hangus != null ? Number(t.dana_hangus) : null; g.dana_refund = t.dana_refund != null ? Number(t.dana_refund) : null; g.batal_refund = t.batal_refund; g.ganti = t.ganti_kontrak === true; }
     if (t.no_kontrak) g.no_kontrak = t.no_kontrak;
     if (t.skema) g.skema = t.skema;
     if (t.harga_cash) g.harga_cash = Number(t.harga_cash);
@@ -67,8 +67,9 @@ export async function GET(req) {
     grup.set(k, g);
   }
   let rows = [...grup.values()].map(g => {
-    g.status = g.terakhir === 'Batal' ? 'Batal' : g.tgl_booking ? 'Booking' : 'Reserved';
-    if (g.status !== 'Batal') { g.tgl_batal = null; g.alasan_batal = ''; }
+    // Ganti kontrak (kontrak lama dibatalkan lalu langsung diganti kontrak baru konsumen yang sama) bukan penjualan baru dan bukan batal
+    g.status = g.terakhir === 'Batal' ? (g.ganti ? 'Ganti kontrak' : 'Batal') : g.tgl_booking ? 'Booking' : 'Reserved';
+    if (g.status === 'Booking' || g.status === 'Reserved') { g.tgl_batal = null; g.alasan_batal = ''; }
     g.lama = g.tgl_reserved && g.tgl_booking ? Math.round((Date.parse(g.tgl_booking) - Date.parse(g.tgl_reserved)) / 86400000) : (g.tgl_booking ? 0 : null);
     return g;
   });
@@ -91,7 +92,8 @@ export async function GET(req) {
       nilaiNonrefund: jum(batalBk.filter(g => g.batal_refund === false), 'harga'), nilaiRefund: jum(batalBk.filter(g => g.batal_refund === true), 'harga'),
       dibayar: jum(batalBk, 'dana_dibayar'), hangus: jum(batalBk, 'dana_hangus'), dikembalikan: jum(batalBk, 'dana_refund') },
     batalReserved: { n: batalRv.length, nilai: jum(batalRv, 'harga') },
-    perTahun: tahun.map(th => ({ tahun: th, booking: rows.filter(g => (g.tgl_booking || '').startsWith(th)).length, aktif: aktif.filter(g => (g.tgl_booking || '').startsWith(th)).length,
+    gantiKontrak: { n: rows.filter(g => g.status === 'Ganti kontrak').length, nama: rows.filter(g => g.status === 'Ganti kontrak').map(g => `${g.nama} (${g.unit})`) },
+    perTahun: tahun.map(th => ({ tahun: th, booking: rows.filter(g => g.status !== 'Ganti kontrak' && (g.tgl_booking || '').startsWith(th)).length, aktif: aktif.filter(g => (g.tgl_booking || '').startsWith(th)).length,
       nilaiAktif: jum(aktif.filter(g => (g.tgl_booking || '').startsWith(th)), 'harga'), batal: batalBk.filter(g => (g.tgl_batal || '').startsWith(th)).length, batalReserved: batalRv.filter(g => (g.tgl_batal || '').startsWith(th)).length })),
   };
 
