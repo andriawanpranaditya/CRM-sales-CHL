@@ -56,6 +56,7 @@ async function _POST(req) {
   try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   await siapkanStatusLog(sql);
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS gender text`; } catch {}
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
@@ -81,6 +82,7 @@ async function _POST(req) {
             ${b.sumber || ''}, ${wInfo}, ${b.project || ''}, ${b.tipe || ''}, ${b.tujuan || ''}, ${Number(b.budget) || 0},
             ${b.bayar || ''}, ${sales}, ${b.status || 'New'}, ${b.catatan || ''}, ${b.next_fu || null}, ${b.campaign || ''}, ${b.konten || ''}, ${b.usia || ''}, ${user.username})
     RETURNING id`;
+  if (['Laki-laki', 'Perempuan'].includes(b.gender)) await sql`UPDATE leads SET gender = ${b.gender} WHERE id = ${ins[0].id}`;
   if (perluDetail(b) && b.sumber_detail) await sql`UPDATE leads SET sumber_detail = ${String(b.sumber_detail).trim().slice(0, 200)} WHERE id = ${ins[0].id}`;
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
@@ -104,6 +106,7 @@ async function _PATCH(req) {
   const sql = db();
   try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS gender text`; } catch {}
   await siapkanSumberDetail(sql);
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
@@ -115,7 +118,7 @@ async function _PATCH(req) {
   }
   if (!lihatBaris(user, cur)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if ('project' in b && b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
-  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'sumber_detail', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten', 'usia'];
+  const FIELDS = ['tgl', 'nama', 'wa', 'email', 'domisili', 'kerja', 'sumber', 'walkin_info', 'sumber_detail', 'project', 'tipe', 'tujuan', 'budget', 'bayar', 'status', 'catatan', 'next_fu', 'campaign', 'konten', 'usia', 'gender'];
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!m.campaign) m.campaign = pk.campaign; if (!m.konten) m.konten = pk.konten; } }
@@ -141,6 +144,7 @@ async function _PATCH(req) {
     budget = ${Number(m.budget) || 0}, bayar = ${m.bayar || ''}, sales = ${m.sales},
     status = ${m.status || 'New'}, catatan = ${m.catatan || ''}, next_fu = ${m.next_fu || null},
     campaign = ${m.campaign || ''}, konten = ${m.konten || ''}, usia = ${m.usia || ''},
+    gender = ${['Laki-laki', 'Perempuan'].includes(m.gender) ? m.gender : ''},
     sumber_detail = ${perluDetail(m) ? String(m.sumber_detail || '').trim().slice(0, 200) : ''},
     updated_at = now()
     WHERE id = ${b.id}`;

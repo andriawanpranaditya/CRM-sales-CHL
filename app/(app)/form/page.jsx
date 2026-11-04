@@ -6,7 +6,7 @@ import InputRupiah from '@/components/InputRupiah';
 import { muatPriceList } from '@/components/usePriceList';
 import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '' };
+const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '', gender: '' };
 // Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
 const DETAIL_LAINNYA = { label: 'Sumber lainnya — sebutkan', ph: 'mis. brosur di minimarket, papan nama proyek', wajib: true };
 const DETAIL_WALKIN_LAINNYA = { label: 'Walk In — tahu dari mana, sebutkan', ph: 'mis. lewat depan lokasi, diajak teman, brosur', wajib: true };
@@ -227,7 +227,7 @@ export default function FormPage() {
     setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
       kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
       budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
-      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || ''});
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || '', gender: l.gender || ''});
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
   }
@@ -561,6 +561,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
           <div className="field"><label>Rentang Usia</label><select {...fl('usia')}>
             {['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'].map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
+          <div className="field"><label>Jenis Kelamin</label><select {...fl('gender')}>
+            {['', 'Laki-laki', 'Perempuan'].map(g => <option key={g} value={g}>{g || '— pilih —'}</option>)}</select></div>
           {!isMarkom && <div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
           {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
