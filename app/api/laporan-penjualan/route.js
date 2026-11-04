@@ -1,6 +1,8 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { siapkanKpr, statusKpr } from '@/lib/kpr';
+import { siapkanKolomPenjualan, imporPenjualanBio } from '@/lib/impor-penjualan-bio';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,15 +35,16 @@ export async function GET(req) {
   const d1 = tglOk(q.get('d1')) ? q.get('d1') : null, d2 = tglOk(q.get('d2')) ? q.get('d2') : null;
   const pj = q.get('project') || null, sales = q.get('sales') || null;
   if (pj && user.projects && !user.projects.includes(pj)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
-  try { await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`; } catch {}
+  await siapkanKolomPenjualan(sql);
   await siapkanKpr(sql);
 
   const trx = await sql`SELECT t.id, t.lead_code, t.jenis, t.tgl::text AS tgl, t.nilai, t.nilai_jual, t.catatan, t.unit, t.cicilan, t.created_at,
+      t.no_kontrak, t.skema, t.harga_cash, t.dana_dibayar, t.dana_hangus, t.dana_refund, t.batal_refund,
       COALESCE(NULLIF(t.project, ''), l.project, '') AS project, COALESCE(NULLIF(t.bayar, ''), l.bayar, '') AS bayar,
       l.nama, l.tipe, l.sales, l.sumber, l.walkin_info, l.campaign, l.created_by AS lead_by
     FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
     WHERE (${pj}::text IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ${pj}) AND (${sales}::text IS NULL OR l.sales = ${sales})
-    ORDER BY t.lead_code, t.id`;
+    ORDER BY t.lead_code, t.tgl, t.id`;
   // Gabungkan per konsumen + unit
   const grup = new Map();
   for (const t of trx) {
@@ -49,10 +52,13 @@ export async function GET(req) {
     const k = t.lead_code + '|' + (t.unit || '');
     const g = grup.get(k) || { lead_code: t.lead_code, nama: t.nama, project: t.project, unit: t.unit || '', tipe: t.tipe || '', sales: t.sales || '', sumber: t.sumber || '',
       walkin_info: t.walkin_info || '', campaign: t.campaign || '', tgl_reserved: null, nilai_reserved: 0, tgl_booking: null, nilai_booking: 0, harga: null, bayar: '', cicilan: null,
-      tgl_batal: null, alasan_batal: '', catatan: '', terakhir: '', updated: null };
+      tgl_batal: null, alasan_batal: '', catatan: '', terakhir: '', updated: null, no_kontrak: '', skema: '', harga_cash: null, dana_dibayar: null, dana_hangus: null, dana_refund: null, batal_refund: null };
     if (t.jenis === 'Reserved' && !g.tgl_reserved) { g.tgl_reserved = t.tgl; g.nilai_reserved = Number(t.nilai || 0); }
     if ((t.jenis === 'Booking' || t.jenis === 'Closing') && !g.tgl_booking) { g.tgl_booking = t.tgl; g.nilai_booking = Number(t.nilai || 0); }
-    if (t.jenis === 'Batal') { g.tgl_batal = t.tgl; g.alasan_batal = t.catatan || ''; }
+    if (t.jenis === 'Batal') { g.tgl_batal = t.tgl; g.alasan_batal = t.catatan || ''; g.dana_dibayar = t.dana_dibayar != null ? Number(t.dana_dibayar) : null; g.dana_hangus = t.dana_hangus != null ? Number(t.dana_hangus) : null; g.dana_refund = t.dana_refund != null ? Number(t.dana_refund) : null; g.batal_refund = t.batal_refund; }
+    if (t.no_kontrak) g.no_kontrak = t.no_kontrak;
+    if (t.skema) g.skema = t.skema;
+    if (t.harga_cash) g.harga_cash = Number(t.harga_cash);
     if (t.nilai_jual) g.harga = Number(t.nilai_jual);
     if (t.bayar) g.bayar = t.bayar;
     if (t.cicilan) g.cicilan = t.cicilan;
@@ -66,6 +72,29 @@ export async function GET(req) {
     g.lama = g.tgl_reserved && g.tgl_booking ? Math.round((Date.parse(g.tgl_booking) - Date.parse(g.tgl_reserved)) / 86400000) : (g.tgl_booking ? 0 : null);
     return g;
   });
+  // ===== Posisi kumulatif s.d. hari ini (tidak terpengaruh filter periode; tetap mengikuti filter project & sales) =====
+  const hariIni = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+  const kodesSemua = [...new Set(rows.map(g => g.lead_code))];
+  const akadPeta = {};
+  if (kodesSemua.length) (await sql`SELECT lead_code, akad_realisasi::text AS r FROM kpr WHERE lead_code = ANY(${kodesSemua}::text[])`).forEach(k => { akadPeta[k.lead_code] = k.r; });
+  const jum = (arr, f) => arr.reduce((a, g) => a + (Number(g[f]) || 0), 0);
+  const aktif = rows.filter(g => g.status === 'Booking'), resv = rows.filter(g => g.status === 'Reserved');
+  const batalBk = rows.filter(g => g.status === 'Batal' && g.tgl_booking), batalRv = rows.filter(g => g.status === 'Batal' && !g.tgl_booking);
+  const kpr = aktif.filter(g => /kpr/i.test(g.bayar || '')), akad = kpr.filter(g => akadPeta[g.lead_code]);
+  const tahun = [...new Set(rows.flatMap(g => [g.tgl_booking, g.tgl_batal, g.tgl_reserved]).filter(Boolean).map(t => t.slice(0, 4)))].sort();
+  const kumulatif = {
+    per: hariIni,
+    penjualan: { n: aktif.length, nilai: jum(aktif, 'harga'), cash: jum(aktif, 'harga_cash'), kpr: kpr.length, akad: akad.length, belumAkad: kpr.length - akad.length, bertahap: aktif.filter(g => /bertahap/i.test(g.bayar || '')).length, keras: aktif.filter(g => /keras/i.test(g.bayar || '')).length },
+    reserved: { n: resv.length, nilai: jum(resv, 'harga') },
+    bookingTercatat: { n: aktif.length + batalBk.length, nilai: jum(aktif, 'harga') + jum(batalBk, 'harga') },
+    batalBooking: { n: batalBk.length, nilai: jum(batalBk, 'harga'), nonrefund: batalBk.filter(g => g.batal_refund === false).length, refund: batalBk.filter(g => g.batal_refund === true).length,
+      nilaiNonrefund: jum(batalBk.filter(g => g.batal_refund === false), 'harga'), nilaiRefund: jum(batalBk.filter(g => g.batal_refund === true), 'harga'),
+      dibayar: jum(batalBk, 'dana_dibayar'), hangus: jum(batalBk, 'dana_hangus'), dikembalikan: jum(batalBk, 'dana_refund') },
+    batalReserved: { n: batalRv.length, nilai: jum(batalRv, 'harga') },
+    perTahun: tahun.map(th => ({ tahun: th, booking: rows.filter(g => (g.tgl_booking || '').startsWith(th)).length, aktif: aktif.filter(g => (g.tgl_booking || '').startsWith(th)).length,
+      nilaiAktif: jum(aktif.filter(g => (g.tgl_booking || '').startsWith(th)), 'harga'), batal: batalBk.filter(g => (g.tgl_batal || '').startsWith(th)).length, batalReserved: batalRv.filter(g => (g.tgl_batal || '').startsWith(th)).length })),
+  };
+
   // Filter periode: ada kejadian (Reserved / Booking / Batal) di dalam rentang
   const dalam = t => t && (!d1 || t >= d1) && (!d2 || t <= d2);
   if (d1 || d2) rows = rows.filter(g => dalam(g.tgl_reserved) || dalam(g.tgl_booking) || dalam(g.tgl_batal));
@@ -84,5 +113,16 @@ export async function GET(req) {
   }
   rows.forEach(g => { g.update_terakhir = teksUpdate(g); g.cara_bayar = /bertahap/i.test(g.bayar || '') && g.cicilan ? `${g.bayar} ${g.cicilan}x` : g.bayar; });
   rows.sort((a, b) => String(a.tgl_reserved || a.tgl_booking || '').localeCompare(String(b.tgl_reserved || b.tgl_booking || '')) || a.lead_code.localeCompare(b.lead_code));
-  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows });
+  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, bolehImpor: user.role === 'manager' });
 }
+
+// ===== Impor buku penjualan resmi BIO DISTRICT (Manager) — cek dulu, lalu impor =====
+async function _POST(req) {
+  const { user, err } = await requireUser(['manager']); if (err) return err;
+  const sql = db();
+  const b = await req.json().catch(() => ({}));
+  if (b.aksi !== 'impor_bio') return Response.json({ error: 'Aksi tidak dikenal' }, { status: 400 });
+  const hasil = await imporPenjualanBio(sql, user, { cek: b.cek === true });
+  return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek' : 'Impor') + ' buku penjualan BIO DISTRICT per ' + hasil.per });
+}
+export const POST = denganLog('Report', _POST, ({ out }) => ({ detail: out.aksi || '' }));

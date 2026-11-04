@@ -6,7 +6,7 @@ import Dashboard from '../dashboard/page';
 
 // ===== Menu Report (Manager & CEO): satu filter bersama untuk semua tab =====
 const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['lengkap', 'Report Lengkap'], ['excel', 'Data Excel']];
-const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
+const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 const awalBulan = () => hariIni().slice(0, 8) + '01';
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
 const WST = { Booking: 'var(--green)', Batal: 'var(--red)', Reserved: 'var(--brass-deep)' };
@@ -36,8 +36,8 @@ export default function ReportPage() {
         <div className="field"><label>Sampai tanggal</label><input type="date" value={d2} onChange={e => setD2(e.target.value)} /></div>
         <div className="field"><label>Project</label>
           <div className="fu-toolbar" style={{ margin: 0 }}>
-            {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
-            {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
+            {(set.project || []).length !== 1 && <button className={'sort-btn' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
+            {(set.project || []).map(p => <button key={p} className={'sort-btn' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
           </div></div>
         {(tab === 'sales' || tab === 'penjualan') && <div className="field"><label>Sales</label>
           <select value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{(set.sales || []).map(s => <option key={s}>{s}</option>)}</select></div>}
@@ -49,7 +49,7 @@ export default function ReportPage() {
           </div></div>
       </div>
 
-      <div className="fu-toolbar rp-tabs">{TAB.map(([k, l]) => <button key={k} className={'sort-btn tab-utama' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="fu-toolbar rp-tabs">{TAB.map(([k, l]) => <button key={k} className={'sort-btn' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
 
       {tab === 'sales' && <TabSales proj={proj} d1={d1} d2={d2} fSales={fSales} set={set} />}
       {tab === 'penjualan' && <TabPenjualan proj={proj} d1={d1} d2={d2} fSales={fSales} me={me} />}
@@ -95,11 +95,29 @@ function TabSales({ proj, d1, d2, fSales, set }) {
 function TabPenjualan({ proj, d1, d2, fSales, me }) {
   const [d, setD] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [muatUlang, setMuatUlang] = useState(0);
+  async function imporBio(cek) {
+    if (!cek && !confirm('Impor buku penjualan resmi BIO DISTRICT per 4 Nov 2026?\n\n35 kontrak aktif, 20 kontrak batal setelah Booking (non-refund & refund), dan 5 reservasi batal disamakan ke transaksi CRM. Kontrak yang sudah ada di CRM dilengkapi, yang belum ada dibuat. Tanggal akad KPR diperbarui. Aman diulang.')) return;
+    setBusy(true);
+    try {
+      const x = await api('/api/laporan-penjualan', { method: 'POST', body: JSON.stringify({ aksi: 'impor_bio', cek }) });
+      const daftar = (a, n = 6) => a.length ? a.slice(0, n).join(', ') + (a.length > n ? ` … (+${a.length - n})` : '') : '—';
+      alert([`${cek ? 'CEK (belum ada yang diubah)' : 'IMPOR SELESAI'} — buku penjualan BIO DISTRICT per ${x.per}`, '',
+        `Kontrak aktif: ${x.aktif.dilengkapi.length} sudah ada di CRM (dilengkapi), ${x.aktif.dibuat.length} ${cek ? 'akan ' : ''}dibuat: ${daftar(x.aktif.dibuat)}`,
+        `Kontrak batal setelah Booking: ${x.batal.dilengkapi.length} sudah ada, ${x.batal.dibuat.length} ${cek ? 'akan ' : ''}dibuat`,
+        `Reservasi batal: ${x.resv.dilengkapi.length} sudah ada, ${x.resv.dibuat.length} ${cek ? 'akan ' : ''}dibuat`,
+        `Tanggal akad KPR ${cek ? 'yang akan ' : ''}diperbarui: ${x.akad}`,
+        x.tandaImporDihapus ? `Tanda stok lama hasil impor Weekly Report ${cek ? 'akan ' : ''}dihapus: ${x.tandaImporDihapus} (status unit kini dari transaksi)` : '',
+        x.unitDobel.length ? `PERLU DICEK — unit aktif di CRM atas nama lain dari buku penjualan: ${daftar(x.unitDobel, 10)}` : '',
+        x.tidakDiBuku.length ? `PERLU DICEK — tercatat aktif di CRM tetapi tidak ada di buku penjualan: ${daftar(x.tidakDiBuku, 10)}` : ''].filter(Boolean).join('\n'));
+      if (!cek) setMuatUlang(n => n + 1);
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
   useEffect(() => {
     setD(null);
     api('/api/laporan-penjualan?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '') + '&sales=' + encodeURIComponent(fSales || ''))
       .then(setD).catch(e => toast(e.message));
-  }, [proj, d1, d2, fSales]);
+  }, [proj, d1, d2, fSales, muatUlang]);
   if (!d) return <div className="loading">Menyusun laporan penjualan…</div>;
   const rows = d.rows, bk = rows.filter(r => r.status === 'Booking'), bt = rows.filter(r => r.status === 'Batal'), rv = rows.filter(r => r.status === 'Reserved');
   const nilai = bk.reduce((a, r) => a + (r.harga || 0), 0), tj = rows.reduce((a, r) => a + (r.nilai_reserved || 0), 0), bf = rows.reduce((a, r) => a + (r.nilai_booking || 0), 0);
@@ -115,12 +133,12 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
 
   async function unduhExcel() {
     setBusy(true);
-    try { await buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me }); catatUnduh('Report', 'Laporan Penjualan (Excel)'); toast('Excel laporan penjualan terunduh'); }
+    try { await buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum: d.kumulatif }); catatUnduh('Report', 'Laporan Penjualan (Excel)'); toast('Excel laporan penjualan terunduh'); }
     catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   function unduhPdf() {
     const w = window.open('', '_blank'); if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
-    w.document.open(); w.document.write(htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me })); w.document.close();
+    w.document.open(); w.document.write(htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me, kum: d.kumulatif })); w.document.close();
     w.onload = () => { w.focus(); w.print(); }; setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
     catatUnduh('Report', 'Laporan Penjualan (PDF)'); toast('Jendela cetak terbuka — pilih "Save as PDF" 📄');
   }
@@ -132,6 +150,8 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!rows.length} onClick={unduhPdf}>📄 Unduh PDF</button>
         <span className="hint">{rows.length} konsumen · {periode}{proj ? ' · ' + proj : ''}{fSales ? ' · sales ' + fSales : ''}. Penjualan diakui pada tanggal Booking.</span>
       </div>
+      {d.kumulatif && <PosisiPenjualan k={d.kumulatif} proj={proj} bolehImpor={d.bolehImpor && (!proj || /BIO/i.test(proj))} busy={busy} imporBio={imporBio} />}
+      <h3 style={{ margin: '18px 0 8px' }}>Penjualan pada periode terpilih · {periode}</h3>
       <div className="rp-kpi">
         {[['Reserved / Booking', ringkas.n, 'konsumen'], ['Booking', ringkas.booking, 'penjualan diakui'], ['Batal', ringkas.batal, 'unit kembali ke stok'], ['Masih Reserved', ringkas.reserved, 'pipeline'],
           ['Konversi', Math.round(ringkas.konversi * 100) + '%', 'Reserved → Booking'], ['Nilai penjualan', rpM(nilai), 'harga jual unit Booking']].map(([l, v, k]) => (
@@ -167,6 +187,40 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
     </>
   );
 }
+// ===== Posisi penjualan kumulatif s.d. hari ini — Reserved, Booking, Batal, penjualan bersih =====
+function PosisiPenjualan({ k, proj, bolehImpor, busy, imporBio }) {
+  const b = k.batalBooking, p = k.penjualan;
+  return (<div className="card rp-posisi">
+    <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Posisi penjualan s.d. {fmtDate(k.per)}{proj ? ' · ' + proj : ' · semua project'}</h3>
+      {bolehImpor && <span style={{ display: 'inline-flex', gap: 6 }}><button className="sort-btn" disabled={busy} onClick={() => imporBio(true)}>🔍 Cek buku penjualan Bio</button>
+        <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={busy} onClick={() => imporBio(false)}>{busy ? '⏳…' : '⬆ Impor buku penjualan Bio (4 Nov 2026)'}</button></span>}</div>
+    <div className="rp-kpi" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="card emas"><span className="hint">Total penjualan (bersih)</span><b className="rp-besar">{p.n} unit</b><span className="hint">{rpM(p.nilai)} nilai kontrak{p.cash ? ' · harga cash ' + rpM(p.cash) : ''}</span></div>
+      <div className="card"><span className="hint">Booking tercatat</span><b className="rp-besar">{k.bookingTercatat.n}</b><span className="hint">{rpM(k.bookingTercatat.nilai)} · {p.n} aktif + {b.n} batal</span></div>
+      <div className="card"><span className="hint">Batal</span><b className="rp-besar" style={{ color: 'var(--red)' }}>{b.n + k.batalReserved.n}</b><span className="hint">{b.n} setelah Booking ({rpM(b.nilai)}) · {k.batalReserved.n} saat Reserved</span></div>
+      <div className="card"><span className="hint">Reserved aktif</span><b className="rp-besar">{k.reserved.n}</b><span className="hint">{k.reserved.n ? rpM(k.reserved.nilai) + ' · belum diakui penjualan' : 'tidak ada unit tertahan Reserved'}</span></div>
+    </div>
+    <div className="rp-grid2" style={{ marginTop: 10 }}>
+      <div><b style={{ fontSize: 13 }}>Penjualan bersih menurut cara bayar & akad</b>
+        <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table><tbody>
+          <tr><td>KPR</td><td className="num"><b>{p.kpr}</b> unit</td><td className="hint">{p.akad} sudah akad · {p.belumAkad} belum akad</td></tr>
+          <tr><td>Cash bertahap / cicilan</td><td className="num"><b>{p.bertahap}</b> unit</td><td className="hint">dibayar bertahap ke developer</td></tr>
+          {p.keras ? <tr><td>Cash keras</td><td className="num"><b>{p.keras}</b> unit</td><td></td></tr> : null}
+        </tbody></table></div></div>
+      <div><b style={{ fontSize: 13 }}>Batal setelah Booking</b>
+        <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table><tbody>
+          <tr><td>Non-refund (dana hangus)</td><td className="num"><b>{b.nonrefund}</b> kontrak</td><td className="num">{rpM(b.nilaiNonrefund)}</td></tr>
+          <tr><td>Refund (dana dikembalikan)</td><td className="num"><b>{b.refund}</b> kontrak</td><td className="num">{rpM(b.nilaiRefund)}</td></tr>
+          {b.n - b.nonrefund - b.refund > 0 ? <tr><td>Belum ditandai</td><td className="num"><b>{b.n - b.nonrefund - b.refund}</b> kontrak</td><td></td></tr> : null}
+          <tr><td className="hint" colSpan={3}>Dana dibayar konsumen {fmtRp(b.dibayar)} · hangus (pendapatan) {fmtRp(b.hangus)} · dikembalikan {fmtRp(b.dikembalikan)}</td></tr>
+        </tbody></table></div></div>
+    </div>
+    {k.perTahun.length > 0 && <div className="tbl-wrap tbl-compact" style={{ marginTop: 10 }}><table>
+      <thead><tr><th>Tahun</th><th className="num">Booking masuk</th><th className="num">Masih aktif</th><th className="num">Nilai aktif</th><th className="num">Batal setelah Booking</th><th className="num">Reserved batal</th></tr></thead>
+      <tbody>{k.perTahun.map(t => <tr key={t.tahun}><td data-label="Tahun"><b>{t.tahun}</b></td><td className="num" data-label="Booking masuk">{t.booking}</td><td className="num" data-label="Masih aktif">{t.aktif}</td><td className="num" data-label="Nilai aktif">{rpM(t.nilaiAktif)}</td><td className="num" data-label="Batal">{t.batal}</td><td className="num" data-label="Reserved batal">{t.batalReserved}</td></tr>)}</tbody></table></div>}
+    <p className="hint" style={{ margin: '8px 0 0' }}>Total penjualan bersih = kontrak Booking yang masih berjalan per hari ini (nilai kontrak termasuk PPN). Booking tercatat = semua kontrak yang pernah Booking, termasuk yang kemudian batal. Batal per tahun dihitung dari tanggal pembatalan. Bagian ini tidak terpengaruh filter periode.</p>
+  </div>);
+}
 function TabelRekap({ rows, total, konversi, rata }) {
   const T = { n: rows.reduce((a, r) => a + r.n, 0), booking: rows.reduce((a, r) => a + r.booking, 0), batal: rows.reduce((a, r) => a + r.batal, 0), reserved: rows.reduce((a, r) => a + r.reserved, 0), nilai: rows.reduce((a, r) => a + r.nilai, 0) };
   return (<div className="tbl-wrap tbl-compact"><table>
@@ -180,7 +234,7 @@ function TabelRekap({ rows, total, konversi, rata }) {
 }
 
 // ---------- Excel: Ringkasan (rumus), Detail, Per Sales, Proses KPR, Keterangan ----------
-async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me }) {
+async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook(); wb.creator = 'CRM Sales CHL';
   const HIJAU = 'FF12302A', EMAS = 'FFE2BE7A', KREM = 'FFF5F2EA', GARIS = 'FFE6E1D5';
@@ -191,6 +245,39 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me }) {
   const rapikan = (ws, r, nCol, zebra) => { const row = ws.getRow(r); for (let c = 1; c <= nCol; c++) { const x = row.getCell(c); x.font = { ...(x.font || {}), name: 'Arial', size: x.font?.size || 10 }; x.alignment = { ...(x.alignment || {}), vertical: 'top', wrapText: true }; x.border = { top: { style: 'thin', color: { argb: GARIS } }, bottom: { style: 'thin', color: { argb: GARIS } }, left: { style: 'thin', color: { argb: GARIS } }, right: { style: 'thin', color: { argb: GARIS } } }; if (zebra) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: KREM } }; } };
   const sub = `${periode}${proj ? ' · ' + proj : ' · semua project'}${fSales ? ' · sales ' + fSales : ''} · dibuat ${new Date().toLocaleString('id-ID')} oleh ${me?.name || ''}`;
 
+  // ---- Posisi s.d. hari ini (kumulatif, tidak terpengaruh periode) ----
+  if (kum) {
+    const ps = wb.addWorksheet('Posisi s.d. Hari Ini');
+    judul(ps, `Posisi Penjualan s.d. ${fmtDate(kum.per)}`, `${proj || 'Semua project'}${fSales ? ' · sales ' + fSales : ''} · kumulatif sejak awal penjualan · dibuat ${new Date().toLocaleString('id-ID')} oleh ${me?.name || ''}`);
+    head(ps, 4, ['Komponen', 'Jumlah', 'Nilai (Rp)', 'Keterangan']);
+    const b = kum.batalBooking, p = kum.penjualan;
+    const isi = [
+      ['Total penjualan bersih (Booking aktif)', p.n, p.nilai, 'Nilai kontrak termasuk PPN' + (p.cash ? ` · harga cash ${fmtRp(p.cash)}` : '')],
+      ['   KPR — sudah akad', p.akad, null, ''], ['   KPR — belum akad', p.belumAkad, null, ''], ['   Cash bertahap / cicilan', p.bertahap, null, ''], ['   Cash keras', p.keras, null, ''],
+      ['Reserved aktif', kum.reserved.n, kum.reserved.nilai, 'Belum diakui sebagai penjualan'],
+      ['Booking tercatat (aktif + batal)', kum.bookingTercatat.n, kum.bookingTercatat.nilai, 'Semua kontrak yang pernah Booking'],
+      ['Batal setelah Booking', b.n, b.nilai, `Non-refund ${b.nonrefund} · refund ${b.refund}`],
+      ['   Non-refund', b.nonrefund, b.nilaiNonrefund, 'Dana konsumen hangus'], ['   Refund', b.refund, b.nilaiRefund, 'Dana konsumen dikembalikan'],
+      ['   Dana dibayar konsumen yang batal', null, b.dibayar, ''], ['   Dana hangus (pendapatan)', null, b.hangus, ''], ['   Dana dikembalikan', null, b.dikembalikan, ''],
+      ['Batal saat Reserved', kum.batalReserved.n, kum.batalReserved.nilai, 'Belum sempat Booking'],
+    ];
+    isi.forEach((x, i) => { const row = ps.getRow(5 + i); x.forEach((v, c) => { row.getCell(c + 1).value = v; }); row.getCell(3).numFmt = RP; rapikan(ps, 5 + i, 4, i % 2); if (!String(x[0]).startsWith('   ')) row.getCell(1).font = { name: 'Arial', bold: true, size: 10 }; });
+    const t0 = 5 + isi.length + 2;
+    head(ps, t0, ['Tahun', 'Booking masuk', 'Masih aktif', 'Nilai aktif (Rp)', 'Batal setelah Booking', 'Reserved batal']);
+    kum.perTahun.forEach((t, i) => { const row = ps.getRow(t0 + 1 + i); [t.tahun, t.booking, t.aktif, t.nilaiAktif, t.batal, t.batalReserved].forEach((v, c) => { row.getCell(c + 1).value = v; }); row.getCell(4).numFmt = RP; rapikan(ps, t0 + 1 + i, 6, i % 2); });
+    [44, 16, 22, 44, 20, 16].forEach((w, i) => { ps.getColumn(i + 1).width = w; });
+    // Daftar kontrak batal
+    const kb = wb.addWorksheet('Kontrak Batal');
+    judul(kb, 'Kontrak Batal — setelah Booking dan saat Reserved', 'Seluruh pembatalan sejak awal penjualan');
+    head(kb, 4, ['No', 'Konsumen', 'Unit', 'No Kontrak', 'Tgl Booking / Reserved', 'Tgl Batal', 'Batal saat', 'Jenis', 'Nilai Kontrak (Rp)', 'Dibayar (Rp)', 'Hangus (Rp)', 'Dikembalikan (Rp)', 'Alasan', 'Sales / Agent']);
+    rows.filter(x => x.status === 'Batal').sort((a, c) => String(a.tgl_batal).localeCompare(String(c.tgl_batal))).forEach((x, i) => {
+      const row = kb.getRow(5 + i);
+      [i + 1, x.nama, x.unit, x.no_kontrak || '', tgl(x.tgl_booking || x.tgl_reserved), tgl(x.tgl_batal), x.tgl_booking ? 'Setelah Booking' : 'Reserved', x.batal_refund === true ? 'Refund' : x.batal_refund === false ? 'Non-refund' : '', x.harga || null, x.dana_dibayar, x.dana_hangus, x.dana_refund, x.alasan_batal || '', x.sales || '']
+        .forEach((v, c) => { row.getCell(c + 1).value = v; });
+      [5, 6].forEach(c => { row.getCell(c).numFmt = TGL; }); [9, 10, 11, 12].forEach(c => { row.getCell(c).numFmt = RP; }); rapikan(kb, 5 + i, 14, i % 2);
+    });
+    [5, 26, 15, 20, 14, 12, 15, 12, 18, 15, 15, 16, 34, 26].forEach((w, i) => { kb.getColumn(i + 1).width = w; });
+  }
   // ---- Ringkasan (diisi rumus setelah Detail dibuat) ----
   const rs = wb.addWorksheet('Ringkasan');
   // ---- Detail ----
@@ -295,7 +382,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me }) {
 }
 
 // ---------- PDF: HTML siap cetak (A4 mendatar) ----------
-function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me }) {
+function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, perSales, me, kum }) {
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const warna = { Booking: '#1E6A4C', Batal: '#B4482A', Reserved: '#7A5414' };
   const rek = (judul, data, konversi, rata) => `<h3>${judul}</h3><table><tr><th>Nama</th><th class="r">Unit</th><th class="r">Booking</th><th class="r">Batal</th><th class="r">Reserved</th><th class="r">Nilai penjualan</th><th class="r">${konversi ? 'Konversi' : 'Porsi'}</th>${rata ? '<th class="r">Rata-rata hari</th>' : ''}</tr>
@@ -309,7 +396,12 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   .dua{display:grid;grid-template-columns:1fr 1fr;gap:14px} .ket{color:#5B6E66;font-size:8pt;margin-top:10px} tr{page-break-inside:avoid}
   </style></head><body>
   <div class="kop"><div><b>LAPORAN PENJUALAN</b> &nbsp; CRM Sales CHL · ${esc(periode)} · ${esc(proj || 'Semua project')}${fSales ? ' · sales ' + esc(fSales) : ''}</div><div style="font-size:8.5pt">Dicetak ${new Date().toLocaleString('id-ID')} · oleh ${esc(me?.name || '')}</div></div>
-  <h2>Ringkasan penjualan</h2>
+  ${kum ? `<h2>Posisi penjualan s.d. ${fmtDate(kum.per)}</h2>
+  <div class="kpi" style="grid-template-columns:repeat(4,1fr)">${[['Total penjualan bersih', kum.penjualan.n + ' unit', rpM(kum.penjualan.nilai) + ' nilai kontrak'], ['Booking tercatat', kum.bookingTercatat.n, rpM(kum.bookingTercatat.nilai) + ' · aktif + batal'], ['Batal', kum.batalBooking.n + kum.batalReserved.n, kum.batalBooking.n + ' setelah Booking · ' + kum.batalReserved.n + ' saat Reserved'], ['Reserved aktif', kum.reserved.n, kum.reserved.n ? rpM(kum.reserved.nilai) : 'tidak ada']]
+    .map(([l, v, k], i) => `<div class="${i === 0 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
+  <p class="muted">KPR ${kum.penjualan.kpr} unit (${kum.penjualan.akad} sudah akad, ${kum.penjualan.belumAkad} belum akad) · cash bertahap ${kum.penjualan.bertahap} unit${kum.penjualan.keras ? ' · cash keras ' + kum.penjualan.keras + ' unit' : ''}. Batal setelah Booking: non-refund ${kum.batalBooking.nonrefund} (${rpM(kum.batalBooking.nilaiNonrefund)}), refund ${kum.batalBooking.refund} (${rpM(kum.batalBooking.nilaiRefund)}); dana hangus ${fmtRp(kum.batalBooking.hangus)}, dikembalikan ${fmtRp(kum.batalBooking.dikembalikan)}.</p>
+  <table><tr><th>Tahun</th><th class="r">Booking masuk</th><th class="r">Masih aktif</th><th class="r">Nilai aktif</th><th class="r">Batal setelah Booking</th><th class="r">Reserved batal</th></tr>${kum.perTahun.map(t => `<tr><td><b>${t.tahun}</b></td><td class="r">${t.booking}</td><td class="r">${t.aktif}</td><td class="r">${rpM(t.nilaiAktif)}</td><td class="r">${t.batal}</td><td class="r">${t.batalReserved}</td></tr>`).join('')}</table>` : ''}
+  <h2>Ringkasan penjualan · ${esc(periode)}</h2>
   <div class="kpi">${[['Konsumen', ringkas.n, 'Reserved / Booking'], ['Booking', ringkas.booking, 'penjualan diakui'], ['Batal', ringkas.batal, 'unit kembali ke stok'], ['Masih Reserved', ringkas.reserved, 'pipeline'], ['Konversi', Math.round(ringkas.konversi * 100) + '%', 'Reserved → Booking'], ['Nilai penjualan', rpM(ringkas.nilai), 'harga jual unit Booking']]
     .map(([l, v, k], i) => `<div class="${i === 5 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
   <p class="muted">Tanda jadi diterima <b>${fmtRp(ringkas.tj)}</b> · Booking fee diterima <b>${fmtRp(ringkas.bf)}</b> · Rata-rata Reserved → Booking <b>${ringkas.rata.toLocaleString('id-ID', { maximumFractionDigits: 1 })} hari</b></p>
