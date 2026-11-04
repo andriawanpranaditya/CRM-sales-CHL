@@ -1,12 +1,20 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { siapkanKpr, statusKpr } from '@/lib/kpr';
-import { siapkanKolomPenjualan, imporPenjualanBio } from '@/lib/impor-penjualan-bio';
-import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
 // ===== Laporan Penjualan: perjalanan tiap konsumen/unit dari Reserved → Booking / Batal, cara bayar, dan update status terakhir =====
+// Kolom tambahan transaksi untuk laporan penjualan (diisi saat impor buku penjualan resmi)
+async function siapkanKolomPenjualan(sql) {
+  for (const q of [
+    sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS no_kontrak text`, sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS skema text`,
+    sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cicilan integer`, sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS harga_cash numeric`,
+    sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS dana_dibayar numeric`, sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS dana_hangus numeric`,
+    sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS dana_refund numeric`, sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS batal_refund boolean`,
+    sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS ganti_kontrak boolean`,
+  ]) { try { await q; } catch {} }
+}
 const tglOk = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const tglStr = t => (t instanceof Date ? t.toISOString() : String(t || '')).slice(0, 10);
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -90,7 +98,10 @@ export async function GET(req) {
     bookingTercatat: { n: aktif.length + batalBk.length, nilai: jum(aktif, 'harga') + jum(batalBk, 'harga') },
     batalBooking: { n: batalBk.length, nilai: jum(batalBk, 'harga'), nonrefund: batalBk.filter(g => g.batal_refund === false).length, refund: batalBk.filter(g => g.batal_refund === true).length,
       nilaiNonrefund: jum(batalBk.filter(g => g.batal_refund === false), 'harga'), nilaiRefund: jum(batalBk.filter(g => g.batal_refund === true), 'harga'),
-      dibayar: jum(batalBk, 'dana_dibayar'), hangus: jum(batalBk, 'dana_hangus'), dikembalikan: jum(batalBk, 'dana_refund') },
+      dibayar: jum(batalBk, 'dana_dibayar'), hangus: jum(batalBk, 'dana_hangus'), dikembalikan: jum(batalBk, 'dana_refund'),
+      // uang yang benar-benar diterima / hangus / dikembalikan, per jenis pembatalan (bukan nilai kontrak)
+      danaNonrefund: { dibayar: jum(batalBk.filter(g => g.batal_refund === false), 'dana_dibayar'), hangus: jum(batalBk.filter(g => g.batal_refund === false), 'dana_hangus') },
+      danaRefund: { dibayar: jum(batalBk.filter(g => g.batal_refund === true), 'dana_dibayar'), hangus: jum(batalBk.filter(g => g.batal_refund === true), 'dana_hangus'), dikembalikan: jum(batalBk.filter(g => g.batal_refund === true), 'dana_refund') } },
     batalReserved: { n: batalRv.length, nilai: jum(batalRv, 'harga') },
     gantiKontrak: { n: rows.filter(g => g.status === 'Ganti kontrak').length, nama: rows.filter(g => g.status === 'Ganti kontrak').map(g => `${g.nama} (${g.unit})`) },
     perTahun: tahun.map(th => ({ tahun: th, booking: rows.filter(g => g.status !== 'Ganti kontrak' && (g.tgl_booking || '').startsWith(th)).length, aktif: aktif.filter(g => (g.tgl_booking || '').startsWith(th)).length,
@@ -115,16 +126,5 @@ export async function GET(req) {
   }
   rows.forEach(g => { g.update_terakhir = teksUpdate(g); g.cara_bayar = /bertahap/i.test(g.bayar || '') && g.cicilan ? `${g.bayar} ${g.cicilan}x` : g.bayar; });
   rows.sort((a, b) => String(a.tgl_reserved || a.tgl_booking || '').localeCompare(String(b.tgl_reserved || b.tgl_booking || '')) || a.lead_code.localeCompare(b.lead_code));
-  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, bolehImpor: user.role === 'manager' });
+  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif });
 }
-
-// ===== Impor buku penjualan resmi BIO DISTRICT (Manager) — cek dulu, lalu impor =====
-async function _POST(req) {
-  const { user, err } = await requireUser(['manager']); if (err) return err;
-  const sql = db();
-  const b = await req.json().catch(() => ({}));
-  if (b.aksi !== 'impor_bio') return Response.json({ error: 'Aksi tidak dikenal' }, { status: 400 });
-  const hasil = await imporPenjualanBio(sql, user, { cek: b.cek === true });
-  return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek' : 'Impor') + ' buku penjualan BIO DISTRICT per ' + hasil.per });
-}
-export const POST = denganLog('Report', _POST, ({ out }) => ({ detail: out.aksi || '' }));
