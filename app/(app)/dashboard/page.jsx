@@ -1,4 +1,5 @@
 'use client';
+import { idBookingAktif } from '@/lib/penjualan-aktif';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import Link from 'next/link';
@@ -110,9 +111,13 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   // Nilai: pipeline aktif = budget lead WARM & HOT bulan berjalan
   const pipeVal = mLeads.filter(l => l.status === 'Warm' || l.status === 'Hot').reduce((a, l) => a + Number(l.budget || 0), 0);
   const resVal = mTrx.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
-  const bookVal = mTrx.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+  // Booking dihitung dengan aturan yang sama dengan Laporan Penjualan: kontrak yang kemudian batal tidak dihitung
+  const aktifId = idBookingAktif(trx); // dari SEMUA transaksi; per kontrak (lead + unit)
+  const bookAktif = t => (t.jenis === 'Booking' || t.jenis === 'Closing') && aktifId.has(t.id);
+  const mBookTrx = fTrx.filter(t => inMonth(t.tgl) && bookAktif(t));
+  const bookVal = mBookTrx.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
   const uniq = jenis => new Set(mTrx.filter(t => t.jenis === jenis).map(t => t.lead_code));
-  const mResSet = uniq('Reserved'), mBookSet = uniq('Booking');
+  const mResSet = uniq('Reserved'), mBookSet = new Set(mBookTrx.map(t => t.lead_code + '|' + (t.unit || '')));
   // Baris pipeline: Site Visit = status + Walk In; Reserved & Booking dari TRANSAKSI; tanpa Closing
   const svNDash = mLeads.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
   const pipeRows = [];
@@ -347,9 +352,11 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const rp2 = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
     const resSet = new Set(pt.filter(t => t.jenis === 'Reserved').map(t => t.lead_code));
-    const bookSet = new Set(pt.filter(t => t.jenis === 'Booking').map(t => t.lead_code));
+    // Booking pada periode yang masih berjalan per hari ini (aturan sama dengan Laporan Penjualan)
+    const bookTrxP = trx.filter(t => cocokTrx(t) && bookAktif(t));
+    const bookSet = new Set(bookTrxP.map(t => t.lead_code + '|' + (t.unit || '')));
     const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
-    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+    const bookV = bookTrxP.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
 
     secHead('RINGKASAN');
     [['Lead Masuk', pl.length, ''], ['Follow Up', pf.length, ''],
@@ -623,9 +630,15 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     // Booking & Closing dihitung dari TRANSAKSI yang benar-benar diinput (lead unik), bukan dari status pipeline
     const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
     const trxLeads = jenis => new Set(pt.filter(t => t.jenis === jenis).map(t => t.lead_code));
-    const bookSet = trxLeads('Booking'), resSet = trxLeads('Reserved');
-    const bookV = pt.filter(t => t.jenis === 'Booking').reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
-    const resV = pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
+    // Angka penjualan memakai data Report → Laporan Penjualan (sumber yang sama, aturan sama): kontrak dihitung menurut tanggal
+    // penjualannya (Booking; Reserved bila belum Booking), status per hari ini, ganti kontrak tidak dihitung.
+    // Bila data itu tidak tersedia (peran tanpa akses), kembali ke hitungan transaksi pada periode.
+    const LP = lpData && Array.isArray(lpData.rows) ? lpData.rows.filter(x => x.status !== 'Ganti kontrak') : null;
+    const lpBook = LP ? LP.filter(x => x.status === 'Booking') : null, lpRes = LP ? LP.filter(x => x.status === 'Reserved') : null, lpBatal = LP ? LP.filter(x => x.status === 'Batal') : null;
+    const bookTrxR = fTrx.filter(t => inPeriod(t.tgl) && bookAktif(t));
+    const bookSet = LP ? { size: lpBook.length } : new Set(bookTrxR.map(t => t.lead_code + '|' + (t.unit || ''))), resSet = LP ? { size: lpRes.length } : trxLeads('Reserved');
+    const bookV = LP ? lpBook.reduce((a, x) => a + (Number(x.harga) || 0), 0) : bookTrxR.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
+    const resV = LP ? lpRes.reduce((a, x) => a + (Number(x.nilai_reserved) || 0), 0) : pt.filter(t => t.jenis === 'Reserved').reduce((a, t) => a + Number(t.nilai || 0), 0);
     // Site Visit pipeline = status Site Visit + lead Walk In (sudah datang langsung)
     const svN = pl.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
     // Sebaran sumber lead
@@ -643,7 +656,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
     // Sales dengan lead pada periode ATAU transaksi pada periode (mis. lead masuk bulan lalu, Booking bulan ini)
-    const salesNs = [...new Set([...pl.map(l => l.sales), ...pt.map(t => t.sales || salesOf[t.lead_code])].filter(Boolean))];
+    const salesNs = [...new Set([...pl.map(l => l.sales), ...(LP ? LP.map(x => x.sales) : pt.map(t => t.sales || salesOf[t.lead_code]))].filter(Boolean))];
     const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
@@ -664,7 +677,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     // ===== Rekap stok per project (kondisi saat ini: transaksi + manual) =====
     // Nilai per unit = transaksi terakhir non-Batal unit tsb
     const lastVal = {};
-    [...trx].sort((a, b) => a.id - b.id).forEach(t => {
+    [...trx].sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')) || ((a.jenis === 'Batal' ? 0 : 1) - (b.jenis === 'Batal' ? 0 : 1)) || a.id - b.id).forEach(t => {
       if (!t.unit || !t.project) return;
       const key = t.project + '|' + t.unit;
       if (t.jenis === 'Batal') delete lastVal[key];
@@ -708,7 +721,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       // Transaksi dihitung dari SEMUA lead ber-asal Marcom (lead boleh masuk periode sebelumnya — penjualan diakui pada tanggal Booking)
       const mkAll = new Set(fLeads.filter(l => l.creator_role === 'markom').map(l => l.lead_code));
       const resM = pt.filter(t => t.jenis === 'Reserved' && mkAll.has(t.lead_code));
-      const bookM = pt.filter(t => t.jenis === 'Booking' && mkAll.has(t.lead_code));
+      const bookM = fTrx.filter(t => inPeriod(t.tgl) && bookAktif(t) && mkAll.has(t.lead_code));
       const resMn = new Set(resM.map(t => t.lead_code)).size, bookMn = new Set(bookM.map(t => t.lead_code)).size;
       const resMv = resM.reduce((a, t) => a + Number(t.nilai || 0), 0);
       const bookMv = bookM.reduce((a, t) => a + (Number(t.nilai_jual) || Number(t.nilai) || 0), 0);
@@ -827,6 +840,7 @@ table{page-break-inside:auto} tr{page-break-inside:avoid} img{page-break-inside:
 <td style="text-align:center">Nilai: <b>${rp(bookV)}</b></td>
 </tr>
 </table>
+<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking = kontrak yang dijual pada periode ini (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — angka ini sama dengan Report → Laporan Penjualan pada filter yang sama. Booking termasuk yang sudah akad; kontrak yang batal dan ganti kontrak tidak dihitung.</p>
 
 <h3 style="color:#23694A;margin-top:14px;margin-bottom:4px">Sebaran Sumber Lead (${pl.length} lead)</h3>
 <table><tr><th>Sumber</th><th style="width:60px">Jumlah</th><th style="width:60px">%</th><th>Grafik</th></tr>
@@ -854,7 +868,8 @@ ${(() => {
       const rbMax = Math.max(1, resSet.size, bookSet.size);
       const bar2 = (n, warna) => '<span style="color:' + warna + ';letter-spacing:1px">' + '▰'.repeat(Math.max(n > 0 ? 1 : 0, Math.round(n / rbMax * 16))) + '</span>';
       return `<tr><td><b>Reserved</b></td><td style="text-align:center"><b>${resSet.size}</b></td><td>${bar2(resSet.size, '#C9922E')}</td><td>${rp(resV)}</td></tr>
-<tr><td><b>Booking</b></td><td style="text-align:center"><b>${bookSet.size}</b></td><td>${bar2(bookSet.size, '#B3402F')}</td><td>${rp(bookV)}</td></tr>`;
+<tr><td><b>Booking</b>${LP ? `<br/><span class="muted" style="font-size:8.5pt">${lpBook.filter(x => x.akad).length} sudah akad · ${lpBook.filter(x => x.proses_kpr).length} proses KPR</span>` : ''}</td><td style="text-align:center"><b>${bookSet.size}</b></td><td>${bar2(bookSet.size, '#B3402F')}</td><td>${rp(bookV)}</td></tr>${LP ? `
+<tr><td><b>Batal</b><br/><span class="muted" style="font-size:8.5pt">dari kontrak yang dijual pada periode ini</span></td><td style="text-align:center"><b>${lpBatal.length}</b></td><td>${bar2(lpBatal.length, '#6B7A70')}</td><td>${rp(lpBatal.reduce((a, x) => a + (Number(x.harga) || 0), 0))}</td></tr>` : ''}`;
     })()}
 </table>
 
@@ -917,13 +932,13 @@ ${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper
 ${salesNs.length ? salesNs.map(sn => {
       const mine = pl.filter(l => l.sales === sn);
       const punya = (t, jenis) => t.jenis === jenis && (t.sales || salesOf[t.lead_code]) === sn;
-      const rs = new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
-      const bk = new Set(pt.filter(t => punya(t, 'Booking')).map(t => t.lead_code)).size;
+      const rs = LP ? lpRes.filter(x => x.sales === sn).length : new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
+      const bk = LP ? lpBook.filter(x => x.sales === sn).length : new Set(bookTrxR.filter(t => (t.sales || salesOf[t.lead_code]) === sn).map(t => t.lead_code + '|' + (t.unit || ''))).size;
       const rate = mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%');
       return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${rate}</b></td></tr>`;
     }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}
 </table>
-<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking dihitung dari TANGGAL TRANSAKSI pada periode — sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
+<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking = kontrak yang dijual pada periode (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — sama dengan Report → Laporan Penjualan. Sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
 
 <h2>4. MASTER STOCK — PETA SITEPLAN</h2>
 <p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
@@ -1001,17 +1016,26 @@ ${jjData.rincian.slice(0, 60).map(x => { const ev = x.status === 'Reschedule' ||
     })()}
 ${(() => {
       if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';
-      const L = lpData.rows, bk = L.filter(x => x.status === 'Booking'), bt = L.filter(x => x.status === 'Batal'), rv = L.filter(x => x.status === 'Reserved');
-      const nilaiL = bk.reduce((a, x) => a + (x.harga || 0), 0), lm = bk.filter(x => x.lama != null).map(x => x.lama), rataL = lm.length ? (lm.reduce((a, b) => a + b, 0) / lm.length).toFixed(1) : '-';
+      const L = lpData.rows.filter(x => x.status !== 'Ganti kontrak'), bk = L.filter(x => x.status === 'Booking'), bt = L.filter(x => x.status === 'Batal'), rv = L.filter(x => x.status === 'Reserved');
+      const nilaiL = bk.reduce((a, x) => a + (x.harga || 0), 0);
       const rp2 = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
-      const rek = (judul, kunci) => { const daftar = [...new Set(L.map(x => kunci(x)))]; return `<p style="margin:8px 0 4px"><b>${judul}</b></p><table style="font-size:9pt"><tr><th>Nama</th><th style="text-align:right">Unit</th><th style="text-align:right">Booking</th><th style="text-align:right">Batal</th><th style="text-align:right">Reserved</th><th style="text-align:right">Nilai penjualan</th></tr>
+      const rpM2 = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : rp2(n);
+      const rek = (judul, kunci) => { const daftar = [...new Set(L.map(x => kunci(x)))]; return `<p style="margin:8px 0 4px"><b>${judul}</b></p><table style="font-size:9pt"><tr><th>Nama</th><th style="text-align:right">Kontrak</th><th style="text-align:right">Booking</th><th style="text-align:right">Batal</th><th style="text-align:right">Reserved</th><th style="text-align:right">Nilai penjualan</th></tr>
         ${daftar.map(n => { const tt = L.filter(x => kunci(x) === n), bb = tt.filter(x => x.status === 'Booking'); return `<tr><td><b>${esc(n)}</b></td><td style="text-align:right">${tt.length}</td><td style="text-align:right">${bb.length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Batal').length}</td><td style="text-align:right">${tt.filter(x => x.status === 'Reserved').length}</td><td style="text-align:right">${rp2(bb.reduce((a, x) => a + (x.harga || 0), 0))}</td></tr>`; }).join('')}</table>`; };
-      return `<h2>6D. RINGKASAN PENJUALAN <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(Reserved → Booking / Batal pada periode report)</span></h2>
-<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Konsumen</th><th style="text-align:center">Booking</th><th style="text-align:center">Batal</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Konversi</th><th style="text-align:center">Nilai penjualan</th><th style="text-align:center">Rata-rata hari ke Booking</th></tr>
-<tr style="text-align:center;font-weight:bold"><td>${L.length}</td><td style="color:#23694A">${bk.length}</td><td style="color:#B3402F">${bt.length}</td><td style="color:#8A5F14">${rv.length}</td><td>${Math.round(bk.length / L.length * 100)}%</td><td>${rp2(nilaiL)}</td><td>${rataL}</td></tr></table>
+      const K = lpData.kumulatif;
+      const posisi = K ? `<p style="margin:12px 0 4px"><b>Posisi penjualan s.d. ${dd(K.per)}</b> <span class="muted" style="font-size:8.5pt">(kumulatif, tidak terpengaruh periode report)</span></p>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Total penjualan bersih</th><th style="text-align:center">Booking tercatat</th><th style="text-align:center">Batal</th><th style="text-align:center">Reserved aktif</th></tr>
+<tr style="text-align:center;font-weight:bold"><td style="color:#23694A">${K.penjualan.n} unit<br/><span style="font-weight:normal;font-size:9pt">${rpM2(K.penjualan.nilai)}</span></td><td>${K.bookingTercatat.n}<br/><span style="font-weight:normal;font-size:9pt">${rpM2(K.bookingTercatat.nilai)}</span></td><td style="color:#B3402F">${K.batalBooking.n + K.batalReserved.n}<br/><span style="font-weight:normal;font-size:9pt">${K.batalBooking.n} setelah Booking · ${K.batalReserved.n} saat Reserved</span></td><td>${K.reserved.n}</td></tr></table>
+<p class="muted" style="font-size:8.5pt">KPR ${K.penjualan.kpr} unit (${K.penjualan.akad} sudah akad, ${K.penjualan.belumAkad} belum akad) · cash bertahap ${K.penjualan.bertahap} unit${K.gantiKontrak?.n ? ' · ' + K.gantiKontrak.n + ' ganti kontrak tidak dihitung' : ''}.</p>
+${K.perTahun?.length ? `<table style="font-size:9pt"><tr><th>Tahun penjualan</th><th style="text-align:right">Booking</th><th style="text-align:right">Batal</th><th style="text-align:right">Penjualan bersih</th><th style="text-align:right">Nilai bersih</th><th style="text-align:right">Reserved batal</th></tr>
+${K.perTahun.map(t => `<tr><td><b>${t.tahun}</b></td><td style="text-align:right">${t.booking}</td><td style="text-align:right">${t.batal}</td><td style="text-align:right"><b>${t.aktif}</b></td><td style="text-align:right">${rpM2(t.nilaiAktif)}</td><td style="text-align:right">${t.batalReserved}</td></tr>`).join('')}</table>` : ''}` : '';
+      return `<h2>6D. RINGKASAN PENJUALAN <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(kontrak yang dijual pada periode report, status per hari ini)</span></h2>
+<table style="width:100%;table-layout:fixed"><tr><th style="text-align:center">Kontrak</th><th style="text-align:center">Booking</th><th style="text-align:center">Sudah akad</th><th style="text-align:center">Batal</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Nilai penjualan</th></tr>
+<tr style="text-align:center;font-weight:bold"><td>${L.length}</td><td style="color:#23694A">${bk.length}</td><td style="color:#0F5A3A">${bk.filter(x => x.akad).length}</td><td style="color:#B3402F">${bt.length}</td><td style="color:#8A5F14">${rv.length}</td><td>${rp2(nilaiL)}</td></tr></table>
 ${rek('Per cara bayar', x => (x.bayar || 'Belum diisi').replace(/\s*\d+x$/i, ''))}
 ${rek('Per sales', x => x.sales || '-')}
-<p class="muted" style="font-size:8.5pt">Penjualan diakui pada tanggal Booking. Detail per konsumen (tanggal Reserved, Booking, nominal, cara bayar, status KPR) ada di menu Report → Laporan Penjualan (Excel/PDF).</p>`;
+${posisi}
+<p class="muted" style="font-size:8.5pt">Angka sama dengan Report → Laporan Penjualan pada filter yang sama: kontrak dihitung menurut tanggal penjualannya (Booking; Reserved bila belum Booking), sehingga kontrak tahun lalu yang batal tahun ini tidak masuk periode ini; ganti kontrak tidak dihitung. Detail per konsumen dan daftar proses KPR ada di Laporan Penjualan (Excel/PDF).</p>`;
     })()}
 ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;

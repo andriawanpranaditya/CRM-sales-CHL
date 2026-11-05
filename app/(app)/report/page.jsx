@@ -1,4 +1,5 @@
 'use client';
+import { idBookingAktif } from '@/lib/penjualan-aktif';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, catatUnduh } from '@/components/util';
@@ -69,17 +70,18 @@ function TabSales({ proj, d1, d2, fSales, set }) {
   const fLeads = leads.filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l.sales === fSales));
   const fTrx = trx.filter(t => (!proj || t.project === proj) && dlm(t.tgl) && (!fSales || t.sales === fSales));
   const salesNames = fSales ? [fSales] : [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
+  const aktifId = idBookingAktif(trx); // Booking yang kemudian batal tidak dihitung — sama dengan Laporan Penjualan
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Drop'];
   return (
     <>
-      <div className="hint" style={{ margin: '0 0 10px' }}>Lead yang masuk pada periode · status saat ini dari Database Lead · Reserved &amp; Booking dari transaksi pada periode · Closing Rate = Booking ÷ Total Lead</div>
+      <div className="hint" style={{ margin: '0 0 10px' }}>Lead yang masuk pada periode · status saat ini dari Database Lead · Reserved &amp; Booking dari transaksi pada periode (Booking yang kemudian batal tidak dihitung, sama dengan Laporan Penjualan) · Closing Rate = Booking ÷ Total Lead</div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>Sales / PIC</th><th className="num">Total</th>{ST.map(s => <th className="num" key={s}>{s}</th>)}
           <th className="num" style={{ color: 'var(--brass)' }}>Reserved</th><th className="num" style={{ color: 'var(--red)' }}>Booking</th><th className="num">Closing Rate</th></tr></thead>
         <tbody>
           {salesNames.length ? salesNames.map(s => {
             const mine = fLeads.filter(l => l.sales === s), c = st => mine.filter(l => l.status === st).length, myTrx = fTrx.filter(t => t.sales === s);
-            const resSet = new Set(myTrx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), bookSet = new Set(myTrx.filter(t => t.jenis === 'Booking').map(t => t.lead_code));
+            const resSet = new Set(myTrx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), bookSet = new Set(myTrx.filter(t => (t.jenis === 'Booking' || t.jenis === 'Closing') && aktifId.has(t.id)).map(t => t.lead_code + '|' + (t.unit || '')));
             return <tr key={s}><td data-label="Sales"><b>{s}</b></td><td className="num" data-label="Total">{mine.length}</td>
               {ST.map(st => <td className="num" key={st} data-label={st}>{c(st)}</td>)}
               <td className="num" data-label="Reserved"><b style={{ color: 'var(--brass)' }}>{resSet.size}</b></td>

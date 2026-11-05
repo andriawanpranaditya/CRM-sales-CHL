@@ -140,9 +140,9 @@ export async function GET(req) {
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa'))::int AS l1,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl)))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
-        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
+        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl))), 0)::numeric AS nilai
     FROM leads l
     WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1 ORDER BY l0 DESC`,
@@ -152,9 +152,9 @@ export async function GET(req) {
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa'))::int AS l1,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl)))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
-        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
+        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl))), 0)::numeric AS nilai
     FROM leads l
     WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1 ORDER BY l0 DESC`,
@@ -163,7 +163,7 @@ export async function GET(req) {
       count(*)::int AS l0,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl)))::int AS l3
     FROM leads l
     WHERE COALESCE(l.konten, '') <> ''
       AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
@@ -175,7 +175,7 @@ export async function GET(req) {
       COALESCE(NULLIF(l.tipe, ''), '-') AS tipe,
       COALESCE(NULLIF(l.sumber, ''), '-') AS sumber,
       count(*)::int AS l2,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl)))::int AS l3
     FROM leads l
     WHERE ((l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))
@@ -188,9 +188,9 @@ export async function GET(req) {
       count(*) FILTER (WHERE l.tgl >= date_trunc('month', now())::date)::int AS l0_bln,
       count(*) FILTER (WHERE (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.l2_at IS NOT NULL OR l.sumber ILIKE '%walk%')
         OR EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Reserved','Booking','Closing')))::int AS l2,
-      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing')))::int AS l3,
+      count(*) FILTER (WHERE EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl)))::int AS l3,
       COALESCE(sum((SELECT COALESCE(max(COALESCE(t.nilai_jual, t.nilai)), 0) FROM transactions t
-        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing'))), 0)::numeric AS nilai
+        WHERE t.lead_code = l.lead_code AND t.jenis IN ('Booking','Closing') AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl))), 0)::numeric AS nilai
     FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
     WHERE (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date) AND (${proj}::text IS NULL OR l.project = ${proj})
     GROUP BY 1`,

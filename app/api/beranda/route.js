@@ -262,10 +262,10 @@ async function berandaSales(sql, user, hariIni, semua, opsi = {}) {
     sql`SELECT count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       AND (SELECT t.jenis FROM transactions t WHERE t.lead_code = l.lead_code ORDER BY t.id DESC LIMIT 1) = 'Reserved'`,
     // Penjualan diakui pada tanggal Booking (bulan berjalan), satu lead dihitung sekali
-    sql`SELECT count(DISTINCT t.lead_code)::int AS n, COALESCE(sum(x.nilai), 0)::numeric AS nilai FROM transactions t
+    sql`SELECT count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n, COALESCE(sum(x.nilai), 0)::numeric AS nilai FROM transactions t
       JOIN leads l ON l.lead_code = t.lead_code
       JOIN LATERAL (SELECT COALESCE(t.nilai_jual, t.nilai, 0) AS nilai) x ON true
-      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
+      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
     // Stok unit: perhitungan yang sama persis dengan halaman Master Stock (lib/stok.js)
     ringkasStok(sql).then(r => pp ? r.filter(x => pp.includes(x.project)) : r).catch(e => { console.error('stok beranda', e); return []; }),
   ]);
@@ -373,14 +373,14 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   await siapkanKpr(sql); await sinkronKpr(sql);
 
   const [jual, jualLalu, resv, funnel, spendRows, amort, camps, l2Camp, bookCamp, spendCamp, belum, resLama, hangat, kprRows, sales] = await Promise.all([
-    sql`SELECT COALESCE(NULLIF(t.project, ''), l.project, '') AS project, count(DISTINCT t.lead_code)::int AS n,
+    sql`SELECT COALESCE(NULLIF(t.project, ''), l.project, '') AS project, count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n,
         COALESCE(sum(COALESCE(t.nilai_jual, t.nilai, 0)), 0)::numeric AS nilai
       FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-      WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
+      WHERE t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
         AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[]))
       GROUP BY 1`,
-    sql`SELECT count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-      WHERE t.jenis = 'Booking' AND t.tgl >= ${lalu1}::date AND t.tgl <= ${lalu2}::date
+    sql`SELECT count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${lalu1}::date AND t.tgl <= ${lalu2}::date
         AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[]))`,
     sql`SELECT count(DISTINCT t.lead_code)::int AS n, COALESCE(sum(t.nilai), 0)::numeric AS nilai FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
       WHERE t.jenis = 'Reserved' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
@@ -401,8 +401,8 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     sql`SELECT l.campaign AS c, count(*)::int AS n FROM leads l WHERE COALESCE(l.campaign, '') <> '' AND l.tgl >= ${d1}::date AND l.tgl <= ${hariIni}::date
       AND (l.status IN ('Warm','Hot','Appointment','Site Visit','Booking','Closing') OR l.sumber ILIKE '%walk%'
         OR EXISTS (SELECT 1 FROM transactions t2 WHERE t2.lead_code = l.lead_code AND t2.jenis IN ('Reserved','Booking','Closing'))) GROUP BY 1`,
-    sql`SELECT l.campaign AS c, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-      WHERE COALESCE(l.campaign, '') <> '' AND t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date GROUP BY 1`,
+    sql`SELECT l.campaign AS c, count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE COALESCE(l.campaign, '') <> '' AND t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date GROUP BY 1`,
     sql`SELECT campaign AS c, COALESCE(sum(spend), 0)::numeric AS s FROM mi_ads WHERE tgl >= ${d1}::date AND tgl <= ${hariIni}::date GROUP BY 1`.catch(() => []),
     // Lead yang dioper ke sales > 24 jam tetapi belum dihubungi sales itu
     sql`SELECT l.lead_code, l.nama, l.sales, l.project, a.created_at AS dioper, COALESCE(uo.name, a.oleh) AS oleh,
@@ -484,8 +484,8 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
           -- hanya lead yang dioper ORANG LAIN (Marcom/manager); lead walk-in yang diinput sales sendiri tidak dihitung
           AND COALESCE(a.oleh, '') NOT IN (SELECT username FROM users WHERE name = a.ke)
         ORDER BY a.created_at DESC`.catch(() => []),
-      sql`SELECT l.sales, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-        WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND l.sales = ANY(${salesPilih}::text[])
+      sql`SELECT l.sales, count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+        WHERE t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date AND l.sales = ANY(${salesPilih}::text[])
           AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[])) GROUP BY 1`,
     ]);
     const proyekSales = Object.fromEntries(sales.map(s => [s.name, Array.isArray(s.projects) && s.projects.length ? s.projects : null]));
@@ -573,13 +573,13 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   const awalTahun = hariIni.slice(0, 4) + '-01-01';
   const [trenRows, harian, resAktif] = await Promise.all([
     sql`SELECT to_char(t.tgl, 'YYYY-MM') AS bln, COALESCE(NULLIF(t.project, ''), l.project, '') AS project,
-        count(DISTINCT t.lead_code)::int AS n, COALESCE(sum(COALESCE(t.nilai_jual, t.nilai, 0)), 0)::numeric AS nilai
+        count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n, COALESCE(sum(COALESCE(t.nilai_jual, t.nilai, 0)), 0)::numeric AS nilai
       FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-      WHERE t.jenis = 'Booking' AND t.tgl >= ${awalTahun}::date AND t.tgl <= ${hariIni}::date
+      WHERE t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalTahun}::date AND t.tgl <= ${hariIni}::date
         AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[]))
       GROUP BY 1, 2`.catch(() => []),
-    sql`SELECT t.tgl::text AS tgl, count(DISTINCT t.lead_code)::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
-      WHERE t.jenis = 'Booking' AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
+    sql`SELECT t.tgl::text AS tgl, count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
+      WHERE t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date
         AND (${pp}::text[] IS NULL OR COALESCE(NULLIF(t.project, ''), l.project, '') = ANY(${pp}::text[])) GROUP BY 1`.catch(() => []),
     // Reserved aktif = transaksi terakhir lead masih Reserved (belum naik Booking / batal)
     sql`SELECT x.project, count(*)::int AS n, COALESCE(sum(x.nilai), 0)::numeric AS nilai FROM (
