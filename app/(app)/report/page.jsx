@@ -9,7 +9,7 @@ const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['l
 const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 const awalBulan = () => hariIni().slice(0, 8) + '01';
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
-const WST = { Booking: 'var(--green)', Batal: 'var(--red)', Reserved: 'var(--brass-deep)', 'Ganti kontrak': 'var(--muted)' };
+const WST = { Booking: 'var(--green)', Akad: '#0F5A3A', Batal: 'var(--red)', Reserved: 'var(--brass-deep)', 'Ganti kontrak': 'var(--muted)' };
 
 export default function ReportPage() {
   const [tab, setTab] = useState('sales');
@@ -173,9 +173,9 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
           <thead><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th className="num">Harga jual</th><th>Cara bayar</th>
             <th><select className="rp-filter-status" value={fStatus} onChange={e => setFStatus(e.target.value)} aria-label="Saring status">
               <option value="">Status: semua ({semuaRows.length})</option>
-              {['Booking', 'Batal', 'Ganti kontrak', 'Reserved'].map(st => { const n = semuaRows.filter(x => x.status === st).length; return n ? <option key={st} value={st}>{st} ({n})</option> : null; })}
+              {[['Akad', 'Akad (sudah akad)'], ['Booking', 'Booking (belum akad)'], ['Batal', 'Batal'], ['Ganti kontrak', 'Ganti kontrak'], ['Reserved', 'Reserved']].map(([st, l]) => { const n = semuaRows.filter(x => (x.status_tampil || x.status) === st).length; return n ? <option key={st} value={st}>{l} ({n})</option> : null; })}
             </select></th><th>Update status terakhir</th></tr></thead>
-          <tbody>{semuaRows.filter(r => !fStatus || r.status === fStatus).map((r, i) => (<tr key={r.lead_code + r.unit + '#' + (r.seg || 0)}>
+          <tbody>{semuaRows.filter(r => !fStatus || (r.status_tampil || r.status) === fStatus).map((r, i) => (<tr key={r.lead_code + r.unit + '#' + (r.seg || 0)}>
             <td data-label="No">{i + 1}</td>
             <td data-label="Konsumen"><b>{r.nama}</b><span className="sub2">{r.lead_code} · {r.sumber}</span></td>
             <td data-label="Project · Unit">{r.project}<span className="sub2">{r.unit} {r.tipe ? '· ' + r.tipe : ''}</span></td>
@@ -183,7 +183,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
             <td data-label="Booking">{r.tgl_booking ? <>{fmtDate(r.tgl_booking)}{r.nilai_booking ? <span className="sub2" title={r.bf_sumber ? 'Sumber: ' + r.bf_sumber : ''}>BF {fmtRp(r.nilai_booking)}</span> : null}</> : '—'}</td>
             <td className="num" data-label="Harga jual">{fmtRp(r.harga)}</td>
             <td data-label="Cara bayar">{r.cara_bayar || '—'}</td>
-            <td data-label="Status"><b style={{ color: WST[r.status] }}>{r.status}</b>{r.tgl_batal ? <span className="sub2">{fmtDate(r.tgl_batal)}</span> : null}{r.tgl_reserved ? <span className="sub2">Reserved {fmtDate(r.tgl_reserved)}</span> : null}</td>
+            <td data-label="Status"><b style={{ color: WST[r.status_tampil || r.status] }}>{r.status_tampil || r.status}</b>{r.akad ? <span className="sub2">{fmtDate(r.akad)}</span> : null}{r.tgl_batal ? <span className="sub2">{fmtDate(r.tgl_batal)}</span> : null}{r.tgl_reserved ? <span className="sub2">Reserved {fmtDate(r.tgl_reserved)}</span> : null}</td>
             <td data-label="Update status terakhir">{r.update_terakhir}</td></tr>))}</tbody></table></div>
           : <p className="hint">Tidak ada transaksi pada filter ini.</p>}
       </div>
@@ -379,7 +379,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
 // ---------- PDF: HTML siap cetak (A4 mendatar) ----------
 function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum }) {
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const warna = { Booking: '#1E6A4C', Batal: '#B4482A', Reserved: '#7A5414', 'Ganti kontrak': '#5B6E66' };
+  const warna = { Booking: '#1E6A4C', Akad: '#0F5A3A', Batal: '#B4482A', Reserved: '#7A5414', 'Ganti kontrak': '#5B6E66' };
   const rek = (judul, data, konversi, rata) => `<h3>${judul}</h3><table><tr><th>Nama</th><th class="r">Unit</th><th class="r">Booking</th><th class="r">Batal</th><th class="r">Reserved</th><th class="r">Nilai penjualan</th><th class="r">${konversi ? 'Konversi' : 'Porsi'}</th>${rata ? '<th class="r">Rata-rata hari</th>' : ''}</tr>
     ${data.map(r => `<tr><td><b>${esc(r.nama)}</b></td><td class="r">${r.n}</td><td class="r">${r.booking}</td><td class="r">${r.batal}</td><td class="r">${r.reserved}</td><td class="r">${rpM(r.nilai)}</td><td class="r">${konversi ? (r.n ? Math.round(r.booking / r.n * 100) : 0) : (ringkas.nilai ? Math.round(r.nilai / ringkas.nilai * 100) : 0)}%</td>${rata ? `<td class="r">${r.rata != null ? r.rata.toLocaleString('id-ID', { maximumFractionDigits: 1 }) : '—'}</td>` : ''}</tr>`).join('')}</table>`;
   return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Laporan Penjualan</title><style>
@@ -402,12 +402,24 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
     .map(([l, v, k], i) => `<div class="${i === 5 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
   <p class="muted">Tanda jadi Reserved diterima <b>${fmtRp(ringkas.tj)}</b> · Booking fee tercatat <b>${fmtRp(ringkas.bf)}</b> (hanya BF yang terkonfirmasi)</p>
   <div class="dua"><div>${rek('Per cara bayar', perBayar, false)}</div><div>${rek('Per project', perProject, true)}</div></div>
+  ${(() => {
+    // Konsumen KPR yang masih proses (Booking, belum akad) beserta status terakhirnya
+    const pk = rows.filter(r => r.proses_kpr).sort((a, b) => String(a.tgl_booking || '').localeCompare(String(b.tgl_booking || '')));
+    if (!pk.length) return '';
+    const hariIni = new Date().toISOString().slice(0, 10);
+    const lama = t => t ? Math.max(0, Math.round((Date.parse(hariIni) - Date.parse(t)) / 86400000)) : '';
+    const perTahap = {}; pk.forEach(r => { const l = r.kpr?.akad_tgl ? 'SP3K / rencana akad' : (r.kpr?.label || 'Belum dicatat'); perTahap[l] = (perTahap[l] || 0) + 1; });
+    return `<h2 style="page-break-before:always">Proses KPR berjalan · ${pk.length} konsumen</h2>
+  <p class="muted">Booking dengan cara bayar KPR yang belum akad, diurutkan dari Booking terlama. Per tahap: ${Object.entries(perTahap).map(([l, n]) => `${esc(l)} ${n}`).join(' · ')}.</p>
+  <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Hari sejak Booking</th><th>Status KPR terakhir</th></tr>
+  ${pk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)}</td><td>${esc(r.sales || '—')}</td><td>${fmtDate(r.tgl_booking)}</td><td class="r">${lama(r.tgl_booking)}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>`;
+  })()}
   <h2 style="page-break-before:always">Detail transaksi</h2>
   <p class="muted">Satu baris = satu konsumen/unit. Tanggal Reserved tampil di kolom Status bila konsumen sempat Reserved. Kolom terakhir = update status terakhir (akad / rencana akad / proses KPR / cara bayar cash).</p>
   <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th>Harga jual</th><th>Cara bayar</th><th>Status</th><th>Update status terakhir</th></tr>
   ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)} · ${esc(r.sumber)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)} ${r.tipe ? '· ' + esc(r.tipe) : ''}</td><td>${esc(r.sales || '—')}</td>
     <td>${r.tgl_booking ? fmtDate(r.tgl_booking) + (r.nilai_booking ? '<br><span class="muted">BF ' + fmtRp(r.nilai_booking) + '</span>' : '') : '—'}</td>
-    <td>${fmtRp(r.harga)}</td><td>${esc(r.cara_bayar || '—')}</td><td style="color:${warna[r.status]};font-weight:bold">${r.status}${r.tgl_batal ? '<br><span class="muted">' + fmtDate(r.tgl_batal) + '</span>' : ''}${r.tgl_reserved ? '<br><span class="muted">Reserved ' + fmtDate(r.tgl_reserved) + '</span>' : ''}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>
-  <p class="ket">Keterangan: <b>Reserved</b> = tanda jadi untuk mengunci unit (belum dihitung penjualan) · <b>Booking</b> = booking fee, penjualan diakui pada tanggal ini · <b>Batal</b> = unit kembali ke stok · <b>Konversi</b> = Booking bersih ÷ seluruh kontrak · Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</p>
+    <td>${fmtRp(r.harga)}</td><td>${esc(r.cara_bayar || '—')}</td><td style="color:${warna[r.status_tampil || r.status]};font-weight:bold">${r.status_tampil || r.status}${r.akad ? '<br><span class="muted">' + fmtDate(r.akad) + '</span>' : ''}${r.tgl_batal ? '<br><span class="muted">' + fmtDate(r.tgl_batal) + '</span>' : ''}${r.tgl_reserved ? '<br><span class="muted">Reserved ' + fmtDate(r.tgl_reserved) + '</span>' : ''}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>
+  <p class="ket">Keterangan: <b>Reserved</b> = tanda jadi untuk mengunci unit (belum dihitung penjualan) · <b>Booking</b> = booking fee, penjualan diakui pada tanggal ini · <b>Akad</b> = Booking KPR yang akadnya sudah terealisasi (tetap dihitung sebagai Booking) · <b>Batal</b> = unit kembali ke stok · <b>Konversi</b> = Booking bersih ÷ seluruh kontrak · Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</p>
   </body></html>`;
 }

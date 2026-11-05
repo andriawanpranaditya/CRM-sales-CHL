@@ -23,14 +23,16 @@ const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt
 const tglId = t => { const d = tglStr(t); return d ? `${Number(d.slice(8, 10))} ${BLN[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : ''; };
 
 function teksUpdate(r) {
+  const tambah = (t, ...x) => [t, ...x.filter(Boolean)].join(' · ');
+  if (r.status === 'Ganti kontrak') return `Ganti kontrak ${tglId(r.tgl_batal)} — diganti kontrak baru konsumen yang sama` + (r.alasan_batal ? ` (${r.alasan_batal.replace(/^Ganti kontrak · ?/, '')})` : '');
   if (r.status === 'Batal') return `Batal ${tglId(r.tgl_batal)}` + (r.alasan_batal ? ` — ${r.alasan_batal}` : '');
   if (/kpr/i.test(r.bayar || '')) {
     const k = r.kpr;
-    if (k?.akad_realisasi) return `Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : '');
-    if (k?.akad_tgl) return `Rencana akad ${tglId(k.akad_tgl)}` + (k.akad_bank ? ` (${k.akad_bank})` : '') + ' — SP3K terbit';
+    if (k?.akad_realisasi) return tambah(`Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : ''), r.no_kontrak ? 'kontrak ' + r.no_kontrak : '', k.catatan, r.catatan);
+    if (k?.akad_tgl) return tambah(`Rencana akad ${tglId(k.akad_tgl)}` + (k.akad_bank ? ` (${k.akad_bank})` : '') + ' — SP3K terbit', k.catatan);
     if (r.status === 'Reserved') return 'Reserved — KPR ' + (k?.label && k.label !== 'Menunggu Booking' ? k.label : 'belum dimulai') + ' (dihitung setelah Booking)';
     if (!k) return 'Booking — proses KPR belum dicatat';
-    return `Proses KPR: ${k.label}` + (k.banks.length ? ` (${k.banks.join(', ')})` : '') + (k.updated_at ? ` · update ${tglId(k.updated_at)}` : '');
+    return tambah(`Proses KPR: ${k.label}` + (k.banks.length ? ` (${k.banks.join(', ')})` : '') + (k.updated_at ? ` · update ${tglId(k.updated_at)}` : ''), k.catatan);
   }
   const awal = r.status === 'Booking' ? 'Booking — ' : 'Reserved — ';
   if (/bertahap/i.test(r.bayar || '')) return awal + `Cash bertahap${r.cicilan ? ' ' + r.cicilan + 'x' : ''}` + (r.catatan ? ` · ${r.catatan}` : '');
@@ -137,15 +139,18 @@ export async function GET(req) {
   // Status KPR per lead
   const kodes = [...new Set(rows.map(g => g.lead_code))];
   if (kodes.length) {
-    const ks = await sql`SELECT k.id, k.lead_code, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at FROM kpr k WHERE k.lead_code = ANY(${kodes}::text[])`;
+    const ks = await sql`SELECT k.id, k.lead_code, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, k.catatan FROM kpr k WHERE k.lead_code = ANY(${kodes}::text[])`;
     const ids = ks.map(k => k.id);
     const bk = ids.length ? await sql`SELECT id, kpr_id, bank, tahap FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id` : [];
     const peta = {};
     ks.forEach(k => { const b = bk.filter(x => x.kpr_id === k.id); const st = statusKpr(k, b, 'Booking');
       peta[k.lead_code] = { label: st.label, kategori: st.kategori, banks: b.filter(x => !['Ditolak', 'Tidak dilanjutkan'].includes(x.tahap)).map(x => x.bank),
-        akad_bank: (b.find(x => x.id === k.akad_bank_id) || {}).bank || '', akad_tgl: k.akad_tgl, akad_realisasi: k.akad_realisasi, updated_at: tglStr(k.updated_at) }; });
+        akad_bank: (b.find(x => x.id === k.akad_bank_id) || {}).bank || '', akad_tgl: k.akad_tgl, akad_realisasi: k.akad_realisasi, updated_at: tglStr(k.updated_at), catatan: String(k.catatan || '').trim() }; });
     rows.forEach(g => { g.kpr = peta[g.lead_code] || null; });
   }
+  // Status tampilan: Booking yang akad KPR-nya sudah terealisasi ditampilkan "Akad" (tetap dihitung sebagai Booking di ringkasan)
+  rows.forEach(g => { g.akad = g.status === 'Booking' && /kpr/i.test(g.bayar || '') && g.kpr?.akad_realisasi ? g.kpr.akad_realisasi : null; g.status_tampil = g.akad ? 'Akad' : g.status;
+    g.proses_kpr = g.status === 'Booking' && /kpr/i.test(g.bayar || '') && !g.akad; });
   rows.forEach(g => { g.update_terakhir = teksUpdate(g); g.cara_bayar = /bertahap/i.test(g.bayar || '') && g.cicilan ? `${g.bayar} ${g.cicilan}x` : g.bayar; });
   rows.sort((a, b) => String(a.tgl_reserved || a.tgl_booking || '').localeCompare(String(b.tgl_reserved || b.tgl_booking || '')) || a.lead_code.localeCompare(b.lead_code));
   // Impor buku penjualan resmi yang belum dijalankan (sekali per project) — tombolnya hilang sendiri setelah impor
