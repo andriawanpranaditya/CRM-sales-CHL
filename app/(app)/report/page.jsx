@@ -152,7 +152,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
       <div className="rp-aksi">
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy || !rows.length} onClick={unduhExcel}>⬇ Unduh Excel</button>
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!rows.length} onClick={unduhPdf}>📄 Unduh PDF</button>
-        <span className="hint">{rows.length} konsumen · {periode}{proj ? ' · ' + proj : ''}{fSales ? ' · sales ' + fSales : ''}. Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</span>
+        <span className="hint">{rows.length} transaksi · {periode}{proj ? ' · ' + proj : ''}{fSales ? ' · sales ' + fSales : ''}. Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</span>
       </div>
       {d.kumulatif && <PosisiPenjualan k={d.kumulatif} proj={proj} impor={d.imporTersedia || []} busy={busy} imporJual={imporJual} />}
       <h3 style={{ margin: '18px 0 8px' }}>Penjualan pada periode terpilih · {periode}</h3>
