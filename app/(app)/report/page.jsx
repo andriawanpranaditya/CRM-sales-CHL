@@ -96,11 +96,30 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
   const [d, setD] = useState(null);
   const [busy, setBusy] = useState(false);
   const [fStatus, setFStatus] = useState(''); // filter kolom Status di tabel detail
+  const [muatUlang, setMuatUlang] = useState(0);
+  // Impor buku penjualan resmi (sekali per project; tombol hilang sendiri setelah impor)
+  async function imporJual(x0, cek) {
+    if (!cek && !confirm(`Impor buku penjualan resmi ${x0.project} per ${fmtDate(x0.per)}?\n\nKontrak aktif, kontrak batal, dan ganti kontrak disamakan ke transaksi CRM. Kontrak yang sudah ada di CRM dilengkapi, yang belum ada dibuat. Tanggal akad KPR diperbarui. Setelah impor, tombol ini tidak tampil lagi.`)) return;
+    setBusy(true);
+    try {
+      const x = await api('/api/laporan-penjualan', { method: 'POST', body: JSON.stringify({ aksi: 'impor', project: x0.project, cek }) });
+      const daftar = (a, n = 6) => a.length ? a.slice(0, n).join(', ') + (a.length > n ? ` … (+${a.length - n})` : '') : '—';
+      alert([`${cek ? 'CEK (belum ada yang diubah)' : 'IMPOR SELESAI'} — buku penjualan ${x.project} per ${x.per}`, '',
+        `Kontrak aktif: ${x.aktif.dilengkapi.length} sudah ada di CRM (dilengkapi), ${x.aktif.dibuat.length} ${cek ? 'akan ' : ''}dibuat`,
+        `Kontrak batal: ${x.batal.dilengkapi.length} sudah ada, ${x.batal.dibuat.length} ${cek ? 'akan ' : ''}dibuat`,
+        x.ganti?.length ? `Ganti kontrak / pindah unit (tidak dihitung batal): ${x.ganti.length} — ${daftar(x.ganti, 5)}` : '',
+        `Tanggal akad KPR ${cek ? 'yang akan ' : ''}diperbarui: ${x.akad}`,
+        x.tandaImporDihapus ? `Tanda stok lama hasil impor ${cek ? 'akan ' : ''}dihapus: ${x.tandaImporDihapus} (status unit kini dari transaksi)` : '',
+        x.unitDobel.length ? `PERLU DICEK — unit aktif di CRM atas nama lain dari buku penjualan: ${daftar(x.unitDobel, 10)}` : '',
+        x.tidakDiBuku.length ? `PERLU DICEK — tercatat aktif di CRM tetapi tidak ada di buku penjualan: ${daftar(x.tidakDiBuku, 10)}` : ''].filter(Boolean).join('\n'));
+      if (!cek) setMuatUlang(n => n + 1);
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
   useEffect(() => {
     setD(null);
     api('/api/laporan-penjualan?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '') + '&sales=' + encodeURIComponent(fSales || ''))
       .then(setD).catch(e => toast(e.message));
-  }, [proj, d1, d2, fSales]);
+  }, [proj, d1, d2, fSales, muatUlang]);
   if (!d) return <div className="loading">Menyusun laporan penjualan…</div>;
   // Ganti kontrak tidak ikut dihitung di ringkasan (bukan penjualan baru, bukan batal), tetapi tetap tampil di detail
   const semuaRows = d.rows, rows = semuaRows.filter(r => r.status !== 'Ganti kontrak'), bk = rows.filter(r => r.status === 'Booking'), bt = rows.filter(r => r.status === 'Batal'), rv = rows.filter(r => r.status === 'Reserved');
@@ -133,7 +152,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!rows.length} onClick={unduhPdf}>📄 Unduh PDF</button>
         <span className="hint">{rows.length} konsumen · {periode}{proj ? ' · ' + proj : ''}{fSales ? ' · sales ' + fSales : ''}. Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</span>
       </div>
-      {d.kumulatif && <PosisiPenjualan k={d.kumulatif} proj={proj} />}
+      {d.kumulatif && <PosisiPenjualan k={d.kumulatif} proj={proj} impor={d.imporTersedia || []} busy={busy} imporJual={imporJual} />}
       <h3 style={{ margin: '18px 0 8px' }}>Penjualan pada periode terpilih · {periode}</h3>
       <div className="rp-kpi">
         {[['Reserved / Booking', ringkas.n, 'konsumen'], ['Booking', ringkas.booking, 'penjualan bersih (masih berjalan)'], ['Batal', ringkas.batal, 'unit kembali ke stok'], ['Masih Reserved', ringkas.reserved, 'pipeline'],
@@ -156,7 +175,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
               <option value="">Status: semua ({semuaRows.length})</option>
               {['Booking', 'Batal', 'Ganti kontrak', 'Reserved'].map(st => { const n = semuaRows.filter(x => x.status === st).length; return n ? <option key={st} value={st}>{st} ({n})</option> : null; })}
             </select></th><th>Update status terakhir</th></tr></thead>
-          <tbody>{semuaRows.filter(r => !fStatus || r.status === fStatus).map((r, i) => (<tr key={r.lead_code + r.unit}>
+          <tbody>{semuaRows.filter(r => !fStatus || r.status === fStatus).map((r, i) => (<tr key={r.lead_code + r.unit + '#' + (r.seg || 0)}>
             <td data-label="No">{i + 1}</td>
             <td data-label="Konsumen"><b>{r.nama}</b><span className="sub2">{r.lead_code} · {r.sumber}</span></td>
             <td data-label="Project · Unit">{r.project}<span className="sub2">{r.unit} {r.tipe ? '· ' + r.tipe : ''}</span></td>
@@ -172,11 +191,13 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
   );
 }
 // ===== Posisi penjualan kumulatif s.d. hari ini — Reserved, Booking, Batal, penjualan bersih =====
-function PosisiPenjualan({ k, proj }) {
+function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
   const b = k.batalBooking, p = k.penjualan;
   return (<div className="card rp-posisi">
     <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Posisi penjualan s.d. {fmtDate(k.per)}{proj ? ' · ' + proj : ' · semua project'}</h3>
-</div>
+
+      {impor.map(x => <span key={x.project} style={{ display: 'inline-flex', gap: 6 }}><button className="sort-btn" disabled={busy} onClick={() => imporJual(x, true)}>🔍 Cek buku penjualan {x.project}</button>
+        <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={busy} onClick={() => imporJual(x, false)}>{busy ? '⏳…' : `⬆ Impor buku penjualan ${x.project} (${fmtDate(x.per)})`}</button></span>)}</div>
     <div className="rp-kpi" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
       <div className="card emas"><span className="hint">Total penjualan (bersih)</span><b className="rp-besar">{p.n} unit</b><span className="hint">{rpM(p.nilai)} nilai kontrak{p.cash ? ' · harga cash ' + rpM(p.cash) : ''}</span></div>
       <div className="card"><span className="hint">Booking tercatat</span><b className="rp-besar">{k.bookingTercatat.n}</b><span className="hint">{rpM(k.bookingTercatat.nilai)} · {p.n} aktif + {b.n} batal</span></div>

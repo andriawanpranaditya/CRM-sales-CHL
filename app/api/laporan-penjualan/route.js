@@ -1,6 +1,8 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { siapkanKpr, statusKpr } from '@/lib/kpr';
+import { imporPenjualan, SUMBER_PENJUALAN } from '@/lib/impor-penjualan';
+import { denganLog } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,10 +57,13 @@ export async function GET(req) {
     ORDER BY t.lead_code, t.tgl, CASE WHEN t.jenis = 'Batal' THEN 0 ELSE 1 END, t.id`;
   // Gabungkan per konsumen + unit
   const grup = new Map();
+  const segKe = {}; // kontrak baru setelah Batal di lead + unit yang sama (mis. ganti kontrak) = baris laporan tersendiri
   for (const t of trx) {
     if (!lihatBaris(user, { project: t.project, sales: t.sales, created_by: t.lead_by })) continue;
-    const k = t.lead_code + '|' + (t.unit || '');
-    const g = grup.get(k) || { lead_code: t.lead_code, nama: t.nama, project: t.project, unit: t.unit || '', tipe: t.tipe || '', sales: t.sales || '', sumber: t.sumber || '',
+    const k0 = t.lead_code + '|' + (t.unit || '');
+    let k = k0 + '#' + (segKe[k0] || 0);
+    if (grup.get(k)?.terakhir === 'Batal' && ['Reserved', 'Booking', 'Closing'].includes(t.jenis)) { segKe[k0] = (segKe[k0] || 0) + 1; k = k0 + '#' + segKe[k0]; }
+    const g = grup.get(k) || { seg: segKe[k0] || 0, lead_code: t.lead_code, nama: t.nama, project: t.project, unit: t.unit || '', tipe: t.tipe || '', sales: t.sales || '', sumber: t.sumber || '',
       walkin_info: t.walkin_info || '', campaign: t.campaign || '', tgl_reserved: null, nilai_reserved: 0, tgl_booking: null, nilai_booking: 0, harga: null, bayar: '', cicilan: null,
       tgl_batal: null, alasan_batal: '', catatan: '', terakhir: '', updated: null, no_kontrak: '', skema: '', harga_cash: null, dana_dibayar: null, dana_hangus: null, dana_refund: null, batal_refund: null };
     if (t.jenis === 'Reserved' && !g.tgl_reserved) { g.tgl_reserved = t.tgl; g.nilai_reserved = Number(t.nilai || 0); }
@@ -143,5 +148,28 @@ export async function GET(req) {
   }
   rows.forEach(g => { g.update_terakhir = teksUpdate(g); g.cara_bayar = /bertahap/i.test(g.bayar || '') && g.cicilan ? `${g.bayar} ${g.cicilan}x` : g.bayar; });
   rows.sort((a, b) => String(a.tgl_reserved || a.tgl_booking || '').localeCompare(String(b.tgl_reserved || b.tgl_booking || '')) || a.lead_code.localeCompare(b.lead_code));
-  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif });
+  // Impor buku penjualan resmi yang belum dijalankan (sekali per project) — tombolnya hilang sendiri setelah impor
+  let imporTersedia = [];
+  if (user.role === 'manager') {
+    const sudah = await sql`SELECT items FROM settings WHERE key = 'impor_penjualan'`.catch(() => []);
+    const done = sudah[0]?.items || {};
+    imporTersedia = Object.entries(SUMBER_PENJUALAN).filter(([p, src]) => !(done[p] === src.per) && (!pj || pj === p)).map(([p, src]) => ({ project: p, per: src.per, label: src.label }));
+  }
+  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, imporTersedia });
 }
+
+// ===== Impor buku penjualan resmi (Manager) — cek dulu, lalu impor; setelah impor tombolnya tidak tampil lagi =====
+async function _POST(req) {
+  const { user, err } = await requireUser(['manager']); if (err) return err;
+  const sql = db();
+  const b = await req.json().catch(() => ({}));
+  if (b.aksi !== 'impor' || !SUMBER_PENJUALAN[b.project]) return Response.json({ error: 'Aksi tidak dikenal' }, { status: 400 });
+  const hasil = await imporPenjualan(sql, user, { project: b.project, cek: b.cek === true });
+  if (b.cek !== true) {
+    const lama = await sql`SELECT items FROM settings WHERE key = 'impor_penjualan'`.catch(() => []);
+    const isi = { ...(lama[0]?.items || {}), [b.project]: hasil.per };
+    await sql`INSERT INTO settings (key, items) VALUES ('impor_penjualan', ${JSON.stringify(isi)}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(isi)}`;
+  }
+  return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek' : 'Impor') + ' buku penjualan ' + b.project + ' per ' + hasil.per });
+}
+export const POST = denganLog('Report', _POST, ({ out }) => ({ detail: out.aksi || '' }));
