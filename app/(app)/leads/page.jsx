@@ -73,7 +73,8 @@ export default function LeadsPage() {
     } catch (e) { toast(e.message); }
   }
 
-  const salesList = useMemo(() => leads ? [...new Set(leads.map(l => l.sales).filter(Boolean))].sort() : [], [leads]);
+  // Pilihan sales hanya nama akun Sales aktif (menu Pengguna); nama agent / data lama tidak bisa dipilih
+  const salesList = useMemo(() => [...(set?.sales || [])].sort(), [set]);
 
   // Waktu follow up terakhir per lead (pesan otomatis WA tidak dihitung)
   const [fuTerakhir, fuRec] = useMemo(() => {

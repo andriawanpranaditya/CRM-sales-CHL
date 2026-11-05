@@ -73,7 +73,8 @@ function TabSales({ proj, d1, d2, fSales, set }) {
   const dlm = t => { const x = String(t || '').slice(0, 10); return x && (!d1 || x >= d1) && (!d2 || x <= d2); };
   const fLeads = leads.filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l.sales === fSales));
   const fTrx = trx.filter(t => (!proj || t.project === proj) && dlm(t.tgl) && (!fSales || t.sales === fSales));
-  const salesNames = fSales ? [fSales] : [...new Set([...(set.sales || []), ...fLeads.map(l => l.sales)].filter(Boolean))];
+  // Hanya sales yang punya akun (menu Pengguna); lead agent / nama tanpa akun tidak ditampilkan sebagai baris sales
+  const salesNames = fSales ? [fSales] : [...(set.sales || [])];
   const aktifId = idBookingAktif(trx); // Booking yang kemudian batal tidak dihitung — sama dengan Laporan Penjualan
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Drop'];
   return (

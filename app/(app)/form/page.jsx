@@ -568,7 +568,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />
-              : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}</select>}
+              : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}
+                {/* Lead lama milik agent / nama tanpa akun: tetap tampil agar tidak terhapus saat edit, tapi tidak bisa dipilih untuk lead lain */}
+                {lead.sales && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales} (tanpa akun)</option>}</select>}
           </div>}
           <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
             {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>

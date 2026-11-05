@@ -53,6 +53,11 @@ async function _POST(req) {
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
+  // Sales hanya boleh nama akun Sales yang aktif (menu Pengguna)
+  if (sales && user.role !== 'sales') {
+    const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${sales}`;
+    if (!ok.length) return Response.json({ error: `"${sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
+  }
   try { await siapkanFuWajib(sql); } catch (e) { console.error('fu wajib', e); }
   await siapkanStatusLog(sql);
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
@@ -111,6 +116,11 @@ async function _PATCH(req) {
   const rows = await sql`SELECT * FROM leads WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
+  // Mengganti sales hanya ke akun Sales aktif; nilai lama (agent / tanpa akun) tetap boleh dipertahankan
+  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales') {
+    const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${b.sales}`;
+    if (!ok.length) return Response.json({ error: `"${b.sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
+  }
   // Alasan drop wajib diisi saat status diubah ke Drop (tercatat di riwayat status & report)
   if (b.status === 'Drop' && cur.status !== 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   if (user.role === 'sales' && cur.sales !== user.name) {

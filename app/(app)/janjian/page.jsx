@@ -54,6 +54,8 @@ export default function JanjianPage() {
   const [filter, setFilter] = useState('visitor');
   useEffect(() => { const t = new URLSearchParams(window.location.search).get('tab'); if (['visitor', 'janji', 'update', 'rekap', 'riwayat'].includes(t)) setFilter(t === 'terbaru' ? 'riwayat' : t); }, []);
   const [fSales, setFSales] = useState('');
+  const [akunSales, setAkunSales] = useState([]); // nama akun Sales aktif — satu-satunya pilihan filter sales
+  useEffect(() => { api('/api/settings').then(s => setAkunSales(s.sales || [])).catch(() => {}); }, []);
   const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
   const [atur, setAtur] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -76,7 +78,7 @@ export default function JanjianPage() {
     tampil.forEach(r => { const k = r.perlu_update && r.tgl < now.tgl ? 'lewat' : r.tgl; (g[k] = g[k] || []).push(r); });
     return Object.entries(g).sort(([a], [b]) => a === 'lewat' ? -1 : b === 'lewat' ? 1 : filter === 'riwayat' ? b.localeCompare(a) : a.localeCompare(b));
   }, [tampil, now.tgl, filter]);
-  const salesList = [...new Set((d?.rows || []).map(r => r.sales).filter(Boolean))].sort();
+  const salesList = [...akunSales].sort();
   const pimpinan = me && ['manager', 'ceo'].includes(me.role);
 
   function bukaBaru() {
