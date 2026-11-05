@@ -65,6 +65,24 @@ export default function ReportPage() {
 }
 
 // ===== Tab 1: Kinerja Sales (tabel lama, kini ikut periode & filter sales) =====
+// Diagram batang bertumpuk (komposisi transaksi) — dipakai Kinerja Sales & Laporan Penjualan
+const SEG_TRX = [['book', 'Booking berjalan', 'var(--green)'], ['resv', 'Masih Reserved', 'var(--brass)'], ['batalBk', 'Batal setelah Booking', 'var(--red)'], ['batalRv', 'Batal saat Reserved', '#E7A79C']];
+function DiagramTrx({ judul, data, kanan }) {
+  const maks = Math.max(1, ...data.map(d => SEG_TRX.reduce((a, [k]) => a + (d[k] || 0), 0)));
+  return (<div className="card dg-card">
+    <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>{judul}</h3>
+      <span className="dg-leg">{SEG_TRX.map(([k, l, c]) => <span key={k}><i style={{ background: c }} />{l}</span>)}</span></div>
+    <div className="dg-list">{data.map(d => { const tot = SEG_TRX.reduce((a, [k]) => a + (d[k] || 0), 0); return (
+      <div className="dg-row" key={d.label}>
+        <span className="dg-lbl" title={d.label}>{d.label}</span>
+        <div className="dg-track"><div className="dg-bar" style={{ width: (tot / maks * 100) + '%' }}>
+          {SEG_TRX.map(([k, l, c]) => d[k] ? <span key={k} style={{ flex: d[k], background: c }} title={`${l}: ${d[k]}`}>{d[k] / maks > 0.04 ? d[k] : ''}</span> : null)}
+        </div><b className="dg-tot">{tot}</b></div>
+        <span className="dg-kanan">{kanan ? kanan(d) : ''}</span>
+      </div>); })}</div>
+  </div>);
+}
+
 function TabSales({ proj, d1, d2, fSales, set }) {
   const [leads, setLeads] = useState(null);
   const [lp, setLp] = useState(null);
@@ -79,42 +97,41 @@ function TabSales({ proj, d1, d2, fSales, set }) {
   const dlm = t => { const x = String(t || '').slice(0, 10); return x && (!d1 || x >= d1) && (!d2 || x <= d2); };
   // Nama sales disatukan ke akun (nama lengkap in-house → akun, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH)
   const akun = set.sales || [];
-  const LAIN = 'Lainnya (tanpa akun)';
-  const keAkun = n => akun.includes(n) ? n : LAIN;
-  const fLeads = leads.map(l => ({ ...l, _pj: keAkun(penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akun)) }))
-    .filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l._pj === fSales));
+  const fLeads = leads.filter(l => (!proj || l.project === proj) && dlm(l.tgl)).map(l => ({ ...l, _pj: penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akun) }));
   const rows = (lp.rows || []).filter(x => x.status !== 'Ganti kontrak')
-    .map(x => ({ ...x, _pj: keAkun(penanggungKinerja({ project: x.project, sales: x.sales, tgl: x.tgl_booking || x.tgl_reserved || x.tgl_batal }, akun)) }))
-    .filter(x => !fSales || x._pj === fSales);
-  const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Drop'];
-  const hitung = (L, T) => ({ lead: L.length, st: Object.fromEntries(ST.map(st => [st, L.filter(l => l.status === st).length])),
-    trx: T.length, resv: T.filter(x => x.status === 'Reserved').length, book: T.filter(x => x.status === 'Booking').length,
-    batalRv: T.filter(x => x.status === 'Batal' && !x.tgl_booking).length, batalBk: T.filter(x => x.status === 'Batal' && x.tgl_booking).length,
+    .map(x => ({ ...x, _pj: penanggungKinerja({ project: x.project, sales: x.sales, tgl: x.tgl_booking || x.tgl_reserved || x.tgl_batal }, akun) }));
+  const hitung = (L, T) => ({ lead: L.length, trx: T.length, book: T.filter(x => x.status === 'Booking').length, resv: T.filter(x => x.status === 'Reserved').length,
+    batalBk: T.filter(x => x.status === 'Batal' && x.tgl_booking).length, batalRv: T.filter(x => x.status === 'Batal' && !x.tgl_booking).length,
     nilai: T.filter(x => x.status === 'Booking').reduce((a, x) => a + (Number(x.harga) || 0), 0) });
-  const nama = fSales ? [fSales] : [...akun, ...((fLeads.some(l => l._pj === LAIN) || rows.some(x => x._pj === LAIN)) ? [LAIN] : [])];
+  // Saat project dipilih: hanya sales yang memegang project itu (akun dibatasi project) atau yang punya lead / transaksi di project itu
+  const projAkun = n => set.sales_project?.[n] || null;
+  const tampil = n => !proj || (projAkun(n) ? projAkun(n).includes(proj) : (fLeads.some(l => l._pj === n) || rows.some(x => x._pj === n)));
+  const nama = fSales ? [fSales] : akun.filter(tampil);
   const data = nama.map(n => ({ n, ...hitung(fLeads.filter(l => l._pj === n), rows.filter(x => x._pj === n)) }));
-  const tot = hitung(fLeads, rows);
-  const baris = (r, total) => (<tr key={r.n} style={total ? { fontWeight: 700 } : r.n === LAIN ? { color: 'var(--muted)' } : undefined}>
-    <td data-label="Sales">{total ? 'Total' : <b>{r.n}</b>}</td><td className="num" data-label="Lead">{r.lead}</td>
-    {ST.map(st => <td className="num" key={st} data-label={st}>{r.st[st]}</td>)}
+  const tot = data.reduce((a, r) => { ['lead', 'trx', 'book', 'resv', 'batalBk', 'batalRv', 'nilai'].forEach(k => { a[k] += r[k]; }); return a; }, { lead: 0, trx: 0, book: 0, resv: 0, batalBk: 0, batalRv: 0, nilai: 0 });
+  const cr = r => r.lead ? Math.round(r.book / r.lead * 100) + '%' : (r.book ? '—' : '0%');
+  const baris = (r, total) => (<tr key={r.n} style={total ? { fontWeight: 700 } : undefined}>
+    <td data-label="Sales">{total ? 'Total' : <b>{r.n}</b>}</td>
+    <td className="num" data-label="Lead">{r.lead}</td>
     <td className="num" data-label="Transaksi"><b>{r.trx}</b></td>
-    <td className="num" data-label="Masih Reserved" style={{ color: 'var(--brass-deep)' }}>{r.resv}</td>
     <td className="num" data-label="Booking berjalan"><b style={{ color: 'var(--green)' }}>{r.book}</b></td>
-    <td className="num" data-label="Batal saat Reserved" style={{ color: r.batalRv ? 'var(--red)' : undefined }}>{r.batalRv}</td>
+    <td className="num" data-label="Masih Reserved" style={{ color: 'var(--brass-deep)' }}>{r.resv}</td>
     <td className="num" data-label="Batal setelah Booking" style={{ color: r.batalBk ? 'var(--red)' : undefined }}>{r.batalBk}</td>
+    <td className="num" data-label="Batal saat Reserved" style={{ color: r.batalRv ? 'var(--red)' : undefined }}>{r.batalRv}</td>
     <td className="num" data-label="Nilai Booking">{rpM(r.nilai)}</td>
-    <td className="num" data-label="Closing Rate"><b>{r.lead ? Math.round(r.book / r.lead * 100) + '%' : (r.book ? '—' : '0%')}</b></td></tr>);
+    <td className="num" data-label="Closing Rate"><b>{cr(r)}</b></td></tr>);
   return (
     <>
-      <div className="hint" style={{ margin: '0 0 10px' }}>Lead = lead yang masuk pada periode, status saat ini · Transaksi, Masih Reserved, Booking berjalan, Batal = <b>sama dengan Report → Laporan Penjualan</b> (kontrak yang dijual pada periode menurut tanggal Booking / Reserved, status per hari ini, ganti kontrak tidak dihitung) · Closing Rate = Booking berjalan ÷ Lead · Nama disatukan ke akun: nama lengkap sales in-house → akunnya, agent Bio sejak Feb 2025 → Esteem (kecuali in-house), agent Permai (nama + kantor) → LJH; nama tanpa akun masuk baris "Lainnya" agar total sama dengan Laporan Penjualan</div>
-      <div className="tbl-wrap"><table>
-        <thead><tr><th>Sales / PIC</th><th className="num">Lead</th>{ST.map(s => <th className="num" key={s}>{s}</th>)}
-          <th className="num">Transaksi</th><th className="num" style={{ color: 'var(--brass)' }}>Masih Reserved</th><th className="num">Booking berjalan</th>
-          <th className="num">Batal saat Reserved</th><th className="num">Batal setelah Booking</th><th className="num">Nilai Booking</th><th className="num">Closing Rate</th></tr></thead>
+      <div className="hint" style={{ margin: '0 0 10px' }}>Lead = lead yang masuk pada periode · Transaksi, Booking berjalan, Masih Reserved &amp; Batal = sama dengan Report → Laporan Penjualan (kontrak yang dijual pada periode, status per hari ini, ganti kontrak tidak dihitung) · Closing Rate = Booking berjalan ÷ Lead · Nama disatukan ke akun: in-house → akunnya, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH{proj ? ` · hanya sales ${proj}` : ''}</div>
+      <div className="tbl-wrap ks-tbl"><table>
+        <thead><tr><th>Sales</th><th className="num">Lead</th><th className="num">Transaksi</th><th className="num">Booking berjalan</th><th className="num">Masih Reserved</th>
+          <th className="num">Batal setelah Booking</th><th className="num">Batal saat Reserved</th><th className="num">Nilai Booking</th><th className="num">Closing Rate</th></tr></thead>
         <tbody>
-          {data.length ? data.map(r => baris(r)) : <tr><td colSpan={16} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada sales / lead pada filter ini.</td></tr>}
+          {data.length ? data.map(r => baris(r)) : <tr><td colSpan={9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada sales / lead pada filter ini.</td></tr>}
           {!fSales && data.length > 1 && baris({ n: 'Total', ...tot }, true)}
         </tbody></table></div>
+      {data.some(r => r.trx) && <DiagramTrx judul="Komposisi transaksi per sales" data={data.filter(r => r.trx).sort((a, b) => b.book - a.book || b.trx - a.trx).map(r => ({ ...r, label: r.n }))}
+        kanan={r => `${rpM(r.nilai)} · CR ${cr(r)}`} />}
     </>
   );
 }
@@ -263,6 +280,7 @@ function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
           <td className="num" data-label="Batal Reserved" style={{ color: t.batalReserved ? 'var(--red)' : undefined }}>{t.batalReserved}</td>
           <td className="num" data-label="Batal Booking" style={{ color: t.batal ? 'var(--red)' : undefined }}>{t.batal}</td>
           <td className="num" data-label="Nilai batal Booking">{rpM(t.nilaiBatal)}</td></tr>))}</tbody></table></div>}
+    {k.perTahun.length > 0 && <DiagramTrx judul="Transaksi per tahun penjualan" data={k.perTahun.map(t => ({ label: t.tahun, book: t.aktif, resv: t.reserved || 0, batalBk: t.batal, batalRv: t.batalReserved, nilai: t.nilaiAktif }))} kanan={t => rpM(t.nilai) + ' bersih'} />}
     <p className="hint" style={{ margin: '8px 0 0' }}>Nilai kontrak = harga unit di kontrak yang batal (bukan uang yang dikembalikan). Uang dibayar, hangus, dan dikembalikan = dana yang benar-benar diterima dan dikembalikan ke konsumen, sesuai buku penjualan. {k.gantiKontrak?.n ? <><b>Ganti kontrak ({k.gantiKontrak.n}):</b> {k.gantiKontrak.nama.join(', ')} — kontrak lama dibatalkan untuk ikut program PPN lalu langsung diganti kontrak baru konsumen yang sama; bukan penjualan baru dan bukan batal. </> : null}Total penjualan bersih = kontrak Booking yang masih berjalan per hari ini (nilai kontrak termasuk PPN). Booking tercatat = semua kontrak yang pernah Booking, termasuk yang kemudian batal, tanpa ganti kontrak. Tabel per tahun dikelompokkan menurut tahun penjualan (tanggal Booking; tanggal Reserved bila belum Booking): Semua kolom adalah posisi per hari ini dan tidak saling tumpang tindih: Transaksi = Masih Reserved + Booking berjalan + Batal saat Reserved + Batal setelah Booking. "Masih Reserved" = unit yang hari ini masih tertahan Reserved (bukan jumlah yang pernah Reserved); reservasi yang batal ada di kolom "Batal saat Reserved". Kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya. Filter periode di bawah memakai aturan yang sama, sehingga kartu "Penjualan pada periode terpilih" untuk satu tahun penuh selalu sama dengan baris tahun itu. Bagian ini tidak terpengaruh filter periode.</p>
   </div>);
 }
