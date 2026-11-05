@@ -102,7 +102,10 @@ export async function GET(req) {
   const aktif = rows.filter(g => g.status === 'Booking'), resv = rows.filter(g => g.status === 'Reserved');
   const batalBk = rows.filter(g => g.status === 'Batal' && g.tgl_booking), batalRv = rows.filter(g => g.status === 'Batal' && !g.tgl_booking);
   const kpr = aktif.filter(g => /kpr/i.test(g.bayar || '')), akad = kpr.filter(g => akadPeta[g.lead_code]);
-  const tahun = [...new Set(rows.flatMap(g => [g.tgl_booking, g.tgl_batal, g.tgl_reserved]).filter(Boolean).map(t => t.slice(0, 4)))].sort();
+  // Semua angka per tahun & per periode memakai TANGGAL PENJUALAN (tgl Booking; tgl Reserved bila belum sempat Booking),
+  // sehingga kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya, bukan di tahun pembatalannya.
+  const tglJual = g => g.tgl_booking || g.tgl_reserved || g.tgl_batal || '';
+  const tahun = [...new Set(rows.filter(g => g.status !== 'Ganti kontrak').map(tglJual).filter(Boolean).map(t => t.slice(0, 4)))].sort();
   const kumulatif = {
     per: hariIni,
     penjualan: { n: aktif.length, nilai: jum(aktif, 'harga'), cash: jum(aktif, 'harga_cash'), kpr: kpr.length, akad: akad.length, belumAkad: kpr.length - akad.length, bertahap: aktif.filter(g => /bertahap/i.test(g.bayar || '')).length, keras: aktif.filter(g => /keras/i.test(g.bayar || '')).length },
@@ -116,13 +119,15 @@ export async function GET(req) {
       danaRefund: { dibayar: jum(batalBk.filter(g => g.batal_refund === true), 'dana_dibayar'), hangus: jum(batalBk.filter(g => g.batal_refund === true), 'dana_hangus'), dikembalikan: jum(batalBk.filter(g => g.batal_refund === true), 'dana_refund') } },
     batalReserved: { n: batalRv.length, nilai: jum(batalRv, 'harga') },
     gantiKontrak: { n: rows.filter(g => g.status === 'Ganti kontrak').length, nama: rows.filter(g => g.status === 'Ganti kontrak').map(g => `${g.nama} (${g.unit})`) },
-    perTahun: tahun.map(th => ({ tahun: th, booking: rows.filter(g => g.status !== 'Ganti kontrak' && (g.tgl_booking || '').startsWith(th)).length, aktif: aktif.filter(g => (g.tgl_booking || '').startsWith(th)).length,
-      nilaiAktif: jum(aktif.filter(g => (g.tgl_booking || '').startsWith(th)), 'harga'), batal: batalBk.filter(g => (g.tgl_batal || '').startsWith(th)).length, batalReserved: batalRv.filter(g => (g.tgl_batal || '').startsWith(th)).length })),
+    perTahun: tahun.map(th => { const di = g => tglJual(g).startsWith(th); const bk = [...aktif, ...batalBk].filter(di);
+      return { tahun: th, booking: bk.length, nilaiBooking: jum(bk, 'harga'), aktif: aktif.filter(di).length, nilaiAktif: jum(aktif.filter(di), 'harga'),
+        batal: batalBk.filter(di).length, nilaiBatal: jum(batalBk.filter(di), 'harga'), reserved: resv.filter(di).length, batalReserved: batalRv.filter(di).length }; }),
   };
 
-  // Filter periode: ada kejadian (Reserved / Booking / Batal) di dalam rentang
+  // Filter periode: kontrak yang TANGGAL PENJUALANNYA (Booking; Reserved bila belum Booking) ada di dalam rentang.
+  // Status tetap posisi per hari ini — kontrak tahun lalu yang batal tahun ini tidak masuk laporan tahun ini.
   const dalam = t => t && (!d1 || t >= d1) && (!d2 || t <= d2);
-  if (d1 || d2) rows = rows.filter(g => dalam(g.tgl_reserved) || dalam(g.tgl_booking) || dalam(g.tgl_batal));
+  if (d1 || d2) rows = rows.filter(g => dalam(tglJual(g)));
 
   // Status KPR per lead
   const kodes = [...new Set(rows.map(g => g.lead_code))];
