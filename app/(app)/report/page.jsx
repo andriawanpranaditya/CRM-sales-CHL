@@ -1,5 +1,4 @@
 'use client';
-import { idBookingAktif } from '@/lib/penjualan-aktif';
 import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
@@ -68,37 +67,53 @@ export default function ReportPage() {
 // ===== Tab 1: Kinerja Sales (tabel lama, kini ikut periode & filter sales) =====
 function TabSales({ proj, d1, d2, fSales, set }) {
   const [leads, setLeads] = useState(null);
-  const [trx, setTrx] = useState([]);
-  useEffect(() => { Promise.all([api('/api/leads'), api('/api/trx')]).then(([l, t]) => { setLeads(l); setTrx(t); }).catch(e => toast(e.message)); }, []);
-  if (!leads) return <div className="loading">Memuat…</div>;
+  const [lp, setLp] = useState(null);
+  useEffect(() => { api('/api/leads').then(setLeads).catch(e => toast(e.message)); }, []);
+  // Transaksi memakai data & aturan Laporan Penjualan (tanggal penjualan, status per hari ini, ganti kontrak tidak dihitung)
+  useEffect(() => {
+    setLp(null);
+    const q = new URLSearchParams(); if (d1) q.set('d1', d1); if (d2) q.set('d2', d2); if (proj) q.set('project', proj);
+    api('/api/laporan-penjualan?' + q.toString()).then(setLp).catch(e => toast(e.message));
+  }, [proj, d1, d2]);
+  if (!leads || !lp) return <div className="loading">Memuat…</div>;
   const dlm = t => { const x = String(t || '').slice(0, 10); return x && (!d1 || x >= d1) && (!d2 || x <= d2); };
   // Nama sales disatukan ke akun (nama lengkap in-house → akun, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH)
   const akun = set.sales || [];
-  const leadOf = Object.fromEntries(leads.map(l => [l.lead_code, l]));
-  const pjLead = l => penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akun);
-  const pjTrx = t => penanggungKinerja({ project: t.project || leadOf[t.lead_code]?.project, sales: t.sales || leadOf[t.lead_code]?.sales, tgl: t.tgl }, akun);
-  const fLeads = leads.map(l => ({ ...l, _pj: pjLead(l) })).filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l._pj === fSales));
-  const fTrx = trx.map(t => ({ ...t, _pj: pjTrx(t) })).filter(t => (!proj || t.project === proj) && dlm(t.tgl) && (!fSales || t._pj === fSales));
-  // Hanya sales yang punya akun (menu Pengguna); lead agent / nama tanpa akun tidak ditampilkan sebagai baris sales
-  const salesNames = fSales ? [fSales] : [...(set.sales || [])];
-  const aktifId = idBookingAktif(trx); // Booking yang kemudian batal tidak dihitung — sama dengan Laporan Penjualan
+  const LAIN = 'Lainnya (tanpa akun)';
+  const keAkun = n => akun.includes(n) ? n : LAIN;
+  const fLeads = leads.map(l => ({ ...l, _pj: keAkun(penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akun)) }))
+    .filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l._pj === fSales));
+  const rows = (lp.rows || []).filter(x => x.status !== 'Ganti kontrak')
+    .map(x => ({ ...x, _pj: keAkun(penanggungKinerja({ project: x.project, sales: x.sales, tgl: x.tgl_booking || x.tgl_reserved || x.tgl_batal }, akun)) }))
+    .filter(x => !fSales || x._pj === fSales);
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Drop'];
+  const hitung = (L, T) => ({ lead: L.length, st: Object.fromEntries(ST.map(st => [st, L.filter(l => l.status === st).length])),
+    trx: T.length, resv: T.filter(x => x.status === 'Reserved').length, book: T.filter(x => x.status === 'Booking').length,
+    batalRv: T.filter(x => x.status === 'Batal' && !x.tgl_booking).length, batalBk: T.filter(x => x.status === 'Batal' && x.tgl_booking).length,
+    nilai: T.filter(x => x.status === 'Booking').reduce((a, x) => a + (Number(x.harga) || 0), 0) });
+  const nama = fSales ? [fSales] : [...akun, ...((fLeads.some(l => l._pj === LAIN) || rows.some(x => x._pj === LAIN)) ? [LAIN] : [])];
+  const data = nama.map(n => ({ n, ...hitung(fLeads.filter(l => l._pj === n), rows.filter(x => x._pj === n)) }));
+  const tot = hitung(fLeads, rows);
+  const baris = (r, total) => (<tr key={r.n} style={total ? { fontWeight: 700 } : r.n === LAIN ? { color: 'var(--muted)' } : undefined}>
+    <td data-label="Sales">{total ? 'Total' : <b>{r.n}</b>}</td><td className="num" data-label="Lead">{r.lead}</td>
+    {ST.map(st => <td className="num" key={st} data-label={st}>{r.st[st]}</td>)}
+    <td className="num" data-label="Transaksi"><b>{r.trx}</b></td>
+    <td className="num" data-label="Masih Reserved" style={{ color: 'var(--brass-deep)' }}>{r.resv}</td>
+    <td className="num" data-label="Booking berjalan"><b style={{ color: 'var(--green)' }}>{r.book}</b></td>
+    <td className="num" data-label="Batal saat Reserved" style={{ color: r.batalRv ? 'var(--red)' : undefined }}>{r.batalRv}</td>
+    <td className="num" data-label="Batal setelah Booking" style={{ color: r.batalBk ? 'var(--red)' : undefined }}>{r.batalBk}</td>
+    <td className="num" data-label="Nilai Booking">{rpM(r.nilai)}</td>
+    <td className="num" data-label="Closing Rate"><b>{r.lead ? Math.round(r.book / r.lead * 100) + '%' : (r.book ? '—' : '0%')}</b></td></tr>);
   return (
     <>
-      <div className="hint" style={{ margin: '0 0 10px' }}>Lead yang masuk pada periode · status saat ini dari Database Lead · Reserved &amp; Booking dari transaksi pada periode (Booking yang kemudian batal tidak dihitung, sama dengan Laporan Penjualan) · Closing Rate = Booking ÷ Total Lead · Nama disatukan ke akun: nama lengkap sales in-house → akunnya, agent Bio sejak Feb 2025 → Esteem (kecuali in-house), agent Permai (nama + kantor) → LJH</div>
+      <div className="hint" style={{ margin: '0 0 10px' }}>Lead = lead yang masuk pada periode, status saat ini · Transaksi, Masih Reserved, Booking berjalan, Batal = <b>sama dengan Report → Laporan Penjualan</b> (kontrak yang dijual pada periode menurut tanggal Booking / Reserved, status per hari ini, ganti kontrak tidak dihitung) · Closing Rate = Booking berjalan ÷ Lead · Nama disatukan ke akun: nama lengkap sales in-house → akunnya, agent Bio sejak Feb 2025 → Esteem (kecuali in-house), agent Permai (nama + kantor) → LJH; nama tanpa akun masuk baris "Lainnya" agar total sama dengan Laporan Penjualan</div>
       <div className="tbl-wrap"><table>
-        <thead><tr><th>Sales / PIC</th><th className="num">Total</th>{ST.map(s => <th className="num" key={s}>{s}</th>)}
-          <th className="num" style={{ color: 'var(--brass)' }}>Reserved</th><th className="num" style={{ color: 'var(--red)' }}>Booking</th><th className="num">Closing Rate</th></tr></thead>
+        <thead><tr><th>Sales / PIC</th><th className="num">Lead</th>{ST.map(s => <th className="num" key={s}>{s}</th>)}
+          <th className="num">Transaksi</th><th className="num" style={{ color: 'var(--brass)' }}>Masih Reserved</th><th className="num">Booking berjalan</th>
+          <th className="num">Batal saat Reserved</th><th className="num">Batal setelah Booking</th><th className="num">Nilai Booking</th><th className="num">Closing Rate</th></tr></thead>
         <tbody>
-          {salesNames.length ? salesNames.map(s => {
-            const mine = fLeads.filter(l => l._pj === s), c = st => mine.filter(l => l.status === st).length, myTrx = fTrx.filter(t => t._pj === s);
-            const resSet = new Set(myTrx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), bookSet = new Set(myTrx.filter(t => (t.jenis === 'Booking' || t.jenis === 'Closing') && aktifId.has(t.id)).map(t => t.lead_code + '|' + (t.unit || '')));
-            return <tr key={s}><td data-label="Sales"><b>{s}</b></td><td className="num" data-label="Total">{mine.length}</td>
-              {ST.map(st => <td className="num" key={st} data-label={st}>{c(st)}</td>)}
-              <td className="num" data-label="Reserved"><b style={{ color: 'var(--brass)' }}>{resSet.size}</b></td>
-              <td className="num" data-label="Booking"><b style={{ color: 'var(--red)' }}>{bookSet.size}</b></td>
-              <td className="num" data-label="Closing Rate"><b>{mine.length ? Math.round(bookSet.size / mine.length * 100) + '%' : '0%'}</b></td></tr>;
-          }) : <tr><td colSpan={12} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada sales / lead pada filter ini.</td></tr>}
+          {data.length ? data.map(r => baris(r)) : <tr><td colSpan={16} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada sales / lead pada filter ini.</td></tr>}
+          {!fSales && data.length > 1 && baris({ n: 'Total', ...tot }, true)}
         </tbody></table></div>
     </>
   );

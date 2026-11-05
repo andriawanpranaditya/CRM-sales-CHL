@@ -935,17 +935,21 @@ ${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper
       <p class="muted" style="font-size:8.5pt">Angka Dioper s.d. Masih diproses hanya dari lead yang dioper ke sales tsb <b>pada periode ini</b>, diikuti perkembangannya sampai hari ini — jadi Drop tidak melebihi Dioper. Booking dari lead lama tetap tampil di Bagian 3 dan Laporan Penjualan. *Drop lead lama = lead yang dioper sebelum periode (atau tanpa oper) tetapi di-drop pada periode ini.</p>`; })() : ''}
 <p class="muted" style="font-size:8.5pt">Lead New tanpa perkembangan: ${slr.aging.n7} lead > 7 hari (${slr.aging.n14} > 14 hari). Riwayat status dicatat otomatis sejak ${slr.mulaiRiwayat ? fmtDate(slr.mulaiRiwayat) : 'update terpasang'}; periode sebelum itu hanya memiliki status akhir.</p>` : ''}
 <h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
-<table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
-${salesNs.length ? salesNs.map(sn => {
-      const mine = pl.filter(l => pjL(l) === sn);
-      const punya = (t, jenis) => t.jenis === jenis && pjT(t) === sn;
-      const rs = LP ? lpRes.filter(x => pjX(x) === sn).length : new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
-      const bk = LP ? lpBook.filter(x => pjX(x) === sn).length : new Set(bookTrxR.filter(t => pjT(t) === sn).map(t => t.lead_code + '|' + (t.unit || ''))).size;
-      const rate = mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%');
-      return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${rate}</b></td></tr>`;
-    }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}
+<table><tr><th>Sales / PIC</th><th style="text-align:center">Lead</th><th style="text-align:center">Transaksi</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Booking berjalan</th><th style="text-align:center">Batal saat Reserved</th><th style="text-align:center">Batal setelah Booking</th><th style="text-align:center">Closing Rate</th></tr>
+${(() => {
+      const LAIN = 'Lainnya (tanpa akun)';
+      const keAkun = n => akunS.includes(n) ? n : LAIN;
+      const L0 = pl.map(l => ({ ...l, _pj: keAkun(pjL(l)) }));
+      const X0 = LP ? LP.map(x => ({ ...x, _pj: keAkun(pjX(x)) })) : [];
+      const nama = [...akunS.filter(n => L0.some(l => l._pj === n) || X0.some(x => x._pj === n)), ...((L0.some(l => l._pj === LAIN) || X0.some(x => x._pj === LAIN)) ? [LAIN] : [])];
+      const h = (L, X) => ({ lead: L.length, trx: X.length, rv: X.filter(x => x.status === 'Reserved').length, bk: X.filter(x => x.status === 'Booking').length,
+        brv: X.filter(x => x.status === 'Batal' && !x.tgl_booking).length, bbk: X.filter(x => x.status === 'Batal' && x.tgl_booking).length });
+      const tr = (n, r, b) => `<tr${b ? ' style="font-weight:bold;background:#F5F2EA"' : ''}><td><b>${esc(n)}</b></td><td style="text-align:center">${r.lead}</td><td style="text-align:center">${r.trx}</td><td style="text-align:center">${r.rv}</td><td style="text-align:center"><b>${r.bk}</b></td><td style="text-align:center">${r.brv}</td><td style="text-align:center">${r.bbk}</td><td style="text-align:center"><b>${r.lead ? Math.round(r.bk / r.lead * 100) + '%' : (r.bk ? '—' : '0%')}</b></td></tr>`;
+      if (!nama.length) return '<tr><td colspan="8">Tidak ada data pada periode ini.</td></tr>';
+      return nama.map(n => tr(n, h(L0.filter(l => l._pj === n), X0.filter(x => x._pj === n)))).join('') + tr('Total', h(L0, X0), true);
+    })()}
 </table>
-<p class="muted" style="font-size:8.5pt">Reserved &amp; Booking = kontrak yang dijual pada periode (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — sama dengan Report → Laporan Penjualan. Sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
+<p class="muted" style="font-size:8.5pt">Transaksi, Masih Reserved, Booking berjalan &amp; Batal = kontrak yang dijual pada periode (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — sama dengan Report → Laporan Penjualan. Nama sales disatukan ke akun (in-house → akunnya, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH); nama tanpa akun di baris Lainnya. Sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
 
 <h2>4. MASTER STOCK — PETA SITEPLAN</h2>
 <p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
