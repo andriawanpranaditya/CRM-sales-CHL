@@ -6,7 +6,9 @@ import { api, fmtRp, fmtDate, catatUnduh } from '@/components/util';
 import Dashboard from '../dashboard/page';
 
 // ===== Menu Report (Manager & CEO): satu filter bersama untuk semua tab =====
-const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['lengkap', 'Report Lengkap'], ['excel', 'Data Excel']];
+const TAB = [['sales', 'Kinerja Sales'], ['penjualan', 'Laporan Penjualan'], ['leads', 'Leads ke Sales'], ['lengkap', 'Report Lengkap'], ['excel', 'Data Excel']];
+// Tab per peran: Marcom → Leads ke Sales & Data Excel · Sales → Leads ke Sales (lead miliknya) · Manager & CEO → semua
+const tabUntuk = role => role === 'markom' ? TAB.filter(t => ['leads', 'excel'].includes(t[0])) : role === 'sales' ? TAB.filter(t => t[0] === 'leads') : TAB;
 const hariIni = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); // tanggal WIB (tanpa Intl — aman di semua iPhone)
 const awalBulan = () => hariIni().slice(0, 8) + '01';
 const rpM = n => !n ? 'Rp 0' : n >= 1e9 ? 'Rp ' + (n / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : n >= 1e6 ? 'Rp ' + (n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt' : fmtRp(n);
@@ -22,7 +24,8 @@ export default function ReportPage() {
   const [fSales, setFSales] = useState('');
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab'); if (TAB.some(x => x[0] === t)) setTab(t);
-    Promise.all([api('/api/settings'), api('/api/auth/me')]).then(([s, u]) => { setSet(s); setMe(u); if ((s.project || []).length === 1) setProj(s.project[0]); }).catch(e => toast(e.message));
+    Promise.all([api('/api/settings'), api('/api/auth/me')]).then(([s, u]) => { setSet(s); setMe(u); if ((s.project || []).length === 1) setProj(s.project[0]);
+      const boleh = tabUntuk(u?.role); setTab(tb => boleh.some(x => x[0] === tb) ? tb : boleh[0][0]); }).catch(e => toast(e.message));
   }, []);
   const filterLuar = useMemo(() => ({ d1, d2, proj }), [d1, d2, proj]);
 
@@ -30,7 +33,7 @@ export default function ReportPage() {
     <>
       <Toast />
       <div className="page-head"><div><h1>Report</h1>
-        <div className="sub">Kinerja sales, laporan penjualan (Excel &amp; PDF), report lengkap (Word &amp; PDF), dan data Excel — semua mengikuti filter di bawah</div></div></div>
+        <div className="sub">{me?.role === 'markom' ? 'Leads ke Sales (Excel & PDF) dan Data Excel — mengikuti filter di bawah' : me?.role === 'sales' ? 'Leads ke Sales: lead milik Anda beserta ringkasan follow up (Excel & PDF)' : 'Kinerja sales, laporan penjualan, leads ke sales, report lengkap (Word & PDF), dan data Excel — semua mengikuti filter di bawah'}</div></div></div>
 
       <div className="card rp-filter">
         <div className="field"><label>Dari tanggal</label><input type="date" value={d1} onChange={e => setD1(e.target.value)} /></div>
@@ -40,7 +43,7 @@ export default function ReportPage() {
             {(set.project || []).length !== 1 && <button className={'sort-btn chip-proyek' + (!proj ? ' active' : '')} onClick={() => setProj('')}>Semua</button>}
             {(set.project || []).map(p => <button key={p} className={'sort-btn chip-proyek' + (proj === p ? ' active' : '')} onClick={() => setProj(p)}>{p}</button>)}
           </div></div>
-        {(tab === 'sales' || tab === 'penjualan') && <div className="field"><label>Sales</label>
+        {(tab === 'sales' || tab === 'penjualan' || (tab === 'leads' && me?.role !== 'sales')) && <div className="field"><label>Sales</label>
           <select value={fSales} onChange={e => setFSales(e.target.value)}><option value="">Semua sales</option>{(set.sales || []).map(s => <option key={s}>{s}</option>)}</select></div>}
         <div className="field"><label>Pintasan periode</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -50,10 +53,11 @@ export default function ReportPage() {
           </div></div>
       </div>
 
-      <div className="fu-toolbar rp-tabs">{TAB.map(([k, l]) => <button key={k} className={'sort-btn tab-utama' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="fu-toolbar rp-tabs">{tabUntuk(me?.role).map(([k, l]) => <button key={k} className={'sort-btn tab-utama' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{l}</button>)}</div>
 
       {tab === 'sales' && <TabSales proj={proj} d1={d1} d2={d2} fSales={fSales} set={set} />}
       {tab === 'penjualan' && <TabPenjualan proj={proj} d1={d1} d2={d2} fSales={fSales} me={me} />}
+      {tab === 'leads' && me && <TabLeads proj={proj} d1={d1} d2={d2} fSales={me.role === 'sales' ? '' : fSales} me={me} />}
       {tab === 'lengkap' && <Dashboard hanyaReport="lengkap" filterLuar={filterLuar} />}
       {tab === 'excel' && <Dashboard hanyaReport="excel" filterLuar={filterLuar} />}
     </>
@@ -434,4 +438,104 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
     <td>${fmtRp(r.harga)}</td><td>${esc(r.cara_bayar || '—')}</td><td style="color:${warna[r.status_tampil || r.status]};font-weight:bold">${r.status_tampil || r.status}${r.akad ? '<br><span class="muted">' + fmtDate(r.akad) + '</span>' : ''}${r.tgl_batal ? '<br><span class="muted">' + fmtDate(r.tgl_batal) + '</span>' : ''}${r.tgl_reserved ? '<br><span class="muted">Reserved ' + fmtDate(r.tgl_reserved) + '</span>' : ''}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>
   <p class="ket">Keterangan: <b>Reserved</b> = tanda jadi untuk mengunci unit (belum dihitung penjualan) · <b>Booking</b> = booking fee, penjualan diakui pada tanggal ini · <b>Akad</b> = Booking KPR yang akadnya sudah terealisasi (tetap dihitung sebagai Booking) · <b>Batal</b> = unit kembali ke stok · <b>Konversi</b> = Booking bersih ÷ seluruh kontrak · Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</p>
   </body></html>`;
+}
+
+// ===== Leads ke Sales: lead yang dipegang sales + ringkasan hasil follow up terakhir (Marcom, Sales, Manager, CEO) =====
+const WARNA_LS = { kuning: '#FFF5B5', merah: '#F9DCDC' };
+const CHIP_LS = { Cold: ['#E8EEF0', '#41606B'], Warm: ['#FCEFD9', '#8A5F14'], Hot: ['#FDE3D0', '#B4482A'], Appointment: ['#DDEFE4', '#1E6A4C'], 'Site Visit': ['#DDEFE4', '#1E6A4C'], Drop: ['#F3DADA', '#9B2C2C'], New: ['#EEF2F6', '#3D5568'] };
+function TabLeads({ proj, d1, d2, fSales, me }) {
+  const [d, setD] = useState(null);
+  const [fSumber, setFSumber] = useState('');
+  const [fSt, setFSt] = useState('');
+  const [buka, setBuka] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setD(null);
+    const q = new URLSearchParams(); if (d1) q.set('d1', d1); if (d2) q.set('d2', d2); if (proj) q.set('project', proj); if (fSales) q.set('sales', fSales);
+    api('/api/leads-sales?' + q.toString()).then(setD).catch(e => toast(e.message));
+  }, [proj, d1, d2, fSales]);
+  if (!d) return <div className="loading">Menyusun laporan leads ke sales…</div>;
+  const rows0 = d.rows.filter(r => (!fSumber || r.sumber === fSumber) && (!fSt || (fSt === 'kuning' || fSt === 'merah' ? r.warna === fSt : r.status === fSt)));
+  const rows = rows0.map((r, i) => ({ ...r, no: i + 1 })); // nomor urut mulai 1 per periode
+  const sumberAda = [...new Set(d.rows.map(r => r.sumber).filter(Boolean))].sort();
+  const statusAda = [...new Set(d.rows.map(r => r.status).filter(Boolean))];
+  const judul = `Leads Sales ${d1 ? fmtDate(d1) : 'awal'} – ${d2 ? fmtDate(d2) : 'hari ini'}${proj ? ' · ' + proj : ''}${fSales ? ' · ' + fSales : ''}${me.role === 'sales' ? ' · ' + me.name : ''}`;
+  const per = {}; rows.forEach(r => { per[r.sales] = (per[r.sales] || 0) + 1; });
+  const R = { total: rows.length, kuning: rows.filter(r => r.warna === 'kuning').length, batal: rows.filter(r => r.warna === 'merah' && !['Drop', 'Lost'].includes(r.status)).length,
+    drop: rows.filter(r => ['Drop', 'Lost'].includes(r.status)).length, dom: rows.filter(r => !r.domisili).length, belum: rows.filter(r => !r.nFu).length };
+  function unduhPdf() {
+    const w = window.open('', '_blank'); if (!w) { toast('Izinkan pop-up untuk mengunduh PDF'); return; }
+    w.document.open(); w.document.write(htmlLeads({ rows, judul, R, per, me })); w.document.close();
+    catatUnduh('Leads ke Sales (PDF)', judul);
+  }
+  async function unduhExcel() {
+    setBusy(true);
+    try { await excelLeads({ rows, judul, R, per, me }); catatUnduh('Leads ke Sales (Excel)', judul); } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+  return (<>
+    <div className="fu-toolbar" style={{ alignItems: 'center' }}>
+      <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!rows.length || busy} onClick={unduhExcel}>{busy ? '⏳ Menyusun…' : '⬇ Unduh Excel'}</button>
+      <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!rows.length} onClick={unduhPdf}>📄 Unduh PDF</button>
+      <select className="sort-filter" value={fSumber} onChange={e => setFSumber(e.target.value)}><option value="">Semua sumber</option>{sumberAda.map(x => <option key={x}>{x}</option>)}</select>
+      <select className="sort-filter" value={fSt} onChange={e => setFSt(e.target.value)}><option value="">Semua status</option><option value="kuning">🟨 Janjian / Hot</option><option value="merah">🟥 Drop / janji batal</option>{statusAda.map(x => <option key={x} value={x}>{x}</option>)}</select>
+      <span className="hint">Periode = tanggal lead masuk · hanya lead yang sudah dipegang sales{me.role === 'sales' ? ' (lead milik Anda)' : ''}</span>
+    </div>
+    <div className="card ls-card">
+      <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>{judul}</h3><span className="hint">diurutkan dari tanggal lead masuk · nomor urut per periode</span></div>
+      <div className="ls-ring"><span><b>{R.total}</b> lead</span>{me.role !== 'sales' && Object.entries(per).map(([k, v]) => <span key={k}><b>{v}</b> {k}</span>)}<span><b>{R.kuning}</b> janjian / hot</span><span><b>{R.batal}</b> janji batal</span><span><b>{R.drop}</b> drop</span><span><b>{R.dom}</b> domisili belum diisi</span>{R.belum ? <span style={{ color: 'var(--red)' }}><b>{R.belum}</b> belum di-follow up</span> : null}</div>
+      <div className="ls-leg"><span><i style={{ background: WARNA_LS.kuning }} />Janjian / Hot — siap visit</span><span><i style={{ background: WARNA_LS.merah }} />Drop atau janjian batal</span><span><i style={{ background: 'var(--card)' }} />Masih follow up</span><span>· klik keterangan untuk membaca utuh</span></div>
+      {rows.length ? <div className="tbl-wrap tbl-compact ls-tbl"><table>
+        <thead><tr><th>No</th><th>Hari</th><th>Tanggal</th><th>Sumber</th><th>WhatsApp</th><th>Nama</th>{me.role !== 'sales' && <th>Sales</th>}<th>Domisili</th><th>Status</th><th>Keterangan (ringkasan follow up)</th></tr></thead>
+        <tbody>{rows.map(r => { const c = CHIP_LS[r.status] || ['#EEF2F6', '#3D5568']; return (<tr key={r.lead_code} className={'ls-' + (r.warna || 'biasa')}>
+          <td data-label="No">{r.no}</td><td data-label="Hari">{r.hari}</td><td data-label="Tanggal" style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.tgl)}</td><td data-label="Sumber">{r.sumber || '—'}</td>
+          <td data-label="WhatsApp" style={{ whiteSpace: 'nowrap' }}>{r.wa ? <a href={'https://wa.me/' + String(r.wa).replace(/[^0-9]/g, '').replace(/^0/, '62')} target="_blank" rel="noreferrer">{r.wa}</a> : '—'}</td>
+          <td data-label="Nama"><a href={'/leads?lead=' + encodeURIComponent(r.lead_code)} className="jj-nama">{r.nama}</a></td>{me.role !== 'sales' && <td data-label="Sales">{r.sales}</td>}
+          <td data-label="Domisili">{r.domisili || <span className="ls-kosong">— isi</span>}</td>
+          <td data-label="Status"><span className="ls-chip" style={{ background: c[0], color: c[1] }}>{r.status}</span></td>
+          <td data-label="Keterangan" className="ls-ketc" onClick={() => setBuka(buka === r.lead_code ? null : r.lead_code)}><div className={'ls-ket' + (buka === r.lead_code ? ' buka' : '')}>{r.keterangan}</div>{r.update ? <span className="ls-upd">update {fmtDate(r.update)}</span> : null}</td>
+        </tr>); })}</tbody></table></div> : <p className="hint">Tidak ada lead pada filter ini.</p>}
+      <p className="hint" style={{ margin: '8px 0 0' }}>Keterangan disusun otomatis: <b>Drop</b> → catatan terakhir + alasan drop · <b>ada janji temu</b> → hari, tanggal, jam &amp; lokasi (atau alasan batal) · <b>masih follow up</b> → ringkasan catatan follow up terakhir sales + posisi jadwal follow up wajib. Tanggal di bawahnya = update terakhir.</p>
+    </div>
+  </>);
+}
+function htmlLeads({ rows, judul, R, per, me }) {
+  const esc = x => String(x ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const sales = me.role !== 'sales';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(judul)}</title><style>
+  @page{size:A4 landscape;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;color:#10251E;font-size:9.5pt;margin:0}
+  h1{font-size:15pt;margin:0 0 2px}.muted{color:#5B6E66;font-size:8.5pt}.ring{margin:6px 0 8px;font-size:9pt}.ring b{font-size:11pt}
+  table{width:100%;border-collapse:collapse}th{background:#F5D774;font-size:8pt;text-transform:uppercase;text-align:left;padding:5px 4px;border:1px solid #E3D6A6}
+  td{padding:4px;border:1px solid #EDE5CF;vertical-align:top;font-size:8.5pt}tr.kuning td{background:#FFF5B5}tr.merah td{background:#F9DCDC}
+  .leg span{display:inline-block;margin-right:12px}.leg i{display:inline-block;width:10px;height:10px;margin-right:4px;border:1px solid #ccc;vertical-align:-1px}
+  thead{display:table-header-group}tr{page-break-inside:avoid}</style></head><body>
+  <h1>${esc(judul)}</h1><div class="muted">CRM Sales CHL · dicetak ${new Date().toLocaleString('id-ID')} oleh ${esc(me.name || '')} · periode = tanggal lead masuk</div>
+  <div class="ring"><b>${R.total}</b> lead${sales ? ' · ' + Object.entries(per).map(([k, v]) => `${esc(k)} <b>${v}</b>`).join(' · ') : ''} · janjian/hot <b>${R.kuning}</b> · janji batal <b>${R.batal}</b> · drop <b>${R.drop}</b> · domisili belum diisi <b>${R.dom}</b></div>
+  <div class="leg muted"><span><i style="background:#FFF5B5"></i>Janjian / Hot</span><span><i style="background:#F9DCDC"></i>Drop / janjian batal</span><span><i style="background:#fff"></i>Masih follow up</span></div>
+  <table><thead><tr><th>No</th><th>Hari</th><th>Tanggal</th><th>Sumber</th><th>WhatsApp</th><th>Nama</th>${sales ? '<th>Sales</th>' : ''}<th>Domisili</th><th>Status</th><th style="width:34%">Keterangan</th></tr></thead><tbody>
+  ${rows.map(r => `<tr class="${r.warna || ''}"><td>${r.no}</td><td>${esc(r.hari)}</td><td style="white-space:nowrap">${fmtDate(r.tgl)}</td><td>${esc(r.sumber)}</td><td style="white-space:nowrap">${esc(r.wa)}</td><td><b>${esc(r.nama)}</b></td>${sales ? `<td>${esc(r.sales)}</td>` : ''}<td>${esc(r.domisili || '—')}</td><td>${esc(r.status)}</td><td>${esc(r.keterangan)}${r.update ? `<br><span class="muted">update ${fmtDate(r.update)}</span>` : ''}</td></tr>`).join('')}
+  </tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
+}
+async function excelLeads({ rows, judul, R, per, me }) {
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook(); wb.creator = 'CRM Sales CHL';
+  const ws = wb.addWorksheet('Leads ke Sales', { views: [{ state: 'frozen', ySplit: 4 }] });
+  const sales = me.role !== 'sales';
+  const kolom = ['No', 'Hari', 'Tanggal', 'Sumber', 'WhatsApp', 'Nama', ...(sales ? ['Sales'] : []), 'Domisili', 'Status', 'Keterangan', 'Update terakhir'];
+  ws.getCell('A1').value = judul; ws.getCell('A1').font = { name: 'Arial', bold: true, size: 14 };
+  ws.getCell('A2').value = `${R.total} lead${sales ? ' · ' + Object.entries(per).map(([k, v]) => `${k} ${v}`).join(' · ') : ''} · janjian/hot ${R.kuning} · janji batal ${R.batal} · drop ${R.drop} · domisili belum diisi ${R.dom} · kuning = janjian/hot, merah muda = drop/janji batal`;
+  ws.getCell('A2').font = { name: 'Arial', size: 9, color: { argb: 'FF5B6E66' } };
+  const h = ws.getRow(4); kolom.forEach((k, i) => { const c = h.getCell(i + 1); c.value = k; c.font = { name: 'Arial', bold: true, size: 10 }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5D774' } }; c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }; });
+  rows.forEach((r, i) => {
+    const row = ws.getRow(5 + i);
+    const isi = [r.no, r.hari, r.tgl ? new Date(r.tgl + 'T00:00:00') : null, r.sumber, r.wa, r.nama, ...(sales ? [r.sales] : []), r.domisili || '', r.status, r.keterangan, r.update ? new Date(r.update + 'T00:00:00') : null];
+    isi.forEach((v, c) => { const cel = row.getCell(c + 1); cel.value = v; cel.font = { name: 'Arial', size: 10 }; cel.alignment = { vertical: 'top', wrapText: c === isi.length - 2 }; cel.border = { bottom: { style: 'thin', color: { argb: 'FFEDE5CF' } } };
+      if (r.warna) cel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: r.warna === 'kuning' ? 'FFFFF5B5' : 'FFF9DCDC' } }; });
+    row.getCell(3).numFmt = 'dd mmm yyyy'; row.getCell(isi.length).numFmt = 'dd mmm yyyy';
+  });
+  const lebar = [6, 10, 14, 14, 18, 22, ...(sales ? [12] : []), 18, 12, 70, 14];
+  lebar.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + rows.length, column: kolom.length } };
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = judul.replace(/[^\w\s–-]/g, '').replace(/\s+/g, '_') + '.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }

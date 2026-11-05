@@ -842,3 +842,13 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 }
 .rp-posisi{margin-bottom:6px;border-top:4px solid var(--brass)}
 .rp-filter-status{font:inherit;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;background:transparent;color:inherit;border:1px solid currentColor;border-radius:8px;padding:3px 6px;cursor:pointer;max-width:170px}.rp-filter-status option{color:#10251E;text-transform:none}
+/* ===== Report → Leads ke Sales ===== */
+.ls-card{display:flex;flex-direction:column;gap:10px}
+.ls-ring{display:flex;gap:8px;flex-wrap:wrap}.ls-ring span{background:var(--paper);border-radius:10px;padding:6px 10px;font-size:12.5px}.ls-ring b{font-size:15px;margin-right:3px}
+.ls-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);align-items:center}.ls-leg i{display:inline-block;width:13px;height:13px;border-radius:4px;margin-right:5px;vertical-align:-2px;border:1px solid var(--line)}
+.ls-tbl tr.ls-kuning td{background:#FFF5B5!important;color:#10251E}.ls-tbl tr.ls-merah td{background:#F9DCDC!important;color:#10251E}
+.ls-tbl tr.ls-kuning td a,.ls-tbl tr.ls-merah td a{color:#10251E}
+.ls-chip{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.ls-ketc{min-width:280px;cursor:pointer}.ls-ket{max-width:440px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.ls-ket.buka{display:block;-webkit-line-clamp:unset}
+.ls-upd{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}.ls-tbl tr.ls-kuning .ls-upd,.ls-tbl tr.ls-merah .ls-upd{color:#5B6E66}
+.ls-kosong{color:#B08A3E;font-weight:600}
