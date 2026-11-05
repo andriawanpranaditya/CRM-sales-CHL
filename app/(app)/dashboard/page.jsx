@@ -1,5 +1,6 @@
 'use client';
 import { idBookingAktif } from '@/lib/penjualan-aktif';
+import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import Link from 'next/link';
@@ -656,7 +657,13 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const dd = x => x ? new Date(x).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const periode = (d1 || d2) ? `${dd(d1) || 'awal'} s/d ${dd(d2) || 'sekarang'}` : 'Seluruh data';
     // Sales dengan lead pada periode ATAU transaksi pada periode (mis. lead masuk bulan lalu, Booking bulan ini)
-    const salesNs = [...new Set([...pl.map(l => l.sales), ...(LP ? LP.map(x => x.sales) : pt.map(t => t.sales || salesOf[t.lead_code]))].filter(Boolean))];
+    // Kinerja per sales: nama disatukan ke akun (in-house → akun, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH)
+    const akunS = set.sales || [];
+    const leadOfR = Object.fromEntries((leads || []).map(l => [l.lead_code, l]));
+    const pjL = l => penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akunS);
+    const pjX = x => penanggungKinerja({ project: x.project, sales: x.sales, tgl: x.tgl_booking || x.tgl_reserved || x.tgl }, akunS);
+    const pjT = t => penanggungKinerja({ project: t.project || leadOfR[t.lead_code]?.project, sales: t.sales || salesOf[t.lead_code], tgl: t.tgl }, akunS);
+    const salesNs = [...new Set([...pl.map(pjL), ...(LP ? LP.map(pjX) : pt.map(pjT))].filter(Boolean))].filter(n => akunS.includes(n)).sort();
     const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Rekomendasi: seluruh lead yang SAAT INI Warm/Hot (prioritas tindak lanjut)
@@ -930,10 +937,10 @@ ${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper
 <h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
 <table><tr><th>Sales / PIC</th><th style="text-align:center">Total Lead</th><th style="text-align:center">Reserved</th><th style="text-align:center">Booking</th><th style="text-align:center">Closing Rate</th></tr>
 ${salesNs.length ? salesNs.map(sn => {
-      const mine = pl.filter(l => l.sales === sn);
-      const punya = (t, jenis) => t.jenis === jenis && (t.sales || salesOf[t.lead_code]) === sn;
-      const rs = LP ? lpRes.filter(x => x.sales === sn).length : new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
-      const bk = LP ? lpBook.filter(x => x.sales === sn).length : new Set(bookTrxR.filter(t => (t.sales || salesOf[t.lead_code]) === sn).map(t => t.lead_code + '|' + (t.unit || ''))).size;
+      const mine = pl.filter(l => pjL(l) === sn);
+      const punya = (t, jenis) => t.jenis === jenis && pjT(t) === sn;
+      const rs = LP ? lpRes.filter(x => pjX(x) === sn).length : new Set(pt.filter(t => punya(t, 'Reserved')).map(t => t.lead_code)).size;
+      const bk = LP ? lpBook.filter(x => pjX(x) === sn).length : new Set(bookTrxR.filter(t => pjT(t) === sn).map(t => t.lead_code + '|' + (t.unit || ''))).size;
       const rate = mine.length ? Math.round(bk / mine.length * 100) + '%' : (bk ? '—' : '0%');
       return `<tr><td><b>${esc(sn)}</b></td><td style="text-align:center">${mine.length}</td><td style="text-align:center">${rs}</td><td style="text-align:center"><b>${bk}</b></td><td style="text-align:center"><b>${rate}</b></td></tr>`;
     }).join('') : '<tr><td colspan="5">Tidak ada data pada periode ini.</td></tr>'}

@@ -1,5 +1,6 @@
 'use client';
 import { idBookingAktif } from '@/lib/penjualan-aktif';
+import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, catatUnduh } from '@/components/util';
@@ -71,21 +72,26 @@ function TabSales({ proj, d1, d2, fSales, set }) {
   useEffect(() => { Promise.all([api('/api/leads'), api('/api/trx')]).then(([l, t]) => { setLeads(l); setTrx(t); }).catch(e => toast(e.message)); }, []);
   if (!leads) return <div className="loading">Memuat…</div>;
   const dlm = t => { const x = String(t || '').slice(0, 10); return x && (!d1 || x >= d1) && (!d2 || x <= d2); };
-  const fLeads = leads.filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l.sales === fSales));
-  const fTrx = trx.filter(t => (!proj || t.project === proj) && dlm(t.tgl) && (!fSales || t.sales === fSales));
+  // Nama sales disatukan ke akun (nama lengkap in-house → akun, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH)
+  const akun = set.sales || [];
+  const leadOf = Object.fromEntries(leads.map(l => [l.lead_code, l]));
+  const pjLead = l => penanggungKinerja({ project: l.project, sales: l.sales, tgl: l.tgl }, akun);
+  const pjTrx = t => penanggungKinerja({ project: t.project || leadOf[t.lead_code]?.project, sales: t.sales || leadOf[t.lead_code]?.sales, tgl: t.tgl }, akun);
+  const fLeads = leads.map(l => ({ ...l, _pj: pjLead(l) })).filter(l => (!proj || l.project === proj) && dlm(l.tgl) && (!fSales || l._pj === fSales));
+  const fTrx = trx.map(t => ({ ...t, _pj: pjTrx(t) })).filter(t => (!proj || t.project === proj) && dlm(t.tgl) && (!fSales || t._pj === fSales));
   // Hanya sales yang punya akun (menu Pengguna); lead agent / nama tanpa akun tidak ditampilkan sebagai baris sales
   const salesNames = fSales ? [fSales] : [...(set.sales || [])];
   const aktifId = idBookingAktif(trx); // Booking yang kemudian batal tidak dihitung — sama dengan Laporan Penjualan
   const ST = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Drop'];
   return (
     <>
-      <div className="hint" style={{ margin: '0 0 10px' }}>Lead yang masuk pada periode · status saat ini dari Database Lead · Reserved &amp; Booking dari transaksi pada periode (Booking yang kemudian batal tidak dihitung, sama dengan Laporan Penjualan) · Closing Rate = Booking ÷ Total Lead</div>
+      <div className="hint" style={{ margin: '0 0 10px' }}>Lead yang masuk pada periode · status saat ini dari Database Lead · Reserved &amp; Booking dari transaksi pada periode (Booking yang kemudian batal tidak dihitung, sama dengan Laporan Penjualan) · Closing Rate = Booking ÷ Total Lead · Nama disatukan ke akun: nama lengkap sales in-house → akunnya, agent Bio sejak Feb 2025 → Esteem (kecuali in-house), agent Permai (nama + kantor) → LJH</div>
       <div className="tbl-wrap"><table>
         <thead><tr><th>Sales / PIC</th><th className="num">Total</th>{ST.map(s => <th className="num" key={s}>{s}</th>)}
           <th className="num" style={{ color: 'var(--brass)' }}>Reserved</th><th className="num" style={{ color: 'var(--red)' }}>Booking</th><th className="num">Closing Rate</th></tr></thead>
         <tbody>
           {salesNames.length ? salesNames.map(s => {
-            const mine = fLeads.filter(l => l.sales === s), c = st => mine.filter(l => l.status === st).length, myTrx = fTrx.filter(t => t.sales === s);
+            const mine = fLeads.filter(l => l._pj === s), c = st => mine.filter(l => l.status === st).length, myTrx = fTrx.filter(t => t._pj === s);
             const resSet = new Set(myTrx.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), bookSet = new Set(myTrx.filter(t => (t.jenis === 'Booking' || t.jenis === 'Closing') && aktifId.has(t.id)).map(t => t.lead_code + '|' + (t.unit || '')));
             return <tr key={s}><td data-label="Sales"><b>{s}</b></td><td className="num" data-label="Total">{mine.length}</td>
               {ST.map(st => <td className="num" key={st} data-label={st}>{c(st)}</td>)}
