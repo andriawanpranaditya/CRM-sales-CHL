@@ -158,7 +158,7 @@ export async function GET(req) {
   if (user.role === 'manager') {
     const sudah = await sql`SELECT items FROM settings WHERE key = 'impor_penjualan'`.catch(() => []);
     const done = sudah[0]?.items || {};
-    imporTersedia = Object.entries(SUMBER_PENJUALAN).filter(([p, src]) => !(done[p] === src.per) && (!pj || pj === p)).map(([p, src]) => ({ project: p, per: src.per, label: src.label }));
+    imporTersedia = Object.entries(SUMBER_PENJUALAN).filter(([p, src]) => !(done[p] === (src.versi || src.per)) && (!pj || pj === p)).map(([p, src]) => ({ project: p, per: src.per, label: src.label, kpr: (src.kpr || []).length }));
   }
   return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, imporTersedia });
 }
@@ -172,7 +172,7 @@ async function _POST(req) {
   const hasil = await imporPenjualan(sql, user, { project: b.project, cek: b.cek === true });
   if (b.cek !== true) {
     const lama = await sql`SELECT items FROM settings WHERE key = 'impor_penjualan'`.catch(() => []);
-    const isi = { ...(lama[0]?.items || {}), [b.project]: hasil.per };
+    const isi = { ...(lama[0]?.items || {}), [b.project]: SUMBER_PENJUALAN[b.project].versi || hasil.per };
     await sql`INSERT INTO settings (key, items) VALUES ('impor_penjualan', ${JSON.stringify(isi)}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(isi)}`;
   }
   return Response.json({ ok: true, ...hasil, aksi: (b.cek ? 'Cek' : 'Impor') + ' buku penjualan ' + b.project + ' per ' + hasil.per });

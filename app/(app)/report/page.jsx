@@ -101,7 +101,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
   const [muatUlang, setMuatUlang] = useState(0);
   // Impor buku penjualan resmi (sekali per project; tombol hilang sendiri setelah impor)
   async function imporJual(x0, cek) {
-    if (!cek && !confirm(`Impor buku penjualan resmi ${x0.project} per ${fmtDate(x0.per)}?\n\nKontrak aktif, kontrak batal, dan ganti kontrak disamakan ke transaksi CRM. Kontrak yang sudah ada di CRM dilengkapi, yang belum ada dibuat. Tanggal akad KPR diperbarui. Setelah impor, tombol ini tidak tampil lagi.`)) return;
+    if (!cek && !confirm(`Impor ${x0.label} (${x0.project})?\n\nKontrak aktif, kontrak batal, ganti kontrak, dan data Proses KPR (bank, AO, status, rencana P3U) yang ada di file disamakan ke CRM. Data yang sudah ada dilengkapi, yang belum ada dibuat. Konsumen yang sudah akad tidak diubah. Setelah impor, tombol ini tidak tampil lagi.`)) return;
     setBusy(true);
     try {
       const x = await api('/api/laporan-penjualan', { method: 'POST', body: JSON.stringify({ aksi: 'impor', project: x0.project, cek }) });
@@ -111,6 +111,9 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         `Kontrak batal: ${x.batal.dilengkapi.length} sudah ada, ${x.batal.dibuat.length} ${cek ? 'akan ' : ''}dibuat`,
         x.ganti?.length ? `Ganti kontrak / pindah unit (tidak dihitung batal): ${x.ganti.length} — ${daftar(x.ganti, 5)}` : '',
         `Tanggal akad KPR ${cek ? 'yang akan ' : ''}diperbarui: ${x.akad}`,
+        x.kpr ? `Proses KPR (bank, AO, status) ${cek ? 'yang akan ' : ''}diisi: ${x.kpr.diisi.length} konsumen — ${Object.entries(x.kpr.tahap).map(([t, n]) => t + ' ' + n).join(', ')}` : '',
+        x.kpr?.tidakKetemu?.length ? `PERLU DICEK — data Proses KPR tidak cocok dengan kontrak aktif: ${daftar(x.kpr.tidakKetemu, 10)}` : '',
+        x.kpr?.tanpaData?.length ? `Belum akad tanpa data bank di file (${x.kpr.tanpaData.length}): ${daftar(x.kpr.tanpaData, 8)}` : '',
         x.tandaImporDihapus ? `Tanda stok lama hasil impor ${cek ? 'akan ' : ''}dihapus: ${x.tandaImporDihapus} (status unit kini dari transaksi)` : '',
         x.unitDobel.length ? `PERLU DICEK — unit aktif di CRM atas nama lain dari buku penjualan: ${daftar(x.unitDobel, 10)}` : '',
         x.tidakDiBuku.length ? `PERLU DICEK — tercatat aktif di CRM tetapi tidak ada di buku penjualan: ${daftar(x.tidakDiBuku, 10)}` : ''].filter(Boolean).join('\n'));
@@ -199,7 +202,7 @@ function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
     <div className="bd-head" style={{ flexWrap: 'wrap', gap: 8 }}><h3 style={{ margin: 0 }}>Posisi penjualan s.d. {fmtDate(k.per)}{proj ? ' · ' + proj : ' · semua project'}</h3>
 
       {impor.map(x => <span key={x.project} style={{ display: 'inline-flex', gap: 6 }}><button className="sort-btn" disabled={busy} onClick={() => imporJual(x, true)}>🔍 Cek buku penjualan {x.project}</button>
-        <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={busy} onClick={() => imporJual(x, false)}>{busy ? '⏳…' : `⬆ Impor buku penjualan ${x.project} (${fmtDate(x.per)})`}</button></span>)}</div>
+        <button className="sort-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)', fontWeight: 700 }} disabled={busy} onClick={() => imporJual(x, false)}>{busy ? '⏳…' : `⬆ Impor ${x.project}: ${x.kpr ? 'penjualan & Proses KPR' : 'buku penjualan'} (${fmtDate(x.per)})`}</button></span>)}</div>
     <div className="rp-kpi" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
       <div className="card emas"><span className="hint">Total penjualan (bersih)</span><b className="rp-besar">{p.n} unit</b><span className="hint">{rpM(p.nilai)} nilai kontrak{p.cash ? ' · harga cash ' + rpM(p.cash) : ''}</span></div>
       <div className="card"><span className="hint">Booking tercatat</span><b className="rp-besar">{k.bookingTercatat.n}</b><span className="hint">{rpM(k.bookingTercatat.nilai)} · {p.n} aktif + {b.n} batal</span></div>
