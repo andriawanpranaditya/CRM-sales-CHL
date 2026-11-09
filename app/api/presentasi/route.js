@@ -120,11 +120,11 @@ export async function GET(req) {
   const rbTgl = pertama(trxLead.filter(t => kodePeriode.has(t.lead_code) && ['Reserved', 'Booking', 'Closing'].includes(t.jenis)), t => t.tgl);
   const hit = (o, m) => Object.values(o).filter(t => t.startsWith(m)).length;
   const pergerakan = bulanList.map(m => ({ bulan: m,
-    lead: periode.filter(l => tglLead(l).startsWith(m)).length, janji: hit(jTgl, m), visitor: hit(vTgl, m), reserved: 0, booking: hit(rbTgl, m) }));
+    lead: periode.filter(l => tglLead(l).startsWith(m)).length, janji: hit(jTgl, m), visitor: visRows.filter(v => v.tgl.startsWith(m)).length, reserved: 0, booking: hit(rbTgl, m) }));
   const adaJanji = new Set(janjiLead.map(j => j.lead_code)), datang = new Set(visRows.map(v => v.lead_code));
   const resv = new Set(trxLead.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), book = new Set(trxLead.filter(t => t.jenis === 'Booking' || t.jenis === 'Closing').map(t => t.lead_code));
   const funnel = { masuk: periode.length, dioper: dioper.length, janji: periode.filter(l => adaJanji.has(l.lead_code)).length, datang: periode.filter(l => datang.has(l.lead_code)).length,
-    reserved: periode.filter(l => resv.has(l.lead_code) || book.has(l.lead_code)).length, booking: periode.filter(l => setBook.has(l.lead_code)).length };
+    reserved: periode.filter(l => resv.has(l.lead_code) || book.has(l.lead_code)).length, booking: periode.filter(l => setBook.has(l.lead_code)).length, kunjungan: visRows.length };
   // Visitor & lead periode yang menjadi Reserved / Booking
   const namaLead = Object.fromEntries(periode.map(l => [l.lead_code, l]));
   const jadi = [...new Set([...resv, ...book])].filter(k => namaLead[k]).map(k => { const l = namaLead[k]; const t = trxLead.filter(x => x.lead_code === k); const akhir = t[t.length - 1];
