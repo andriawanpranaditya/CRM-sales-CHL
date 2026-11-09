@@ -937,3 +937,15 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pz-latar{position:absolute;inset:0;background-size:cover;background-position:center}
 .pz-tb.kpr th:nth-child(2),.pz-tb.kpr th:nth-child(3),.pz-tb.kpr th:nth-child(4){text-align:left}
 .pz-tb.banding td{font-size:12.5px;padding:9px 10px;line-height:1.4;vertical-align:top}.pz-tb.banding th{text-align:left!important}
+.pz-grup{display:flex;gap:18px;align-items:flex-end;justify-content:space-around;height:250px;border-bottom:1px solid #DCD4C2;padding:0 10px}
+.pz-grup .g{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}.pz-grup .bars{display:flex;gap:6px;align-items:flex-end;height:220px}
+.pz-grup .b{width:34px;border-radius:6px 6px 2px 2px;position:relative}.pz-grup .b b{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:12px;color:#10251E}
+.pz-grup span{font-size:12.5px;color:#5B6E66;font-weight:600}
+.pz-funnel{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.pz-funnel .f{background:#fff;border:1px solid #E6DFD0;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.pz-funnel span{font-size:12px;color:#5B6E66;font-weight:600}.pz-funnel b{font-size:24px}.pz-funnel em{font-style:normal;font-size:11px;color:#8A9A93}
+.pz-cek{margin-top:12px}.pz-cek summary{cursor:pointer}
+.pz-ed{outline:1.5px dashed rgba(201,156,79,.85);outline-offset:2px;border-radius:4px;cursor:text}.pz-ed:hover{background:rgba(226,190,122,.18)}
+.pz-ed.diubah{outline:2px solid #C99C4F;background:rgba(226,190,122,.14)}
+.pz-edbar{background:#FFF4DC;border:1px solid #E2BE7A;color:#5A4212;border-radius:12px;padding:9px 14px;font-size:13px;margin-bottom:10px}
+.pz-modal{position:fixed;inset:0;background:rgba(10,25,20,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.pz-modal .card{width:min(620px,100%)}.pz-modal textarea{width:100%;font:inherit;font-size:15px;padding:10px;border-radius:10px;border:1px solid var(--line);box-sizing:border-box}
