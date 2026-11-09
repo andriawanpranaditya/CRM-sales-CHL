@@ -29,9 +29,15 @@ export default function PresentasiPage() {
   const [ke, setKe] = useState(0);
   const [cetak, setCetak] = useState(false);
   const [teks, setTeks] = useState({});      // kalimat yang sudah diedit (tersimpan di server)
+  const [sembunyi, setSembunyi] = useState([]); // id slide yang disembunyikan saat presentasi & PDF
+  const [tampil, setTampil] = useState(false); // sedang presentasi layar penuh
   const [edit, setEdit] = useState(false);   // mode edit teks
   const [sunting, setSunting] = useState(null); // { k, isi, diubah }
-  useEffect(() => { if (me && bolehPresentasi(me)) api('/api/presentasi?teks=1').then(x => setTeks(x.teks || {})).catch(() => {}); }, [me]);
+  useEffect(() => { if (me && bolehPresentasi(me)) api('/api/presentasi?teks=1').then(x => { setTeks(x.teks || {}); setSembunyi(x.sembunyi || []); }).catch(() => {}); }, [me]);
+  async function ubahSembunyi(id, jadi) {
+    setSembunyi(x => jadi ? [...new Set([...x, id])] : x.filter(y => y !== id)); // langsung terlihat, lalu disimpan
+    try { const x = await api('/api/presentasi', { method: 'POST', body: JSON.stringify({ aksi: 'sembunyi', id, sembunyi: jadi }) }); setSembunyi(x.sembunyi || []); } catch (e) { toast(e.message); }
+  }
   async function simpanTeks(k, isi) {
     try { const x = await api('/api/presentasi', { method: 'POST', body: JSON.stringify({ aksi: 'teks', k, teks: isi }) }); setTeks(x.teks || {}); setSunting(null); }
     catch (e) { toast(e.message); }
@@ -52,13 +58,18 @@ export default function PresentasiPage() {
     ro.observe(el); return () => ro.disconnect();
   }, [data]);
   const slides = useMemo(() => data ? susunSlide(data, dari) : [], [data, dari]);
+  const tersembunyi = i => sembunyi.includes(slides[i]?.id);
+  const geser = (i, arah) => { let j = i + arah; if (tampil) while (j >= 0 && j < slides.length && tersembunyi(j)) j += arah; return j < 0 || j >= slides.length ? i : j; };
+  const terlihat = slides.filter((_, i) => !tersembunyi(i));
+  useEffect(() => { const f = () => setTampil(!!document.fullscreenElement); document.addEventListener('fullscreenchange', f); return () => document.removeEventListener('fullscreenchange', f); }, []);
+  useEffect(() => { if (tampil && tersembunyi(ke)) setKe(k => { const j = geser(k, 1); return j !== k ? j : geser(k, -1); }); }, [tampil]); // eslint-disable-line
   useEffect(() => {
     const k = e => { if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
-      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); setKe(i => Math.min(slides.length - 1, i + 1)); }
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); setKe(i => Math.max(0, i - 1)); }
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); setKe(i => geser(i, 1)); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); setKe(i => geser(i, -1)); }
       if (e.key === 'f' || e.key === 'F') layarPenuh(); };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
-  }, [slides.length]); // eslint-disable-line
+  }, [slides.length, tampil, sembunyi]); // eslint-disable-line
   function layarPenuh() { const el = panggung.current; if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else el.requestFullscreen?.(); }
   function unduhPdf() { setCetak(true); setTimeout(() => { window.print(); setTimeout(() => setCetak(false), 500); }, 400); }
 
@@ -71,21 +82,24 @@ export default function PresentasiPage() {
         <label className="hint" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>Lead &amp; visitor sejak <input type="date" value={dari} onChange={e => setDari(e.target.value)} /></label>
         <button className={'sort-btn' + (edit ? ' on' : '')} disabled={!slides.length} onClick={() => setEdit(x => !x)} style={edit ? { background: '#C99C4F', color: '#10251E', borderColor: '#C99C4F', fontWeight: 700 } : undefined}>{edit ? '✓ Selesai edit' : '✎ Edit kalimat'}</button>
         <button className="sort-btn" disabled={!slides.length} onClick={unduhPdf}>⬇ Unduh PDF</button>
-        <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!slides.length} onClick={layarPenuh}>▶ Mulai presentasi</button>
+        <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!terlihat.length} onClick={layarPenuh}>▶ Mulai presentasi</button>
       </div></div>
     {edit && <div className="pz-edbar">✎ Mode edit kalimat — klik teks bergaris putus-putus di slide untuk mengubahnya. Angka, tabel &amp; grafik tetap otomatis dari CRM. Teks yang sudah diubah bergaris emas.</div>}
     <EdCtx.Provider value={{ teks, edit, buka: (k, isi, diubah) => setSunting({ k, isi, diubah }) }}>
     {!data ? <div className="loading">Menyusun slide dari data CRM…</div> : <div className="pz-wrap">
-      <div className="card pz-daftar">{slides.map((s, i) => <button key={i} className={'pz-item' + (i === ke ? ' on' : '') + (s.bagian ? ' bagian' : '')} onClick={() => setKe(i)}><b>{String(i + 1).padStart(2, '0')}</b>{s.judul}</button>)}</div>
+      <div className="card pz-daftar">{slides.map((s, i) => { const h = tersembunyi(i); return (<div key={i} className={'pz-baris' + (h ? ' hidden' : '')}>
+        <button className={'pz-item' + (i === ke ? ' on' : '') + (s.bagian ? ' bagian' : '')} onClick={() => setKe(i)}><b>{String(i + 1).padStart(2, '0')}</b><span>{s.judul}</span></button>
+        <button className="pz-mata" title={h ? 'Tampilkan lagi saat presentasi' : 'Sembunyikan saat presentasi & PDF'} onClick={() => ubahSembunyi(s.id, !h)}>{h ? '🚫' : '👁'}</button></div>); })}</div>
       <div style={{ minWidth: 0 }}>
-        <div ref={panggung} className="pz-panggung" onClick={e => { if (document.fullscreenElement) setKe(i => Math.min(slides.length - 1, i + 1)); }}>
+        <div ref={panggung} className="pz-panggung" onClick={e => { if (document.fullscreenElement) setKe(i => geser(i, 1)); }}>
           <div className="pz-skala" style={{ transform: `scale(${skala})`, width: 1280, height: 720 }}>{slides[ke]?.isi}</div>
+          {!tampil && tersembunyi(ke) && <div className="pz-tanda">🚫 Disembunyikan — tidak tampil saat presentasi &amp; PDF</div>}
         </div>
-        <div className="pz-nav"><button className="sort-btn" onClick={() => setKe(i => Math.max(0, i - 1))}>◀ Sebelumnya</button><b>{ke + 1} / {slides.length}</b><button className="sort-btn" onClick={() => setKe(i => Math.min(slides.length - 1, i + 1))}>Berikutnya ▶</button></div>
+        <div className="pz-nav"><button className="sort-btn" onClick={() => setKe(i => Math.max(0, i - 1))}>◀ Sebelumnya</button><b>{ke + 1} / {slides.length}</b>{sembunyi.length ? <span className="hint">{slides.length - terlihat.length} disembunyikan · {terlihat.length} tampil saat presentasi</span> : null}<button className="sort-btn" onClick={() => setKe(i => Math.min(slides.length - 1, i + 1))}>Berikutnya ▶</button></div>
         {data.map(P => { const daftar = P.pr.lead?.belumFuList || []; return daftar.length ? (<details key={P.p} className="card pz-cek"><summary><b>{P.nama}: {daftar.length} lead belum di-follow up sales</b> <span className="hint">(untuk dicek, tidak tampil di slide) · lead aktif ≥ 2 hari tanpa catatan FU, janji temu, maupun transaksi</span></summary>
           <div className="tbl-wrap tbl-compact"><table><thead><tr><th>Lead</th><th>Nama</th><th>Masuk</th><th>Sumber</th><th>Sales</th><th>Status</th><th>Diinput oleh</th></tr></thead><tbody>{daftar.map(l => <tr key={l.lead_code}><td><a href={'/leads?lead=' + encodeURIComponent(l.lead_code)}>{l.lead_code}</a></td><td>{l.nama}</td><td>{fmtDate(l.tgl)}</td><td>{l.sumber}</td><td>{l.sales}</td><td>{l.status}</td><td>{l.oleh === 'markom' ? 'Marcom' : l.oleh || '—'}</td></tr>)}</tbody></table></div></details>) : null; })}
       </div></div>}
-    {cetak && <div className="pz-cetak">{slides.map((s, i) => <div key={i} className="pz-hal">{s.isi}</div>)}</div>}
+    {cetak && <div className="pz-cetak">{terlihat.map((s, i) => <div key={i} className="pz-hal">{s.isi}</div>)}</div>}
     </EdCtx.Provider>
     {sunting && <div className="pz-modal" onClick={() => setSunting(null)}><div className="card" onClick={e => e.stopPropagation()}>
       <h3 style={{ marginTop: 0 }}>Ubah kalimat</h3>
@@ -131,14 +145,14 @@ function Kolom({ data }) { // 12 bulan, [book, resv, batalBk, batalRv]
 function susunSlide(data, dari) {
   const S = [];
   const tgl = hariIni();
-  S.push({ judul: 'Cover', bagian: true, isi: (<div className="pz-sl gelap pz-cover"><div className="pz-pad" style={{ justifyContent: 'space-between' }}>
+  S.push({ id: 'umum|Cover', judul: 'Cover', bagian: true, isi: (<div className="pz-sl gelap pz-cover"><div className="pz-pad" style={{ justifyContent: 'space-between' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}><img src="/logo.png" alt="" style={{ height: 64 }} /><div><div style={{ fontWeight: 800, fontSize: 18, letterSpacing: '.5px' }}>CIPTA HARMONI LESTARI</div><div className="pz-sub" style={{ fontSize: 13 }}>Sales &amp; Marketing</div></div></div>
     <div><div className="pz-eyebrow" style={{ color: '#E2BE7A' }}><T k="umum|cover.atas">Laporan kinerja project · {BLNP[Number(tgl.slice(5, 7)) - 1]} {tgl.slice(0, 4)}</T></div><h1 style={{ fontSize: 58, marginTop: 10 }}><T k="umum|cover.judul">Penjualan, Proses KPR<br />&amp; Pemasaran</T></h1>
       <div className="pz-sub" style={{ marginTop: 14, fontSize: 18 }}>Bio District · Permai Indah — data CRM per {fmtDate(tgl)}</div></div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><div><div style={{ fontWeight: 700, fontSize: 16 }}>Andriawan</div><div className="pz-sub" style={{ fontSize: 13 }}>Head of Sales &amp; Marketing</div></div>
       <div className="pz-logos"><img src="/logo-bio-putih.png" alt="" style={{ height: 46 }} /><span /><img src="/logo-permai.png" alt="" style={{ height: 50, filter: 'brightness(0) invert(1)' }} /></div></div></div></div>) });
-  data.forEach(P => S.push(...slideProyek(P, dari)));
-  S.push({ judul: 'Terima kasih', bagian: true, isi: (<div className="pz-sl gelap pz-cover"><div className="pz-pad" style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 22 }}>
+  data.forEach(P => S.push(...slideProyek(P, dari).map(x => ({ ...x, id: `${P.p}|${x.judul}` }))));
+  S.push({ id: 'umum|Terima kasih', judul: 'Terima kasih', bagian: true, isi: (<div className="pz-sl gelap pz-cover"><div className="pz-pad" style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 22 }}>
     <img src="/logo.png" alt="" style={{ height: 80 }} /><h1 style={{ fontSize: 54 }}><T k="umum|penutup.judul">Terima kasih</T></h1><div className="pz-sub" style={{ fontSize: 17 }}>Andriawan · Head of Sales &amp; Marketing · PT Cipta Harmoni Lestari</div>
     <div className="pz-logos"><img src="/logo-bio-putih.png" alt="" style={{ height: 40 }} /><span /><img src="/logo-permai.png" alt="" style={{ height: 44, filter: 'brightness(0) invert(1)' }} /></div></div></div>) });
   return S;

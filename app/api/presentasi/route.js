@@ -12,12 +12,20 @@ const hariIniWIB = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(
 const tglStr = v => !v ? '' : (v instanceof Date ? new Date(v.getTime() + 7 * 3600000).toISOString().slice(0, 10) : String(v).slice(0, 10));
 
 // Kalimat slide yang diedit (disimpan di settings 'presentasi_teks': { kunci: teks })
+async function ambilSembunyi(sql) { const r = await sql`SELECT items FROM settings WHERE key = 'presentasi_sembunyi'`.catch(() => []); return Array.isArray(r[0]?.items) ? r[0].items : []; }
 async function ambilTeks(sql) { const r = await sql`SELECT items FROM settings WHERE key = 'presentasi_teks'`.catch(() => []); return r[0]?.items || {}; }
 export async function POST(req) {
   const { user, err } = await requireUser(['manager']); if (err) return err;
   if (!bolehPresentasi(user)) return Response.json({ error: 'Menu ini khusus akun Head of Sales & Marketing' }, { status: 403 });
   const sql = db();
   const b = await req.json().catch(() => ({}));
+  // Slide yang disembunyikan saat presentasi & PDF
+  if (b.aksi === 'sembunyi' && b.id && String(b.id).length <= 200) {
+    const daftar = new Set(await ambilSembunyi(sql));
+    if (b.sembunyi) daftar.add(String(b.id)); else daftar.delete(String(b.id));
+    await sql`INSERT INTO settings (key, items) VALUES ('presentasi_sembunyi', ${JSON.stringify([...daftar])}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify([...daftar])}`;
+    return Response.json({ ok: true, sembunyi: [...daftar] });
+  }
   if (b.aksi !== 'teks' || !b.k || String(b.k).length > 200) return Response.json({ error: 'Permintaan tidak dikenal' }, { status: 400 });
   const isi = { ...(await ambilTeks(sql)) };
   if (b.teks == null || !String(b.teks).trim()) delete isi[b.k]; else isi[b.k] = String(b.teks).slice(0, 2000);
@@ -30,7 +38,7 @@ export async function GET(req) {
   if (!bolehPresentasi(user)) return Response.json({ error: 'Menu ini khusus akun Head of Sales & Marketing' }, { status: 403 });
   const sql = db();
   const q = new URL(req.url).searchParams;
-  if (q.get('teks')) return Response.json({ teks: await ambilTeks(sql) });
+  if (q.get('teks')) return Response.json({ teks: await ambilTeks(sql), sembunyi: await ambilSembunyi(sql) });
   const pj = q.get('project');
   if (!pj) return Response.json({ error: 'project wajib' }, { status: 400 });
   const today = hariIniWIB();
