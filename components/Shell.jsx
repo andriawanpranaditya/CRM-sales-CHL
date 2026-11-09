@@ -1,4 +1,5 @@
 'use client';
+import { bolehPresentasi } from '@/lib/presentasi';
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import BusyIndicator from '@/components/BusyIndicator';
@@ -20,6 +21,7 @@ const MENUS = [
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo', 'markom', 'sales'] }, // Marcom: Leads ke Sales & Data Excel · Sales: Leads ke Sales (lead miliknya)
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
+  { href: '/presentasi', ico: '▶', label: 'Presentasi Project', roles: ['manager'], khusus: 'presentasi' }, // khusus akun Andriawan
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
   { href: '/price-list', ico: '🏷', label: 'Price List', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
@@ -43,7 +45,7 @@ function temaAktif() {
 export default function Shell({ user, children }) {
   const path = usePathname();
   const router = useRouter();
-  const menus = MENUS.filter(m => m.roles.includes(user.role));
+  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)));
 
   // ===== Mode terang / gelap — per user, tersimpan di akun =====
   const [tema, setTema] = useState('light');
@@ -74,6 +76,7 @@ export default function Shell({ user, children }) {
 
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
+    if (path.startsWith('/presentasi') && !bolehPresentasi(user)) { router.replace('/beranda'); return; }
     if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/report') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
