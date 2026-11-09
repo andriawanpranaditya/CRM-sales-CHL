@@ -955,3 +955,13 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pz-mata{all:unset;cursor:pointer;font-size:13px;padding:5px 7px;border-radius:8px;opacity:.45}.pz-mata:hover{opacity:1;background:var(--paper)}
 .pz-baris.hidden .pz-item{opacity:.45;text-decoration:line-through}.pz-baris.hidden .pz-mata{opacity:1}
 .pz-tanda{position:absolute;top:10px;left:10px;background:rgba(16,37,30,.85);color:#fff;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:99px}
+/* Presentasi: hijau latar sedikit lebih gelap (di antara versi awal & versi terang) */
+.pz-sl.gelap{background:#1A5A44!important}
+.pz-cover{background:radial-gradient(1200px 700px at 85% 15%,#2E7F61 0%,#1A5A44 55%,#134A37 100%)!important}
+/* Presentasi: hijau sedikit lebih gelap + aksen emas pada judul cover */
+.pz-sl.gelap{background:#185A43!important}
+.pz-cover{background:radial-gradient(1200px 700px at 85% 15%,#2B7A5B 0%,#185A43 55%,#124634 100%)!important}
+.pz-judul-emas{display:inline-block;padding-bottom:14px;border-bottom:3px solid #E2BE7A}
+.pz-judul-emas .emas{background:linear-gradient(180deg,#F3D58F,#C99C4F);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pz-judul-emas .emas .pz-ed{-webkit-text-fill-color:#E2BE7A}
+.pz-judul-emas{align-self:flex-start}
