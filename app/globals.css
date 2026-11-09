@@ -918,3 +918,22 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pz-row>*{min-width:0}
 .pz-sl table.pz-tb{min-width:0!important;width:100%!important;max-width:100%}.pz-sl .pz-tb th{position:static}
 .pz-tb.xs td,.pz-tb.xs th{padding:4px 8px;font-size:11.5px}
+/* Presentasi: hijau lebih terang, flyer, tabel KPR ringkas, langkah rinci */
+.pz-sl.gelap{background:#1F6A50!important}
+.pz-cover{background:radial-gradient(1200px 700px at 85% 15%,#3A9474 0%,#1F6A50 55%,#17573F 100%)!important}
+.pz-bab,.pz-tb th{background:#227A58!important}
+.pz-flyer{flex:0 0 auto;height:100%;max-height:540px;display:flex;align-items:center}.pz-flyer img{height:100%;max-height:540px;width:auto;border-radius:14px;box-shadow:0 10px 26px rgba(16,37,30,.25)}
+.pz-tb.kpr td{padding:6px 9px;font-size:12.5px}.pz-tb td.kiri{text-align:left}.pz-tb td.satu{white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+.pz-cols .st span{display:flex!important;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.pz-langkah{grid-template-columns:40px 300px 1fr;padding:10px 16px;align-items:start}.pz-langkah ul{margin:0;padding-left:16px;font-size:12.8px;color:#3E524A;line-height:1.45}.pz-langkah .j{font-size:15px;padding-top:2px}.pz-langkah .no{padding-top:0}
+/* Presentasi: hijau lebih terang, flyer, tabel KPR ringkas, langkah rinci */
+.pz-sl.gelap{background:#1F6A50!important}
+.pz-cover{background:radial-gradient(1200px 700px at 85% 15%,#3A9474 0%,#1F6A50 55%,#17573F 100%)!important}
+.pz-bab,.pz-tb th{background:#227A58!important}
+.pz-flyer{flex:0 0 auto;height:100%;max-height:540px;display:flex;align-items:center}.pz-flyer img{height:100%;max-height:540px;width:auto;border-radius:14px;box-shadow:0 10px 26px rgba(16,37,30,.25)}
+.pz-tb.kpr td{padding:6px 9px;font-size:12.5px}.pz-tb td.kiri{text-align:left}.pz-tb td.satu{white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+.pz-cols .st span{display:flex!important;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.pz-langkah{grid-template-columns:40px 300px 1fr;padding:10px 16px;align-items:start}.pz-langkah ul{margin:0;padding-left:16px;font-size:12.8px;color:#3E524A;line-height:1.45}.pz-langkah .j{font-size:15px;padding-top:2px}.pz-langkah .no{padding-top:0}
+.pz-latar{position:absolute;inset:0;background-size:cover;background-position:center}
+.pz-tb.kpr th:nth-child(2),.pz-tb.kpr th:nth-child(3),.pz-tb.kpr th:nth-child(4){text-align:left}
+.pz-tb.banding td{font-size:12.5px;padding:9px 10px;line-height:1.4;vertical-align:top}.pz-tb.banding th{text-align:left!important}

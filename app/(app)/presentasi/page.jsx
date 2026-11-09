@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate } from '@/components/util';
-import { bolehPresentasi, PROMO } from '@/lib/presentasi';
+import { bolehPresentasi, PROMO, TARIF, biayaAiPerBalasan } from '@/lib/presentasi';
 import { penanggungKinerja } from '@/lib/sales-kinerja';
 
 // ===== Presentasi Project (khusus akun Andriawan) =====
@@ -91,7 +91,7 @@ function BarH({ label, parts, maks, kanan, tinggi = 28 }) {
 }
 function Kolom({ data }) { // 12 bulan, [book, resv, batalBk, batalRv]
   const mx = Math.max(1, ...data.map(x => x.reduce((a, b) => a + b, 0)));
-  return (<><div className="pz-cols">{data.map((x, i) => { const t = x.reduce((a, b) => a + b, 0); return (<div key={i} className="cl"><b>{t || ''}</b><div className="st" style={{ height: t / mx * 200 }}>{[[x[0], G], [x[1], E], [x[2], R], [x[3], RM]].filter(([v]) => v).map(([v, c], j) => <span key={j} style={{ height: (v / t * 100) + '%', background: c }} />)}</div></div>); })}</div>
+  return (<><div className="pz-cols">{data.map((x, i) => { const t = x.reduce((a, b) => a + b, 0); return (<div key={i} className="cl"><div className="st" style={{ height: t / mx * 220 }}>{[[x[0], G], [x[1], E], [x[2], R], [x[3], RM]].filter(([v]) => v).map(([v, c], j) => <span key={j} style={{ height: (v / t * 100) + '%', background: c }}>{v / mx * 220 >= 14 ? v : ''}</span>)}</div></div>); })}</div>
     <div className="pz-ml">{BLN.map(b => <span key={b}>{b}</span>)}</div></>);
 }
 
@@ -121,7 +121,7 @@ function slideProyek(P, dari) {
   const L = (bab, no, isi) => <Slide bab={bab} logo={logo} proj={nama} no={String(no).padStart(2, '0')}>{isi}</Slide>;
   const out = [];
   // Pembuka bagian
-  out.push({ judul: nama, bagian: true, isi: (<div className="pz-sl gelap pz-cover"><div className="pz-pad" style={{ justifyContent: 'center', gap: 20 }}>
+  out.push({ judul: nama, bagian: true, isi: (<div className="pz-sl gelap pz-cover">{promo.latar && <div className="pz-latar" style={{ backgroundImage: `linear-gradient(90deg, rgba(20,70,52,.92) 0%, rgba(20,70,52,.6) 50%, rgba(20,70,52,.1) 100%), url(${promo.latar})` }} />}<div className="pz-pad" style={{ justifyContent: 'center', gap: 20 }}>
     <img src={logoPutih} alt="" style={{ height: 90, alignSelf: 'flex-start', filter: P.p === 'PERMAI INDAH' ? 'brightness(0) invert(1)' : 'none' }} />
     <h1 style={{ fontSize: 50 }}>{nama}</h1><div className="pz-sub" style={{ fontSize: 17 }}>Rekap penjualan · Analisa pembatalan · Penjualan {tahunIni} · Pembayaran berjalan · Lead &amp; visitor · Promo · Langkah ke depan</div></div></div>) });
 
@@ -168,7 +168,7 @@ function slideProyek(P, dari) {
         <div className="pz-sub" style={{ fontSize: 13 }}>Median {med} hari dari Booking ke pembatalan{bb.nonrefund || bb.refund ? ` · ${bb.nonrefund || 0} non-refund (dana hangus ${rpM(bb.hangus)}), ${bb.refund || 0} refund` : ''}</div></div>
       <div className="pz-col" style={{ flex: 1 }}>
         {batalRv.length > 0 && <Kartu l={`${batalRv.length} batal saat Reserved`} v={rvTop ? `${rvTop[1]} "${rvTop[0].toLowerCase()}"` : batalRv.length} vs={{ fontSize: 26 }} s={jarakRv.length ? `batal ${Math.min(...jarakRv)}–${Math.max(...jarakRv)} hari setelah Reserved` : ''} />}
-        {nTop > 1 && <Kartu l={`Kontrak ${namaBln(blnTop)}`} v={kontrakBlnTop} s={`hanya ${bertahanBlnTop} yang bertahan (${persen(bertahanBlnTop, kontrakBlnTop)}%) · ${nTop} batal`} />}
+        {nTop / Math.max(1, batalBk.length) >= 0.4 && <Kartu l={`Pembatalan terpusat di kontrak ${namaBln(blnTop)}`} v={`${nTop} dari ${batalBk.length}`} s={`dari ${kontrakBlnTop} kontrak bulan itu hanya ${bertahanBlnTop} yang masih berjalan`} />}
         {nPuncak > 2 && <Kartu l="Puncak pembatalan" v={`${namaBln(puncak)} · ${nPuncak}`} vs={{ fontSize: 24 }} s="bulan dengan pembatalan terbanyak" />}
         <div className="pz-ins">{kemampuan / Math.max(1, batalBk.length) >= 0.5 || (rvTop && /budget/i.test(rvTop[0]))
           ? <>Pembatalan karena budget/KPR umumnya terjadi setelah konsumen mengetahui <b>hasil BI checking dan plafon KPR</b> — saringan kelayakan perlu dilakukan <b>sebelum</b> tanda jadi.</>
@@ -192,26 +192,30 @@ function slideProyek(P, dari) {
   const basi = proses.filter(x => x.lama > 7).length;
   const cicil = rows.filter(r => r.status === 'Booking' && /bertahap|cicil/i.test(r.bayar || r.cara_bayar || '')).map(r => { const n = Number(r.cicilan) || Number(String(r.cara_bayar || '').match(/(\d+)\s*x/i)?.[1]) || 0;
     const jalan = Math.max(0, Math.min(n || 99, Math.floor(selisih(hariIni(), r.tgl_booking) / 30))); return { r, n, jalan }; });
+  const PER_HAL = 10;
+  const halKpr = Math.max(1, Math.ceil(proses.length / PER_HAL));
+  const tabelKpr = (daftar, mulaiNo) => (<table className="pz-tb s kpr"><colgroup><col style={{ width: '4%' }} /><col style={{ width: '22%' }} /><col style={{ width: '15%' }} /><col /><col style={{ width: '9%' }} /></colgroup>
+    <thead><tr><th>No</th><th>Konsumen</th><th>Bank</th><th>Update terakhir (catatan &amp; riwayat KPR)</th><th>Tanggal</th></tr></thead>
+    <tbody>{daftar.map((x, i) => <tr key={x.r.lead_code + x.r.unit}><td>{mulaiNo + i}</td><td className="kiri">{x.r.nama}</td><td className="kiri">{x.bank}</td><td className="kiri satu" title={x.teks}>{x.teks}</td><td style={{ color: x.lama > 7 ? R : undefined }}>{x.upd ? tglPendek(x.upd) : '—'}</td></tr>)}</tbody></table>);
   out.push({ judul: 'Pembayaran berjalan', isi: L('4 · Pembayaran berjalan', 4, <>
     <h2>{pen.akad || 0} sudah akad; {proses.length} masih proses KPR{basi ? ` — ${basi} belum ada update lebih dari 7 hari` : ''}{cicil.length ? ` · ${cicil.length} cicilan bertahap berjalan` : ''}</h2>
-    <div className="pz-row" style={{ flex: 1 }}>
-      <div style={{ flex: 1.45, minWidth: 0 }}><table className="pz-tb s"><thead><tr><th>Proses KPR ({proses.length})</th><th>Bank</th><th>Update terakhir (catatan &amp; riwayat KPR)</th><th>Tanggal</th></tr></thead>
-        <tbody>{proses.slice(0, 9).map(x => <tr key={x.r.lead_code + x.r.unit}><td>{x.r.nama}</td><td>{x.bank}</td><td className="wrap">{x.teks}</td><td style={{ color: x.lama > 7 ? R : undefined, whiteSpace: 'nowrap' }}>{x.upd ? tglPendek(x.upd) : '—'}</td></tr>)}</tbody></table>
-        {proses.length > 9 && <div className="pz-sub" style={{ fontSize: 12, marginTop: 4 }}>+{proses.length - 9} konsumen lain (diurutkan dari yang paling lama tidak di-update)</div>}
-        <div className="pz-sub" style={{ fontSize: 12, marginTop: 4 }}>Tanggal merah = lebih dari 7 hari tanpa update.</div></div>
-      <div className="pz-col" style={{ flex: 1 }}>
-        {cicil.length > 0 && <table className="pz-tb s"><thead><tr><th>Cash bertahap ({cicil.length})</th><th>Angsuran</th></tr></thead><tbody>{cicil.map(x => <tr key={x.r.lead_code}><td>{x.r.nama}{x.n ? ` · ${x.n}×` : ''}</td><td>±{x.jalan}{x.n ? ' / ' + x.n : ''}</td></tr>)}</tbody></table>}
-        <Kartu cls="emas" l="Sudah akad" v={`${pen.akad || 0} unit`} s={`dari ${pen.kpr || 0} konsumen KPR`} />
-        <Kartu l="Proses KPR" v={proses.length} s={`${proses.filter(x => x.r.kpr?.kategori === 'sp3k' || /sp3k/i.test(x.r.kpr?.label || '')).length} SP3K terbit · ${proses.filter(x => !(x.r.kpr?.banks || []).length).length} belum ada bank`} />
-        {cicil.length > 0 && <div className="pz-sub" style={{ fontSize: 12 }}>Angsuran ke-n = perkiraan dari tanggal Booking.</div>}</div></div></>) });
+    <div className="pz-k4"><Kartu cls="emas" l="Sudah akad" v={`${pen.akad || 0} unit`} s={`dari ${pen.kpr || 0} konsumen KPR`} /><Kartu l="Proses KPR" v={proses.length} s={`${proses.filter(x => /sp3k/i.test(x.r.kpr?.label || '')).length} SP3K terbit · ${proses.filter(x => !(x.r.kpr?.banks || []).length).length} belum ada bank`} />
+      <Kartu l="Tanpa update > 7 hari" v={basi} vs={{ color: basi ? R : undefined }} s="perlu dikonfirmasi ke bank / AO" /><Kartu l="Cicilan bertahap" v={cicil.length} s={cicil.length ? cicil.map(x => `${x.r.nama.split(' ')[0]} ±${x.jalan}/${x.n || '?'}`).join(' · ') : 'tidak ada'} /></div>
+    {tabelKpr(proses.slice(0, PER_HAL), 1)}
+    {halKpr > 1 ? <div className="pz-sub" style={{ fontSize: 12 }}>Berlanjut ke slide berikutnya ({proses.length - PER_HAL} konsumen lagi) · diurutkan dari yang paling lama tidak di-update · tanggal merah = lebih dari 7 hari</div>
+      : <div className="pz-sub" style={{ fontSize: 12 }}>Tanggal merah = lebih dari 7 hari tanpa update{cicil.length ? ' · angsuran cicilan bertahap = perkiraan dari tanggal Booking' : ''}.</div>}</>) });
+  for (let h = 1; h < halKpr; h++) out.push({ judul: `Proses KPR (lanjutan ${h + 1}/${halKpr})`, isi: L('4 · Pembayaran berjalan', `4.${h + 1}`, <>
+    <h2>Proses KPR — lanjutan ({h + 1}/{halKpr})</h2>{tabelKpr(proses.slice(h * PER_HAL, (h + 1) * PER_HAL), h * PER_HAL + 1)}
+    <div className="pz-sub" style={{ fontSize: 12 }}>Tanggal merah = lebih dari 7 hari tanpa update.</div></>) });
 
   // 5 · Lead & visitor
   const Ld = pr.lead || {}, V = pr.visitor || {};
   const pCold = persen(Ld.cold, Ld.dioper), pWarm = persen(Ld.warmPlus, Ld.dioper), pFu = persen(Ld.aktifFu7, Ld.aktif);
   const diam = [];
+  const berarti = n => n >= 10 || n >= (Ld.dioper || 0) * 0.1; // angka kecil tidak ditampilkan
   if (Ld.dioper) diam.push(<><b>{Ld.cold} dari {Ld.dioper} lead yang dioper ({pCold}%) berstatus Cold</b> — tidak membalas setelah dihubungi sales; hanya {Ld.warmPlus} ({pWarm}%) naik ke Warm ke atas.</>);
-  if (Ld.belumFu) diam.push(<><b>{Ld.belumFu} lead belum pernah di-follow up</b> sales sejak diterima.</>);
-  if (Ld.marcomBelumOper) diam.push(<><b>{Ld.marcomBelumOper} lead Marcom masih New</b> dan belum diserahkan ke sales.</>);
+  if (berarti(Ld.belumFu || 0)) diam.push(<><b>{Ld.belumFu} lead belum pernah di-follow up</b> sales sejak diterima.</>);
+  if (berarti(Ld.marcomBelumOper || 0)) diam.push(<><b>{Ld.marcomBelumOper} lead Marcom masih New</b> dan belum diserahkan ke sales.</>);
   if ((Ld.alasanDrop || []).length) diam.push(<>Alasan drop terbanyak: {Ld.alasanDrop.slice(0, 3).map(([a, n]) => `${a} (${n})`).join(', ')}.</>);
   out.push({ judul: 'Lead & visitor', isi: L('5 · Lead & visitor', 5, <>
     <h2>{Ld.masuk || 0} lead masuk sejak {fmtDate(dari)}; {Ld.aktif || 0} masih di-follow up{Ld.dioper ? `, ${pCold}% lead yang dioper belum menanggapi` : ''}</h2>
@@ -224,17 +228,24 @@ function slideProyek(P, dari) {
   // 6 · Promo berjalan
   const ps = promo.sales || {}, pk = promo.konsumen || {}, ct = ps.continuity;
   const akum = a => a.reduce((o, x) => [...o, (o.at(-1) || 0) + x], []);
-  out.push({ judul: 'Promo berjalan', isi: L('6 · Promo berjalan', 6, <>
-    <h2>{promo.headline || promo.nama}</h2>
-    <div className="pz-row" style={{ flex: 1, gap: 16 }}>
-      <div className="pz-box" style={{ flex: ct ? 1.25 : 1 }}><span className="pz-chip hijau">{ps.judul}</span>
-        <div className="pz-k3" style={{ gap: 8 }}><Kartu l="Cash reward" v={ps.cash} s={ps.cashKet} /><Kartu l="Komisi" v={ps.komisi} s={ps.komisiKet} />{ps.bonus ? <Kartu cls="emas" l="Reward" v={ps.bonus.replace('Reward trip ', '')} vs={{ fontSize: 22 }} s={ps.bonusKet} /> : null}</div>
-        {ct && <><b style={{ fontSize: 13.5 }}>{ct.judul}</b><table className="pz-tb s xs"><thead><tr><th>Unit ke-</th><th>{ct.grup1.nama}</th><th>Akumulasi</th><th>{ct.grup2.nama}</th><th>Akumulasi</th></tr></thead>
-          <tbody>{ct.grup1.bonus.map((b, i) => <tr key={i}><td>{i + 1}</td><td>Rp{b} jt</td><td>Rp{akum(ct.grup1.bonus)[i]} jt</td><td>Rp{ct.grup2.bonus[i]} jt</td><td>Rp{akum(ct.grup2.bonus)[i]} jt</td></tr>)}<tr><td>7 dst</td><td colSpan={4}>{ct.lanjut}</td></tr></tbody></table>
-          <span className="pz-sub" style={{ fontSize: 12 }}>{ct.contoh}</span></>}</div>
-      <div className="pz-box" style={{ flex: .9 }}><span className="pz-chip emas">{pk.judul}</span>
-        <table className="pz-tb s"><thead><tr><th>{pk.kolom?.[0] || 'Tipe unit'}</th><th>{pk.kolom?.[1] || 'Hadiah'}</th></tr></thead><tbody>{(pk.hadiah || []).map((h, i) => <tr key={i}><td>{h[0]}</td><td><b>{h[1]}</b>{h[2] ? <><br /><span className="pz-sub" style={{ fontSize: 11.5 }}>{h[2]}</span></> : null}</td></tr>)}</tbody></table>
-        {pk.catatan && <div className="pz-ins" style={{ fontSize: 13 }}>{pk.catatan}</div>}</div></div></>) });
+  const Flyer = ({ src }) => src ? <div className="pz-flyer"><img src={src} alt="" /></div> : null;
+  const panelSales = (<div className="pz-box" style={{ flex: 1 }}><span className="pz-chip hijau">{ps.judul}</span>
+    <div className="pz-k3" style={{ gap: 8 }}><Kartu l="Cash reward" v={ps.cash} s={ps.cashKet} /><Kartu l="Komisi" v={ps.komisi} s={ps.komisiKet} />{ps.bonus ? <Kartu cls="emas" l="Reward" v={ps.bonus.replace('Reward trip ', '')} vs={{ fontSize: 22 }} s={ps.bonusKet} /> : null}</div>
+    {ct && <><b style={{ fontSize: 13.5 }}>{ct.judul}</b><table className="pz-tb s xs"><thead><tr><th>Unit ke-</th><th>{ct.grup1.nama}</th><th>Akumulasi</th><th>{ct.grup2.nama}</th><th>Akumulasi</th></tr></thead>
+      <tbody>{ct.grup1.bonus.map((b, i) => <tr key={i}><td>{i + 1}</td><td>Rp{b} jt</td><td>Rp{akum(ct.grup1.bonus)[i]} jt</td><td>Rp{ct.grup2.bonus[i]} jt</td><td>Rp{akum(ct.grup2.bonus)[i]} jt</td></tr>)}<tr><td>7 dst</td><td colSpan={4}>{ct.lanjut}</td></tr></tbody></table>
+      <span className="pz-sub" style={{ fontSize: 12 }}>{ct.contoh}</span></>}</div>);
+  const panelKonsumen = (<div className="pz-box" style={{ flex: 1 }}><span className="pz-chip emas">{pk.judul}</span>
+    <table className="pz-tb"><thead><tr><th>{pk.kolom?.[0] || 'Tipe unit'}</th><th>{pk.kolom?.[1] || 'Hadiah'}</th></tr></thead><tbody>{(pk.hadiah || []).map((h, i) => <tr key={i}><td>{h[0]}</td><td><b>{h[1]}</b>{h[2] ? <><br /><span className="pz-sub" style={{ fontSize: 11.5 }}>{h[2]}</span></> : null}</td></tr>)}</tbody></table>
+    {pk.catatan && <div className="pz-ins" style={{ fontSize: 13 }}>{pk.catatan}</div>}</div>);
+  if (promo.flyerSales) {
+    out.push({ judul: 'Promo sales & agent', isi: L('6 · Promo berjalan', 6, <><h2>{promo.headline || promo.nama}</h2>
+      <div className="pz-row" style={{ flex: 1 }}>{panelSales}<Flyer src={promo.flyerSales} /></div></>) });
+    out.push({ judul: 'Promo konsumen', isi: L('6 · Promo berjalan', '6.2', <><h2>{pk.judul}: {(pk.hadiah || []).map(h => h[1]).join(' · ')}</h2>
+      <div className="pz-row" style={{ flex: 1 }}>{panelKonsumen}<Flyer src={promo.flyerKonsumen} /></div></>) });
+  } else {
+    out.push({ judul: 'Promo berjalan', isi: L('6 · Promo berjalan', 6, <><h2>{promo.headline || promo.nama}</h2>
+      <div className="pz-row" style={{ flex: 1 }}><div className="pz-col" style={{ flex: 1 }}>{panelSales}{panelKonsumen}</div><Flyer src={promo.flyerKonsumen} /></div></>) });
+  }
 
   // 7 · Dampak promo
   const mulai = promo.mulai || `${tahunIni}-01-01`;
@@ -254,7 +265,7 @@ function slideProyek(P, dari) {
         {promo.mulai && <div className="pz-hb"><span>Sebelum promo</span><div style={{ width: (rSeb / Math.max(rSeb, rSej, 0.01) * 100) + '%', background: '#C9C3B4' }} /><b>{f1(rSeb)}</b></div>}
         <div className="pz-hb"><span><b>{promo.mulai ? 'Sejak promo' : `Tahun ${tahunIni}`}</b></span><div style={{ width: (rSej / Math.max(rSeb, rSej, 0.01) * 100) + '%', background: G }} /><b>{f1(rSej)}</b></div>
         <table className="pz-tb s"><thead><tr><th>Booking {promo.mulai ? 'sejak promo' : tahunIni} ({bookSejak.length})</th><th>Unit</th><th>Hadiah</th><th>Sales</th></tr></thead>
-          <tbody>{bookSejak.slice(0, 7).map(r => <tr key={r.lead_code + r.unit}><td>{r.nama}</td><td>{r.unit}{r.tipe ? ` (${String(r.tipe).replace(/^TIPE\s*/i, '')})` : ''}</td><td>{promo.hadiahUnit ? promo.hadiahUnit(r.tipe) : '—'}</td><td>{penanggungKinerja({ project: P.p, sales: r.sales, tgl: r.tgl_booking }, P.akun || [])}</td></tr>)}</tbody></table>
+          <tbody>{bookSejak.slice(0, 7).map(r => <tr key={r.lead_code + r.unit}><td>{r.nama}</td><td>{r.unit}{r.tipe ? ` (${String(r.tipe).replace(/^TIPE\s*/i, '')})` : ''}</td><td>{promo.hadiahUnit ? promo.hadiahUnit(r.tipe, r.unit) : '—'}</td><td>{penanggungKinerja({ project: P.p, sales: r.sales, tgl: r.tgl_booking }, P.akun || [])}</td></tr>)}</tbody></table>
         {bookSejak.length > 7 && <span className="pz-sub" style={{ fontSize: 12 }}>+{bookSejak.length - 7} Booking lainnya</span>}</div>
       <div className="pz-col" style={{ flex: 1 }}><div className="pz-k4" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <Kartu l={promo.mulai ? 'Lead per bulan sejak promo' : 'Lead per bulan'} v={f1(leadSej)} s={promo.mulai ? `sebelum promo ${f1(leadSeb)} per bulan` : `tahun ${tahunIni}`} />
@@ -265,14 +276,83 @@ function slideProyek(P, dari) {
 
   // 8 · Langkah ke depan
   const langkah = [];
-  if (batalBk.length + batalRv.length > 0) langkah.push(['Saring kelayakan sebelum Reserved / kontrak', `BI checking & simulasi plafon KPR sebelum tanda jadi — ${bb.n || 0} batal setelah Booking${batalRv.length ? ` dan ${batalRv.length} batal saat Reserved` : ''} sejauh ini.`]);
-  if (pCold >= 40) langkah.push(['Serah terima lead di WhatsApp resmi', `${pCold}% lead yang dioper belum menanggapi; Marcom memperkenalkan sales di percakapan yang sama, sales membalas dari Inbox WhatsApp.`]);
-  if (Ld.marcom) langkah.push(['Tiga pertanyaan saringan sebelum oper', 'Range budget, cash/KPR, dan domisili ditanyakan Marcom sebelum lead diserahkan ke sales.']);
-  if (basi) langkah.push([`Kejar ${basi} proses KPR tanpa update > 7 hari`, 'Konfirmasi status ke bank/AO dan catat di Proses KPR minggu ini.']);
-  if (Ld.belumFu || Ld.marcomBelumOper) langkah.push(['Tuntaskan lead yang belum tersentuh', [Ld.belumFu ? `${Ld.belumFu} lead belum pernah di-follow up` : '', Ld.marcomBelumOper ? `${Ld.marcomBelumOper} lead Marcom belum diserahkan` : ''].filter(Boolean).join(' · ') + '.']);
-  langkah.push(['Undangan kunjungan weekend dengan promo', `Setiap lead Warm/Hot diberi dua pilihan jadwal; hadiah ${promo.konsumen?.hadiah?.[0]?.[1] ? 'promo' : ''} dipakai sebagai alasan datang.`]);
+  langkah.push(['WhatsApp resmi untuk semua lead digital', [
+    'Iklan klik-ke-WhatsApp dan tombol WA website/landing page diarahkan ke nomor official; setiap chat otomatis menjadi lead di CRM lengkap dengan campaign-nya.',
+    'Sales membalas dari Inbox WhatsApp, bukan nomor pribadi; Marcom memperkenalkan sales di percakapan yang sama sehingga konsumen tidak berpindah nomor.',
+    `Target: lead yang menanggapi sales naik dari ${Ld.dioper ? 100 - pCold : 0}% menuju 50% dalam 60 hari.`]]);
+  langkah.push(['AI Asisten WhatsApp — tahap 1: penyaring & penjadwal', [
+    'Menjawab 24 jam soal harga, promo, lokasi, dan simulasi cicilan dari Price List resmi.',
+    'Menanyakan tiga pertanyaan saringan (range budget, cash/KPR, domisili) dan mengisi data kualifikasi lead otomatis.',
+    'Menawarkan dua pilihan jadwal kunjungan, membuat janji temu, lalu mengoper lead yang siap ke sales beserta ringkasan percakapannya.']]);
+  langkah.push(['AI Asisten WhatsApp — tahap 2: pendamping follow up', [
+    'Menyusun pesan follow up personal sesuai jadwal 9 sentuhan dan riwayat lead; sales tinggal menyetujui dan mengirim.',
+    'Mengingatkan janji temu H-1 dan pagi hari-H, serta membaca balasan konsumen untuk memperbarui status lead.',
+    'Rencana: tahap 1 berjalan 30–60 hari setelah aktivasi WhatsApp API, tahap 2 dalam 60–90 hari.']]);
+  langkah.push(['Undangan kunjungan weekend dengan promo', [`Setiap lead Warm/Hot diberi dua pilihan jadwal; promo ${promo.nama || ''} dipakai sebagai alasan datang ke lokasi.`]]);
+  if (berarti(Ld.belumFu || 0) || berarti(Ld.marcomBelumOper || 0)) langkah.push(['Tuntaskan lead yang belum tersentuh', [[berarti(Ld.belumFu || 0) ? `${Ld.belumFu} lead belum pernah di-follow up` : '', berarti(Ld.marcomBelumOper || 0) ? `${Ld.marcomBelumOper} lead Marcom belum diserahkan` : ''].filter(Boolean).join(' · ') + '.']]);
   out.push({ judul: 'Langkah ke depan', isi: L('7 · Langkah ke depan', 8, <>
     <h2>{Math.min(5, langkah.length)} langkah untuk menaikkan penjualan dan menghidupkan lead yang diam</h2>
-    <div className="pz-col" style={{ gap: 12, marginTop: 6 }}>{langkah.slice(0, 5).map(([a, b], i) => <div key={i} className="pz-langkah"><b className="no">{i + 1}</b><b className="j">{a}</b><span>{b}</span></div>)}</div></>) });
+    <div className="pz-col" style={{ gap: 10, marginTop: 4 }}>{langkah.slice(0, 5).map(([a, b], i) => <div key={i} className="pz-langkah"><b className="no">{i + 1}</b><b className="j">{a}</b><ul>{b.map((x, k) => <li key={k}>{x}</li>)}</ul></div>)}</div></>) });
+
+  // 8 · Kenapa WhatsApp satu nomor + AI Asisten penting (dampak berbasis data project ini)
+  const resp = Ld.dioper ? 100 - pCold : 0;
+  const tambahAktif = Math.max(0, Math.round((Ld.dioper || 0) * (0.5 - resp / 100)));
+  const pLuar = persen(Ld.luarJam?.n || 0, Ld.luarJam?.dari || 0), pKual = persen(Ld.kualLengkap || 0, Ld.masuk || 0);
+  const bandingan = [
+    ['Serah terima lead', `Pindah ke nomor pribadi sales — ${pCold}% lead yang dioper tidak menanggapi`, 'Satu percakapan dari iklan sampai Booking; konsumen tidak berpindah nomor'],
+    ['Jam layanan', Ld.luarJam?.dari ? `${pLuar}% lead digital masuk di luar jam kerja / hari Minggu` : 'Bergantung pada jam kerja sales', 'AI menjawab dalam hitungan detik, 24 jam, termasuk harga, promo & simulasi cicilan'],
+    ['Data kualifikasi', `Baru ${pKual}% lead punya data lengkap (domisili, budget, cara bayar…)`, 'Terisi otomatis dari percakapan sebelum lead dioper ke sales'],
+    ['Kontrol manajemen', 'Chat ada di HP pribadi — tidak terlihat & hilang bila sales berganti', 'Semua percakapan tersimpan di CRM; bisa diaudit dan dialihkan kapan saja'],
+    ['Pengukuran iklan', 'Banyak lead masuk tanpa tanda campaign', 'Campaign tercatat otomatis → biaya per lead & per Booking terukur'],
+  ];
+  out.push({ judul: 'Pentingnya WA satu nomor & AI', isi: L('7 · Langkah ke depan', 9, <>
+    <h2>WhatsApp satu nomor + AI Asisten: lead tidak hilang saat serah terima dan terlayani 24 jam</h2>
+    <div className="pz-row" style={{ flex: 1 }}>
+      <div style={{ flex: 1.55, minWidth: 0 }}><table className="pz-tb s banding"><colgroup><col style={{ width: '19%' }} /><col style={{ width: '40%' }} /><col /></colgroup>
+        <thead><tr><th>Aspek</th><th>Sekarang</th><th>Dengan WA satu nomor + AI Asisten</th></tr></thead>
+        <tbody>{bandingan.map(([a, b, c]) => <tr key={a}><td className="kiri"><b>{a}</b></td><td className="kiri" style={{ color: '#8A3B26' }}>{b}</td><td className="kiri" style={{ color: '#1E5B45' }}>{c}</td></tr>)}</tbody></table></div>
+      <div className="pz-col" style={{ flex: 1 }}>
+        <Kartu cls="emas" l="Potensi lead aktif tambahan" v={tambahAktif ? `+${tambahAktif}` : '—'} s={`bila tanggapan lead naik dari ${resp}% ke 50% (${Ld.dioper || 0} lead dioper sejak ${fmtDate(dari)})`} />
+        <Kartu l="Lead di luar jam kerja" v={Ld.luarJam?.dari ? `${pLuar}%` : '—'} s="dilayani AI tanpa menunggu sales" />
+        <div className="pz-ins" style={{ fontSize: 13 }}><b>Yang dibutuhkan:</b> aktivasi WhatsApp Cloud API di nomor official, biaya percakapan sesuai tarif Meta &amp; pemakaian AI, dan kebijakan sales membalas lead digital dari Inbox WhatsApp CRM.</div></div></div></>) });
+
+  // 9 · Estimasi biaya WhatsApp resmi + AI Asisten (volume dari data project ini, tarif dari lib/presentasi.js)
+  const T = TARIF;
+  const rp = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+  const blnPeriode = Math.max(0.5, (selisih(hariIni(), dari) + 1) / 30.44);
+  const leadBlnB = Math.max(1, Math.round(promo.mulai ? leadSej : (Ld.masuk || 0) / blnPeriode));
+  const janjiBln = Math.round(((V.janji || 0) + (V.tanpaJanji || 0)) / blnPeriode) || Math.round(leadBlnB * 0.1);
+  const aiBalas = biayaAiPerBalasan(T);
+  const hitungBiaya = n => {
+    const svc = n * (T.balasanAi + T.balasanSales), svcBayar = Math.max(0, svc - T.serviceGratis);
+    const mkt = n * T.templateFu, utl = Math.max(janjiBln * (n / leadBlnB), Math.round(n * 0.1)) * T.pengingatJanji;
+    const meta = (svcBayar * T.service + mkt * T.marketing + utl * T.utility) * (1 + T.ppn);
+    const ai = n * (T.balasanAi + T.draftFu) * aiBalas;
+    return { svc, svcBayar, mkt, utl, meta, ai, total: meta + ai };
+  };
+  const B1 = hitungBiaya(leadBlnB), B2 = hitungBiaya(leadBlnB * 2);
+  const baris = [
+    ['Pesan service (balasan AI + sales)', `${leadBlnB} lead × ${T.balasanAi + T.balasanSales} balasan = ${Math.round(B1.svc).toLocaleString('id-ID')} pesan; ${T.serviceGratis.toLocaleString('id-ID')} pertama gratis`, `${rp(T.service)} / pesan`, rp(B1.svcBayar * T.service)],
+    ['Template follow up (marketing)', `${T.templateFu} per lead di luar jendela 24 jam = ${Math.round(B1.mkt).toLocaleString('id-ID')} pesan`, `${rp(T.marketing)} / pesan`, rp(B1.mkt * T.marketing)],
+    ['Pengingat janji temu (utility)', `${T.pengingatJanji} per janji · ±${Math.round(B1.utl / T.pengingatJanji)} janji/bulan`, `${rp(T.utility)} / pesan`, rp(B1.utl * T.utility)],
+    ['PPN 11% atas tarif Meta', '', '', rp((B1.meta / (1 + T.ppn)) * T.ppn)],
+    ['AI Asisten (Claude Haiku 4.5)', `${leadBlnB} lead × ${T.balasanAi} balasan + ${T.draftFu} draf follow up`, `±${rp(aiBalas)} / balasan`, rp(B1.ai)],
+  ];
+  out.push({ judul: 'Estimasi biaya WA & AI', isi: L('7 · Langkah ke depan', 10, <>
+    <h2>Estimasi biaya WhatsApp resmi + AI Asisten: ±{rp(Math.ceil(B1.total / 1000) * 1000)} per bulan untuk ±{leadBlnB} lead</h2>
+    <div className="pz-row" style={{ flex: 1 }}>
+      <div className="pz-col" style={{ flex: 1.6, minWidth: 0 }}>
+        <table className="pz-tb s banding"><colgroup><col style={{ width: '25%' }} /><col /><col style={{ width: '17%' }} /><col style={{ width: '15%' }} /></colgroup>
+          <thead><tr><th>Biaya bulanan</th><th>Asumsi volume</th><th>Tarif</th><th style={{ textAlign: 'right' }}>Per bulan</th></tr></thead>
+          <tbody>{baris.map(([a, b, c, d]) => <tr key={a}><td className="kiri"><b>{a}</b></td><td className="kiri">{b}</td><td className="kiri">{c}</td><td><b>{d}</b></td></tr>)}
+            <tr className="t"><td className="kiri">Total per bulan</td><td className="kiri">±{rp(B1.total / leadBlnB)} per lead</td><td></td><td>{rp(B1.total)}</td></tr></tbody></table>
+        <table className="pz-tb s banding"><colgroup><col style={{ width: '27%' }} /><col /><col style={{ width: '15%' }} /></colgroup>
+          <thead><tr><th>Aktivasi (sekali)</th><th>Keterangan</th><th style={{ textAlign: 'right' }}>Biaya</th></tr></thead>
+          <tbody><tr><td className="kiri"><b>WhatsApp Cloud API</b></td><td className="kiri">Daftar langsung di Meta (tanpa vendor/BSP), verifikasi bisnis &amp; nomor official, metode pembayaran di Meta Billing</td><td><b>Rp0</b></td></tr>
+            <tr><td className="kiri"><b>Integrasi CRM &amp; AI Asisten</b></td><td className="kiri">Inbox WhatsApp, webhook lead otomatis &amp; AI Asisten sudah dibangun di CRM — tinggal memasang API key</td><td><b>Rp0</b></td></tr></tbody></table></div>
+      <div className="pz-col" style={{ flex: 1 }}>
+        <Kartu cls="emas" l="Total per bulan" v={rp(Math.ceil(B1.total / 1000) * 1000)} s={`±${leadBlnB} lead/bulan · ±${rp(B1.total / leadBlnB)} per lead`} />
+        <Kartu l="Bila lead naik 2×" v={rp(Math.ceil(B2.total / 1000) * 1000)} s={`±${leadBlnB * 2} lead/bulan`} />
+        <div className="pz-ins" style={{ fontSize: 12.5 }}>Tarif Meta untuk nomor Indonesia per {T.per} (belum PPN): marketing {rp(T.marketing)}, utility &amp; service {rp(T.service)} per pesan; 1.000 pesan service gratis per nomor per bulan. Percakapan yang dimulai dari iklan klik-ke-WhatsApp mendapat jendela gratis lebih panjang sehingga biaya nyata bisa lebih rendah. AI: Claude Haiku 4.5 (US$1 input · US$5 output per 1 juta token), kurs asumsi {rp(T.kurs)}/US$. Di luar biaya iklan, hosting &amp; database.</div></div></div></>) });
   return out;
 }

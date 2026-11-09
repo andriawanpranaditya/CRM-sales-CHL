@@ -23,7 +23,9 @@ export async function GET(req) {
   const awalTahun = today.slice(0, 4) + '-01-01';
   await siapkanJanjian(sql);
 
-  const leads = await sql`SELECT l.lead_code, l.tgl::text AS tgl, l.created_at, l.status, l.sales, l.sumber, l.walkin_info, l.campaign, u.role AS creator_role
+  try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS domisili text`; } catch {}
+  const leads = await sql`SELECT l.lead_code, l.tgl::text AS tgl, l.created_at, l.status, l.sales, l.sumber, l.walkin_info, l.campaign, u.role AS creator_role,
+      ((COALESCE(l.domisili, '') <> '')::int + (COALESCE(l.budget, 0) > 0)::int + (COALESCE(l.bayar, '') <> '')::int + (COALESCE(l.usia, '') <> '')::int + (COALESCE(l.tujuan, '') <> '')::int) AS nkual
     FROM leads l LEFT JOIN users u ON u.username = l.created_by WHERE l.project = ${pj} AND COALESCE(l.tgl, l.created_at::date) >= ${awalTahun}::date`;
   const tglLead = l => l.tgl || tglStr(l.created_at);
   const periode = leads.filter(l => tglLead(l) >= dari && tglLead(l) <= today);
@@ -50,6 +52,9 @@ export async function GET(req) {
     aktif: aktif.length, aktifFu7: aktif.filter(l => set7.has(l.lead_code)).length, belumFu: dioper.filter(l => !setFu.has(l.lead_code)).length,
     cold: dioper.filter(l => l.status === 'Cold').length, warmPlus: dioper.filter(l => warmPlus.includes(l.status)).length,
     drop: periode.filter(l => ['Drop', 'Lost'].includes(l.status)).length, booking: periode.filter(l => setBook.has(l.lead_code)).length,
+    // Lead yang masuk di luar jam kerja (sebelum 08.00 / sesudah 17.00 WIB) atau di hari Minggu — hanya lead digital yang jam masuknya tercatat
+    luarJam: (() => { const dig = periode.filter(l => l.creator_role === 'markom' && l.created_at); const n = dig.filter(l => { const d = new Date(new Date(l.created_at).getTime() + 7 * 3600000); const j = d.getUTCHours(); return j < 8 || j >= 17 || d.getUTCDay() === 0; }).length; return { n, dari: dig.length }; })(),
+    kualLengkap: periode.filter(l => Number(l.nkual) >= 3).length,
     alasanDrop: Object.entries(alasan).sort((a, b) => b[1] - a[1]).slice(0, 5),
     perSumber: Object.entries(periode.reduce((a, l) => { const k = l.sumber || 'Lainnya'; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]),
     perBulan: Object.entries(leads.reduce((a, l) => { const m = tglLead(l).slice(0, 7); a[m] = (a[m] || 0) + 1; return a; }, {})).sort(),
