@@ -260,10 +260,22 @@ function slideProyek(P, dari) {
   const tinggiTrx = r => 12 + 15 * Math.max(2, Math.ceil(ketTrx(r).length / 44) + (gabung && kprOf[kunciR(r)] && r.status !== 'Batal' ? 1 : 0), Math.ceil(asalLead(r).length / 22), Math.ceil(String(r.nama).length / 20), (r.tgl_reserved && r.tgl_booking) ? 2 : 1);
   const halTrx = []; { let cur = [], isi = 0; urutThn.forEach(x => { const t = tinggiTrx(x); if (cur.length && isi + t > (gabung && !halTrx.length ? 320 : 480)) { halTrx.push(cur); cur = []; isi = 0; } cur.push(x); isi += t; }); if (cur.length) halTrx.push(cur); }
   let noTrx = 0;
+  // Rincian transaksi tahun ini yang masih berjalan — jumlahnya selalu = Booking berjalan tahun ini
+  const jalanThn = thn.filter(r => r.status === 'Booking');
+  const jAkad = jalanThn.filter(r => r.akad || r.status_tampil === 'Akad');
+  const jCicil = jalanThn.filter(r => !jAkad.includes(r) && /bertahap|cicil/i.test(r.bayar || r.cara_bayar || ''));
+  const jKpr = jalanThn.filter(r => !jAkad.includes(r) && !jCicil.includes(r) && /kpr/i.test(r.bayar || r.cara_bayar || ''));
+  const jLain = jalanThn.filter(r => !jAkad.includes(r) && !jCicil.includes(r) && !jKpr.includes(r));
+  const jBasi = jKpr.filter(r => (kprOf[kunciR(r)]?.lama || 0) > 7).length;
+  const resvThn = thn.filter(r => r.status === 'Reserved').length;
+  const rincianJalan = [jAkad.length ? `${jAkad.length} sudah akad` : '', jKpr.length ? `${jKpr.length} proses KPR` : '', jCicil.length ? `${jCicil.length} cicilan bertahap` : '', jLain.length ? `${jLain.length} cash/lainnya` : ''].filter(Boolean).join(' · ');
+  const lamaCicil = bayarLama.filter(r => cicOf[kunciR(r)]).length, lamaKpr = bayarLama.filter(r => kprOf[kunciR(r)]).length;
   halTrx.forEach((hal, h) => out.push({ judul: (gabung ? `Transaksi ${tahunIni} & pembayaran` : `Detail transaksi ${tahunIni}`) + (halTrx.length > 1 ? ` (${h + 1}/${halTrx.length})` : ''), isi: L(gabung ? '3 · Transaksi & pembayaran berjalan' : `3 · Penjualan ${tahunIni}`, h ? `3.${h + 2}` : '3.2', <>
-    <h2>{h ? <>{gabung ? 'Transaksi & pembayaran' : 'Detail transaksi'} {tahunIni} — lanjutan ({h + 1}/{halTrx.length})</> : <T k={KT('detail.judul')}>Detail {thn.length} transaksi {tahunIni}: {bookThn.length} masih berjalan, {thn.filter(r => r.status === 'Batal').length} batal{gabung ? ` · ${pen.akad || 0} unit sudah akad, ${proses.length} proses KPR` : ''}</T>}</h2>
-    {gabung && !h && <div className="pz-k4"><Kartu cls="emas" l="Sudah akad" v={`${pen.akad || 0} unit`} s={`dari ${pen.kpr || 0} konsumen KPR`} /><Kartu l="Proses KPR" v={proses.length} s={`${proses.filter(x => !(x.r.kpr?.banks || []).length).length} belum ada bank`} />
-      <Kartu l="Tanpa update > 7 hari" v={basi} vs={{ color: basi ? R : undefined }} s="konfirmasi ke bank / AO" /><Kartu l="Cicilan bertahap" v={cicil.length} s={cicil.length ? 'angsuran berjalan (perkiraan)' : 'tidak ada'} /></div>}
+    <h2>{h ? <>{gabung ? 'Transaksi & pembayaran' : 'Detail transaksi'} {tahunIni} — lanjutan ({h + 1}/{halTrx.length})</> : <T k={KT('detail.judul2')}>{thn.length} transaksi {tahunIni}: {bookThn.length} masih berjalan{gabung && rincianJalan ? ` (${rincianJalan})` : ''}, {thn.filter(r => r.status === 'Batal').length} batal{resvThn ? `, ${resvThn} masih Reserved` : ''}</T>}</h2>
+    {gabung && !h && <div className="pz-k4"><Kartu cls="emas" l={`Masih berjalan ${tahunIni}`} v={`${jalanThn.length} unit`} s={rincianJalan || '—'} />
+      <Kartu l="Sudah akad" v={jAkad.length} s={`dari ${jAkad.length + jKpr.length} Booking KPR ${tahunIni}`} />
+      <Kartu l="Proses KPR" v={jKpr.length} vs={{ color: jBasi ? R : undefined }} s={`${jBasi ? jBasi + ' tanpa update > 7 hari' : 'semua ter-update dalam 7 hari'}${lamaKpr ? ` · +${lamaKpr} dari kontrak sebelum ${tahunIni}` : ''}`} />
+      <Kartu l="Cicilan bertahap" v={jCicil.length} s={`angsuran berjalan${lamaCicil ? ` · +${lamaCicil} dari kontrak sebelum ${tahunIni}` : ''}`} /></div>}
     <table className="pz-tb s detail"><colgroup><col style={{ width: '3.5%' }} /><col style={{ width: '15%' }} /><col style={{ width: '14%' }} /><col style={{ width: '9%' }} /><col style={{ width: '11%' }} /><col style={{ width: '9%' }} /><col style={{ width: '11%' }} /><col /></colgroup>
       <thead><tr><th>No</th><th>Konsumen</th><th>Asal lead</th><th>Tanggal</th><th>Unit</th><th>Sales</th><th>Status</th><th>Keterangan</th></tr></thead>
       <tbody>{hal.map((r, ix) => { noTrx++; const st = statusTrx(r); const pisah = r._lama && (ix === 0 ? true : !hal[ix - 1]._lama); return (<Fragment key={r.lead_code + r.unit + (r.seg || 0) + (r._lama ? 'L' : '')}>{pisah && <tr><td colSpan={8} className="kiri" style={{ background: '#F5F2EA', fontWeight: 700 }}>Kontrak sebelum {tahunIni} yang pembayarannya masih berjalan</td></tr>}<tr>
