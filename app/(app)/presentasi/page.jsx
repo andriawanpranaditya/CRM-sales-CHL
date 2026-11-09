@@ -389,7 +389,40 @@ function slideProyek(P, dari) {
   const leadSeb = promo.mulai ? Object.entries(leadBln).filter(([m]) => m < mulai.slice(0, 7)).reduce((a, [, n]) => a + n, 0) / blnSebelum : 0;
   const leadSej = Object.entries(leadBln).filter(([m]) => m >= mulai.slice(0, 7)).reduce((a, [, n]) => a + n, 0) / blnSejak;
   const f1 = x => x.toLocaleString('id-ID', { maximumFractionDigits: 1 });
-  out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
+  if (promo.bandingTahunLalu) {
+    // Penjualan sejak promo hadiah vs periode yang sama tahun lalu (Booking dihitung per tanggal Booking; ganti kontrak tidak dihitung)
+    const thLalu = String(Number(tahunIni) - 1);
+    const ujung = hariIni();
+    const a1 = mulai, a2 = ujung, b1 = thLalu + mulai.slice(4), b2 = thLalu + ujung.slice(4);
+    const dlm = (r, x, y) => (r.tgl_booking || '') >= x && (r.tgl_booking || '') <= y;
+    const ini = rows.filter(r => dlm(r, a1, a2)), lalu = rows.filter(r => dlm(r, b1, b2));
+    const iniJalan = ini.filter(r => r.status === 'Booking'), laluJalan = lalu.filter(r => r.status === 'Booking');
+    const nilaiIni = iniJalan.reduce((s0, r) => s0 + (Number(r.harga) || 0), 0), nilaiLalu = laluJalan.reduce((s0, r) => s0 + (Number(r.harga) || 0), 0);
+    const naik = (x, y) => y ? Math.round((x - y) / y * 100) : (x ? 100 : 0);
+    const bulanBanding = [];
+    for (let m = Number(mulai.slice(5, 7)); m <= Number(ujung.slice(5, 7)); m++) { const mm = String(m).padStart(2, '0');
+      bulanBanding.push({ b: BLN[m - 1], lalu: lalu.filter(r => r.tgl_booking.slice(5, 7) === mm).length, ini: ini.filter(r => r.tgl_booking.slice(5, 7) === mm).length }); }
+    const mxB = Math.max(1, ...bulanBanding.map(x => Math.max(x.lalu, x.ini)));
+    const periodeTeks = `${BLN[Number(mulai.slice(5, 7)) - 1]}–${BLN[Number(ujung.slice(5, 7)) - 1]}`;
+    const dHadiah = {}; iniJalan.forEach(r => { const h = promo.hadiahUnit ? promo.hadiahUnit(r.tipe, r.unit, r.tgl_booking) : '—'; dHadiah[h] = (dHadiah[h] || 0) + 1; });
+    out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
+      <h2><T k={KT('dampak.judul')}>{ini.length >= lalu.length ? `Sejak promo hadiah (${namaBln(mulai.slice(0, 7))}), penjualan naik dibanding periode yang sama ${thLalu}: ${ini.length} Booking vs ${lalu.length}` : `Sejak promo hadiah (${namaBln(mulai.slice(0, 7))}): ${ini.length} Booking, periode yang sama ${thLalu}: ${lalu.length}`}</T></h2>
+      <div className="pz-row" style={{ flex: 1, gap: 16 }}>
+        <div className="pz-box" style={{ flex: 1.15 }}><b>Booking per bulan, {periodeTeks}: {thLalu} vs {tahunIni}</b>
+          <div className="pz-leg"><span><i style={{ background: '#C9C3B4' }} />{thLalu}</span><span><i style={{ background: G }} />{tahunIni} (sejak promo)</span></div>
+          <div className="pz-banding">{bulanBanding.map(x => <div key={x.b} className="g"><div className="bars"><div className="b" style={{ height: Math.max(2, x.lalu / mxB * 150), background: '#C9C3B4' }}><b>{x.lalu || ''}</b></div><div className="b" style={{ height: Math.max(2, x.ini / mxB * 150), background: G }}><b>{x.ini || ''}</b></div></div><span>{x.b}</span></div>)}</div>
+          <table className="pz-tb s"><thead><tr><th>{periodeTeks}</th><th>{thLalu}</th><th>{tahunIni}</th><th>Perubahan</th></tr></thead><tbody>
+            <tr><td>Booking (semua)</td><td>{lalu.length}</td><td><b>{ini.length}</b></td><td style={{ color: ini.length >= lalu.length ? G : R }}><b>{naik(ini.length, lalu.length) >= 0 ? '+' : ''}{naik(ini.length, lalu.length)}%</b></td></tr>
+            <tr><td>Booking masih berjalan</td><td>{laluJalan.length}</td><td><b>{iniJalan.length}</b></td><td style={{ color: iniJalan.length >= laluJalan.length ? G : R }}><b>{naik(iniJalan.length, laluJalan.length) >= 0 ? '+' : ''}{naik(iniJalan.length, laluJalan.length)}%</b></td></tr>
+            <tr><td>Nilai penjualan berjalan</td><td>{rpM(nilaiLalu)}</td><td><b>{rpM(nilaiIni)}</b></td><td style={{ color: nilaiIni >= nilaiLalu ? G : R }}><b>{naik(nilaiIni, nilaiLalu) >= 0 ? '+' : ''}{naik(nilaiIni, nilaiLalu)}%</b></td></tr></tbody></table></div>
+        <div className="pz-col" style={{ flex: 1 }}>
+          <div className="pz-k4" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <Kartu cls="emas" l={`Booking ${periodeTeks} ${tahunIni}`} v={ini.length} s={`${thLalu}: ${lalu.length} · ${naik(ini.length, lalu.length) >= 0 ? '+' : ''}${naik(ini.length, lalu.length)}%`} />
+            <Kartu l="Masih berjalan" v={iniJalan.length} s={`${rpM(nilaiIni)} · ${thLalu}: ${laluJalan.length}`} />
+            <Kartu l="Walk in media offline" v={V.offline || 0} s={`sejak ${fmtDate(dari)}`} />
+            <Kartu l="Konsumen penerima hadiah" v={iniJalan.length} s={Object.entries(dHadiah).map(([h, n]) => `${h} ${n}`).join(' · ') || '—'} /></div>
+          <div className="pz-ins"><T k={KT('dampak.catatan')}>Hadiah langsung tanpa diundi (BYD Atto 1, Vespa Officina 8, AC) memberi konsumen alasan untuk memutuskan lebih cepat — penjualan {periodeTeks} {tahunIni} {ini.length >= lalu.length ? 'lebih tinggi' : 'belum melampaui'} dibanding periode yang sama {thLalu}. Grand Rewards sejak September memperkuat dorongan ini dengan Wuling Aira ev untuk Tipe C.</T></div></div></div></>) });
+  } else out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
     <h2><T k={KT("judul12")}>{promo.mulai ? (rSej > rSeb ? `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking naik dari ${f1(rSeb)} menjadi ${f1(rSej)} unit per bulan` : `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking ${f1(rSej)} unit per bulan (sebelumnya ${f1(rSeb)})`) : `Booking ${tahunIni}: rata-rata ${f1(rSej)} unit per bulan`}</T></h2>
     <div className="pz-row" style={{ flex: 1, gap: 16 }}>
       <div className="pz-box" style={{ flex: 1 }}><b>Booking berjalan per bulan</b>
