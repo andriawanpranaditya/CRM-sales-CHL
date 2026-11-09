@@ -65,7 +65,7 @@ export async function GET(req) {
     const k0 = t.lead_code + '|' + (t.unit || '');
     let k = k0 + '#' + (segKe[k0] || 0);
     if (grup.get(k)?.terakhir === 'Batal' && ['Reserved', 'Booking', 'Closing'].includes(t.jenis)) { segKe[k0] = (segKe[k0] || 0) + 1; k = k0 + '#' + segKe[k0]; }
-    const g = grup.get(k) || { seg: segKe[k0] || 0, lead_code: t.lead_code, nama: t.nama, project: t.project, unit: t.unit || '', tipe: t.tipe || '', sales: t.sales || '', sumber: t.sumber || '',
+    const g = grup.get(k) || { seg: segKe[k0] || 0, lead_code: t.lead_code, nama: t.nama, project: t.project, unit: t.unit || '', tipe: t.tipe || '', sales: t.sales || '', sumber: t.sumber || '', campaign: t.campaign || '', walkin_info: t.walkin_info || '',
       walkin_info: t.walkin_info || '', campaign: t.campaign || '', tgl_reserved: null, nilai_reserved: 0, tgl_booking: null, nilai_booking: 0, harga: null, bayar: '', cicilan: null,
       tgl_batal: null, alasan_batal: '', catatan: '', terakhir: '', updated: null, no_kontrak: '', skema: '', harga_cash: null, dana_dibayar: null, dana_hangus: null, dana_refund: null, batal_refund: null };
     if (t.jenis === 'Reserved' && !g.tgl_reserved) { g.tgl_reserved = t.tgl; g.nilai_reserved = Number(t.nilai || 0); }

@@ -112,12 +112,15 @@ export async function GET(req) {
   // Pergerakan per bulan (periode laporan): lead masuk, janji temu dibuat, visitor, Reserved & Booking dari lead periode ini
   const bulanList = []; { let m = dari.slice(0, 7); while (m <= today.slice(0, 7)) { bulanList.push(m); const [y, mo] = m.split('-').map(Number); m = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; } }
   const visRows = visitor._rows || [];
+  // Setiap lead periode dihitung sekali di bulan pertama tahapnya — jumlah per bulan = angka tahapan (funnel), jadi selalu sinkron
+  const pertama = (list, tglOf) => { const o = {}; list.forEach(x => { const t = tglOf(x); if (t && (!o[x.lead_code] || t < o[x.lead_code])) o[x.lead_code] = t; }); return o; };
+  const kodePeriode = new Set(periode.map(l => l.lead_code));
+  const jTgl = pertama(janjiLead.filter(j => kodePeriode.has(j.lead_code)), j => tglStr(j.created_at));
+  const vTgl = pertama(visRows.filter(v => kodePeriode.has(v.lead_code)), v => v.tgl);
+  const rbTgl = pertama(trxLead.filter(t => kodePeriode.has(t.lead_code) && ['Reserved', 'Booking', 'Closing'].includes(t.jenis)), t => t.tgl);
+  const hit = (o, m) => Object.values(o).filter(t => t.startsWith(m)).length;
   const pergerakan = bulanList.map(m => ({ bulan: m,
-    lead: periode.filter(l => tglLead(l).startsWith(m)).length,
-    janji: janjiLead.filter(j => tglStr(j.created_at).startsWith(m)).length,
-    visitor: visRows.filter(v => v.tgl.startsWith(m)).length,
-    reserved: trxLead.filter(t => t.jenis === 'Reserved' && t.tgl.startsWith(m)).length,
-    booking: trxLead.filter(t => (t.jenis === 'Booking' || t.jenis === 'Closing') && t.tgl.startsWith(m)).length }));
+    lead: periode.filter(l => tglLead(l).startsWith(m)).length, janji: hit(jTgl, m), visitor: hit(vTgl, m), reserved: 0, booking: hit(rbTgl, m) }));
   const adaJanji = new Set(janjiLead.map(j => j.lead_code)), datang = new Set(visRows.map(v => v.lead_code));
   const resv = new Set(trxLead.filter(t => t.jenis === 'Reserved').map(t => t.lead_code)), book = new Set(trxLead.filter(t => t.jenis === 'Booking' || t.jenis === 'Closing').map(t => t.lead_code));
   const funnel = { masuk: periode.length, dioper: dioper.length, janji: periode.filter(l => adaJanji.has(l.lead_code)).length, datang: periode.filter(l => datang.has(l.lead_code)).length,
