@@ -970,3 +970,8 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pz-banding .b{flex:1;max-width:22px;border-radius:5px 5px 2px 2px;position:relative}.pz-banding .b b{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:10.5px;color:#10251E}
 .pz-banding span{font-size:11.5px;color:#5B6E66;font-weight:600}
 .pz-banding.kecil{height:125px}.pz-banding.kecil .bars{height:108px}
+.pz-isi{font-size:13.5px;line-height:1.55;color:#10251E}
+.pz-tb.cmp td{vertical-align:top;text-align:left!important;line-height:1.38}.pz-tb.cmp th{text-align:left!important}.pz-tb.cmp td:first-child{font-weight:700;background:#F8F5EE}
+.pz-tb.cmp td.sorot{background:#FFF8E6}.pz-th2{display:block;font-weight:600;text-transform:none;opacity:.85;font-size:10.5px}
+.pz-tl{display:grid;grid-template-columns:repeat(5,1fr);margin-top:4px}.pz-tl div{border-top:4px solid #C99C4F;padding:8px 8px 0 0;font-size:12px;line-height:1.35}.pz-tl div b{display:block;font-size:13px}.pz-tl div:last-child{border-top-color:#B4482A}
+.pz-ul{margin:0;padding-left:18px;font-size:12.8px;line-height:1.5;display:flex;flex-direction:column;gap:3px;color:#10251E}

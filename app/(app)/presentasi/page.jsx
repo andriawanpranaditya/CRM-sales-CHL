@@ -2,7 +2,7 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate } from '@/components/util';
-import { bolehPresentasi, PROMO, TARIF, biayaAiPerBalasan } from '@/lib/presentasi';
+import { bolehPresentasi, PROMO, TARIF, biayaAiPerBalasan, PROGRAM_BIO, pmt } from '@/lib/presentasi';
 import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { BIO_IRREG } from '@/lib/pricelist';
 const BIO_TIPE_A = unit => BIO_IRREG[unit]?.tipe === 'A';
@@ -51,7 +51,7 @@ export default function PresentasiPage() {
     if (!me || !bolehPresentasi(me)) return;
     setData(null);
     Promise.all([api('/api/settings'), ...PROYEK.map(x => Promise.all([api('/api/laporan-penjualan?project=' + encodeURIComponent(x.p)), api(`/api/presentasi?project=${encodeURIComponent(x.p)}&dari=${dari}`)]))])
-      .then(([st, ...h]) => setData(h.map(([lp, pr], i) => ({ ...PROYEK[i], lp, pr, promo: PROMO[PROYEK[i].p], akun: st.sales || [] })))).catch(e => toast(e.message));
+      .then(([st, ...h]) => setData(h.map(([lp, pr], i) => ({ ...PROYEK[i], lp, pr, promo: PROMO[PROYEK[i].p], akun: st.sales || [], jumlahUnit: (st.units?.[PROYEK[i].p] || []).length })))).catch(e => toast(e.message));
   }, [me, dari]);
   // skala slide mengikuti lebar area
   useEffect(() => {
@@ -501,6 +501,127 @@ function slideProyek(P, dari) {
     ['Kontrol manajemen', 'Chat ada di HP pribadi — tidak terlihat & hilang bila sales berganti', 'Semua percakapan tersimpan di CRM; bisa diaudit dan dialihkan kapan saja'],
     ['Pengukuran iklan', 'Banyak lead masuk tanpa tanda campaign', 'Campaign tercatat otomatis → biaya per lead & per Booking terukur'],
   ];
+
+  // ===== Program cara bayar fleksibel: Smart, Easy & Stay (Bio) — 8.0 s.d. 8.6 =====
+  if (promo.program) {
+    const PG = PROGRAM_BIO;
+    const jt = n => 'Rp' + (n / 1e6).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' jt';
+    const M2 = n => 'Rp' + (n / 1e9).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' M';
+    const pr1 = x => (x * 100).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%';
+    const hitung = t => {
+      const dp = t.harga * PG.dp, P = t.harga - dp;
+      const stay = PG.stay.map(o => ({ ...o, cicil: pmt(P, o.bunga, o.tahun * 12) + P * PG.asuransi / 12 }));
+      const s15 = PG.stay[PG.stay.length - 1];
+      const bungaStay = pmt(P, s15.bunga, s15.tahun * 12) * s15.tahun * 12 - P, danaStay = P * PG.biayaDana * s15.tahun / 2;
+      const jembatan = (cicil, n) => { const masuk = dp + cicil * n, sisa = t.harga - masuk;
+        return { cicil, n, masuk, pct: masuk / t.harga, sisa, bulanKpr: PG.dpKali + n + 1, kpr: pmt(sisa, PG.kprFloating, PG.tenorKpr * 12), kprPromo: pmt(sisa, PG.kprPromo, PG.tenorKpr * 12), dana: (P + sisa) / 2 * PG.biayaDana * n / 12 }; };
+      return { ...t, dp, dp3: dp / PG.dpKali, P, stay, bungaStay, danaStay, kprBank: pmt(P, PG.kprFloating, PG.tenorKpr * 12), smart: jembatan(t.smart, PG.smartKali), easy: jembatan(t.easy, PG.easyKali) };
+    };
+    const SIM = PG.tipe.map(hitung), A = SIM[0];
+    const prog = (no, isi) => <Slide bab={`7 · ${PG.nama}`} logo={logo} proj={nama} no={no}>{isi}</Slide>;
+    // --- 8.0 Kenapa
+    const batalThn = thn.filter(r => r.status === 'Batal'), nilaiBatalThn = batalThn.reduce((a, r) => a + (Number(r.harga) || 0), 0);
+    const tersedia = P.jumlahUnit ? Math.max(0, P.jumlahUnit - (pen.n || 0) - (K.reserved?.n || 0)) : null;
+    out.push({ judul: 'Program: kenapa dibuat', bagian: false, isi: prog('8.0', <>
+      <h2><T k={KT('prog.kenapa.judul')}>Kenapa program ini harus dibuat: {persen(batalThn.length, thn.length)}% transaksi {tahunIni} batal, dan penyebab utamanya kemampuan bayar lewat KPR</T></h2>
+      <div className="pz-k4"><Kartu l={`Transaksi ${tahunIni}`} v={thn.length} s={`${bookThn.length} masih berjalan · ${batalThn.length} batal (${persen(batalThn.length, thn.length)}%)`} />
+        <Kartu l="Batal karena KPR / finansial" v={`${persen(kemampuan, batalBk.length)}%`} vs={{ color: R }} s={`${kemampuan} dari ${batalBk.length} batal setelah Booking (semua tahun)`} />
+        <Kartu l="Batal saat Reserved" v={batalRv.length} vs={{ color: R }} s={rvTop ? `terbanyak "${rvTop[0].toLowerCase()}" (${rvTop[1]})` : 'batal sebelum Booking'} />
+        <Kartu cls="emas" l={`Nilai transaksi batal ${tahunIni}`} v={rpM(nilaiBatalThn)} s={`penjualan berjalan ${tahunIni}: ${rpM(nilaiThn)}`} /></div>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k1')}>Kondisi pasar yang menekan</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t1')}>BI Rate naik ke 5,75% sejak pertengahan 2026; bunga floating KPR bank 11–13,5%. Kendala utama konsumen Bio adalah BI checking dan kemampuan keuangan untuk lolos KPR. Tipe A harga baru menarik peminat baru, tetapi banyak yang batal. Bio bersaing dengan developer besar dengan harga setara — perlu pembeda yang nyata.</T></div></div>
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k2')}>Yang diselesaikan Smart, Easy &amp; Stay</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t2')}>Konsumen tetap terikat (Reserved/Booking) walau belum lolos KPR. Yang ditolak bank dialihkan ke Bio Smart, Easy atau Stay — bukan dibatalkan. Pembeda dari developer besar: DP 20% dicicil 3×, langsung huni, cicilan ke developer dengan proteksi asuransi.</T>{tersedia != null ? <> Stok <b>{tersedia} unit</b> tersedia bisa bergerak lebih cepat tanpa menurunkan harga.</> : null}</div></div></div></>) });
+    // --- 8.1 Bio Stay
+    out.push({ judul: 'Bio Stay', isi: prog('8.1', <>
+      <h2><T k={KT('prog.stay.judul')}>Bio Stay: DP 20% dicicil 3×, sisa harga dicicil langsung ke developer 5–15 tahun dengan bunga tetap</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div className="pz-box" style={{ flex: .85 }}><span className="pz-chip hijau">Bio Stay · {PG.nama}</span>
+          <ol className="pz-ol" style={{ fontSize: 13.5 }}>{['Booking — konsumen langsung terikat, tanpa menunggu persetujuan bank.', 'DP 20% dicicil 3× (bulan 1–3), lalu langsung huni lewat serah terima pinjam pakai.', `Sisa 80% dicicil ke developer dengan bunga tetap: ${PG.stay.map(o => `${o.tahun} tahun ${pr1(o.bunga)}`).join(' · ')}.`, 'Asuransi jiwa kredit — sisa cicilan lunas bila konsumen meninggal.', 'Sertifikat ditahan developer sampai lunas; boleh pindah ke KPR bank kapan saja tanpa penalti.'].map((x, i) => <li key={i}><T k={KT('prog.stay.alur' + i)}>{x}</T></li>)}</ol>
+          <div className="pz-ins" style={{ fontSize: 13 }}><T k={KT('prog.stay.beda')}>Pembeda dari KPR bank: tidak bergantung BI checking dan bunga tidak naik seperti floating bank.</T></div></div>
+        <div className="pz-col" style={{ flex: 1.15 }}>
+          <table className="pz-tb s"><thead><tr><th>Tipe</th><th>DP 20%</th>{PG.stay.map(o => <th key={o.tahun}>{o.tahun} thn · {pr1(o.bunga)}</th>)}<th>KPR bank {pr1(PG.kprFloating)} · {PG.tenorKpr} thn</th></tr></thead>
+            <tbody>{SIM.map(t => <tr key={t.tipe}><td className="kiri"><b>{t.tipe}</b><span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{M2(t.harga)}</span></td><td>{jt(t.dp3)} ×{PG.dpKali}</td>{t.stay.map((o, i) => <td key={i}>{i === t.stay.length - 1 ? <b>{jt(o.cicil)}</b> : jt(o.cicil)}</td>)}<td style={{ color: '#8A3B26' }}>{jt(t.kprBank)}</td></tr>)}</tbody></table>
+          <div className="pz-sub" style={{ fontSize: 11.5 }}>Cicilan per bulan termasuk asuransi jiwa kredit ({pr1(PG.asuransi)}/tahun, estimasi). Harga setelah diskon sesuai Price List.</div>
+          <div className="pz-k3"><Kartu cls="emas" l={`${A.tipe} · ${PG.stay[PG.stay.length - 1].tahun} tahun`} v={jt(A.stay[A.stay.length - 1].cicil)} vs={{ fontSize: 26 }} s={`per bulan · penghasilan min ±${jt(A.stay[A.stay.length - 1].cicil / PG.batasCicilan)}`} />
+            <Kartu l={`DP ${A.tipe}`} v={`${jt(A.dp3)} ×${PG.dpKali}`} vs={{ fontSize: 22 }} s="lalu langsung huni (pinjam pakai)" />
+            <Kartu l={`Bunga ${PG.stay[PG.stay.length - 1].tahun} tahun`} v={pr1(PG.stay[PG.stay.length - 1].bunga)} vs={{ fontSize: 26 }} s="tetap · setara floating bank, tanpa risiko naik" /></div></div></div></>) });
+    // --- 8.2 Bunga & pendanaan
+    const contohB = SIM[1] || A;
+    out.push({ judul: 'Bunga & pendanaan', isi: prog('8.2', <>
+      <h2><T k={KT('prog.dana.judul')}>Bunga tetap Bio Stay: di atas biaya dana developer, di bawah floating bank — dengan kebutuhan pendanaan piutang</T></h2>
+      <div className="pz-k4"><Kartu l="BI Rate" v={PG.acuan.biRate} s={PG.acuan.biRateKet} /><Kartu l="Bunga kredit baru (rata-rata)" v={PG.acuan.kreditBaru} s={PG.acuan.kreditBaruKet} />
+        <Kartu l="KPR bank floating" v={PG.acuan.floating} s={PG.acuan.floatingKet} /><Kartu cls="emas" l="Usulan bunga Bio Stay" v={`${pr1(PG.stay[0].bunga)}–${pr1(PG.stay[PG.stay.length - 1].bunga)}`} s="tetap sepanjang tenor" /></div>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.dana.k1')}>Dampak ke arus kas developer</T></b><div className="pz-isi"><T k={KT('prog.dana.t1')}>Developer menerima DP 20% dalam 3 bulan; 80% masuk bertahap selama tenor. Contoh: 5 unit {contohB.tipe} setahun = piutang ±{rpM(contohB.P * 5)} yang perlu didanai. Pilihan pendanaan: pembiayaan piutang (anjak piutang) ke bank / multifinance, atau kuota unit Bio Stay per tahun.</T></div></div>
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.dana.k2')}>Bio Smart &amp; Bio Easy — opsi jembatan (risiko lebih kecil)</T></b><div className="pz-isi"><T k={KT('prog.dana.t2')}>Cicil ke developer 12–24 bulan, lalu sisa pokok di-take over KPR bank setelah riwayat bayar konsumen baik. Dana developer yang tertahan dan risiko gagal bayar jauh lebih pendek. Cocok untuk konsumen yang hari ini ditolak bank karena SLIK atau dokumen penghasilan.</T></div></div></div>
+      <div className="pz-sub" style={{ fontSize: 11.5 }}>{PG.acuan.sumber}</div></>) });
+    // --- 8.3 Perlindungan risiko
+    const RISK = [['Konsumen meninggal dunia', 'Ya · asuransi jiwa kredit', 'Sisa cicilan dilunasi asuransi; ahli waris menerima rumah', true],
+      ['Cacat tetap total / penyakit kritis', 'Ya · perluasan jiwa kredit', 'Sesuai polis; diambil sebagai perluasan', true],
+      ['Konsumen terkena PHK', 'Sebagian · perluasan PHK', 'Cicilan ditanggung beberapa bulan + masa tenggang PPJB', true],
+      ['Rumah terbakar / bencana', 'Ya · asuransi kebakaran', 'Banker’s clause atas nama developer sampai lunas', true],
+      ['Berhenti bayar (tidak mau / tidak mampu)', 'Tidak ditanggung asuransi', 'Dilindungi lewat PPJB: denda → somasi → pembatalan; unit kembali ke developer', false],
+      ['Ingin memindahkan risiko gagal bayar', 'Kerja sama bank / multifinance', 'Pembiayaan piutang + penjaminan kredit milik lembaga keuangan; konsumen ikut disaring', null]];
+    out.push({ judul: 'Perlindungan risiko', isi: prog('8.3', <>
+      <h2><T k={KT('prog.risiko.judul')}>Perlindungan risiko: asuransi menanggung meninggal, cacat &amp; PHK — konsumen yang berhenti bayar dilindungi lewat PPJB</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div style={{ flex: 1.25, minWidth: 0 }}><table className="pz-tb s cmp"><colgroup><col style={{ width: '30%' }} /><col style={{ width: '27%' }} /><col /></colgroup><thead><tr><th>Risiko</th><th>Ditanggung asuransi?</th><th>Perlindungan</th></tr></thead>
+          <tbody>{RISK.map(([a, b, c, ya], i) => <tr key={i}><td>{a}</td><td style={{ color: ya === true ? G : ya === false ? R : undefined, fontWeight: 700 }}><T k={KT('prog.risiko.a' + i)}>{b}</T></td><td><T k={KT('prog.risiko.b' + i)}>{c}</T></td></tr>)}</tbody></table></div>
+        <div className="pz-box" style={{ flex: .85 }}><b>Klausul PPJB yang wajib ada</b><ul className="pz-ul">{['Sertifikat atas nama developer sampai lunas; AJB setelah pelunasan', 'Autodebet & denda keterlambatan', 'Masa tenggang & penjadwalan ulang sekali selama tenor', 'Pembatalan setelah tunggakan sesuai PPJB; unit boleh dijual kembali', 'Pengembalian dana dipotong sesuai aturan PPJB yang berlaku (dikonfirmasi notaris)', 'Larangan sewa/alih sebelum lunas tanpa izin', 'Hak pindah ke KPR bank kapan saja'].map((x, i) => <li key={i}><T k={KT('prog.risiko.ppjb' + i)}>{x}</T></li>)}</ul></div></div>
+      <div><b style={{ fontSize: 13 }}>Tahapan penagihan bila menunggak</b><div className="pz-tl">{[['Bulan 1', 'Pengingat & denda'], ['Bulan 2', 'Somasi 1 · tawarkan keringanan'], ['Bulan 3', 'Somasi 2 · penjadwalan ulang'], ['Bulan 4–5', 'Penyelesaian / pindah ke KPR'], ['Bulan 6', 'Pembatalan sesuai PPJB']].map(([a, b], i) => <div key={i}><b>{a}</b><T k={KT('prog.risiko.tl' + i)}>{b}</T></div>)}</div></div></>) });
+    // --- 8.4 Perbandingan
+    const st15 = A.stay[A.stay.length - 1];
+    const BANDING = [
+      ['Alur pembayaran', `DP 20% dicicil 3× → cicil ${jt(A.smart.cicil)} × ${PG.smartKali} → sisa via KPR bank bulan ke-${A.smart.bulanKpr}`, `DP 20% dicicil 3× → cicil ${jt(A.easy.cicil)} × ${PG.easyKali} → sisa via KPR bank bulan ke-${A.easy.bulanKpr}`, `DP 20% dicicil 3× → sisa 80% dicicil ke developer ${PG.stay[PG.stay.length - 1].tahun} tahun, bunga tetap ${pr1(PG.stay[PG.stay.length - 1].bunga)}`],
+      [`Cicilan konsumen (${A.tipe})`, `${jt(A.smart.cicil)}/bln, lalu KPR ±${jt(A.smart.kpr)} (floating) / ${jt(A.smart.kprPromo)} (promo)`, `${jt(A.easy.cicil)}/bln, lalu KPR ±${jt(A.easy.kpr)} (floating) / ${jt(A.easy.kprPromo)} (promo)`, `${jt(st15.cicil)}/bln selama ${PG.stay[PG.stay.length - 1].tahun} tahun (termasuk asuransi)`],
+      ['Developer menerima lunas', `Bulan ke-${A.smart.bulanKpr} (saat KPR cair)`, `Bulan ke-${A.easy.bulanKpr} (saat KPR cair)`, `Bertahap sampai tahun ke-${PG.stay[PG.stay.length - 1].tahun}`],
+      [`Beban / hasil dana (${A.tipe})`, `Biaya dana ±${jt(A.smart.dana)} — ${A.allIn - A.harga >= A.smart.dana ? 'tertutup' : 'belum tertutup'} selisih harga all in (${jt(A.allIn - A.harga)})`, `Biaya dana ±${jt(A.easy.dana)} — ${A.allIn - A.harga >= A.easy.dana ? 'tertutup selisih harga all in' : 'lebih besar dari selisih all in; perlu kurangi diskon / cicilan lebih besar'}`, `Bunga diterima ${M2(A.bungaStay)} − biaya dana ${M2(A.danaStay)} = +${jt(A.bungaStay - A.danaStay)} selama ${PG.stay[PG.stay.length - 1].tahun} tahun`],
+      ['Risiko utama', `KPR tetap ditolak di bulan ke-${A.smart.bulanKpr} → dialihkan ke Bio Stay`, 'Sama, dengan waktu 2 tahun memperbaiki SLIK', 'Piutang 80% tertahan lama; gagal bayar dilindungi PPJB & asuransi'],
+      ['Cocok untuk', 'Konsumen dengan SLIK yang bisa cepat bersih', 'Konsumen yang butuh waktu lebih lama untuk layak KPR', 'Konsumen yang sulit KPR atau ingin bunga tetap tanpa bank']];
+    out.push({ judul: 'Perbandingan Smart, Easy & Stay', isi: prog('8.4', <>
+      <h2><T k={KT('prog.banding.judul')}>{PG.nama}: konsumen tetap bisa memiliki rumah walau belum lolos KPR hari ini</T></h2>
+      <table className="pz-tb s cmp"><colgroup><col style={{ width: '17%' }} /><col style={{ width: '26%' }} /><col style={{ width: '26%' }} /><col /></colgroup>
+        <thead><tr><th></th><th>Bio Smart</th><th>Bio Easy</th><th>Bio Stay</th></tr></thead>
+        <tbody>{BANDING.map(([l, a, b, c], i) => <tr key={i}><td>{l}</td><td><T k={KT('prog.banding.s' + i)}>{a}</T></td><td><T k={KT('prog.banding.e' + i)}>{b}</T></td><td className="sorot"><T k={KT('prog.banding.y' + i)}>{c}</T></td></tr>)}</tbody></table>
+      <div className="pz-sub" style={{ fontSize: 11.5 }}>Contoh {A.tipe} harga setelah diskon {M2(A.harga)}. Biaya dana dihitung dari bunga kredit baru {pr1(PG.biayaDana)}/tahun.</div></>) });
+    // --- 8.5 Simulasi per tipe
+    out.push({ judul: 'Simulasi per tipe', isi: prog('8.5', <>
+      <h2><T k={KT('prog.tipe.judul')}>Simulasi per tipe: DP sama untuk semua pilihan, yang berbeda adalah lama cicilan ke developer dan kapan KPR mengambil alih</T></h2>
+      <table className="pz-tb s"><thead><tr><th>Tipe</th><th>DP 20% (bln 1–3)</th><th>Bio Smart<span className="pz-th2">cicil 1 tahun → KPR*</span></th><th>Bio Easy<span className="pz-th2">cicil 2 tahun → KPR*</span></th><th>Bio Stay<span className="pz-th2">bunga tetap {pr1(PG.stay[PG.stay.length - 1].bunga)}</span></th></tr></thead>
+        <tbody>{SIM.map(t => <tr key={t.tipe}><td className="kiri"><b>{t.tipe}</b><span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{M2(t.harga)}</span></td><td>{jt(t.dp3)} ×{PG.dpKali}</td>
+          <td>{jt(t.smart.cicil)} ×{PG.smartKali}<span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>masuk {Math.round(t.smart.pct * 100)}% · KPR {jt(t.smart.kpr)}</span></td>
+          <td>{jt(t.easy.cicil)} ×{PG.easyKali}<span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>masuk {Math.round(t.easy.pct * 100)}% · KPR {jt(t.easy.kpr)}</span></td>
+          <td><b>{jt(t.stay[t.stay.length - 1].cicil)}</b> × {PG.stay[PG.stay.length - 1].tahun * 12}</td></tr>)}</tbody></table>
+      <div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><b style={{ fontSize: 14 }}><T k={KT('prog.tipe.k20')}>Kenapa DP 20% — keuntungan untuk konsumen</T></b><span className="pz-sub" style={{ fontSize: 11 }}>*KPR floating {pr1(PG.kprFloating)} · {PG.tenorKpr} thn</span></div>
+        <div className="pz-k3" style={{ marginTop: 6 }}>{[['🏡 Langsung huni', 'Setelah DP 20% lunas (bulan ke-3), unit diserahterimakan dengan perjanjian pinjam pakai — tidak perlu menunggu lunas atau akad.'], ['🛡️ Bebas worry', 'Selama cicilan, konsumen diproteksi asuransi jiwa kredit — bila terjadi risiko meninggal, sisa cicilan lunas dan keluarga tetap memiliki rumah.'], ['🔑 Tanpa menunggu bank', 'Booking langsung berjalan; KPR bisa diajukan nanti (Bio Smart, Bio Easy) atau tidak perlu sama sekali (Bio Stay).']].map(([a, b], i) =>
+          <div key={i} className="pz-k" style={{ padding: '10px 14px' }}><span className="l"><T k={KT('prog.tipe.u' + i)}>{a}</T></span><span className="s" style={{ fontSize: 12.5, color: '#10251E' }}><T k={KT('prog.tipe.ut' + i)}>{b}</T></span></div>)}</div></div>
+      <div className="pz-row"><div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.tipe.aman')}>Jalur aman tanpa batal: bila di akhir Bio Smart / Bio Easy konsumen masih ditolak KPR, sisa harga dialihkan ke Bio Stay — transaksi tetap berjalan, unit tidak kembali ke stok.</T></div>
+        <div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.tipe.dana')}>{`Bio Smart & Bio Easy tanpa bunga menimbulkan biaya dana bagi developer: ${A.tipe} ±${jt(A.smart.dana)} (Bio Smart) dan ±${jt(A.easy.dana)} (Bio Easy). Bio Smart ${A.allIn - A.harga >= A.smart.dana ? 'tertutup' : 'belum tertutup'} bila memakai harga all in; Bio Easy ${A.allIn - A.harga >= A.easy.dana ? 'juga tertutup' : 'perlu diskon dikurangi atau cicilan lebih besar'}.`}</T></div></div></>) });
+    // --- 8.6 KPI
+    const bulanBerjalan = Math.max(1, Number(hariIni().slice(5, 7)));
+    // Rasio batal = semua transaksi batal (saat Reserved maupun setelah Booking) ÷ semua transaksi tahun ini
+    const rasioBatal = persen(thn.filter(r => r.status === 'Batal').length, thn.length);
+    const KPI = [['Penjualan', 'Booking berjalan per bulan', `${(bookThn.length / bulanBerjalan).toLocaleString('id-ID', { maximumFractionDigits: 1 })} unit (${tahunIni})`, '≥ 2 unit / bulan'],
+      ['Penjualan', 'Rasio batal transaksi (Reserved & Booking)', `${rasioBatal}% (${tahunIni})`, '≤ 25%'],
+      ['Penyelamatan', 'Konsumen ditolak KPR yang pindah ke Smart / Easy / Stay', '— (belum ada program)', '≥ 50% dari kasus ditolak bank'],
+      ['Kecepatan', 'DP 20% terkumpul dalam 3 bulan', '—', '≥ 95% peserta'],
+      ['Kecepatan', 'Serah terima pinjam pakai setelah DP lunas', '—', '≤ 14 hari'],
+      ['Kualitas piutang', 'Tunggakan > 30 hari / > 90 hari', '—', '≤ 5% / ≤ 2% dari peserta'],
+      ['Kualitas piutang', 'Bio Smart & Easy berhasil take over KPR saat jatuh tempo', '—', '≥ 70% (sisanya pindah ke Bio Stay)'],
+      ['Batas risiko', 'Total piutang developer dari program', '—', `maks. ${PG.batasPiutang} · ditinjau per kuartal`],
+      ['Proteksi', 'Peserta dengan asuransi jiwa kredit aktif', '—', '100%']];
+    out.push({ judul: 'KPI program', isi: prog('8.6', <>
+      <h2><T k={KT('prog.kpi.judul')}>KPI program: dua kali lipat penjualan berjalan, pembatalan turun separuh, dengan batas risiko piutang yang jelas</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div style={{ flex: 1.45, minWidth: 0 }}><table className="pz-tb s cmp"><colgroup><col style={{ width: '15%' }} /><col style={{ width: '42%' }} /><col style={{ width: '18%' }} /><col /></colgroup><thead><tr><th>Area</th><th>KPI</th><th>Kondisi sekarang</th><th>Target</th></tr></thead>
+          <tbody>{KPI.map(([a, b, c, d], i) => <tr key={i}><td>{a}</td><td><b><T k={KT('prog.kpi.k' + i)}>{b}</T></b></td><td>{c}</td><td style={{ color: G, fontWeight: 800 }}><T k={KT('prog.kpi.t' + i)}>{d}</T></td></tr>)}</tbody></table></div>
+        <div className="pz-col" style={{ flex: .75 }}>
+          <Kartu cls="emas" l={`Target pilot ${PG.pilot.bulan} bulan`} v={`${PG.pilot.unit} unit`} s={`≥ 2 unit berjalan / bulan · ±${PG.pilot.nilai} nilai penjualan`} />
+          {tersedia != null && <Kartu l="Stok tersedia" v={`${tersedia} unit`} s={`habis ±${Math.ceil(tersedia / 2)} bulan pada laju 2 unit / bulan`} />}
+          <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.catatan')}>{`Catatan: begitu program berjalan, dapat langsung ditawarkan juga ke ${proses.length} konsumen yang KPR-nya sedang berproses sebagai jalur cadangan.`}</T></div>
+          <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.pantau')}>Cara pantau: semua KPI terbaca dari CRM (Laporan Penjualan, Collection &amp; KPR); ditinjau bulanan oleh Sales &amp; Marketing dan Keuangan, dilaporkan ke CEO per kuartal. Program dievaluasi di akhir pilot sebelum diperluas.</T></div></div></div></>) });
+  }
+
   if (promo.aiWa) out.push({ judul: 'Pentingnya WA satu nomor & AI', isi: L('7 · Langkah ke depan', 9, <>
     <h2><T k={KT("judul14")}>WhatsApp satu nomor + AI Asisten: lead tidak hilang saat serah terima dan terlayani 24 jam</T></h2>
     <div className="pz-row" style={{ flex: 1 }}>
