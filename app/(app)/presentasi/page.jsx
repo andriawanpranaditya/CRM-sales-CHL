@@ -722,6 +722,46 @@ function slideProyek(P, dari) {
           <div key={i} className="pz-k" style={{ padding: '10px 14px' }}><span className="l"><T k={KT('prog.tipe.u' + i)}>{a}</T></span><span className="s" style={{ fontSize: 12.5, color: '#10251E' }}><T k={KT('prog.tipe.ut' + i)}>{b}</T></span></div>)}</div></div>
       <div className="pz-row"><div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.tipe.aman')}>Jalur aman tanpa batal: bila di akhir Bio Smart / Bio Easy konsumen masih ditolak KPR, sisa harga dialihkan ke Bio Stay — transaksi tetap berjalan, unit tidak kembali ke stok.</T></div>
         <div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.tipe.dana')}>{`Bio Smart & Bio Easy tanpa bunga menimbulkan biaya dana bagi developer: ${A.tipe} ±${jt(A.smart.dana)} (Bio Smart) dan ±${jt(A.easy.dana)} (Bio Easy). Bio Smart ${A.allIn - A.harga >= A.smart.dana ? 'tertutup' : 'belum tertutup'} bila memakai harga all in; Bio Easy ${A.allIn - A.harga >= A.easy.dana ? 'juga tertutup' : 'perlu diskon dikurangi atau cicilan lebih besar'}.`}</T></div></div></>) });
+    // --- 8.6 Harga nett developer (standar per tipe) & 8.6.2 corner per unit
+    {
+      const NT = PG.nett, s15 = PG.stay[PG.stay.length - 1];
+      const nettOf = (harga, biayaHadiah, cS, cE) => {
+        const P = harga * (1 - PG.dp), bp = NT.bphtb * Math.max(0, harga - NT.npoptkp), aj = NT.ajb * harga;
+        const dasar = harga - biayaHadiah - bp - aj;
+        const sS = P - cS * PG.smartKali, sE = P - cE * PG.easyKali;
+        const smart = dasar - PG.asuransi * (P + sS) / 2 * PG.smartKali / 12, easy = dasar - PG.asuransi * (P + sE) / 2 * PG.easyKali / 12;
+        const bunga = pmt(P, s15.bunga, s15.tahun * 12) * s15.tahun * 12 - P;
+        const stay = dasar - PG.asuransi * P / 2 * s15.tahun + bunga;
+        return { harga, biayaHadiah, ajbBphtb: bp + aj, smart, smartDana: smart - PG.biayaDana * (P + sS) / 2 * PG.smartKali / 12,
+          easy, easyDana: easy - PG.biayaDana * (P + sE) / 2 * PG.easyKali / 12, stay, bunga, stayDana: stay - PG.biayaDana * P / 2 * s15.tahun };
+      };
+      const STD = PG.tipe.map(t => { const h = t.tipe.slice(-1); const [nm, by] = NT.hadiah[h] || ['—', 0]; return { label: `${t.tipe} ${h === 'A' ? '' : 'Standar'}`.trim(), hadiahNama: nm, ...nettOf(t.allIn, by, t.smart, t.easy) }; });
+      const terjualSet = new Set(rows.filter(r => r.status !== 'Batal').map(r => r.unit));
+      const [byNm, byBiaya] = NT.hadiah.corner;
+      const COR = Object.entries(BIO_IRREG).filter(([, v]) => /hoek/i.test(v.sub || '') && v.allin).map(([unit, v]) => {
+        const t = PG.tipe.find(x => x.tipe.endsWith(v.tipe)) || PG.tipe[1];
+        return { unit, tipe: v.tipe, lt: v.lt, terjual: terjualSet.has(unit), ...nettOf(v.allin, byBiaya, t.smart, t.easy) }; });
+      const avail = COR.filter(x => !x.terjual);
+      const sub = x => <span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{x}</span>;
+      out.push({ judul: 'Harga nett per tipe', isi: prog('8.6', <>
+        <h2><T k={KT('prog.nett.judul')}>Harga nett yang diterima developer — unit standar per tipe, setelah hadiah, AJB + BPHTB dan asuransi; Bio Stay ditambah pendapatan bunga</T></h2>
+        <table className="pz-tb s cmp"><colgroup><col style={{ width: '17%' }} /><col style={{ width: '12%' }} /><col style={{ width: '11%' }} /><col style={{ width: '19%' }} /><col style={{ width: '19%' }} /><col /></colgroup>
+          <thead><tr><th>Tipe standar · hadiah</th><th>Harga all in</th><th>AJB + BPHTB</th><th>Nett Bio Smart</th><th>Nett Bio Easy</th><th>Nett Bio Stay ({s15.tahun} thn)</th></tr></thead>
+          <tbody>{STD.map(x => <tr key={x.label}><td>{x.label}{sub(`${x.hadiahNama} ${jt(x.biayaHadiah)}`)}</td><td>{M2(x.harga)}</td><td>{jt(x.ajbBphtb)}</td>
+            <td><b>{M2(x.smart)}</b>{sub(`stl biaya dana ${M2(x.smartDana)}`)}</td><td><b>{M2(x.easy)}</b>{sub(`stl biaya dana ${M2(x.easyDana)}`)}</td>
+            <td className="sorot"><b>{M2(x.stay)}</b>{sub(`+ bunga ${M2(x.bunga)} · stl biaya dana ${M2(x.stayDana)}`)}</td></tr>)}</tbody></table>
+        <div className="pz-row"><div className="pz-ins" style={{ flex: 1, fontSize: 12.8 }}><T k={KT('prog.nett.c1')}>Bio Smart &amp; Bio Easy: developer menerima harga penuh saat KPR mengambil alih; biaya tambahannya hanya asuransi selama masa cicilan. Bila piutang ditalangi pinjaman, biaya dana Bio Easy ±2× Bio Smart.</T></div>
+          <div className="pz-ins" style={{ flex: 1, fontSize: 12.8 }}><T k={KT('prog.nett.c2')}>{`Bio Stay: pendapatan bunga ${s15.tahun} tahun (nominal) ${M2(Math.min(...STD.map(x => x.bunga)))}–${M2(Math.max(...STD.map(x => x.bunga)))} per unit standar. Setelah biaya dana pun nett-nya di atas harga all in (${STD[0].label} ${M2(STD[0].stayDana)} vs ${M2(STD[0].harga)}) — diterima bertahap selama ${s15.tahun} tahun.`}</T></div></div>
+        {avail.length > 0 && <div className="pz-ins" style={{ fontSize: 12.8 }}><T k={KT('prog.nett.c3')}>{`Unit corner (${avail.length} unit tersedia, hadiah ${byNm}) dihitung per unit dengan harga Price List masing-masing — nett Bio Smart ${M2(Math.min(...avail.map(x => x.smart)))}–${M2(Math.max(...avail.map(x => x.smart)))}; rincian di slide berikutnya.`}</T></div>}
+        <div className="pz-sub" style={{ fontSize: 10.5 }}>BPHTB {pr1(NT.bphtb)} × (harga − {jt(NT.npoptkp)}) · AJB ±{pr1(NT.ajb)} · asuransi {pr1(PG.asuransi)}/thn · biaya dana {pr1(PG.biayaDana)}/thn · bunga Bio Stay {pr1(s15.bunga)} · PPN tidak dikurangkan</div></>) });
+      if (COR.length) out.push({ judul: 'Harga nett corner per unit', isi: prog('8.6.2', <>
+        <h2><T k={KT('prog.nettc.judul')}>{`Harga nett unit corner per unit — harga Price List masing-masing, hadiah ${byNm} (${jt(byBiaya)})`}</T></h2>
+        <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '15%' }} /><col style={{ width: '9%' }} /><col style={{ width: '8%' }} /><col style={{ width: '10%' }} /><col style={{ width: '10%' }} /><col style={{ width: '11%' }} /><col style={{ width: '11%' }} /><col style={{ width: '13%' }} /><col /></colgroup>
+          <thead><tr><th>Unit corner</th><th>Tipe · LT</th><th>Status</th><th>Harga all in</th><th>AJB + BPHTB</th><th>Nett Bio Smart</th><th>Nett Bio Easy</th><th>Nett Bio Stay (+bunga)</th><th>Bio Stay stl biaya dana</th></tr></thead>
+          <tbody>{COR.map(x => <tr key={x.unit} style={x.terjual ? { opacity: .55 } : undefined}><td>{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.terjual ? R : G, fontWeight: 700 }}>{x.terjual ? 'Terjual' : 'Tersedia'}</td>
+            <td>{M2(x.harga)}</td><td>{jt(x.ajbBphtb)}</td><td><b>{M2(x.smart)}</b></td><td><b>{M2(x.easy)}</b></td><td className="sorot"><b>{M2(x.stay)}</b></td><td className="sorot">{M2(x.stayDana)}</td></tr>)}</tbody></table>
+        <div className="pz-sub" style={{ fontSize: 10.5 }}>Nett = harga all in − hadiah {byNm} − AJB + BPHTB − asuransi jiwa kredit. Bio Stay ditambah pendapatan bunga {pr1(s15.bunga)} selama {s15.tahun} tahun (nominal). Status unit dari transaksi CRM; cicilan Bio Smart / Easy corner memakai cicilan per tipe.</div></>) });
+    }
     // --- 8.6 KPI
     const bulanBerjalan = Math.max(1, Number(hariIni().slice(5, 7)));
     // Rasio batal = semua transaksi batal (saat Reserved maupun setelah Booking) ÷ semua transaksi tahun ini
@@ -735,7 +775,7 @@ function slideProyek(P, dari) {
       ['Kualitas piutang', 'Bio Smart & Easy berhasil take over KPR saat jatuh tempo', '—', '≥ 70% (sisanya pindah ke Bio Stay)'],
       ['Batas risiko', 'Total piutang developer dari program', '—', `maks. ${PG.batasPiutang} · ditinjau per kuartal`],
       ['Proteksi', 'Peserta dengan asuransi jiwa kredit aktif', '—', '100%']];
-    out.push({ judul: 'KPI program', isi: prog('8.6', <>
+    out.push({ judul: 'KPI program', isi: prog('8.7', <>
       <h2><T k={KT('prog.kpi.judul')}>KPI program: dua kali lipat penjualan berjalan, pembatalan turun separuh, dengan batas risiko piutang yang jelas</T></h2>
       <div className="pz-row" style={{ flex: 1 }}>
         <div style={{ flex: 1.45, minWidth: 0 }}><table className="pz-tb s cmp"><colgroup><col style={{ width: '15%' }} /><col style={{ width: '42%' }} /><col style={{ width: '18%' }} /><col /></colgroup><thead><tr><th>Area</th><th>KPI</th><th>Kondisi sekarang</th><th>Target</th></tr></thead>
