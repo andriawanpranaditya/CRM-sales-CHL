@@ -234,6 +234,7 @@ function slideProyek(P, dari) {
     <h2><T k={KT("judul3")}>{thn.length} transaksi Januari–{BLNP[blnJalan - 1]} {tahunIni}; {bookThn.length} masih berjalan, terbaik di {BLNP[iTop]}</T></h2><Legenda /><Kolom data={bulanData} />
     <div className="pz-k3"><Kartu l={`Booking berjalan ${tahunIni}`} v={bookThn.length} s={rpM(nilaiThn)} /><Kartu l="Rata-rata per bulan" v={(bookThn.length / blnJalan).toLocaleString('id-ID', { maximumFractionDigits: 1 })} s="unit bersih / bulan" /><Kartu cls="emas" l="Bulan terbaik" v={BLN[iTop]} s={`${bulanData[iTop][0]} unit bersih · ${bulanData[iTop].reduce((a, c) => a + c, 0)} transaksi`} /></div></>) });
 
+  const idxBanding = out.length; // slide perbandingan dengan tahun lalu disisipkan tepat setelah grafik Penjualan
   const proses = rows.filter(r => r.proses_kpr).map(r => { const kb = pr.kprBaru?.[r.lead_code] || {}; const upd = kb.logTgl || kb.update || r.kpr?.updated_at || '';
     return { r, upd, teks: kb.log || [r.kpr?.label, kb.catatan || r.kpr?.catatan].filter(Boolean).join(' · ') || 'Belum ada catatan', bank: (r.kpr?.banks || []).join(', ') || '—', lama: upd ? selisih(hariIni(), upd) : 999 }; })
     .sort((a, b) => b.lama - a.lama);
@@ -322,10 +323,15 @@ function slideProyek(P, dari) {
   out.push({ judul: 'Lead & visitor', isi: L('5 · Lead & visitor', 5, <>
     <h2><T k={KT("judul6")}>{Ld.masuk || 0} lead masuk sejak {fmtDate(dari)}; {Ld.aktif || 0} masih di-follow up{Ld.dioper ? `, ${pCold}% lead yang dioper belum menanggapi` : ''}</T></h2>
     <div className="pz-k4"><Kartu l="Lead masuk" v={Ld.masuk || 0} s={`${Ld.marcom || 0} dari Marcom · ${Ld.dioper || 0} dipegang sales`} /><Kartu l="Masih di-follow up" v={Ld.aktif || 0} s={`${Ld.aktifFu7 || 0} disentuh dalam 7 hari (${pFu}%)`} />
-      <Kartu cls="emas" l="Visitor" v={V.total || 0} s={`${V.walkin || 0} walk in · ${V.janji || 0} janji temu · ${V.tanpaJanji || 0} tanpa janji`} /><Kartu l="Lead → Booking" v={Ld.booking || 0} s={`${persen(Ld.booking, Ld.masuk)}% dari lead masuk`} /></div>
+      <Kartu cls="emas" l="Visitor" v={V.total || 0} s={`${V.walkin || 0} walk in · ${V.janji || 0} janji temu · ${V.tanpaJanji || 0} tanpa janji`} /><Kartu l="Lead → transaksi" v={Ld.transaksi ?? Ld.booking ?? 0} s={`Reserved/Booking · ${persen(Ld.transaksi ?? Ld.booking ?? 0, Ld.masuk)}% dari lead masuk · ${Ld.transaksiJalan ?? Ld.booking ?? 0} masih berjalan`} /></div>
     <div className="pz-row" style={{ flex: 1 }}><div className="pz-box" style={{ flex: 1.3 }}><b>Kenapa lead masuk tapi diam</b><ol className="pz-ol">{diam.map((x, i) => <li key={i}><T k={KT('diam' + i)}>{x}</T></li>)}</ol></div>
       <div className="pz-col" style={{ flex: 1 }}><div className="pz-ins"><T k={KT("catatan2")}>{pFu >= 80 ? <>Disiplin follow up sudah baik (<b>{pFu}%</b> lead aktif disentuh dalam 7 hari). Masalahnya ada di <b>serah terima</b> dan <b>kualitas lead</b>, bukan kecepatan.</> : <><b>{100 - pFu}%</b> lead aktif tidak disentuh dalam 7 hari — jadwal follow up wajib perlu ditegakkan.</>}</T></div>
-        <table className="pz-tb s"><thead><tr><th>Sumber lead</th><th>Lead</th><th>Warm+</th><th>Booking</th></tr></thead><tbody>{(Ld.kualitasSumber || []).slice(0, 6).map(o => <tr key={o.sumber}><td>{o.sumber}</td><td>{o.lead}</td><td>{o.warm} <span className="pz-sub" style={{ fontSize: 11 }}>({persen(o.warm, o.lead)}%)</span></td><td><b>{o.booking}</b></td></tr>)}</tbody></table></div></div></>) });
+        {(() => { const KS = Ld.kualitasSumber || []; const atas = KS.slice(0, 5), sisa = KS.slice(5); const jum = (a, k) => a.reduce((x, o) => x + (o[k] ?? 0), 0);
+          const trxK = o => o.trx ?? o.booking ?? 0;
+          return <table className="pz-tb s xs"><thead><tr><th>Sumber lead</th><th>Lead</th><th>Warm+</th><th>Transaksi</th></tr></thead><tbody>
+            {atas.map(o => <tr key={o.sumber}><td>{o.sumber}</td><td>{o.lead}</td><td>{o.warm} <span className="pz-sub" style={{ fontSize: 11 }}>({persen(o.warm, o.lead)}%)</span></td><td><b>{trxK(o)}</b></td></tr>)}
+            {sisa.length > 0 && <tr><td>Lainnya ({sisa.length} sumber)</td><td>{jum(sisa, 'lead')}</td><td>{jum(sisa, 'warm')}</td><td><b>{sisa.reduce((x, o) => x + trxK(o), 0)}</b></td></tr>}
+            <tr className="t"><td>Total</td><td>{jum(KS, 'lead')}</td><td>{jum(KS, 'warm')}</td><td>{KS.reduce((x, o) => x + trxK(o), 0)}</td></tr></tbody></table>; })()}</div></div></>) });
 
   // 5b · Pergerakan lead, janji temu & visitor per bulan + funnel
   const PG0 = pr.pergerakan || [], FN = pr.funnel || {};
@@ -411,11 +417,12 @@ function slideProyek(P, dari) {
     const rata = L0 => jl(L0).length ? nilai(L0) / jl(L0).length : 0;
     const baris = [['Transaksi (termasuk batal)', lalu.length, ini.length], ['Booking', bk(lalu).length, bk(ini).length], ['Booking masih berjalan', jl(lalu).length, jl(ini).length],
       ['Nilai penjualan berjalan', nilai(lalu), nilai(ini), true], ['Rata-rata nilai per unit', rata(lalu), rata(ini), true], ['Transaksi Tipe A', tipeA(lalu), tipeA(ini), false, teksA(lalu), teksA(ini)]];
-    out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
-      <h2><T k={KT('dampak.judul3')}>{ini.length >= lalu.length ? `Sejak promo hadiah Januari ${tahunIni}, transaksi naik ${naik(ini.length, lalu.length)}%: ${ini.length} unit di ${tahunIni} vs ${lalu.length} unit sepanjang ${thLalu}` : `Promo hadiah ${tahunIni}: ${ini.length} transaksi vs ${lalu.length} sepanjang ${thLalu}`}</T></h2>
+    out.splice(idxBanding, 0, { judul: `Penjualan ${tahunIni} vs ${thLalu}`, isi: L(`3 · Penjualan ${tahunIni} vs ${thLalu}`, '3.1', <>
+      <h2><T k={KT('banding.judul')}>{ini.length >= lalu.length ? `Transaksi ${tahunIni} naik ${naik(ini.length, lalu.length)}% dibanding ${thLalu} (${ini.length} vs ${lalu.length} unit), didorong promo hadiah dan harga baru Tipe A` : `Transaksi ${tahunIni}: ${ini.length} unit vs ${lalu.length} unit di ${thLalu}`}</T></h2>
+
       <div className="pz-row" style={{ flex: 1, gap: 16 }}>
         <div className="pz-box" style={{ flex: 1.2 }}><b>Transaksi per bulan: {thLalu} vs {tahunIni}</b>
-          <div className="pz-leg"><span><i style={{ background: '#C9C3B4' }} />{thLalu} ({lalu.length} transaksi)</span><span><i style={{ background: G }} />{tahunIni} — promo hadiah ({ini.length} transaksi s.d. {tglPendek(ujung)})</span></div>
+          <div className="pz-leg"><span><i style={{ background: '#C9C3B4' }} />{thLalu} ({lalu.length} transaksi)</span><span><i style={{ background: G }} />{tahunIni} ({ini.length} transaksi s.d. {tglPendek(ujung)})</span></div>
           <div className="pz-banding kecil">{bulanBanding.map(x => <div key={x.b} className="g" style={{ opacity: x.nanti ? .45 : 1 }}><div className="bars"><div className="b" style={{ height: Math.max(2, x.lalu / mxB * 95), background: '#C9C3B4' }}><b>{x.lalu || ''}</b></div><div className="b" style={{ height: Math.max(2, x.ini / mxB * 95), background: G }}><b>{x.ini || ''}</b></div></div><span>{x.b}</span></div>)}</div>
           <table className="pz-tb s xs"><thead><tr><th></th><th>{thLalu}</th><th>{tahunIni}</th><th>Perubahan</th></tr></thead><tbody>
             {baris.map(([l, x, y, rp, tx, ty]) => <tr key={l}><td>{l}</td><td>{tx || (rp ? rpM(x) : x)}</td><td><b>{ty || (rp ? rpM(y) : y)}</b></td><td style={{ color: y >= x ? G : R }}><b>{pct(y, x)}</b></td></tr>)}</tbody></table></div>
@@ -424,9 +431,9 @@ function slideProyek(P, dari) {
             <Kartu cls="emas" l={`Transaksi ${tahunIni}`} v={ini.length} s={`${thLalu}: ${lalu.length} · ${pct(ini.length, lalu.length)}`} />
             <Kartu l="Masih berjalan" v={jl(ini).length} s={`${rpM(nilai(ini))} · ${thLalu}: ${jl(lalu).length}`} />
             <Kartu l="Konsumen penerima hadiah" v={jl(ini).length} s={Object.entries(dHadiah).map(([h, n]) => `${h} ${n}`).join(' · ') || '—'} />
-            <Kartu l="Walk in media offline" v={V.offline || 0} s={`sejak ${fmtDate(dari)}`} /></div>
-          {promo.catatanHarga && <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><b>Harga baru Tipe A:</b> <T k={KT('dampak.harga')}>{promo.catatanHarga} — peminat naik dari {tipeA(lalu)} menjadi {tipeA(ini)} transaksi{batalA(ini) ? `, namun ${batalA(ini)} batal${batalARv(ini) ? ` (${batalARv(ini)} saat Reserved)` : ''} sehingga yang berjalan ${jalanA(ini)} unit; kemampuan bayar pembeli Tipe A perlu disaring sebelum Reserved` : ''}. Rata-rata nilai per unit {rata(ini) < rata(lalu) ? 'lebih rendah' : 'berbeda'} dibanding {thLalu} karena harga Tipe A yang lebih terjangkau.</T></div>}
-          <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><T k={KT('dampak.catatan3')}>Hadiah langsung tanpa diundi (BYD Atto 1, Vespa Officina 8, AC) sepanjang {tahunIni} memberi konsumen alasan untuk memutuskan lebih cepat; Grand Rewards sejak September menambah Wuling Aira ev untuk Tipe C.</T></div></div></div></>) });
+            <Kartu l="Transaksi Tipe A" v={tipeA(ini)} s={`${thLalu}: ${tipeA(lalu)} · ${jalanA(ini)} berjalan, ${batalA(ini)} batal`} /></div>
+          {promo.catatanHarga && <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><b>Harga baru Tipe A:</b> <T k={KT('banding.harga')}>{promo.catatanHarga}. Rata-rata nilai per unit {rata(ini) < rata(lalu) ? 'turun' : 'berubah'} karena harga Tipe A lebih terjangkau; {batalA(ini) ? `${batalA(ini)} dari ${tipeA(ini)} transaksi Tipe A batal — kemampuan bayar perlu disaring sebelum Reserved.` : 'seluruh transaksi Tipe A masih berjalan.'}</T></div>}
+          <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><T k={KT('banding.catatan')}>Kenaikan {tahunIni} datang dari dua hal: <b>promo hadiah</b> sepanjang tahun (BYD Atto 1, Vespa Officina 8, AC; Grand Rewards sejak September menambah Wuling Aira ev untuk Tipe C) yang memberi konsumen alasan memutuskan lebih cepat, dan <b>perubahan tipe</b> — Tipe A harga baru membuka segmen pembeli dengan budget lebih rendah.</T></div></div></div></>) });
   } else out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
     <h2><T k={KT("judul12")}>{promo.mulai ? (rSej > rSeb ? `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking naik dari ${f1(rSeb)} menjadi ${f1(rSej)} unit per bulan` : `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking ${f1(rSej)} unit per bulan (sebelumnya ${f1(rSeb)})`) : `Booking ${tahunIni}: rata-rata ${f1(rSej)} unit per bulan`}</T></h2>
     <div className="pz-row" style={{ flex: 1, gap: 16 }}>

@@ -68,6 +68,7 @@ export async function GET(req) {
     sql`SELECT lead_code, tgl::text AS tgl, status, created_at FROM janjian WHERE lead_code = ANY(${codes}::text[])`.catch(() => []),
   ]) : [[], [], [], [], [], [], []];
   const setSentuh = new Set(sentuhLain.map(x => x.lead_code));
+  const setTrx = new Set(trxLead.filter(t => ['Reserved', 'Booking', 'Closing'].includes(t.jenis)).map(t => t.lead_code));
   const set7 = new Set(fu7.map(x => x.lead_code)), setFu = new Set(fuAda.map(x => x.lead_code)), setBook = new Set(bookAktif.map(x => x.lead_code));
   const SELESAI = ['Drop', 'Lost', 'Booking', 'Closing'];
   const umurHari = l => (Date.parse(today) - Date.parse(tglLead(l))) / 86400000;
@@ -87,13 +88,14 @@ export async function GET(req) {
     belumFu: belumFuList.length, belumFuList,
     cold: dioper.filter(l => l.status === 'Cold').length, warmPlus: dioper.filter(l => warmPlus.includes(l.status)).length,
     drop: periode.filter(l => ['Drop', 'Lost'].includes(l.status)).length, booking: periode.filter(l => setBook.has(l.lead_code)).length,
+    transaksi: periode.filter(l => setTrx.has(l.lead_code)).length, transaksiJalan: periode.filter(l => setTrx.has(l.lead_code) && setBook.has(l.lead_code)).length,
     // Lead yang masuk di luar jam kerja (sebelum 08.00 / sesudah 17.00 WIB) atau di hari Minggu — hanya lead digital yang jam masuknya tercatat
     luarJam: (() => { const dig = periode.filter(l => l.creator_role === 'markom' && l.created_at); const n = dig.filter(l => { const d = new Date(new Date(l.created_at).getTime() + 7 * 3600000); const j = d.getUTCHours(); return j < 8 || j >= 17 || d.getUTCDay() === 0; }).length; return { n, dari: dig.length }; })(),
     kualLengkap: periode.filter(l => Number(l.nkual) >= 3).length,
     alasanDrop: Object.entries(alasan).sort((a, b) => b[1] - a[1]).slice(0, 5),
     perSumber: Object.entries(periode.reduce((a, l) => { const k = l.sumber || 'Lainnya'; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]),
-    kualitasSumber: Object.values(periode.reduce((a, l) => { const k = l.sumber || 'Lainnya'; const o = a[k] || (a[k] = { sumber: k, lead: 0, warm: 0, booking: 0, drop: 0 });
-      o.lead++; if (warmPlus.includes(l.status)) o.warm++; if (setBook.has(l.lead_code)) o.booking++; if (['Drop', 'Lost'].includes(l.status)) o.drop++; return a; }, {})).sort((a, b) => b.lead - a.lead),
+    kualitasSumber: Object.values(periode.reduce((a, l) => { const k = l.sumber || 'Lainnya'; const o = a[k] || (a[k] = { sumber: k, lead: 0, warm: 0, booking: 0, trx: 0, drop: 0 });
+      o.lead++; if (warmPlus.includes(l.status)) o.warm++; if (setBook.has(l.lead_code)) o.booking++; if (setTrx.has(l.lead_code)) o.trx++; if (['Drop', 'Lost'].includes(l.status)) o.drop++; return a; }, {})).sort((a, b) => b.lead - a.lead),
     perBulan: Object.entries(leads.reduce((a, l) => { const m = tglLead(l).slice(0, 7); a[m] = (a[m] || 0) + 1; return a; }, {})).sort(),
   };
   // Visitor (aturan sama dengan menu Janjian & Visitor)
