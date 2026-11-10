@@ -35,10 +35,15 @@ export default function PresentasiPage() {
   const [tampil, setTampil] = useState(false); // sedang presentasi layar penuh
   const [edit, setEdit] = useState(false);   // mode edit teks
   const [sunting, setSunting] = useState(null); // { k, isi, diubah }
-  useEffect(() => { if (me && bolehPresentasi(me)) api('/api/presentasi?teks=1').then(x => { setTeks(x.teks || {}); setSembunyi(x.sembunyi || []); }).catch(() => {}); }, [me]);
+  useEffect(() => { if (me && bolehPresentasi(me)) api('/api/presentasi?teks=1').then(x => { setTeks(x.teks || {}); setSembunyi(x.sembunyi || []); setProspekSimpan(x.prospek || {}); }).catch(() => {}); }, [me]);
   async function ubahSembunyi(id, jadi) {
     setSembunyi(x => jadi ? [...new Set([...x, id])] : x.filter(y => y !== id)); // langsung terlihat, lalu disimpan
     try { const x = await api('/api/presentasi', { method: 'POST', body: JSON.stringify({ aksi: 'sembunyi', id, sembunyi: jadi }) }); setSembunyi(x.sembunyi || []); } catch (e) { toast(e.message); }
+  }
+  const [prospekSimpan, setProspekSimpan] = useState({}); // daftar prospek hasil edit per project
+  async function simpanProspek(project, isi) {
+    try { const x = await api('/api/presentasi', { method: 'POST', body: JSON.stringify({ aksi: 'prospek', project, ...isi }) }); setProspekSimpan(x.prospek || {}); toast(isi.reset ? 'Prospek dikembalikan ke daftar awal' : 'Prospek tersimpan'); }
+    catch (e) { toast(e.message); }
   }
   async function simpanTeks(k, isi) {
     try { const x = await api('/api/presentasi', { method: 'POST', body: JSON.stringify({ aksi: 'teks', k, teks: isi }) }); setTeks(x.teks || {}); setSunting(null); }
@@ -59,7 +64,7 @@ export default function PresentasiPage() {
     const ro = new ResizeObserver(() => setSkala(Math.min(el.clientWidth / 1280, (document.fullscreenElement ? window.innerHeight : 9e9) / 720)));
     ro.observe(el); return () => ro.disconnect();
   }, [data]);
-  const slides = useMemo(() => data ? susunSlide(data, dari) : [], [data, dari]);
+  const slides = useMemo(() => data ? susunSlide(data.map(P => ({ ...P, prospekEdit: prospekSimpan[P.p] })), dari) : [], [data, dari, prospekSimpan]);
   const tersembunyi = i => sembunyi.includes(slides[i]?.id);
   const geser = (i, arah) => { let j = i + arah; if (tampil) while (j >= 0 && j < slides.length && tersembunyi(j)) j += arah; return j < 0 || j >= slides.length ? i : j; };
   const terlihat = slides.filter((_, i) => !tersembunyi(i));
@@ -98,6 +103,7 @@ export default function PresentasiPage() {
           {!tampil && tersembunyi(ke) && <div className="pz-tanda">🚫 Disembunyikan — tidak tampil saat presentasi &amp; PDF</div>}
         </div>
         <div className="pz-nav"><button className="sort-btn" onClick={() => setKe(i => Math.max(0, i - 1))}>◀ Sebelumnya</button><b>{ke + 1} / {slides.length}</b>{sembunyi.length ? <span className="hint">{slides.length - terlihat.length} disembunyikan · {terlihat.length} tampil saat presentasi</span> : null}<button className="sort-btn" onClick={() => setKe(i => Math.min(slides.length - 1, i + 1))}>Berikutnya ▶</button></div>
+        {data.filter(P => P.promo?.prospek).map(P => <KelolaProspek key={'kp' + P.p} P={P} simpan={prospekSimpan[P.p]} onSimpan={isi => simpanProspek(P.p, isi)} />)}
         {data.map(P => { const daftar = P.pr.lead?.belumFuList || []; return daftar.length ? (<details key={P.p} className="card pz-cek"><summary><b>{P.nama}: {daftar.length} lead belum di-follow up sales</b> <span className="hint">(untuk dicek, tidak tampil di slide) · lead aktif ≥ 2 hari tanpa catatan FU, janji temu, maupun transaksi</span></summary>
           <div className="tbl-wrap tbl-compact"><table><thead><tr><th>Lead</th><th>Nama</th><th>Masuk</th><th>Sumber</th><th>Sales</th><th>Status</th><th>Diinput oleh</th></tr></thead><tbody>{daftar.map(l => <tr key={l.lead_code}><td><a href={'/leads?lead=' + encodeURIComponent(l.lead_code)}>{l.lead_code}</a></td><td>{l.nama}</td><td>{fmtDate(l.tgl)}</td><td>{l.sumber}</td><td>{l.sales}</td><td>{l.status}</td><td>{l.oleh === 'markom' ? 'Marcom' : l.oleh || '—'}</td></tr>)}</tbody></table></div></details>) : null; })}
       </div></div>}
@@ -122,6 +128,41 @@ function T({ k, children }) {
   const isi = v != null ? v : children;
   if (!c.edit) return <>{isi}</>;
   return <span className={'pz-ed' + (v != null ? ' diubah' : '')} title="Klik untuk mengubah kalimat" onClick={e => { e.stopPropagation(); c.buka(k, e.currentTarget.innerText, v != null); }}>{isi}</span>;
+}
+
+// ---------- editor daftar prospek (slide Prospek) ----------
+const TAHAP_PROSPEK = ['Siap Booking', 'Negosiasi', 'Diskusi keluarga', 'Pertimbangan', 'Sudah visit', 'Janji temu', 'Follow up'];
+function KelolaProspek({ P, simpan, onSimpan }) {
+  const awal = () => JSON.parse(JSON.stringify((simpan?.daftar) || P.promo.prospek.daftar || []));
+  const [rows, setRows] = useState(awal);
+  const [bulan, setBulan] = useState((simpan?.bulan) || P.promo.prospek.bulan || hariIni().slice(0, 7));
+  const [ubah, setUbah] = useState(false);
+  useEffect(() => { setRows(awal()); setBulan((simpan?.bulan) || P.promo.prospek.bulan || hariIni().slice(0, 7)); setUbah(false); }, [simpan]); // eslint-disable-line
+  const set = (i, k, v) => { setRows(r => r.map((x, j) => j === i ? { ...x, [k]: v } : x)); setUbah(true); };
+  const permai = !!P.promo.programPermai;
+  const togTipe = (i, t) => set(i, 'tipe', (rows[i].tipe || []).includes(t) ? rows[i].tipe.filter(y => y !== t) : [...(rows[i].tipe || []), t].sort());
+  return (<details className="card pz-cek pz-kp"><summary><b>✎ Kelola prospek — {P.nama}</b> <span className="hint">({rows.length} prospek · tambah, ubah, atau hapus; tersimpan untuk slide Prospek)</span></summary>
+    <div className="pz-kp-atas"><label>Bulan <input type="month" value={bulan} onChange={e => { setBulan(e.target.value); setUbah(true); }} /></label>
+      <span className="hint">Kolom "Nilai" dipakai untuk menghitung potensi nilai{permai ? ' (harga Permai Bisa)' : ' dari harga Price List per tipe'}.</span></div>
+    <div className="tbl-wrap"><table className="pz-kp-tb"><thead><tr><th>#</th><th>Nama prospek</th><th>Sales / agent</th><th>Peran</th><th>Minat unit</th>{permai ? null : <th>Nilai (tipe)</th>}<th>Unit</th><th>Update terakhir</th><th>Tahap</th><th>Langkah berikut</th><th></th></tr></thead>
+      <tbody>{rows.map((x, i) => <tr key={i}>
+        <td>{i + 1}</td>
+        <td><input value={x.nama || ''} onChange={e => set(i, 'nama', e.target.value)} placeholder="Nama" /></td>
+        <td><input value={x.sales || ''} onChange={e => set(i, 'sales', e.target.value)} placeholder="Sales / agent" /></td>
+        <td><input value={x.peran || ''} onChange={e => set(i, 'peran', e.target.value)} placeholder="Sales in-house / Agent" list="kp-peran" /></td>
+        <td><input value={x.keteranganUnit || ''} onChange={e => set(i, 'keteranganUnit', e.target.value)} placeholder="mis. Tipe B" /></td>
+        {permai ? null : <td className="kp-tipe">{['A', 'B', 'C'].map(t => <label key={t}><input type="checkbox" checked={(x.tipe || []).includes(t)} onChange={() => togTipe(i, t)} />{t}</label>)}</td>}
+        <td><input type="number" min={1} max={20} value={x.unit || 1} onChange={e => set(i, 'unit', Number(e.target.value) || 1)} style={{ width: 54 }} /></td>
+        <td><textarea rows={2} value={x.update || ''} onChange={e => set(i, 'update', e.target.value)} /></td>
+        <td><select value={x.tahap || 'Follow up'} onChange={e => set(i, 'tahap', e.target.value)}>{[...new Set([...TAHAP_PROSPEK, x.tahap].filter(Boolean))].map(t => <option key={t}>{t}</option>)}</select></td>
+        <td><textarea rows={2} value={x.langkah || ''} onChange={e => set(i, 'langkah', e.target.value)} /></td>
+        <td><button className="sort-btn" title="Hapus prospek" onClick={() => { setRows(r => r.filter((_, j) => j !== i)); setUbah(true); }}>🗑</button></td></tr>)}
+        {!rows.length && <tr><td colSpan={11} className="hint" style={{ textAlign: 'center', padding: 14 }}>Belum ada prospek — slide menampilkan "Belum ada prospek bulan ini".</td></tr>}</tbody></table></div>
+    <datalist id="kp-peran"><option value="Sales in-house" /><option value="Agent" /><option value="Walk in" /></datalist>
+    <div className="pz-kp-aksi"><button className="sort-btn" onClick={() => { setRows(r => [...r, { nama: '', sales: '', peran: 'Sales in-house', keteranganUnit: '', tipe: permai ? ['X'] : [], unit: 1, update: '', tahap: 'Follow up', langkah: '' }]); setUbah(true); }}>+ Tambah prospek</button>
+      <span style={{ flex: 1 }} />
+      {simpan && <button className="sort-btn" onClick={() => { if (confirm('Kembalikan daftar prospek ke daftar awal?')) onSimpan({ reset: true }); }}>↺ Daftar awal</button>}
+      <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!ubah} onClick={() => onSimpan({ bulan, daftar: rows.map(x => permai ? { ...x, tipe: ['X'] } : x) })}>Simpan prospek</button></div></details>);
 }
 
 // ---------- komponen kecil ----------
@@ -363,6 +404,58 @@ function slideProyek(P, dari) {
       <tbody>{trxP.slice(0, 7).map((x, i) => <tr key={i}><td className="kiri">{x.nama}</td><td className="kiri">{asalLead(x)}</td><td>{tglPendek(tglJual(x))}</td><td><b style={{ color: warnaS[x.status] || G }}>{x.status_tampil || x.status}</b></td><td className="kiri">{x.unit}</td><td className="kiri">{penanggungKinerja({ project: P.p, sales: x.sales, tgl: tglJual(x) }, P.akun || [])}</td></tr>)}
         {!trxP.length && <tr><td colSpan={6} className="kiri">Belum ada transaksi pada periode ini.</td></tr>}</tbody></table>
     {trxP.length > 7 && <span className="pz-sub" style={{ fontSize: 12 }}>7 transaksi terbaru ditampilkan · +{trxP.length - 7} lainnya ada di slide Detail transaksi</span>}</>) });
+
+  // 5d · Prospek bulan berjalan — daftar manual (lib/presentasi.js) + otomatis dari kunjungan bulan ini yang belum bertransaksi
+  if (promo.prospek) {
+    const PS = P.prospekEdit ? { ...promo.prospek, ...P.prospekEdit, bulan: P.prospekEdit.bulan || promo.prospek.bulan } : promo.prospek, hargaTipe = promo.programPermai ? { A: PROGRAM_PERMAI.harga, B: PROGRAM_PERMAI.harga, C: PROGRAM_PERMAI.harga, X: PROGRAM_PERMAI.harga } : Object.fromEntries((PROGRAM_BIO.tipe || []).map(t => [t.tipe.slice(-1), t.harga]));
+    const caraBayar = promo.programPermai ? PROGRAM_PERMAI.nama : 'Bio Smart / Easy / Stay';
+    const depan = x => String(x || '').toLowerCase().split(' ')[0].replace(/(.)\1+/g, '$1'); // Milla = Mila
+    const sama = (a, b) => depan(a) === depan(b);
+    const umum = x => !x || /^(lanjut )?follow ?up$/i.test(String(x).trim());
+    const manual = PS.daftar.map(x => ({ ...x, manual: true }));
+    const otomatis = (PS.otomatis === false ? [] : pr.prospekBulan || []).filter(p => !manual.some(m => sama(m.nama, p.nama))).map(p => ({
+      nama: p.nama, sales: penanggungKinerja({ project: P.p, sales: p.sales, tgl: p.tglUpdate || p.datang || hariIni() }, P.akun || []),
+      peran: [p.status, p.datang ? 'visit ' + tglPendek(p.datang) : '', p.tglUpdate ? 'FU ' + tglPendek(p.tglUpdate) : ''].filter(Boolean).join(' · '),
+      tipe: (String(p.tipe).toUpperCase().match(/TIPE\s*([ABC])/) || [])[1] ? [String(p.tipe).toUpperCase().match(/TIPE\s*([ABC])/)[1]] : promo.programPermai ? ['X'] : [], unit: 1, keteranganUnit: p.tipe ? String(p.tipe).replace(/^TIPE\s*/i, 'Tipe ') : '—',
+      update: p.update ? (p.update.length > 115 ? p.update.slice(0, 112).replace(/\s+\S*$/, '') + '…' : p.update) : '—', tahap: p.status === 'Hot' ? 'Siap Booking' : p.status === 'Site Visit' ? 'Sudah visit' : p.status === 'Appointment' ? 'Janji temu' : p.status === 'Warm' ? 'Pertimbangan' : 'Follow up',
+      langkah: !umum(p.nextAction) ? `${p.nextAction}${p.nextTgl ? ` (${tglPendek(p.nextTgl)})` : ''}` : p.status === 'Hot' ? `Jadwalkan closing; siapkan simulasi ${caraBayar} bila terkendala KPR` : p.datang ? `Follow up hasil kunjungan; tawarkan ${caraBayar} bila terkendala KPR` : `Ajak kunjungan / presentasi unit; siapkan simulasi cara bayar termasuk ${caraBayar}`, kode: p.lead_code }));
+    const semua = [...manual, ...otomatis];
+    const nilaiR = x => { const h = (x.tipe || []).map(t => hargaTipe[t]).filter(Boolean); return h.length ? [Math.min(...h) * (x.unit || 1), Math.max(...h) * (x.unit || 1)] : [0, 0]; };
+    const nMin = semua.reduce((a, x) => a + nilaiR(x)[0], 0), nMax = semua.reduce((a, x) => a + nilaiR(x)[1], 0);
+    const unitTotal = semua.reduce((a, x) => a + (x.unit || 1), 0);
+    const siap = semua.filter(x => x.tahap === 'Siap Booking'), unitSiap = siap.reduce((a, x) => a + (x.unit || 1), 0), nilaiSiap = siap.reduce((a, x) => a + nilaiR(x)[1], 0);
+    const keputusan = semua.filter(x => x.tahap !== 'Siap Booking' && x.tahap !== 'Follow up');
+    const warnaTahap = { 'Sudah visit': '#8A5F14', 'Janji temu': '#8A5F14', 'Siap Booking': G, Negosiasi: '#8A5F14', 'Diskusi keluarga': '#8A5F14', Pertimbangan: '#8A5F14', 'Follow up': '#5B6E66' };
+    const blnP = PS.bulan || hariIni().slice(0, 7);
+    const kosong = !semua.length;
+    // Halaman dibagi menurut perkiraan tinggi baris agar tabel tidak terpotong
+    const tinggiP = x => 14 + 15 * Math.max(2, Math.ceil(String(x.update || '').length / 40), Math.ceil(String(x.langkah || '').length / 58));
+    const halP = []; { let cur = [], isi = 0; semua.forEach(x => { const t = tinggiP(x); if (cur.length && isi + t > (halP.length ? 455 : 270)) { halP.push(cur); cur = []; isi = 0; } cur.push(x); isi += t; }); halP.push(cur); }
+    let tanpaCatatan = false; // sisa 1–2 baris digabung ke halaman sebelumnya (tanpa catatan kaki) agar tidak ada slide hampir kosong
+    if (halP.length > 2) { const A0 = halP[halP.length - 2], A1 = halP[halP.length - 1]; if (A1.length <= 2 && [...A0, ...A1].reduce((x, y) => x + tinggiP(y), 0) <= 515) { halP.splice(-2, 2, [...A0, ...A1]); tanpaCatatan = true; } }
+    const hitungTahap = a => Object.entries(a.reduce((o, x) => { o[x.tahap] = (o[x.tahap] || 0) + 1; return o; }, {})).map(([k, n]) => `${n} ${k.toLowerCase()}`).join(' · ');
+    const kunci = x => x.manual ? 'm.' + x.nama : 'a.' + x.kode;
+    const tabelP = (hal, h) => (<>
+      <table className="pz-tb s cmp"><colgroup><col style={{ width: '19%' }} /><col style={{ width: '14%' }} /><col style={{ width: '24%' }} /><col style={{ width: '11%' }} /><col /></colgroup>
+        <thead><tr><th>Prospek · sales</th><th>Minat unit</th><th>Update terakhir</th><th>Tahap</th><th>Langkah berikut</th></tr></thead>
+        <tbody>{kosong && !h && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '26px 10px', color: '#5B6E66', fontWeight: 600, background: '#fff' }}>Belum ada prospek bulan ini.</td></tr>}{hal.map(x => <tr key={kunci(x)}><td>{x.nama}<span className="pz-sub" style={{ display: 'block', fontSize: 10.5, fontWeight: 600 }}>{x.peran} · {x.sales || '—'}</span></td>
+          <td><b>{x.keteranganUnit || (x.tipe || []).filter(t => t !== 'X').map(t => 'Tipe ' + t).join(' atau ') || '—'}</b></td>
+          <td>{x.update || '—'}</td>
+          <td><span className="pz-chip" style={{ background: (warnaTahap[x.tahap] || G) + '1A', color: warnaTahap[x.tahap] || G, fontSize: 11 }}>{x.tahap || 'Follow up'}</span></td>
+          <td>{x.langkah || '—'}</td></tr>)}</tbody></table></>);
+    out.push({ judul: `Prospek ${BLNP[Number(blnP.slice(5, 7)) - 1]}` + (halP.length > 1 ? ` (1/${halP.length})` : ''), isi: L('5 · Lead & visitor', '5.4', <>
+      <h2><T k={KT('prospek.judul')}>{kosong ? `Prospek ${BLNP[Number(blnP.slice(5, 7)) - 1]} ${blnP.slice(0, 4)}: belum ada prospek bulan ini` : `Prospek ${BLNP[Number(blnP.slice(5, 7)) - 1]} ${blnP.slice(0, 4)}: ${semua.length} prospek dengan ${unitTotal} unit potensial${unitSiap ? ` — ${unitSiap} unit siap Booking` : ''}`}</T></h2>
+      <div className="pz-k4"><Kartu l="Prospek" v={semua.length} s={[`${unitTotal} unit potensial`, manual.length ? `${manual.length} dari sales/agent` : '', otomatis.length ? `${otomatis.length} dari follow up / kunjungan 7 hari terakhir` : ''].filter(Boolean).join(' · ')} />
+        <Kartu cls="emas" l="Siap Booking" v={`${unitSiap} unit`} s={siap.length ? `${siap.length} prospek · ±${rpM(nilaiSiap)}` : 'belum ada'} />
+        <Kartu l="Potensi nilai" vs={{ fontSize: 26 }} v={kosong ? '—' : nMin === nMax ? `±${rpM(nMax)}` : `±${rpM(nMin).replace(' M', '')}–${rpM(nMax).replace('Rp', '')}`} s="harga setelah diskon Price List" />
+        <Kartu l="Tahap keputusan" v={keputusan.length} s={hitungTahap(keputusan) || '—'} /></div>
+      {tabelP(halP[0], 0)}
+
+      <div className="pz-sub" style={{ fontSize: 11.5 }}>{halP.length > 1 ? `Berlanjut ke slide berikutnya (${semua.length - halP[0].length} prospek lagi)` : PS.otomatis === false ? '' : 'Prospek otomatis = lead project ini berstatus Hot / Site Visit / Appointment / Warm atau yang berkunjung bulan ini, dengan follow up sales / kunjungan dalam 7 hari terakhir, belum Reserved/Booking.'}</div></>) });
+    for (let h = 1; h < halP.length; h++) out.push({ judul: `Prospek ${BLNP[Number(blnP.slice(5, 7)) - 1]} (${h + 1}/${halP.length})`, isi: L('5 · Lead & visitor', `5.4.${h + 1}`, <>
+      <h2>Prospek {BLNP[Number(blnP.slice(5, 7)) - 1]} {blnP.slice(0, 4)} — lanjutan ({h + 1}/{halP.length})</h2>{tabelP(halP[h], h)}{h === halP.length - 1 && !tanpaCatatan && <div className="pz-sub" style={{ fontSize: 11.5 }}>Prospek otomatis = lead project ini berstatus Hot / Site Visit / Appointment / Warm atau yang berkunjung bulan ini, dengan follow up sales / kunjungan dalam 7 hari terakhir, belum Reserved/Booking.</div>}</>) });
+  }
+
 
   // 6 · Promo berjalan
   const ps = promo.sales || {}, pk = promo.konsumen || {}, ct = ps.continuity;

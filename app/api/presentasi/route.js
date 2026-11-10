@@ -1,3 +1,4 @@
+import { riwayatFU } from '@/lib/fuwajib-db';
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { hitungVisitor, siapkanJanjian } from '@/lib/janjian';
@@ -13,6 +14,7 @@ const tglStr = v => !v ? '' : (v instanceof Date ? new Date(v.getTime() + 7 * 36
 
 // Kalimat slide yang diedit (disimpan di settings 'presentasi_teks': { kunci: teks })
 async function ambilSembunyi(sql) { const r = await sql`SELECT items FROM settings WHERE key = 'presentasi_sembunyi'`.catch(() => []); return Array.isArray(r[0]?.items) ? r[0].items : []; }
+async function ambilProspek(sql) { const r = await sql`SELECT items FROM settings WHERE key = 'presentasi_prospek'`.catch(() => []); return r[0]?.items && typeof r[0].items === 'object' && !Array.isArray(r[0].items) ? r[0].items : {}; }
 async function ambilTeks(sql) { const r = await sql`SELECT items FROM settings WHERE key = 'presentasi_teks'`.catch(() => []); return r[0]?.items || {}; }
 export async function POST(req) {
   const { user, err } = await requireUser(['manager']); if (err) return err;
@@ -20,6 +22,21 @@ export async function POST(req) {
   const sql = db();
   const b = await req.json().catch(() => ({}));
   // Slide yang disembunyikan saat presentasi & PDF
+  // Daftar prospek per project (diedit dari menu Presentasi)
+  if (b.aksi === 'prospek' && ['BIO DISTRICT', 'PERMAI INDAH'].includes(b.project)) {
+    const semua = { ...(await ambilProspek(sql)) };
+    if (b.reset) delete semua[b.project];
+    else {
+      const t = (x, n = 300) => String(x ?? '').slice(0, n);
+      const daftar = (Array.isArray(b.daftar) ? b.daftar : []).slice(0, 30).map(x => ({
+        nama: t(x.nama, 80), sales: t(x.sales, 60), peran: t(x.peran, 40), keteranganUnit: t(x.keteranganUnit, 80),
+        tipe: (Array.isArray(x.tipe) ? x.tipe : []).filter(y => ['A', 'B', 'C', 'X'].includes(y)), unit: Math.max(1, Math.min(20, Number(x.unit) || 1)),
+        update: t(x.update), tahap: t(x.tahap, 40), langkah: t(x.langkah) })).filter(x => x.nama.trim());
+      semua[b.project] = { bulan: /^\d{4}-\d{2}$/.test(b.bulan || '') ? b.bulan : null, daftar };
+    }
+    await sql`INSERT INTO settings (key, items) VALUES ('presentasi_prospek', ${JSON.stringify(semua)}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(semua)}`;
+    return Response.json({ ok: true, prospek: semua });
+  }
   if (b.aksi === 'sembunyi' && b.id && String(b.id).length <= 200) {
     const daftar = new Set(await ambilSembunyi(sql));
     if (b.sembunyi) daftar.add(String(b.id)); else daftar.delete(String(b.id));
@@ -38,7 +55,7 @@ export async function GET(req) {
   if (!bolehPresentasi(user)) return Response.json({ error: 'Menu ini khusus akun Head of Sales & Marketing' }, { status: 403 });
   const sql = db();
   const q = new URL(req.url).searchParams;
-  if (q.get('teks')) return Response.json({ teks: await ambilTeks(sql), sembunyi: await ambilSembunyi(sql) });
+  if (q.get('teks')) return Response.json({ teks: await ambilTeks(sql), sembunyi: await ambilSembunyi(sql), prospek: await ambilProspek(sql) });
   const pj = q.get('project');
   if (!pj) return Response.json({ error: 'project wajib' }, { status: 400 });
   const today = hariIniWIB();
@@ -142,6 +159,36 @@ export async function GET(req) {
     return { nama: l.nama, sumber: l.sumber || '', sales: l.sales || '', masuk: tglLead(l), datang: v ? v.tgl : '', kategori: v ? v.kategori : '', status: akhir.jenis, tgl: akhir.tgl, unit: akhir.unit || '' }; })
     .sort((a, b) => b.tgl.localeCompare(a.tgl));
   const visitorJadi = visRows.filter(v => resv.has(v.lead_code) || book.has(v.lead_code)).length;
+  // Prospek: lead aktif project ini yang (a) berstatus Hot / Site Visit / Appointment / Warm menurut follow up sales, atau (b) berkunjung bulan ini —
+  // belum Reserved/Booking, bukan Drop/Lost, bukan data impor. Update terakhir = catatan follow up sales terbaru.
+  let prospekBulan = [];
+  try {
+    const awalBulan = today.slice(0, 7) + '-01';
+    const batas7 = new Date(Date.parse(today) - 7 * 86400000).toISOString().slice(0, 10);
+    const visB = (await hitungVisitor(sql, { dari: awalBulan, sampai: today, pp: [pj] })).filter(v => v.hitung && v.kategori !== 'trx');
+    const kodeVisit = [...new Set(visB.map(v => v.lead_code).filter(Boolean))];
+    const ld = await sql`SELECT lead_code, nama, sales, COALESCE(tipe, '') AS tipe, status, COALESCE(sumber, '') AS sumber FROM leads
+      WHERE project = ${pj} AND COALESCE(sumber, '') NOT ILIKE 'import%' AND status NOT IN ('Drop', 'Lost', 'Booking', 'Closing', 'Reserved')
+        AND (status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') OR lead_code = ANY(${kodeVisit}::text[]))`;
+    const kode = ld.map(l => l.lead_code);
+    if (kode.length) {
+      const [trx, riw] = await Promise.all([
+        sql`SELECT DISTINCT lead_code FROM transactions WHERE lead_code = ANY(${kode}::text[]) AND jenis IN ('Reserved', 'Booking', 'Closing')`,
+        riwayatFU(sql, kode).catch(() => []),
+      ]);
+      const sudah = new Set(trx.map(t => t.lead_code));
+      const urutStatus = { Hot: 0, 'Site Visit': 1, Appointment: 2, Warm: 3 };
+      prospekBulan = ld.filter(l => !sudah.has(l.lead_code)).map(l => {
+        const fu = riw.filter(f => f.lead_code === l.lead_code && (f.oleh_role || '') !== 'markom' && f.created_by !== 'auto-wa' && !String(f.detail || '').startsWith('Leads to Sales'));
+        const last = fu[fu.length - 1];
+        const v = visB.filter(x => x.lead_code === l.lead_code).sort((a, b) => a.tgl.localeCompare(b.tgl)).at(-1);
+        return { lead_code: l.lead_code, nama: l.nama, sales: l.sales || '', tipe: l.tipe, status: l.status, sumber: l.sumber, datang: v?.tgl || '', kategori: v?.kategori || '',
+          update: last ? String([last.detail, last.objection ? 'Objection: ' + last.objection : ''].filter(Boolean).join(' · ')).slice(0, 160) : '',
+          tglUpdate: last ? String(last.tgl || last.created_at || '').slice(0, 10) : '', nextAction: last?.next_action || '', nextTgl: last?.next_tgl || '' };
+      }).filter(p => (p.tglUpdate || '') >= batas7 || (p.datang || '') >= batas7) // hanya yang ada follow up / kunjungan 7 hari terakhir
+        .sort((a, b) => (urutStatus[a.status] ?? 4) - (urutStatus[b.status] ?? 4) || (b.tglUpdate || b.datang || '').localeCompare(a.tglUpdate || a.datang || ''));
+    }
+  } catch (e) { prospekBulan = []; }
   delete visitor._rows;
-  return Response.json({ project: pj, today, lead, visitor: { ...visitor, jadi: visitorJadi }, kprBaru, pergerakan, funnel, jadi });
+  return Response.json({ project: pj, today, lead, visitor: { ...visitor, jadi: visitorJadi }, kprBaru, pergerakan, funnel, jadi, prospekBulan });
 }
