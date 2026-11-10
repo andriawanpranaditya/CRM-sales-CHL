@@ -2,7 +2,7 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate } from '@/components/util';
-import { bolehPresentasi, PROMO, TARIF, biayaAiPerBalasan, PROGRAM_BIO, pmt } from '@/lib/presentasi';
+import { bolehPresentasi, PROMO, TARIF, biayaAiPerBalasan, PROGRAM_BIO, PROGRAM_PERMAI, pmt } from '@/lib/presentasi';
 import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { BIO_IRREG } from '@/lib/pricelist';
 const BIO_TIPE_A = unit => BIO_IRREG[unit]?.tipe === 'A';
@@ -397,6 +397,30 @@ function slideProyek(P, dari) {
   const leadSeb = promo.mulai ? Object.entries(leadBln).filter(([m]) => m < mulai.slice(0, 7)).reduce((a, [, n]) => a + n, 0) / blnSebelum : 0;
   const leadSej = Object.entries(leadBln).filter(([m]) => m >= mulai.slice(0, 7)).reduce((a, [, n]) => a + n, 0) / blnSejak;
   const f1 = x => x.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+  // Ringkasan penjualan sejak start (pengganti perbandingan tahun lalu untuk project yang baru mulai) — setelah slide Penjualan
+  if (promo.ringkasanPenjualan) {
+    const urutTgl = rows.map(tglJual).filter(Boolean).sort(), mulaiJual = urutTgl[0] || `${tahunIni}-01-01`;
+    const jalanAll = rows.filter(r => r.status !== 'Batal'), batalAll = rows.filter(r => r.status === 'Batal');
+    const akadAll = jalanAll.filter(r => r.akad || r.status_tampil === 'Akad').length;
+    const nilaiJalan = jalanAll.reduce((a, r) => a + (Number(r.harga) || 0), 0);
+    const tahunL = [...new Set(urutTgl.map(t => t.slice(0, 4)))];
+    const perTh = tahunL.map(y => { const d = rows.filter(r => tglJual(r).startsWith(y)); const j = d.filter(r => r.status !== 'Batal');
+      return { y, label: y === mulaiJual.slice(0, 4) && mulaiJual.slice(5, 7) !== '01' ? `${BLN[Number(mulaiJual.slice(5, 7)) - 1]}–Des ${y} (start)` : y === tahunIni ? `${y} (s.d. ${BLN[Number(hariIni().slice(5, 7)) - 1]})` : y,
+        n: d.length, jalan: j.length, batal: d.length - j.length, nilai: j.reduce((a, r) => a + (Number(r.harga) || 0), 0) }; });
+    const thnJalan = thn.filter(r => r.status !== 'Batal').length;
+    out.splice(idxBanding, 0, { judul: 'Ringkasan penjualan', isi: L('3 · Ringkasan penjualan', '3.1', <>
+      <h2><T k={KT('ringkas.judul')}>{`Ringkasan penjualan sejak ${namaBln(mulaiJual.slice(0, 7))}: ${jalanAll.length} unit berjalan senilai ${rpM(nilaiJalan)} — ${akadAll} sudah akad, ${proses.length} proses KPR`}</T></h2>
+      <div className="pz-k4"><Kartu l="Total transaksi" v={rows.length} s={`sejak start penjualan ${namaBln(mulaiJual.slice(0, 7))}`} />
+        <Kartu cls="emas" l="Masih berjalan" v={`${jalanAll.length} unit`} s={`${rpM(nilaiJalan)} · ${akadAll} akad · ${proses.length} proses KPR`} />
+        <Kartu l="Batal" v={batalAll.length} vs={{ color: R }} s={`${persen(batalAll.length, rows.length)}% dari transaksi${nTop / Math.max(1, batalBk.length) >= 0.4 ? ` · ${nTop} dari kontrak ${namaBln(blnTop)}` : ''}`} />
+        <Kartu l={`Berjalan ${tahunIni}`} v={`${thnJalan} dari ${thn.length}`} s={`${persen(thnJalan, thn.length)}% transaksi ${tahunIni} bertahan`} /></div>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div className="pz-box" style={{ flex: 1.2 }}><b>Per periode penjualan</b>
+          <table className="pz-tb s"><thead><tr><th>Periode</th><th>Transaksi</th><th>Masih berjalan</th><th>Batal</th><th>Nilai berjalan</th></tr></thead>
+            <tbody>{perTh.map(x => <tr key={x.y}><td className="kiri">{x.label}</td><td>{x.n}</td><td><b>{x.jalan}</b></td><td>{x.batal}</td><td>{rpM(x.nilai)}</td></tr>)}
+              <tr className="t"><td className="kiri">Total</td><td>{rows.length}</td><td>{jalanAll.length}</td><td>{batalAll.length}</td><td>{rpM(nilaiJalan)}</td></tr></tbody></table></div>
+        <div className="pz-col" style={{ flex: 1 }}><div className="pz-ins" style={{ fontSize: 13.5 }}><T k={KT('ringkas.catatan')}>{`Pola utama: ${nTop / Math.max(1, batalBk.length) >= 0.4 ? `pembatalan terpusat pada kontrak ${namaBln(blnTop)} (${nTop} dari ${batalBk.length}); ` : ''}sepanjang ${tahunIni} ${persen(thnJalan, thn.length)}% transaksi bertahan. Tantangan berikutnya: ${proses.length} konsumen proses KPR belum akad dan pembeli yang tidak lolos KPR subsidi.`}</T></div></div></div></>) });
+  }
   if (promo.bandingTahunLalu) {
     // Transaksi tahun ini (promo hadiah sejak Januari) dibanding setahun penuh tahun lalu — sama dengan tabel per tahun di Rekap penjualan
     const thLalu = String(Number(tahunIni) - 1);
@@ -434,7 +458,7 @@ function slideProyek(P, dari) {
             <Kartu l="Transaksi Tipe A" v={tipeA(ini)} s={`${thLalu}: ${tipeA(lalu)} · ${jalanA(ini)} berjalan, ${batalA(ini)} batal`} /></div>
           {promo.catatanHarga && <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><b>Harga baru Tipe A:</b> <T k={KT('banding.harga')}>{promo.catatanHarga}. Rata-rata nilai per unit {rata(ini) < rata(lalu) ? 'turun' : 'berubah'} karena harga Tipe A lebih terjangkau; {batalA(ini) ? `${batalA(ini)} dari ${tipeA(ini)} transaksi Tipe A batal — kemampuan bayar perlu disaring sebelum Reserved.` : 'seluruh transaksi Tipe A masih berjalan.'}</T></div>}
           <div className="pz-ins" style={{ fontSize: 12.5, padding: '10px 14px' }}><T k={KT('banding.catatan')}>Kenaikan {tahunIni} datang dari dua hal: <b>promo hadiah</b> sepanjang tahun (BYD Atto 1, Vespa Officina 8, AC; Grand Rewards sejak September menambah Wuling Aira ev untuk Tipe C) yang memberi konsumen alasan memutuskan lebih cepat, dan <b>perubahan tipe</b> — Tipe A harga baru membuka segmen pembeli dengan budget lebih rendah.</T></div></div></div></>) });
-  } else out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
+  } else if (!promo.ringkasanPenjualan) out.push({ judul: 'Dampak promo', isi: L('6 · Dampak promo', 7, <>
     <h2><T k={KT("judul12")}>{promo.mulai ? (rSej > rSeb ? `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking naik dari ${f1(rSeb)} menjadi ${f1(rSej)} unit per bulan` : `Sejak promo ${namaBln(mulai.slice(0, 7))}, Booking ${f1(rSej)} unit per bulan (sebelumnya ${f1(rSeb)})`) : `Booking ${tahunIni}: rata-rata ${f1(rSej)} unit per bulan`}</T></h2>
     <div className="pz-row" style={{ flex: 1, gap: 16 }}>
       <div className="pz-box" style={{ flex: 1 }}><b>Booking berjalan per bulan</b>
@@ -452,6 +476,10 @@ function slideProyek(P, dari) {
 
   // 8 · Langkah ke depan
   const langkah = [];
+  if (promo.programPermai) langkah.push([`Luncurkan program ${PROGRAM_PERMAI.nama} — cicil bertahap hingga 20 tahun`, [
+    'Untuk konsumen yang tidak lolos KPR subsidi: DP 20% dicicil 3×, langsung huni lewat pinjam pakai, cicilan tetap 10 / 15 / 20 tahun.',
+    'PPN yang timbul tanpa KPR bank dan asuransi jiwa kredit dimasukkan ke bunga all in — developer tidak menanggung biaya tambahan.',
+    `Langsung ditawarkan ke ${proses.length} konsumen proses KPR sebagai jalur cadangan; pilot ${PROGRAM_PERMAI.pilot.bulan} bulan, target ${PROGRAM_PERMAI.pilot.unit} unit.`]]);
   if (promo.aiWa) {
     langkah.push(['WhatsApp resmi untuk semua lead digital', [
       'Iklan klik-ke-WhatsApp dan tombol WA website/landing page diarahkan ke nomor official; setiap chat otomatis menjadi lead di CRM lengkap dengan campaign-nya.',
@@ -486,8 +514,12 @@ function slideProyek(P, dari) {
     langkah.push(['Sosialisasi KPR subsidi kolektif', ['Kerja sama dengan perusahaan, pabrik, dan komunitas sekitar bersama bank partner — biaya minimal, lead sudah tersaring dari sisi pekerjaan.']]);
     langkah.push(['Promo sebagai alat closing, bukan pembuka', ['Free DP & biaya ditawarkan kepada konsumen yang lolos pra-saringan, agar promo tidak menambah kontrak yang kemudian batal.']]);
   }
+  // Bio: rencana program cara bayar fleksibel menjadi langkah nomor 1
+  if (promo.program) langkah.unshift([`Jalankan program ${PROGRAM_BIO.nama}`, [
+    'Bio Smart & Bio Easy: DP 20% dicicil 3×, cicil ke developer 1–2 tahun lalu lanjut KPR; Bio Stay: cicil ke developer hingga 15 tahun dengan bunga tetap — konsumen yang ditolak bank tidak perlu batal.',
+    `Pilot ${PROGRAM_BIO.pilot.bulan} bulan dengan target ${PROGRAM_BIO.pilot.unit} unit; langsung ditawarkan juga ke ${proses.length} konsumen yang KPR-nya sedang berproses.`]]);
   out.push({ judul: 'Langkah ke depan', isi: L('7 · Langkah ke depan', 8, <>
-    <h2><T k={KT("judul13")}>{promo.aiWa ? `${Math.min(5, langkah.length)} langkah untuk menaikkan penjualan dan menghidupkan lead yang diam` : `${Math.min(5, langkah.length)} langkah tanpa menambah budget: kelayakan & proses KPR, dan lead yang lebih berkualitas`}</T></h2>
+    <h2><T k={KT("judul13")}>{promo.aiWa ? `${Math.min(5, langkah.length)} langkah untuk menaikkan penjualan dan menghidupkan lead yang diam` : promo.programPermai ? `${Math.min(5, langkah.length)} langkah: ${PROGRAM_PERMAI.nama}, kelayakan & proses KPR, dan lead yang lebih berkualitas` : `${Math.min(5, langkah.length)} langkah tanpa menambah budget: kelayakan & proses KPR, dan lead yang lebih berkualitas`}</T></h2>
     <div className="pz-col" style={{ gap: 10, marginTop: 4 }}>{langkah.slice(0, 5).map(([a, b], i) => <div key={i} className="pz-langkah"><b className="no">{i + 1}</b><b className="j"><T k={KT(`langkah${i}.judul`)}>{a}</T></b><ul>{b.map((x, k) => <li key={k}><T k={KT(`langkah${i}.poin${k}`)}>{x}</T></li>)}</ul></div>)}</div></>) });
 
   // 8 · Kenapa WhatsApp satu nomor + AI Asisten penting (dampak berbasis data project ini)
@@ -530,12 +562,12 @@ function slideProyek(P, dari) {
         <Kartu cls="emas" l={`Nilai transaksi batal ${tahunIni}`} v={rpM(nilaiBatalThn)} s={`penjualan berjalan ${tahunIni}: ${rpM(nilaiThn)}`} /></div>
       <div className="pz-row" style={{ flex: 1 }}>
         <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k1')}>Kondisi pasar yang menekan</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t1')}>BI Rate naik ke 5,75% sejak pertengahan 2026; bunga floating KPR bank 11–13,5%. Kendala utama konsumen Bio adalah BI checking dan kemampuan keuangan untuk lolos KPR. Tipe A harga baru menarik peminat baru, tetapi banyak yang batal. Bio bersaing dengan developer besar dengan harga setara — perlu pembeda yang nyata.</T></div></div>
-        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k2')}>Yang diselesaikan Smart, Easy &amp; Stay</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t2')}>Konsumen tetap terikat (Reserved/Booking) walau belum lolos KPR. Yang ditolak bank dialihkan ke Bio Smart, Easy atau Stay — bukan dibatalkan. Pembeda dari developer besar: DP 20% dicicil 3×, langsung huni, cicilan ke developer dengan proteksi asuransi.</T>{tersedia != null ? <> Stok <b>{tersedia} unit</b> tersedia bisa bergerak lebih cepat tanpa menurunkan harga.</> : null}</div></div></div></>) });
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k2b')}>Yang diselesaikan Bio Smart, Bio Easy &amp; Bio Stay</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t2')}>Konsumen tetap terikat (Reserved/Booking) walau belum lolos KPR. Yang ditolak bank dialihkan ke Bio Smart, Easy atau Stay — bukan dibatalkan. Pembeda dari developer besar: DP 20% dicicil 3×, langsung huni, cicilan ke developer dengan proteksi asuransi.</T>{tersedia != null ? <> Stok <b>{tersedia} unit</b> tersedia bisa bergerak lebih cepat tanpa menurunkan harga.</> : null}</div></div></div></>) });
     // --- 8.1 Bio Stay
     out.push({ judul: 'Bio Stay', isi: prog('8.1', <>
       <h2><T k={KT('prog.stay.judul')}>Bio Stay: DP 20% dicicil 3×, sisa harga dicicil langsung ke developer 5–15 tahun dengan bunga tetap</T></h2>
       <div className="pz-row" style={{ flex: 1 }}>
-        <div className="pz-box" style={{ flex: .85 }}><span className="pz-chip hijau">Bio Stay · {PG.nama}</span>
+        <div className="pz-box" style={{ flex: .85 }}><span className="pz-chip hijau">Bio Stay</span>
           <ol className="pz-ol" style={{ fontSize: 13.5 }}>{['Booking — konsumen langsung terikat, tanpa menunggu persetujuan bank.', 'DP 20% dicicil 3× (bulan 1–3), lalu langsung huni lewat serah terima pinjam pakai.', `Sisa 80% dicicil ke developer dengan bunga tetap: ${PG.stay.map(o => `${o.tahun} tahun ${pr1(o.bunga)}`).join(' · ')}.`, 'Asuransi jiwa kredit — sisa cicilan lunas bila konsumen meninggal.', 'Sertifikat ditahan developer sampai lunas; boleh pindah ke KPR bank kapan saja tanpa penalti.'].map((x, i) => <li key={i}><T k={KT('prog.stay.alur' + i)}>{x}</T></li>)}</ol>
           <div className="pz-ins" style={{ fontSize: 13 }}><T k={KT('prog.stay.beda')}>Pembeda dari KPR bank: tidak bergantung BI checking dan bunga tidak naik seperti floating bank.</T></div></div>
         <div className="pz-col" style={{ flex: 1.15 }}>
@@ -603,7 +635,7 @@ function slideProyek(P, dari) {
     const rasioBatal = persen(thn.filter(r => r.status === 'Batal').length, thn.length);
     const KPI = [['Penjualan', 'Booking berjalan per bulan', `${(bookThn.length / bulanBerjalan).toLocaleString('id-ID', { maximumFractionDigits: 1 })} unit (${tahunIni})`, '≥ 2 unit / bulan'],
       ['Penjualan', 'Rasio batal transaksi (Reserved & Booking)', `${rasioBatal}% (${tahunIni})`, '≤ 25%'],
-      ['Penyelamatan', 'Konsumen ditolak KPR yang pindah ke Smart / Easy / Stay', '— (belum ada program)', '≥ 50% dari kasus ditolak bank'],
+      ['Penyelamatan', 'Konsumen ditolak KPR yang pindah ke Bio Smart / Bio Easy / Bio Stay', '— (belum ada program)', '≥ 50% dari kasus ditolak bank'],
       ['Kecepatan', 'DP 20% terkumpul dalam 3 bulan', '—', '≥ 95% peserta'],
       ['Kecepatan', 'Serah terima pinjam pakai setelah DP lunas', '—', '≤ 14 hari'],
       ['Kualitas piutang', 'Tunggakan > 30 hari / > 90 hari', '—', '≤ 5% / ≤ 2% dari peserta'],
@@ -620,6 +652,58 @@ function slideProyek(P, dari) {
           {tersedia != null && <Kartu l="Stok tersedia" v={`${tersedia} unit`} s={`habis ±${Math.ceil(tersedia / 2)} bulan pada laju 2 unit / bulan`} />}
           <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.catatan')}>{`Catatan: begitu program berjalan, dapat langsung ditawarkan juga ke ${proses.length} konsumen yang KPR-nya sedang berproses sebagai jalur cadangan.`}</T></div>
           <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.pantau')}>Cara pantau: semua KPI terbaca dari CRM (Laporan Penjualan, Collection &amp; KPR); ditinjau bulanan oleh Sales &amp; Marketing dan Keuangan, dilaporkan ke CEO per kuartal. Program dievaluasi di akhir pilot sebelum diperluas.</T></div></div></div></>) });
+  }
+
+
+  // ===== Program Permai Bisa — cicil bertahap hingga 20 tahun =====
+  if (promo.programPermai) {
+    const PB = PROGRAM_PERMAI;
+    const jt2 = n => 'Rp' + (n / 1e6).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' jt';
+    const jt1 = n => 'Rp' + (n / 1e6).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' jt';
+    const pc = x => (x * 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '%';
+    const dpN = PB.harga * PB.dp, pokok = PB.harga - dpN, ppnN = PB.harga * PB.ppn;
+    const SIMP = PB.tenor.map(o => { const n = o.tahun * 12, c = pmt(pokok, o.allIn, n);
+      return { ...o, c, gaji: c / PB.batasCicilan, net: c * n - pokok - ppnN - pokok * PB.asuransi * o.tahun / 2 - pokok * PB.biayaDana * o.tahun / 2 }; });
+    const T20 = SIMP[SIMP.length - 1], flpp = pmt(PB.harga * (1 - PB.flpp.dp), PB.flpp.bunga, PB.flpp.tahun * 12);
+    const progP = (no, isi) => <Slide bab={`7 · ${PB.nama}`} logo={logo} proj={nama} no={no}>{isi}</Slide>;
+    out.push({ judul: `${PB.nama}: skema & simulasi`, isi: progP('8.1', <>
+      <h2><T k={KT('pb.judul')}>{`${PB.nama}: DP 20% dicicil 3×, sisa harga dicicil langsung ke developer hingga ${T20.tahun} tahun — bunga sudah termasuk PPN & asuransi`}</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div className="pz-box" style={{ flex: .8 }}><span className="pz-chip hijau">{PB.nama}</span>
+          <ol className="pz-ol" style={{ fontSize: 13.5 }}>{['Untuk konsumen yang tidak lolos KPR subsidi bank.', `DP 20% (${jt1(dpN)}) dicicil 3×, lalu langsung huni lewat serah terima pinjam pakai.`, `Sisa 80% (${jt1(pokok)}) dicicil ke developer ${PB.tenor.map(o => o.tahun).join(' / ')} tahun, bunga tetap.`, `Tanpa KPR bank timbul PPN ±${jt1(ppnN)}/unit yang ditanggung developer — dimasukkan ke bunga cicilan.`, 'Asuransi jiwa kredit termasuk dalam bunga.'].map((x, i) => <li key={i}><T k={KT('pb.alur' + i)}>{x}</T></li>)}</ol></div>
+        <div className="pz-col" style={{ flex: 1.2 }}>
+          <table className="pz-tb s"><thead><tr><th>Tenor</th><th>Bunga dasar</th><th>Tambahan</th><th>Bunga all in</th><th>Cicilan / bulan</th><th>Penghasilan min</th></tr></thead>
+            <tbody>{SIMP.map(o => <tr key={o.tahun}><td className="kiri"><b>{o.tahun} tahun</b></td><td>{pc(o.dasar)}</td><td>+ PPN + asuransi</td><td><b>{pc(o.allIn)}</b></td><td><b>{jt2(o.c)}</b></td><td>{jt1(o.gaji)}</td></tr>)}</tbody></table>
+          <div className="pz-sub" style={{ fontSize: 11.5 }}>Harga contoh {jt1(PB.harga)} · DP {jt1(dpN)} ({jt1(dpN / PB.dpKali)} ×{PB.dpKali}) · pokok {jt1(pokok)}. Bunga dasar mengikuti skema Bio Stay; PPN (asumsi 11% dari harga, ±{jt1(ppnN)}) dan asuransi jiwa kredit {pc(PB.asuransi)}/tahun dimasukkan ke bunga all in. Penghasilan min = cicilan ≤ {Math.round(PB.batasCicilan * 100)}% penghasilan.</div>
+          <div className="pz-k3"><Kartu cls="emas" l={`${T20.tahun} tahun`} v={jt2(T20.c)} vs={{ fontSize: 26 }} s={`per bulan · bunga all in ${pc(T20.allIn)}`} />
+            <Kartu l="Pembanding KPR FLPP" v={jt2(flpp)} vs={{ fontSize: 26 }} s={`DP ${pc(PB.flpp.dp)}, ${pc(PB.flpp.bunga)} · ${PB.flpp.tahun} thn — bila lolos subsidi`} />
+            <Kartu l="DP" v={`${jt1(dpN / PB.dpKali)} ×${PB.dpKali}`} vs={{ fontSize: 24 }} s={`total ${jt1(dpN)} dalam 3 bulan`} /></div></div></div></>) });
+    const kol = (judul, warna, items, key) => <div className="pz-box" style={{ flex: 1 }}><b style={{ color: warna }}><T k={KT(key + '.j')}>{judul}</T></b><ul className="pz-ul" style={{ fontSize: 13.3 }}>{items.map((x, i) => <li key={i}><T k={KT(key + i)}>{x}</T></li>)}</ul></div>;
+    out.push({ judul: `${PB.nama}: keuntungan & risiko`, isi: progP('8.2', <>
+      <h2><T k={KT('pb.untung.judul')}>Keuntungan untuk pembeli dan developer, serta risiko yang ditanggung developer</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        {kol('Keuntungan pembeli', undefined, ['Tetap bisa punya rumah walau tidak lolos KPR subsidi', 'Langsung huni setelah DP 20% lunas (pinjam pakai)', `Bunga tetap sampai lunas, cicilan mulai ±${jt2(T20.c)}/bulan`, 'Bebas worry: diproteksi asuransi jiwa kredit', 'Boleh pindah ke KPR bank kapan saja bila sudah layak'], 'pb.ub')}
+        {kol('Keuntungan developer', undefined, ['Unit tetap terjual walau konsumen ditolak bank — menekan pembatalan', 'DP 20% masuk dalam 3 bulan; risiko awal lebih kecil', 'PPN & asuransi tertutup oleh bunga cicilan', `Pendapatan bunga: ${T20.tahun} thn ±${jt1(T20.net)}/unit setelah PPN, asuransi & biaya dana`], 'pb.ud')}
+        {kol('Risiko di developer', R, [`Piutang panjang: ${jt1(pokok)}/unit hingga ${T20.tahun} tahun — 10 unit = ±${rpM(pokok * 10)} tertahan`, 'Gagal bayar: segmen MBR rentan PHK; dilindungi PPJB, bukan asuransi', 'Ketentuan rumah subsidi & PPN: wajib dikonfirmasi ke konsultan pajak / legal', 'Biaya & tenaga penagihan selama tenor'], 'pb.rd')}</div>
+      <div className="pz-ins" style={{ fontSize: 13 }}><T k={KT('pb.mitigasi')}>Mitigasi: DP 20% di depan, autodebet, sertifikat ditahan sampai lunas, masa tenggang &amp; penjadwalan ulang, batas jumlah unit / piutang per tahun.</T></div></>) });
+    const rasioBatalAll = persen(rows.filter(r => r.status === 'Batal').length, rows.length);
+    const mulaiP = rows.map(tglJual).filter(Boolean).sort()[0];
+    const KPIP = [['Penjualan', 'Unit terselamatkan dari konsumen tidak lolos KPR subsidi', '—', '≥ 3 unit / bulan'],
+      ['Penjualan', 'Rasio batal transaksi (Reserved & Booking)', `${rasioBatalAll}%${mulaiP ? ` (sejak ${namaBln(mulaiP.slice(0, 7))})` : ''}`, '≤ 30%'],
+      ['Kecepatan', 'DP 20% terkumpul dalam 3 bulan', '—', '≥ 95% peserta'],
+      ['Kecepatan', 'Serah terima pinjam pakai setelah DP lunas', '—', '≤ 14 hari'],
+      ['Kualitas piutang', 'Tunggakan > 30 hari / > 90 hari', '—', '≤ 5% / ≤ 2% dari peserta'],
+      ['Batas risiko', 'Total piutang developer dari program', '—', `maks. ${PB.batasPiutang} · ditinjau per kuartal`],
+      ['Proteksi', 'Peserta dengan asuransi jiwa kredit aktif', '—', '100%']];
+    out.push({ judul: `${PB.nama}: KPI`, isi: progP('8.3', <>
+      <h2><T k={KT('pb.kpi.judul')}>KPI program: menyelamatkan pembeli yang tidak lolos KPR subsidi, dengan batas piutang yang terkendali</T></h2>
+      <div className="pz-row" style={{ flex: 1 }}>
+        <div style={{ flex: 1.45, minWidth: 0 }}><table className="pz-tb s cmp"><colgroup><col style={{ width: '15%' }} /><col style={{ width: '42%' }} /><col style={{ width: '18%' }} /><col /></colgroup><thead><tr><th>Area</th><th>KPI</th><th>Kondisi sekarang</th><th>Target</th></tr></thead>
+          <tbody>{KPIP.map(([a, b, c, d], i) => <tr key={i}><td>{a}</td><td><b><T k={KT('pb.kpi.k' + i)}>{b}</T></b></td><td>{c}</td><td style={{ color: G, fontWeight: 800 }}><T k={KT('pb.kpi.t' + i)}>{d}</T></td></tr>)}</tbody></table></div>
+        <div className="pz-col" style={{ flex: .75 }}>
+          <Kartu cls="emas" l={`Target pilot ${PB.pilot.bulan} bulan`} v={`${PB.pilot.unit} unit`} s={`≥ 3 unit / bulan · ±${PB.pilot.nilai} nilai penjualan`} />
+          <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('pb.kpi.catatan')}>{`Catatan: begitu program berjalan, dapat langsung ditawarkan juga ke ${proses.length} konsumen yang KPR-nya sedang berproses sebagai jalur cadangan.`}</T></div>
+          <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('pb.kpi.pantau')}>Cara pantau: semua KPI terbaca dari CRM; ditinjau bulanan bersama Keuangan, dilaporkan ke CEO per kuartal.</T></div></div></div></>) });
   }
 
   if (promo.aiWa) out.push({ judul: 'Pentingnya WA satu nomor & AI', isi: L('7 · Langkah ke depan', 9, <>
