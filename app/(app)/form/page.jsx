@@ -792,8 +792,12 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>ID Lead <span className="req">*</span></label>
             <PilihLead leads={leads} value={trx.lead_code} onPilih={kode => { const e = { target: { value: kode } };
               const l = leads.find(x => x.lead_code === e.target.value);
-              setTrx({ ...trx, lead_code: e.target.value, project: (l && l.project) || trx.project, bayar: (l && l.bayar) || trx.bayar });
-            }} /></div>
+              // Unit yang sedang dimiliki lead ini (Reserved / Booking) langsung terisi, supaya update cukup ganti jenis transaksi
+              const milik = stok.filter(u2 => u2.lead_code && u2.lead_code === e.target.value);
+              const u0 = milik.find(u2 => !l?.project || u2.project === l.project) || milik[0];
+              setTrx({ ...trx, lead_code: e.target.value, project: (u0 && u0.project) || (l && l.project) || trx.project, unit: u0 ? u0.unit : '', bayar: (l && l.bayar) || trx.bayar });
+            }} />
+            {trx.lead_code && (() => { const milik = stok.filter(u2 => u2.lead_code === trx.lead_code); return milik.length ? <span className="hint">Unit lead ini: {milik.map(u2 => <button type="button" key={u2.project + u2.unit} className={'sort-btn' + (u2.unit === trx.unit && u2.project === trx.project ? ' active' : '')} style={{ padding: '1px 9px', marginRight: 4 }} onClick={() => setTrx(x => ({ ...x, project: u2.project, unit: u2.unit }))}>{u2.unit}{u2.warna === 'kuning' ? ' · Reserved' : ''}</button>)}</span> : <span className="hint">Lead ini belum punya unit.</span>; })()}</div>
           <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
           <div className="field"><label>Blok / Unit</label>
             {(set.units && set.units[trx.project] && set.units[trx.project].length)
