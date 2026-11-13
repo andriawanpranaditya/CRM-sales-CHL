@@ -158,6 +158,9 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         x.kpr?.tidakKetemu?.length ? `PERLU DICEK — data Proses KPR tidak cocok dengan kontrak aktif: ${daftar(x.kpr.tidakKetemu, 10)}` : '',
         x.kpr?.tanpaData?.length ? `Belum akad tanpa data bank di file (${x.kpr.tanpaData.length}): ${daftar(x.kpr.tanpaData, 8)}` : '',
         x.tandaImporDihapus ? `Tanda stok lama hasil impor ${cek ? 'akan ' : ''}dihapus: ${x.tandaImporDihapus} (status unit kini dari transaksi)` : '',
+        x.unitDiseragamkan?.length ? `Nama unit ${cek ? 'akan ' : ''}diseragamkan dengan Master Stock: ${daftar(x.unitDiseragamkan, 8)}` : '',
+        x.tandaManualDilepas?.length ? `Tanda manual Master Stock ${cek ? 'akan ' : ''}dilepas (mengikuti buku penjualan): ${daftar(x.tandaManualDilepas, 10)}` : '',
+        x.namaDisamakan?.length ? `Nama pembeli ${cek ? 'akan ' : ''}disamakan dengan buku penjualan: ${daftar(x.namaDisamakan, 8)}` : '',
         x.unitDobel.length ? `PERLU DICEK — unit aktif di CRM atas nama lain dari buku penjualan: ${daftar(x.unitDobel, 10)}` : '',
         x.tidakDiBuku.length ? `PERLU DICEK — tercatat aktif di CRM tetapi tidak ada di buku penjualan: ${daftar(x.tidakDiBuku, 10)}` : ''].filter(Boolean).join('\n'));
       if (!cek) setMuatUlang(n => n + 1);

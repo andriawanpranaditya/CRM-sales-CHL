@@ -103,7 +103,7 @@ export default function FormPage() {
   const [dup, setDup] = useState(null); // info lead duplikat dari server
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
-  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null });
+  const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null, alasan_kat: '', alasan_ket: '', refund: null, dana_hangus: '' });
   const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
   const [idn, setIdn] = useState(IDN0);
   const [idnInfo, setIdnInfo] = useState(''); // keterangan asal data identitas
@@ -186,6 +186,7 @@ export default function FormPage() {
   });
   const fl = F(lead, setLead), ff = F(fu, setFu), ft = F(trx, setTrx);
   const opsi = k => [''].concat(set?.[k] || []).map(o => <option key={k + o} value={o}>{o || '— pilih —'}</option>);
+  const ALASAN_BATAL = ['KPR ditolak bank', 'Masalah finansial', 'Tidak sesuai budget', 'Tidak disetujui keluarga / keperluan keluarga', 'Tidak cocok unit / lokasi', 'Konsumen tidak bisa dihubungi', 'Pindah ke project / developer lain', 'Ganti kontrak', 'Lainnya'];
   const leadOpt = [<option key="" value="">— pilih —</option>].concat(
     leads.map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama}</option>));
 
@@ -477,6 +478,14 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
 
   async function simpanTrx() {
     if (!trx.lead_code) return toast('Pilih ID Lead dulu');
+    if (trx.jenis === 'Batal') {
+      if (!trx.unit) return toast('Pilih unit yang dibatalkan');
+      if (!trx.alasan_kat) return toast('Pilih alasan batal');
+      if (trx.alasan_kat === 'Lainnya' && !trx.alasan_ket.trim()) return toast('Tulis keterangan alasan batal');
+      if (trx.refund !== true && trx.refund !== false) return toast('Pilih Refund atau Non-refund');
+      if (!Number(trx.nilai)) return toast('Isi dana yang sudah dibayar konsumen');
+      if ((Number(trx.dana_hangus) || 0) > Number(trx.nilai)) return toast('Dana hangus tidak boleh melebihi dana dibayar');
+    }
     if (!Number(trx.nilai)) return toast('Nilai (Rp) wajib diisi angka');
     if (['Reserved', 'Booking'].includes(trx.jenis) && trx.datang !== true && trx.datang !== false) return toast('Pilih: konsumen datang ke marketing gallery atau tidak');
     if (trx.unit && trx.project && trx.jenis !== 'Batal' && berkas && !berkas.adaTrxSebelumnya && !berkas.ktp && berkas.transfer) {
@@ -496,9 +505,14 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     }
     setBusy(true);
     try {
-      await api('/api/trx', { method: 'POST', body: JSON.stringify({ ...trx, identitas: trx.jenis !== 'Batal' ? idn : null }) });
+      const kirim = trx.jenis !== 'Batal' ? trx : (() => {
+        const bayar = Number(trx.nilai) || 0, hangus = Math.min(bayar, Number(trx.dana_hangus) || (trx.refund ? 0 : bayar));
+        return { ...trx, nilai_jual: '', catatan: [trx.alasan_kat + (trx.alasan_ket.trim() ? ' — ' + trx.alasan_ket.trim() : ''), trx.refund ? 'Refund' : 'Non-refund'].join(' · '),
+          dana_dibayar: bayar, dana_hangus: hangus, dana_refund: bayar - hangus, batal_refund: !!trx.refund };
+      })();
+      await api('/api/trx', { method: 'POST', body: JSON.stringify({ ...kirim, identitas: trx.jenis !== 'Batal' ? idn : null }) });
       toast('Transaksi tersimpan — status pipeline ter-update');
-      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null });
+      setTrx({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null, alasan_kat: '', alasan_ket: '', refund: null, dana_hangus: '' });
       setIdn(IDN0); setIdnInfo('');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   }
@@ -790,18 +804,30 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                     <option value="">— pilih —</option>
                     {set.units[trx.project].map(u => {
                       const st = stMap[u];
+                      if (trx.jenis === 'Batal' && !st) return null; // Batal: hanya unit yang sedang Reserved / terjual
                       // Unit tertutup tetap bisa dipilih oleh LEAD PEMILIKNYA (untuk naik ke Booking/Closing atau Batal)
                       const milikSendiri = st && st.lead_code && st.lead_code === trx.lead_code;
-                      const kunci = !!st && !milikSendiri;
+                      // Manager/CEO boleh memilih unit terkunci saat membatalkan (pemilik ditampilkan agar tidak salah lead)
+                      const bolehBatal = trx.jenis === 'Batal' && ['manager', 'ceo'].includes(me?.role);
+                      const kunci = !!st && !milikSendiri && !bolehBatal;
+                      const pemilik = st ? (st.nama ? ' · ' + st.nama : '') + (st.lead_code ? ' (' + st.lead_code + ')' : st.manual ? ' (tanda manual)' : '') : '';
                       const label = !st ? u
                         : (st.warna === 'merah' ? '🔴 ' : '🟡 ') + u +
-                          (milikSendiri ? ' — unit lead ini' : st.warna === 'merah' ? ' — TERJUAL' : ' — RESERVED');
+                          (milikSendiri ? ' — unit lead ini' : (st.warna === 'merah' ? ' — TERJUAL' : ' — RESERVED') + pemilik);
                       return <option key={'u' + u} value={u} disabled={kunci}>{label}</option>;
                     })}
                   </select>;
                 })()
               : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
-            <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih.</span>
+            <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih{['manager', 'ceo'].includes(me?.role) ? ' (Manager/CEO: bisa dipilih bila Jenis = Batal)' : ''}.</span>
+            {(() => { // peringatan bila unit yang dibatalkan tercatat milik lead lain / tanda manual
+              if (trx.jenis !== 'Batal' || !trx.unit) return null;
+              const st = stok.find(u2 => u2.project === trx.project && u2.unit === trx.unit);
+              if (!st || (st.lead_code && st.lead_code === trx.lead_code)) return null;
+              if (st.lead_code) return <div className="hint" style={{ color: 'var(--red)', marginTop: 4 }}>Unit ini tercatat milik <b>{st.nama || st.lead_code}</b> ({st.lead_code}).{' '}
+                <button type="button" className="sort-btn" style={{ padding: '1px 10px' }} onClick={() => setTrx(x => ({ ...x, lead_code: st.lead_code }))}>Pakai lead pemilik</button></div>;
+              return <div className="hint" style={{ marginTop: 4 }}>Unit ini ditandai <b>{st.warna === 'merah' ? 'Terjual' : 'Reserved'} manual</b> di Master Stock{st.nama ? ` (${st.nama})` : ''}, tanpa transaksi pemilik. Menyimpan Batal akan melepas tanda manual itu sehingga unit kembali tersedia.</div>;
+            })()}
           </div>
           {trx.lead_code && (() => {
             const lS = leads.find(x => x.lead_code === trx.lead_code);
@@ -816,7 +842,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             <span className="hint">Hanya yang datang langsung dihitung sebagai visitor di menu Janjian &amp; Visitor</span></div>}
           {/bertahap/i.test(trx.bayar || '') && <div className="field"><label>Jumlah Cicilan (×)</label><input type="number" min="2" max="120" {...ft('cicilan')} placeholder="mis. 24" />
             <span className="hint">Berapa kali cicilan — tampil di Laporan Penjualan sebagai "Cash Bertahap 24x"</span></div>}
-          <div className="field" style={{ gridColumn: '1 / -1' }}>
+          {trx.jenis !== 'Batal' && <div className="field" style={{ gridColumn: '1 / -1' }}>
             <div className="sec-head">1 · Berkas Transaksi — Bukti Transfer, KTP &amp; NPWP Wajib</div>
             <span className="hint">Unggah dulu: NIK, nama, dan alamat di bagian berikutnya terisi otomatis dari foto KTP / NPWP. Tips: foto lurus, penuh satu kartu, tidak silau; PDF tidak dibaca otomatis.</span>
             {!(trx.lead_code && trx.project && trx.unit) ? (
@@ -852,7 +878,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                 <span className="hint">Bukti Transfer, KTP, dan NPWP wajib diunggah pada transaksi pertama unit ini. Slot Dokumen Lain untuk kartu keluarga, surat nikah, atau berkas pendukung lain. Foto dikompres otomatis; PDF maks 2 MB.</span>
               </div>
             )}
-          </div>
+          </div>}
           {trx.jenis !== 'Batal' && <>
             <div className="field" style={{ gridColumn: '1 / -1', marginBottom: -4 }}><div className="sec-head">2 · Identitas Konsumen — Tercetak pada Formulir Pemesanan Unit</div></div>
             <div className="field"><label>Nama Sesuai KTP <span className="req">*</span></label><input {...fi('nama_ktp')} placeholder="terisi otomatis dari foto KTP / NPWP" /></div>
@@ -876,12 +902,32 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>Jenis Transaksi <span className="req">*</span></label>
             <select {...ft('jenis')}><option>Reserved</option><option>Booking</option><option>Batal</option></select></div>
           <div className="field"><label>Tanggal</label><input type="date" {...ft('tgl')} /></div>
+          {trx.jenis !== 'Batal' ? <>
           <div className="field"><label>Nilai Reserved / Booking (Rp) <span className="req">*</span></label>
             <InputRupiah {...ft('nilai')} placeholder="uang yang dibayarkan saat ini" /></div>
           <div className="field"><label>Nilai Transaksi (Rp)</label>
             <InputRupiah {...ft('nilai_jual')} placeholder="harga jual unit" />
             <span className="hint">Harga jual unit — dipakai untuk Surat Pesanan &amp; PPJB serta perhitungan nilai penjualan.</span></div>
           <div className="field"><label>Catatan</label><input {...ft('catatan')} /></div>
+          </> : <>
+          <div className="field full"><div className="sec-head" style={{ marginTop: 4 }}>Pembatalan</div></div>
+          <div className="field"><label>Alasan batal <span className="req">*</span></label>
+            <select value={trx.alasan_kat} onChange={e => setTrx({ ...trx, alasan_kat: e.target.value })}>
+              <option value="">— pilih alasan —</option>{ALASAN_BATAL.map(a => <option key={a}>{a}</option>)}</select></div>
+          <div className="field"><label>Keterangan alasan{trx.alasan_kat === 'Lainnya' ? <span className="req"> *</span> : null}</label>
+            <input value={trx.alasan_ket} onChange={e => setTrx({ ...trx, alasan_ket: e.target.value })} placeholder="mis. ditolak BCA karena SLIK kol 2" /></div>
+          <div className="field full"><label>Pengembalian dana <span className="req">*</span></label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{[[false, 'Non-refund (dana hangus)'], [true, 'Refund (dana dikembalikan)']].map(([v, l]) =>
+              <button type="button" key={String(v)} className={'sort-btn' + (trx.refund === v ? ' active' : '')} onClick={() => setTrx({ ...trx, refund: v, dana_hangus: v ? (trx.dana_hangus === trx.nilai ? '' : trx.dana_hangus) : trx.nilai })}>{l}</button>)}</div></div>
+          <div className="field"><label>Dana sudah dibayar konsumen (Rp) <span className="req">*</span></label>
+            <InputRupiah value={trx.nilai} onChange={e => { const v = e.target.value; setTrx({ ...trx, nilai: v, dana_hangus: trx.refund === false ? v : trx.dana_hangus }); }} placeholder="booking fee / DP yang sudah masuk" /></div>
+          <div className="field"><label>Dana hangus (Rp)</label>
+            <InputRupiah value={trx.dana_hangus} onChange={e => setTrx({ ...trx, dana_hangus: e.target.value })} placeholder={trx.refund === false ? 'seluruh dana dibayar' : 'potongan, bila ada'} />
+            <span className="hint">Non-refund: biasanya sama dengan dana dibayar. Refund: isi potongan bila ada.</span></div>
+          <div className="field"><label>Dana dikembalikan (Rp)</label>
+            <input value={'Rp' + Math.max(0, (Number(trx.nilai) || 0) - (Number(trx.dana_hangus) || 0)).toLocaleString('id-ID')} disabled />
+            <span className="hint">Otomatis = dana dibayar − dana hangus.</span></div>
+          </>}
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanTrx} disabled={busy}>Simpan Transaksi</button>

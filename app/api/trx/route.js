@@ -1,6 +1,7 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
 import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
+import { siapkanKolomPenjualan } from '@/lib/impor-penjualan';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,9 +106,17 @@ async function _POST(req) {
     }
   }
   await siapkanCicilan(sql);
-  await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, datang, created_by)
+  if (b.jenis === 'Batal' && !String(catatan || '').trim()) return Response.json({ error: 'Alasan batal wajib diisi' }, { status: 400 });
+  const insTrx = await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, datang, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
-            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${datangDari(b)}, ${user.username})`;
+            ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${datangDari(b)}, ${user.username}) RETURNING id`;
+  // Batal: dana dibayar / hangus / dikembalikan & Refund / Non-refund (dipakai Laporan Penjualan & analisa pembatalan)
+  if (b.jenis === 'Batal' && insTrx[0]?.id && (b.dana_dibayar != null || b.batal_refund != null)) {
+    await siapkanKolomPenjualan(sql);
+    const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
+    await sql`UPDATE transactions SET dana_dibayar = ${num(b.dana_dibayar)}, dana_hangus = ${num(b.dana_hangus)}, dana_refund = ${num(b.dana_refund)},
+      batal_refund = ${b.batal_refund == null ? null : !!b.batal_refund}, ganti_kontrak = ${/^Ganti kontrak/i.test(catatan || '')} WHERE id = ${insTrx[0].id}`;
+  }
   if (idn && b.jenis !== 'Batal') {
     await sql`CREATE TABLE IF NOT EXISTS konsumen (lead_code text PRIMARY KEY, nama_ktp text, nik text, npwp text, email text, alamat text, rt_rw text,
       kel_desa text, kecamatan text, kota_kab text, provinsi text, alamat_domisili text, updated_by text, updated_at timestamptz NOT NULL DEFAULT now())`;
@@ -121,6 +130,10 @@ async function _POST(req) {
   }
   // Booking/Closing: tanda manual (mis. kuning Reserved) dilepas supaya peta mengikuti transaksi -> merah
   if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
+    await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
+  }
+  // Batal oleh Manager/CEO: tanda manual Terjual/Reserved unit ikut dilepas supaya unit kembali tersedia
+  if (b.jenis === 'Batal' && b.unit && b.project && ['manager', 'ceo'].includes(user.role)) {
     await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
   }
   // Reserved tidak mengubah status pipeline; Batal -> Drop; Booking/Closing sesuai jenisnya
