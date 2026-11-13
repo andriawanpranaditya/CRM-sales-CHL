@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import PilihLead from '@/components/PilihLead';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
@@ -600,11 +601,11 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
       {tab === 'fu' && <div className="card">
         <div className="form-grid">
           <div className="field"><label>ID Lead <span className="req">*</span></label>
-            <select value={fu.lead_code} onChange={e => {
+            <PilihLead leads={leads} value={fu.lead_code} onPilih={kode => { const e = { target: { value: kode } };
               const l = leads.find(x => x.lead_code === e.target.value);
               if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
               setFu(l ? fuUntukLead(l, { ...fu, detail: '' }) : { ...fu, lead_code: e.target.value });
-            }}>{leadOpt}</select></div>
+            }} /></div>
           {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
             if (!lSel) return null;
@@ -718,11 +719,11 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
         <div className="note" style={{ marginBottom: 10 }}>📮 <b>Leads to Sales</b> — oper lead ke sales: pilih lead & sales tujuan, pesan berisi data konsumen tersusun otomatis, klik <b>Kirim</b> → lead resmi berpindah ke sales tsb & WhatsApp sales terbuka berisi pesannya.</div>
         <div className="form-grid">
           <div className="field"><label>ID Lead <span className="req">*</span></label>
-            <select value={l2s.lead_code} onChange={e => {
+            <PilihLead leads={leads} value={l2s.lead_code} onPilih={kode => { const e = { target: { value: kode } };
               const l = leads.find(x => x.lead_code === e.target.value);
               const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
               setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, l2s.konteks) : l2s.pesan });
-            }}>{leadOpt}</select></div>
+            }} /></div>
           <div className="field"><label>Tanggal</label><input type="date" value={l2s.tgl} onChange={e => setL2s({ ...l2s, tgl: e.target.value })} /></div>
           <div className="field"><label>Sales Tujuan <span className="req">*</span></label>
             <select value={l2s.sales} onChange={e => {
@@ -775,10 +776,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
       {tab === 'trx' && <div className="card">
         <div className="form-grid">
           <div className="field"><label>ID Lead <span className="req">*</span></label>
-            <select value={trx.lead_code} onChange={e => {
+            <PilihLead leads={leads} value={trx.lead_code} onPilih={kode => { const e = { target: { value: kode } };
               const l = leads.find(x => x.lead_code === e.target.value);
               setTrx({ ...trx, lead_code: e.target.value, project: (l && l.project) || trx.project, bayar: (l && l.bayar) || trx.bayar });
-            }}>{leadOpt}</select></div>
+            }} /></div>
           <div className="field"><label>Project</label><select {...ft('project')}>{opsi('project')}</select></div>
           <div className="field"><label>Blok / Unit</label>
             {(set.units && set.units[trx.project] && set.units[trx.project].length)
