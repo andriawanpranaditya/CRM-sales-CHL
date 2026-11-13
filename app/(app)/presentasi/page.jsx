@@ -78,7 +78,28 @@ export default function PresentasiPage() {
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, [slides.length, tampil, sembunyi]); // eslint-disable-line
   function layarPenuh() { const el = panggung.current; if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else el.requestFullscreen?.(); }
-  function unduhPdf() { setCetak(true); setTimeout(() => { window.print(); setTimeout(() => setCetak(false), 500); }, 400); }
+  // PDF dibuat dari gambar setiap slide (bukan print browser) supaya hasilnya sama persis dengan tampilan slide
+  const [pdfJalan, setPdfJalan] = useState('');
+  async function unduhPdf() {
+    if (pdfJalan) return;
+    const editSebelum = edit; setEdit(false); setPdfJalan('Menyiapkan slide…'); setCetak(true);
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      if (document.fonts?.ready) await document.fonts.ready;
+      const [{ toJpeg }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
+      const hal = [...document.querySelectorAll('.pz-cetak .pz-hal')];
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720], hotfixes: ['px_scaling'], compress: true });
+      for (let i = 0; i < hal.length; i++) {
+        setPdfJalan(`Membuat PDF ${i + 1}/${hal.length}…`);
+        const gbr = await toJpeg(hal[i], { quality: 0.92, pixelRatio: 1.5, width: 1280, height: 720, backgroundColor: '#F7F3EA', cacheBust: false });
+        if (i) pdf.addPage([1280, 720], 'landscape');
+        pdf.addImage(gbr, 'JPEG', 0, 0, 1280, 720, undefined, 'FAST');
+      }
+      pdf.save(`Presentasi-Project-${hariIni()}.pdf`);
+      toast(`PDF ${hal.length} slide tersimpan`);
+    } catch (e) { toast('Gagal membuat PDF: ' + (e?.message || e)); }
+    finally { setCetak(false); setPdfJalan(''); setEdit(editSebelum); }
+  }
 
   if (!me) return <div className="loading">Memuat…</div>;
   if (!bolehPresentasi(me)) return <div className="card"><h2>Presentasi Project</h2><p className="hint">Menu ini khusus akun Head of Sales &amp; Marketing.</p></div>;
@@ -88,7 +109,7 @@ export default function PresentasiPage() {
       <div className="pz-aksi">
         <label className="hint" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>Lead &amp; visitor sejak <input type="date" value={dari} onChange={e => setDari(e.target.value)} /></label>
         <button className={'sort-btn' + (edit ? ' on' : '')} disabled={!slides.length} onClick={() => setEdit(x => !x)} style={edit ? { background: '#C99C4F', color: '#10251E', borderColor: '#C99C4F', fontWeight: 700 } : undefined}>{edit ? '✓ Selesai edit' : '✎ Edit kalimat'}</button>
-        <button className="sort-btn" disabled={!slides.length} onClick={unduhPdf}>⬇ Unduh PDF</button>
+        <button className="sort-btn" disabled={!slides.length || !!pdfJalan} onClick={unduhPdf}>{pdfJalan ? '⏳ ' + pdfJalan : '⬇ Unduh PDF'}</button>
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!terlihat.length} onClick={layarPenuh}>▶ Mulai presentasi</button>
       </div></div>
     {edit && <div className="pz-edbar">✎ Mode edit kalimat — klik teks bergaris putus-putus di slide untuk mengubahnya. Angka, tabel &amp; grafik tetap otomatis dari CRM. Teks yang sudah diubah bergaris emas.</div>}

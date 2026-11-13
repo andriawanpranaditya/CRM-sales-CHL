@@ -11,6 +11,7 @@
     "@neondatabase/serverless": "^0.10.4",
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
+    "html-to-image": "^1.11.11",
     "jose": "^5.9.6",
     "jspdf": "^4.2.1",
     "next": "14.2.15",
