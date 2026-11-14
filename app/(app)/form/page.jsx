@@ -563,9 +563,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             })()}</div>
           {!isMarkom && <div className="field"><label>Pekerjaan</label><input {...fl('kerja')} /></div>}
           <div className="field"><label>Sumber Lead</label><select {...fl('sumber')}>{opsi('sumber')}</select></div>
-          <div className="field"><label>Kode Iklan <span className="hint">(bila ada di chat pertama, mis. BD14-2)</span></label>
+          {me?.role !== 'sales' && <div className="field"><label>Kode Iklan <span className="hint">(bila ada di chat pertama, mis. BD14-2)</span></label>
             <input {...fl('kode_wa')} placeholder="kosongkan bila tidak ada" style={{ textTransform: 'uppercase' }} />
-            {(() => { const mm = /^([A-Z]{2,3})(\d+)-(\d+)$/.exec(String(lead.kode_wa || '').trim().toUpperCase().replace(/[()\s]/g, '')); const cp = mm && (camps || []).find(c => String(c.id) === mm[2]); return lead.kode_wa ? <span className="hint" style={{ color: mm ? 'var(--green)' : 'var(--red)' }}>{mm ? (cp ? '✓ Campaign: ' + cp.nama : '✓ Format benar — campaign diisi otomatis saat disimpan') : 'Format kode tidak dikenali (contoh: BD14-2)'}</span> : null; })()}</div>
+            {(() => { const mm = /^([A-Z]{2,3})(\d+)-(\d+)$/.exec(String(lead.kode_wa || '').trim().toUpperCase().replace(/[()\s]/g, '')); const cp = mm && (camps || []).find(c => String(c.id) === mm[2]); return lead.kode_wa ? <span className="hint" style={{ color: mm ? 'var(--green)' : 'var(--red)' }}>{mm ? (cp ? '✓ Campaign: ' + cp.nama : '✓ Format benar — campaign diisi otomatis saat disimpan') : 'Format kode tidak dikenali (contoh: BD14-2)'}</span> : null; })()}</div>}
           {bolehCampaign && <div className="field"><label>Campaign <span className="hint">(analisa marcom)</span></label>
             <select {...fl('campaign')}><option value="">— tanpa campaign —</option>
               {camps.map(cp => <option key={cp.id} value={cp.nama}>{cp.nama}</option>)}
