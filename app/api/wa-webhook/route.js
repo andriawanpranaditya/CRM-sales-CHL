@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { siapkanKontak } from '@/lib/kontak';
 import { db, DEFAULT_SETTINGS } from '@/lib/db';
 import { siapkanAI, konfigAI, tanyaAI, kirimWA, simpanNomorWA } from '@/lib/ai';
 
@@ -65,8 +66,11 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   const hari = hariIniWIB();
 
   // 1) Nomor sudah terdaftar -> catat sebagai "lead membalas" (sekali per hari) & munculkan di lonceng pemegangnya
+  await siapkanKontak(sql);
   const ada = await sql`SELECT lead_code, status FROM leads
     WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa}
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(kontak, '[]'::jsonb)) k
+                  WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(k->>'wa', ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa})
     ORDER BY id LIMIT 1`;
   if (ada.length) {
     const l = ada[0];
@@ -177,8 +181,12 @@ async function prosesEcho(sql, e, project) {
   const wa = String(e.to || '').replace(/[^0-9]/g, '');
   if (!wa) return;
   const isi = e.type === 'text' ? (e.text?.body || '') : `[${e.type || 'pesan'}]`;
+  await siapkanKontak(sql);
   const ld = (await sql`SELECT lead_code FROM leads
-    WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa} ORDER BY id LIMIT 1`)[0];
+    WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa}
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(kontak, '[]'::jsonb)) k
+                  WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(k->>'wa', ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa})
+    ORDER BY id LIMIT 1`)[0];
   await catatPercakapan(sql, wa, project, ld?.lead_code || null, 'tim', isi);
   if (ld) await sql`UPDATE leads SET ai_status = 'diambil_tim', updated_at = now() WHERE lead_code = ${ld.lead_code} AND COALESCE(ai_status, '') <> 'diambil_tim'`;
 }

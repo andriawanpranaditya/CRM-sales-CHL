@@ -1,4 +1,5 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
+import { siapkanKontak } from '@/lib/kontak';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { sinkronJanjianLead } from '@/lib/janjian';
 import { denganLog } from '@/lib/log';
@@ -105,8 +106,10 @@ async function _POST(req) {
     }
   }
   if (b.next_action === 'Drop' && (b.objection || '').trim() && !String(b.detail || '').includes('Drop:')) b.detail = String(b.detail || '') + ' — Drop: ' + b.objection.trim();
-  await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
-    VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas})`;
+  const insFu = await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
+    VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas}) RETURNING id`;
+  // Kontak yang dihubungi (bila lead punya lebih dari satu nomor / nama)
+  if (b.kontak && insFu[0]?.id) { await siapkanKontak(sql); await sql`UPDATE followups SET kontak = ${String(b.kontak).slice(0, 120)} WHERE id = ${insFu[0].id}`; }
   // Status lead ikut diperbarui dari form follow up (Drop/Reserved/Booking diatur oleh logika di bawah)
   if (b.status && !['Drop', 'Reserved', 'Booking'].includes(b.next_action || '')) {
     await sql`UPDATE leads SET status = ${b.status}, updated_at = now() WHERE lead_code = ${b.lead_code} AND status IS DISTINCT FROM ${b.status}`;

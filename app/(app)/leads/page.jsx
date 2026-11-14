@@ -5,6 +5,30 @@ import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
 const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
+// Gabung lead dobel (daftar disepakati di lib/gabung-lead.js) — khusus Manager; muncul sampai dijalankan
+function GabungLead({ onSelesai }) {
+  const [st, setSt] = useState(null), [hasil, setHasil] = useState(null), [jalan, setJalan] = useState(false);
+  useEffect(() => { api('/api/leads/gabung').then(setSt).catch(() => {}); }, []);
+  if (!st || (st.sudah && !hasil)) return null;
+  const proses = async cek => {
+    if (!cek && !confirm('Gabungkan semua lead dobel sesuai daftar? Lead yang digabung akan dihapus setelah datanya dipindahkan.')) return;
+    setJalan(true);
+    try { const d = await api('/api/leads/gabung', { method: 'POST', body: JSON.stringify({ cek }) }); setHasil(d); if (!cek) { toast('Lead dobel berhasil digabung'); onSelesai?.(); setSt({ ...st, sudah: true }); } }
+    catch (e) { toast(e.message); } finally { setJalan(false); }
+  };
+  return (<div className="card" style={{ marginBottom: 12, borderColor: 'var(--brass)' }}>
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+      <b>🧹 Gabung lead dobel</b><span className="hint">{st.jumlah} kelompok sesuai daftar yang disepakati · transaksi, follow up, janji temu &amp; berkas dipindah ke lead yang disimpan</span>
+      <span style={{ flex: 1 }} />
+      {!st.sudah && <><button className="sort-btn" disabled={jalan} onClick={() => proses(true)}>Cek</button>
+        {hasil?.cek && <button className="btn btn-primary" style={{ width: 'auto' }} disabled={jalan} onClick={() => proses(false)}>Gabungkan</button>}</>}
+    </div>
+    {hasil && <div className="tbl-wrap" style={{ marginTop: 10 }}><table><thead><tr><th>Disimpan</th><th>Digabung</th><th>Data dipindah</th><th>Status</th><th>Keterangan</th></tr></thead>
+      <tbody>{hasil.hasil.map((x, i) => <tr key={i}><td><b>{x.simpan}</b> {x.namaUtama || ''}</td><td>{(x.namaLain || x.gabung).join(', ')}</td>
+        <td>{Object.entries(x.pindah || {}).map(([t, n]) => `${t} ${n}`).join(' · ') || '—'}</td><td>{x.status}</td><td className="hint">{[x.ket, ...(x.pesan || [])].filter(Boolean).join(' · ')}</td></tr>)}</tbody></table></div>}
+  </div>);
+}
+
 export default function LeadsPage() {
   const [leads, setLeads] = useState(null);
   const [set, setSet] = useState({ status: [], project: [] });
@@ -173,6 +197,7 @@ export default function LeadsPage() {
         <div><h1>Database Lead</h1><div className="sub">Klik baris lead untuk melihat riwayat follow up &amp; jadwal berikutnya</div></div>
         <div className="stamp"><b>{rows.length}</b> lead</div>
       </div>
+      {me?.role === 'manager' && <GabungLead onSelesai={async () => setLeads(await api('/api/leads'))} />}
       <div className="form-tabs" style={{ marginBottom: 12 }}>
         <button className={tab === 'lead' ? 'active' : ''} onClick={() => setTab('lead')}>1 · Lead</button>
         <button className={tab === 'fu' ? 'active' : ''} onClick={() => setTab('fu')}>2 · Riwayat Follow Up</button>
@@ -239,7 +264,7 @@ export default function LeadsPage() {
               style={{ cursor: 'pointer', background: sel === l.lead_code ? 'var(--green-soft)' : undefined }}>
               <td data-label="ID / Tgl"><span className="id-tag">{l.lead_code}</span><span className="sub2">{fmtDate(l.tgl)}</span>
                 <span className="sub2" style={{ color: 'var(--green)', fontWeight: 700 }}>{sel === l.lead_code ? '▲ tutup' : '▼ riwayat'}</span></td>
-              <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span></td>
+              <td data-label="Nama / WA"><b>{l.nama}</b><span className="sub2">{l.wa || '-'}</span>{Array.isArray(l.kontak) && l.kontak.map((k, i) => <span key={i} className="sub2" title={k.ket || ''}>+ {k.nama || '—'}{k.hubungan ? ` (${k.hubungan})` : ''}{k.wa ? ' · ' + k.wa : ''}</span>)}</td>
               <td data-label="Sumber">{l.sumber}{l.walkin_info ? <span className="sub2">via {l.walkin_info}</span> : null}{l.sumber_detail ? <span className="sub2">{l.sumber_detail}</span> : null}</td>
               <td data-label="Project / Tipe / Budget">{l.project}<span className="sub2">{[l.tipe, l.budget ? fmtRp(l.budget) : ''].filter(Boolean).join(' · ') || '—'}</span></td>
               <td data-label="Sales">{l.sales || (l.creator_role === 'markom' ? <span className="badge b-warm">Marcom · belum dioper</span> : <span className="hint">—</span>)}{l.sales && l.creator_role === 'markom' ? <div className="hint">dari marcom</div> : null}</td>

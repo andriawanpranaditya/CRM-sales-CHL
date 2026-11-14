@@ -7,7 +7,7 @@ import InputRupiah from '@/components/InputRupiah';
 import { muatPriceList } from '@/components/usePriceList';
 import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
-const EMPTY = { tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '', gender: '' };
+const EMPTY = { kontak: [], tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '', gender: '' };
 // Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
 const DETAIL_LAINNYA = { label: 'Sumber lainnya — sebutkan', ph: 'mis. brosur di minimarket, papan nama proyek', wajib: true };
 const DETAIL_WALKIN_LAINNYA = { label: 'Walk In — tahu dari mana, sebutkan', ph: 'mis. lewat depan lokasi, diajak teman, brosur', wajib: true };
@@ -186,6 +186,7 @@ export default function FormPage() {
   });
   const fl = F(lead, setLead), ff = F(fu, setFu), ft = F(trx, setTrx);
   const opsi = k => [''].concat(set?.[k] || []).map(o => <option key={k + o} value={o}>{o || '— pilih —'}</option>);
+  const HUBUNGAN_KONTAK = ['Pasangan', 'Nomor kedua', 'Keluarga', 'Kantor', 'Lainnya'];
   const ALASAN_BATAL = ['KPR ditolak bank', 'Masalah finansial', 'Tidak sesuai budget', 'Tidak disetujui keluarga / keperluan keluarga', 'Tidak cocok unit / lokasi', 'Konsumen tidak bisa dihubungi', 'Pindah ke project / developer lain', 'Ganti kontrak', 'Lainnya'];
   const leadOpt = [<option key="" value="">— pilih —</option>].concat(
     leads.map(l => <option key={l.lead_code} value={l.lead_code}>{l.lead_code} — {l.nama}</option>));
@@ -229,7 +230,7 @@ export default function FormPage() {
     setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
       kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
       budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
-      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || '', gender: l.gender || ''});
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || '', gender: l.gender || '', kontak: Array.isArray(l.kontak) ? l.kontak : [] });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
   }
@@ -426,7 +427,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     if (isMarkom && fu.next_action === 'Lanjut Follow Up' && !fu.next_tgl) return toast('Isi Tgl Next Follow Up untuk jadwal day berikutnya');
     if ((fu.next_action === 'Drop' || fu.status === 'Drop') && !(fu.objection || '').trim()) return toast('Alasan drop wajib diisi');
     // Siapkan link WA SEKARANG (masih dalam sentuhan pengguna — syarat iPhone/Safari)
-    const leadFu = leads.find(x => x.lead_code === fu.lead_code);
+    const leadFu0 = leads.find(x => x.lead_code === fu.lead_code);
+    const kTuju = fu.kontakKe >= 0 ? (leadFu0?.kontak || [])[fu.kontakKe] : null;
+    const leadFu = leadFu0 && kTuju ? { ...leadFu0, wa: kTuju.wa } : leadFu0; // WA dibuka ke kontak yang dipilih
     const pesan = (fu.wa_pesan || '').trim();
     const dropFU = fu.next_action === 'Drop';
     const stopFU = TANPA_NEXT.includes(fu.next_action); // Drop / Reserved / Booking: tidak perlu buka WA
@@ -437,7 +440,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     if (urlWA && !diHP) { try { winWA = window.open('', '_blank'); } catch {} }
     setBusy(true);
     try {
-      const hasil = await api('/api/followups', { method: 'POST', body: JSON.stringify(fu) });
+      const hasil = await api('/api/followups', { method: 'POST', body: JSON.stringify({ ...fu, kontak: kTuju ? [kTuju.nama, kTuju.hubungan].filter(Boolean).join(' · ') : '' }) });
       const info = hasil && hasil.info ? ' · ' + hasil.info : '';
       if (urlWA) {
         toast((pesan ? 'Tersimpan — membuka WhatsApp, tinggal klik kirim 📲' : 'Tersimpan — membuka WhatsApp 📲') + info);
@@ -539,6 +542,15 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           <div className="field"><label>Tanggal Lead</label><input type="date" {...fl('tgl')} /></div>
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
           <div className="field"><label>WhatsApp</label><input {...fl('wa')} placeholder="08xxxxxxxxxx" /></div>
+          <div className="field full"><label>Kontak tambahan <span className="hint" style={{ textTransform: 'none', fontWeight: 400 }}>— nomor kedua, pasangan / keluarga yang ikut memutuskan (opsional)</span></label>
+            {(lead.kontak || []).map((k, i) => <div key={i} className="kontak-baris">
+              <input value={k.nama} placeholder="Nama (mis. Rina)" onChange={e => setLead({ ...lead, kontak: lead.kontak.map((x, j) => j === i ? { ...x, nama: e.target.value } : x) })} />
+              <select value={k.hubungan} onChange={e => setLead({ ...lead, kontak: lead.kontak.map((x, j) => j === i ? { ...x, hubungan: e.target.value } : x) })}>
+                <option value="">— hubungan —</option>{HUBUNGAN_KONTAK.map(h => <option key={h}>{h}</option>)}</select>
+              <input value={k.wa} placeholder="08xxxxxxxxxx" onChange={e => setLead({ ...lead, kontak: lead.kontak.map((x, j) => j === i ? { ...x, wa: e.target.value } : x) })} />
+              <input value={k.ket || ''} placeholder="Keterangan (mis. jarang membalas)" onChange={e => setLead({ ...lead, kontak: lead.kontak.map((x, j) => j === i ? { ...x, ket: e.target.value } : x) })} />
+              <button type="button" className="sort-btn" title="Hapus kontak" onClick={() => setLead({ ...lead, kontak: lead.kontak.filter((_, j) => j !== i) })}>🗑</button></div>)}
+            <div><button type="button" className="sort-btn" onClick={() => setLead({ ...lead, kontak: [...(lead.kontak || []), { nama: '', hubungan: 'Pasangan', wa: '', ket: '' }] })}>+ Tambah kontak</button></div></div>
           <div className="field"><label>Email</label><input type="email" {...fl('email')} /></div>
           <div className="field"><label>Domisili <span className="hint">(pilih dari saran atau ketik area baru)</span></label>
             {(() => {
@@ -606,6 +618,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                 {leads.find(x => x.lead_code === dup.lead_code)
                   ? <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={() => { const l = leads.find(x => x.lead_code === dup.lead_code); setTab('fu'); setFu(l ? fuUntukLead(l, fu) : { ...fu, lead_code: dup.lead_code }); setDup(null); }}>↻ Buka di Follow Up</button>
                   : <span className="hint">Lead ini belum ada di daftar Anda — minta {dup.pembuat_role === 'markom' ? 'Marcom mengopernya lewat Leads to Sales' : 'manager memindahkan PIC-nya'}.</span>}
+                <button className="sort-btn" onClick={async () => {
+                  try { await api('/api/leads/kontak', { method: 'POST', body: JSON.stringify({ lead_code: dup.lead_code, kontak: { nama: lead.nama, hubungan: 'Nomor kedua', wa: lead.wa, ket: 'ditambahkan dari Form Input' } }) });
+                    toast(`${lead.nama} ditambahkan sebagai kontak di ${dup.lead_code}`); setDup(null); setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' }); setLeads(await api('/api/leads')); }
+                  catch (e) { toast(e.message); } }}>➕ Jadikan kontak tambahan di {dup.lead_code}</button>
                 <button className="sort-btn" onClick={() => setDup(null)}>Tutup</button>
               </div>
             </div>)}
@@ -619,7 +635,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               const l = leads.find(x => x.lead_code === e.target.value);
               if (isMarkom) { setFu({ ...fu, lead_code: e.target.value, wa_pesan: fu.detail ? templateDayFU(fu.detail, l) : '' }); return; }
               setFu(l ? fuUntukLead(l, { ...fu, detail: '' }) : { ...fu, lead_code: e.target.value });
-            }} /></div>
+            }} />
+            {(() => { const lf = leads.find(x => x.lead_code === fu.lead_code); const ks = (lf?.kontak || []).filter(k => k.wa || k.nama); if (!lf || !ks.length) return null;
+              return <span className="hint">Hubungi: {[{ nama: lf.nama, hubungan: 'utama', wa: lf.wa }, ...ks].map((k, i) => <button type="button" key={i} className={'sort-btn' + ((fu.kontakKe ?? -1) === i - 1 ? ' active' : '')} style={{ padding: '1px 9px', marginRight: 4, marginTop: 3 }}
+                onClick={() => setFu(x => ({ ...x, kontakKe: i - 1 }))}>{k.nama || '—'}{k.hubungan ? ` · ${k.hubungan}` : ''}{k.wa ? '' : ' (tanpa WA)'}</button>)}</span>; })()}</div>
           {!isMarkom && fu.lead_code ? (() => {
             const lSel = leads.find(x => x.lead_code === fu.lead_code);
             if (!lSel) return null;

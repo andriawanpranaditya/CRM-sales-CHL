@@ -24,6 +24,9 @@ export default function PilihLead({ leads = [], value = '', onPilih, placeholder
       if (nama.includes(k)) return 4;
       const hp = String(l.wa || l.hp || l.telp || '').replace(/\D/g, '');
       if (angka.length >= 4 && hp.includes(angka)) return 5;
+      const ks = Array.isArray(l.kontak) ? l.kontak : []; // kontak tambahan (pasangan / nomor kedua)
+      if (ks.some(c => String(c.nama || '').toLowerCase().includes(k))) return 6;
+      if (angka.length >= 4 && ks.some(c => String(c.wa || '').replace(/\D/g, '').includes(angka))) return 6;
       return 9;
     };
     return leads.map(l => [skor(l), l]).filter(([s]) => s < 9).sort((a, b) => a[0] - b[0]).slice(0, 60).map(([, l]) => l);
@@ -53,7 +56,7 @@ export default function PilihLead({ leads = [], value = '', onPilih, placeholder
       {hasil.length ? hasil.map((l, i) => <div key={l.lead_code} className={'pl-item' + (i === aktif ? ' on' : '') + (l.lead_code === value ? ' dipilih' : '')}
         onMouseDown={e => { e.preventDefault(); pilih(l); }} onMouseEnter={() => setAktif(i)}>
         <div className="pl-baris1"><b>{l.lead_code}</b><span>{l.nama}</span></div>
-        <div className="pl-baris2">{[l.status, l.project, l.sales].filter(Boolean).join(' · ')}</div></div>)
+        <div className="pl-baris2">{[l.status, l.project, l.sales, ...(Array.isArray(l.kontak) ? l.kontak.map(c => '+ ' + (c.nama || c.wa)) : [])].filter(Boolean).join(' · ')}</div></div>)
         : <div className="pl-kosong">Tidak ada lead dengan nomor / nama "{q}"</div>}
       {!q && leads.length > 60 && <div className="pl-kosong">Ketik nomor atau nama untuk mencari di {leads.length} lead…</div>}
     </div>}

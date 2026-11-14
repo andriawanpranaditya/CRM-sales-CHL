@@ -992,3 +992,5 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 
 /* PDF presentasi: slide dirender di luar layar lalu dijadikan gambar per halaman */
 .pz-cetak.pz-render,body .pz-cetak{display:block!important;position:fixed;left:-20000px;top:0;width:1280px;z-index:-1;pointer-events:none}.pz-cetak .pz-hal{width:1280px;height:720px;overflow:hidden;position:relative;background:#F7F3EA}
+
+.kontak-baris{display:grid;grid-template-columns:1.2fr .9fr 1.1fr 1.4fr auto;gap:6px;margin-bottom:6px}@media (max-width:720px){.kontak-baris{grid-template-columns:1fr 1fr}}

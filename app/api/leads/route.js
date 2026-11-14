@@ -3,6 +3,7 @@ import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { sinkronJanjianLead } from '@/lib/janjian';
 import { siapkanFuWajib, mulaiJadwalBaru } from '@/lib/fuwajib-db';
+import { siapkanKontak, bersihKontak, normWA } from '@/lib/kontak';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +63,7 @@ async function _POST(req) {
   await siapkanStatusLog(sql);
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS usia text`; } catch {}
   try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS gender text`; } catch {}
+  await siapkanKontak(sql);
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!b.campaign) b.campaign = pk.campaign; if (!b.konten) b.konten = pk.konten; } }
   // 🛑 Anti-duplikat: satu nomor WA = satu lead (08xx / +62 / 62 dianggap sama)
   let waN = String(b.wa || '').replace(/[^0-9]/g, '');
@@ -70,6 +72,8 @@ async function _POST(req) {
     const dup = await sql`SELECT l.lead_code, l.nama, l.sales, l.project, l.status, u.name AS pembuat, u.role AS pembuat_role
       FROM leads l LEFT JOIN users u ON u.username = l.created_by
       WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(l.wa,''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${waN}
+         OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(l.kontak, '[]'::jsonb)) k
+                    WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(k->>'wa',''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${waN})
       ORDER BY l.id LIMIT 1`;
     if (dup.length) {
       const d = dup[0];
@@ -89,6 +93,7 @@ async function _POST(req) {
     RETURNING id`;
   if (['Laki-laki', 'Perempuan'].includes(b.gender)) await sql`UPDATE leads SET gender = ${b.gender} WHERE id = ${ins[0].id}`;
   if (perluDetail(b) && b.sumber_detail) await sql`UPDATE leads SET sumber_detail = ${String(b.sumber_detail).trim().slice(0, 200)} WHERE id = ${ins[0].id}`;
+  if (Array.isArray(b.kontak)) await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, b.wa))}::jsonb WHERE id = ${ins[0].id}`;
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${id}`;
@@ -158,6 +163,7 @@ async function _PATCH(req) {
     sumber_detail = ${perluDetail(m) ? String(m.sumber_detail || '').trim().slice(0, 200) : ''},
     updated_at = now()
     WHERE id = ${b.id}`;
+  if (Array.isArray(b.kontak)) { await siapkanKontak(sql); await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, m.wa))}::jsonb WHERE id = ${b.id}`; }
   await tandaiOleh(sql, cur.lead_code, user.username, m.status === 'Drop' ? String(b.alasan || '').trim() : '');
   if (m.status && m.status !== cur.status) await sinkronJanjianLead(sql, cur.lead_code, { status: m.status, catatan: '', oleh: user.name, dari: 'perubahan status lead' });
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
