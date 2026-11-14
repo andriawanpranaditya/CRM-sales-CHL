@@ -18,6 +18,7 @@ const MENUS = [
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
   { href: '/target', ico: '🎯', label: 'Target Sales', roles: ['manager'] },
+  { href: '/kunjungan-agent', ico: '📥', label: 'Kunjungan Agent', roles: ['manager'] },
   { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
   { href: '/collection', ico: '💰', label: 'Collection & KPR', roles: ['manager', 'ceo', 'collection'] },
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
@@ -44,10 +45,17 @@ function temaAktif() {
   return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function ArahkanAgent() { // halaman di luar menu lead agent → Form Input
+  useEffect(() => { const p = window.location.pathname; if (!['/form', '/kpr', '/price-list', '/stock'].some(x => p.startsWith(x))) window.location.replace('/form?tab=trx'); }, []);
+  return null;
+}
+
 export default function Shell({ user, children }) {
   const path = usePathname();
   const router = useRouter();
-  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)));
+  // Lead agent (Esteem, LJH): hanya input Reserved/Booking, Simulasi, Price List & Master Stock — tanpa kewajiban sales
+  const MENU_AGENT = ['/form', '/kpr', '/price-list', '/stock'];
+  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
 
   // ===== Mode terang / gelap — per user, tersimpan di akun =====
   const [tema, setTema] = useState('light');
@@ -203,7 +211,8 @@ export default function Shell({ user, children }) {
         </div>
         <BusyIndicator />
         {children}
-        <PopupPengingat user={user} />
+        {!user.leadAgent && <PopupPengingat user={user} />}
+        {user.leadAgent && <ArahkanAgent />}
         <div className="copyright">copyright &copy; 2026 by Andriawanp</div>
       </main>
     </div>

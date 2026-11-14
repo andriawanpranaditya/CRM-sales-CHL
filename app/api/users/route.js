@@ -22,7 +22,8 @@ export async function GET() {
   if (user.role === 'manager') {
     let rows;
     try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS rapor boolean DEFAULT true`; } catch {}
-    try { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at, projects, COALESCE(rapor, true) AS rapor FROM users ORDER BY role, name`; }
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS lead_agent boolean DEFAULT false`; } catch {}
+    try { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at, projects, COALESCE(rapor, true) AS rapor, COALESCE(lead_agent, false) AS lead_agent FROM users ORDER BY role, name`; }
     catch { rows = await sql`SELECT id, username, name, role, email, wa, password_plain, active, created_at FROM users ORDER BY role, name`; }
     return Response.json(rows);
   }
@@ -105,6 +106,13 @@ async function _PATCH(req) {
   }
   if (typeof b.wa === 'string') {
     await sql`UPDATE users SET wa = ${b.wa.trim()} WHERE id = ${b.id}`;
+  }
+  // Lead agent: akun koordinator agent (mis. Esteem, LJH) — tanpa kewajiban sales, menu terbatas, otomatis keluar dari rapor
+  if (typeof b.lead_agent === 'boolean') {
+    try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS lead_agent boolean DEFAULT false`; } catch {}
+    await sql`UPDATE users SET lead_agent = ${b.lead_agent} WHERE id = ${b.id}`;
+    if (b.lead_agent) await sql`UPDATE users SET rapor = false WHERE id = ${b.id}`;
+    try { const { hapusCacheAkun } = await import('@/lib/auth'); hapusCacheAkun(); } catch {}
   }
   // Ikut / tidak ikut Rapor sales (agent & akun uji dikeluarkan)
   if (typeof b.rapor === 'boolean') {

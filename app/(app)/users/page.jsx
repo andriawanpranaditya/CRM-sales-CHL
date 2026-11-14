@@ -121,7 +121,9 @@ export default function UsersPage() {
               </td>
               <td data-label="Status"><span className={'badge ' + (u.active ? 'b-upcoming' : 'b-lost')}>{u.active ? 'Aktif' : 'Nonaktif'}</span>
                 {u.role === 'sales' && <label className="hint" style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4, cursor: 'pointer', whiteSpace: 'nowrap' }} title="Matikan untuk agent atau akun uji agar tidak masuk Rapor tim sales">
-                  <input type="checkbox" checked={u.rapor !== false} onChange={async e => { try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, rapor: e.target.checked }) }); load(); } catch (er) { toast(er.message); } }} /> Masuk rapor</label>}</td>
+                  <input type="checkbox" checked={u.rapor !== false} onChange={async e => { try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, rapor: e.target.checked }) }); load(); } catch (er) { toast(er.message); } }} /> Masuk rapor</label>}
+                {u.role === 'sales' && <label className="hint" style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 4, cursor: 'pointer', whiteSpace: 'nowrap' }} title="Koordinator agent (mis. Esteem, LJH): menu hanya Form Input Reserved/Booking, Simulasi, Price List & Master Stock — tanpa target & pengingat sales">
+                  <input type="checkbox" checked={!!u.lead_agent} onChange={async e => { try { await api('/api/users', { method: 'PATCH', body: JSON.stringify({ id: u.id, lead_agent: e.target.checked }) }); load(); } catch (er) { toast(er.message); } }} /> Lead agent</label>}</td>
               <td data-label="Dibuat">{fmtDate(u.created_at)}</td>
               <td data-label="Aksi">
                 <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>

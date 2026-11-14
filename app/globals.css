@@ -1014,3 +1014,11 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .tg-rekap{border-radius:10px;padding:10px 12px;font-size:13.3px}.tg-rekap.turun{background:#F8DEDA}.tg-rekap.naik{background:#DDEFE4}.tg-rekap.sama{background:#FBEFD5}
 .tg-kerjakan{font-size:13px;margin-top:12px!important}.tg-pop-aksi{padding:0 22px 18px;display:flex;gap:8px;justify-content:flex-end;align-items:center}
 .tg-tb td:last-child{white-space:nowrap;width:1%}.tg-tb td:nth-child(3){min-width:120px}
+.foto-kj{display:flex;gap:12px;align-items:center}.foto-kj img,.foto-kosong{width:84px;height:84px;border-radius:12px;object-fit:cover;border:1px solid var(--line,#E6DFD0)}.foto-kosong{display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--paper,#F5F2EA)}
+/* Form publik laporan kunjungan agent */
+.lp{min-height:100vh;background:#F5F0E6;color:#10251E;padding-bottom:30px}.lp-head{background:linear-gradient(135deg,#1F6A50,#185A43);color:#F4EFE3;padding:24px 18px 20px}
+.lp-e{font-size:11px;letter-spacing:1.4px;color:#E2BE7A;font-weight:800}.lp-j{font-size:21px;font-weight:800;margin-top:4px}.lp-s{font-size:12.5px;opacity:.88;margin-top:6px}
+.lp-kartu{max-width:560px;margin:14px auto 0;background:#FFFDF8;border:1px solid #E6DFD0;border-radius:18px;padding:16px;position:relative}.lp-kartu.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.lp-kartu .field{display:flex;flex-direction:column;gap:4px}.lp-kartu .field.full{grid-column:1/-1}.lp-kartu label{font-size:11px;font-weight:700;color:#5B6E66;text-transform:uppercase;letter-spacing:.4px}
+.lp-kartu input,.lp-kartu select,.lp-kartu textarea{font:inherit;font-size:14.5px;padding:10px 11px;border:1px solid #DDD5C2;border-radius:10px;background:#fff;color:#10251E;width:100%;box-sizing:border-box}
+.lp-sec{font-size:12.5px;font-weight:800;color:#1E5B45;margin-top:4px}.lp-btn{width:100%;background:#1E5B45;color:#fff;border:0;border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer}.lp-btn:disabled{opacity:.6}

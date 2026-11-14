@@ -200,5 +200,10 @@ export async function GET() {
         .filter(j => user.role === 'sales' ? true : j.perlu_update);
     } catch (e) { console.error('janjian bell', e); }
   }
-  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length });
+  // Manager: laporan kunjungan agent yang menunggu konfirmasi
+  let agentMenunggu = [];
+  if (user.role === 'manager') {
+    try { agentMenunggu = await sql`SELECT id, konsumen, agent_nama, lead_agent, tgl::text AS tgl FROM agent_laporan WHERE status = 'Menunggu' ORDER BY created_at DESC LIMIT 20`; } catch {}
+  }
+  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, agentMenunggu, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length + agentMenunggu.length });
 }

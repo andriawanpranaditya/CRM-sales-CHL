@@ -156,6 +156,13 @@ export default function ReminderBell({ user }) {
               </>}
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
+              {(data.agentMenunggu || []).length > 0 && <>
+                <div className="bell-sub">📥 Laporan kunjungan agent — perlu dicek ({data.agentMenunggu.length})</div>
+                {data.agentMenunggu.map(x => (
+                  <a key={'ag' + x.id} href="/kunjungan-agent" className="rem-item" style={{ borderLeftColor: 'var(--brass, #C99C4F)' }}>
+                    <span><b>{x.konsumen}</b><br /><span className="hint">{x.lead_agent} · agent {x.agent_nama} · kunjungan {x.tgl}</span></span>
+                    <span className="badge b-today">Cek</span></a>))}
+              </>}
               {(data.aiSiap || []).length > 0 && <>
                 <div className="bell-sub">🤖 Dari asisten AI — siap dioper ({data.aiSiap.length})</div>
                 {data.aiSiap.map(l => (

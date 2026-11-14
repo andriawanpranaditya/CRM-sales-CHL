@@ -85,6 +85,13 @@ async function _POST(req) {
     }
   }
   const wInfo = /walk/i.test(b.sumber || '') ? (b.walkin_info || '') : '';
+  // Walk in: foto konsumen → Google Drive akun marketing project (wajib bila penyimpanan foto sudah dipasang)
+  let fotoRef = null;
+  if (/walk/i.test(b.sumber || '')) {
+    const { driveSiap, simpanFoto } = await import('@/lib/foto-drive');
+    if (b.foto?.data && driveSiap(b.project)) { try { fotoRef = await simpanFoto(b.project, { nama: `walkin ${b.tgl || ''} ${b.nama}`, data: b.foto.data, folder: 'Walk in' }); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
+    else if (driveSiap(b.project)) return Response.json({ error: 'Foto konsumen walk in wajib dilampirkan' }, { status: 400 });
+  }
   await siapkanSumberDetail(sql);
   const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, domisili, kerja, sumber, walkin_info, project, tipe, tujuan, budget, bayar, sales, status, catatan, next_fu, campaign, konten, usia, created_by)
     VALUES (${b.tgl || null}, ${b.nama}, ${b.wa || ''}, ${b.email || ''}, ${b.domisili || ''}, ${b.kerja || ''},
@@ -94,6 +101,7 @@ async function _POST(req) {
   if (['Laki-laki', 'Perempuan'].includes(b.gender)) await sql`UPDATE leads SET gender = ${b.gender} WHERE id = ${ins[0].id}`;
   if (perluDetail(b) && b.sumber_detail) await sql`UPDATE leads SET sumber_detail = ${String(b.sumber_detail).trim().slice(0, 200)} WHERE id = ${ins[0].id}`;
   if (Array.isArray(b.kontak)) await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, b.wa))}::jsonb WHERE id = ${ins[0].id}`;
+  if (fotoRef) { try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS foto text`; await sql`UPDATE leads SET foto = ${fotoRef} WHERE id = ${ins[0].id}`; } catch (e) { console.error('foto lead', e); } }
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${id}`;

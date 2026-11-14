@@ -1,4 +1,5 @@
 'use client';
+import FotoKunjungan from '@/components/FotoKunjungan';
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Toast, { toast } from '@/components/Toast';
@@ -56,7 +57,9 @@ export default function JanjianPage() {
   const [fSales, setFSales] = useState('');
   const [akunSales, setAkunSales] = useState([]); // nama akun Sales aktif — satu-satunya pilihan filter sales
   useEffect(() => { api('/api/settings').then(s => setAkunSales(s.sales || [])).catch(() => {}); }, []);
-  const [sheet, setSheet] = useState(null); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
+  const [sheet, setSheet] = useState(null);
+  const [fotoSiap, setFotoSiap] = useState({});
+  useEffect(() => { api('/api/foto?siap=1').then(setFotoSiap).catch(() => {}); }, []); // { mode: 'baru'|'reschedule'|'batal'|'datang', j, f }
   const [atur, setAtur] = useState(null);
   const [busy, setBusy] = useState(false);
   const muat = () => api('/api/janjian').then(setD).catch(e => toast(e.message));
@@ -94,10 +97,11 @@ export default function JanjianPage() {
 
   async function kirim() {
     const { mode, j, f } = sheet;
+    if (mode === 'datang' && fotoSiap[j.project] && !f.foto) return toast('Lampirkan foto kunjungan dulu');
     setBusy(true);
     try {
       if (mode === 'baru') await api('/api/janjian', { method: 'POST', body: JSON.stringify(f) });
-      else await api('/api/janjian', { method: 'PATCH', body: JSON.stringify({ aksi: mode, id: j.id, ...f }) });
+      else await api('/api/janjian', { method: 'PATCH', body: JSON.stringify({ aksi: mode, id: j.id, ...f, foto: f.foto ? { data: f.foto.data } : undefined }) });
       toast({ baru: 'Janjian disimpan — status lead jadi Appointment', reschedule: 'Jadwal baru disimpan', koreksi: 'Janjian dikoreksi', batal: 'Pembatalan dicatat', datang: 'Hasil visit disimpan — status lead jadi Site Visit' }[mode]);
       setSheet(null); await muat();
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -225,6 +229,7 @@ export default function JanjianPage() {
               <div className="field full"><label>Hasil visit</label>
                 <div className="kp-seg">{(d.HASIL || []).map(x => <button key={x} aria-pressed={sheet.f.hasil === x} onClick={() => setF({ hasil: x })}>{x}</button>)}</div></div>
               <div className="field full"><label>Catatan</label><textarea rows={2} value={sheet.f.catatan} onChange={e => setF({ catatan: e.target.value })} /></div>
+              <FotoKunjungan nilai={sheet.f.foto} onUbah={v => setF({ foto: v })} wajib={!!fotoSiap[sheet.j.project]} ket={fotoSiap[sheet.j.project] ? undefined : 'Opsional — penyimpanan foto project ini belum dipasang.'} />
             </div>
             <div className="note" style={{ margin: '10px 0' }}>Status lead otomatis menjadi <b>Site Visit</b>; catatan masuk riwayat follow up.</div>
           </>)}

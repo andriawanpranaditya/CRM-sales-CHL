@@ -204,7 +204,7 @@ async function targetBooking(sql) {
 async function raporTim(sql, { pp, hariIni }) {
   try { await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS rapor boolean DEFAULT true`; } catch {}
   // Hanya sales in-house: akun Sales aktif yang tidak dikeluarkan dari rapor (agent / akun uji dimatikan Manager di menu Pengguna)
-  const semuaSales = await sql`SELECT name, username, projects, COALESCE(wa, '') AS wa FROM users WHERE role = 'sales' AND active = true AND COALESCE(rapor, true) = true ORDER BY name`
+  const semuaSales = await sql`SELECT name, username, projects, COALESCE(wa, '') AS wa FROM users WHERE role = 'sales' AND active = true AND COALESCE(rapor, true) = true AND COALESCE(lead_agent, false) = false ORDER BY name`
     .catch(() => sql`SELECT name, username, null AS projects, '' AS wa FROM users WHERE role = 'sales' AND active = true ORDER BY name`);
   // Hanya sales yang memegang project terpilih (akun tanpa batasan project = semua project)
   const daftar = semuaSales.filter(s => !pp || !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => pp.includes(p)));

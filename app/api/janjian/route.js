@@ -254,6 +254,11 @@ async function _PATCH(req) {
 
   if (b.aksi === 'datang') {
     if (j.status !== 'Terjadwal') return Response.json({ error: 'Janjian ini sudah ' + j.status.toLowerCase() }, { status: 400 });
+    // Foto bukti kunjungan → Google Drive akun marketing project (wajib bila penyimpanan foto sudah dipasang)
+    let fotoRef = null;
+    { const { driveSiap, simpanFoto } = await import('@/lib/foto-drive'); const pj = j.project || j.lead_project || '';
+      if (b.foto?.data && driveSiap(pj)) { try { fotoRef = await simpanFoto(pj, { nama: `janji ${lamaTgl} ${j.nama || j.lead_code}`, data: b.foto.data, folder: 'Janji temu' }); } catch (e) { return Response.json({ error: e.message }, { status: 502 }); } }
+      else if (driveSiap(pj)) return Response.json({ error: 'Foto kunjungan wajib dilampirkan' }, { status: 400 }); }
     if (b.jam_datang && !jamOk(b.jam_datang)) return Response.json({ error: 'Format jam datang HH:MM' }, { status: 400 });
     // Konsumen datang LEBIH AWAL dari jadwal (mis. janjian besok tapi datang hari ini) → kunjungan dicatat di tanggal hari ini
     const nowD = sekarangWIB();
@@ -262,6 +267,7 @@ async function _PATCH(req) {
     await sql`UPDATE janjian SET status = 'Datang', jam_datang = ${jamD}, unit_dilihat = ${b.unit_dilihat || ''},
       hasil = ${b.hasil || ''}, hasil_catatan = ${b.catatan || ''}, updated_at = now() WHERE id = ${j.id}`;
     if (lebihAwal) await sql`UPDATE janjian SET tgl = ${nowD.tgl}, jam = ${jamD} WHERE id = ${j.id}`;
+    if (fotoRef) { try { await sql`ALTER TABLE janjian ADD COLUMN IF NOT EXISTS foto text`; await sql`UPDATE janjian SET foto = ${fotoRef} WHERE id = ${j.id}`; } catch (e) { console.error('foto janjian', e); } }
     await catatLog(sql, j.id, user, 'Datang', [lebihAwal ? `datang lebih awal (jadwal ${fmtTgl(lamaTgl)} ${j.jam})` : '', b.jam_datang ? 'datang ' + b.jam_datang : '', b.unit_dilihat, b.hasil, b.catatan].filter(Boolean).join(' · '));
     // Status lead otomatis Site Visit + catatan visit ke riwayat follow up
     if (NAIK_KE_SITEVISIT.includes(j.lead_status)) await sql`UPDATE leads SET status = 'Site Visit', updated_at = now() WHERE lead_code = ${j.lead_code}`;

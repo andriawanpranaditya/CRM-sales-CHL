@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import PilihLead from '@/components/PilihLead';
+import FotoKunjungan from '@/components/FotoKunjungan';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
@@ -101,6 +102,8 @@ export default function FormPage() {
   const [fu, setFu] = useState({ lead_code: '', tgl: todayISO(), detail: '', objection: '', next_action: '', next_tgl: '', wa_pesan: '', status: '', balas: null });
   const [l2s, setL2s] = useState({ lead_code: '', tgl: todayISO(), pesan: '', sales: '', konteks: '' });
   const [dup, setDup] = useState(null); // info lead duplikat dari server
+  const [fotoSiap, setFotoSiap] = useState({});
+  useEffect(() => { api('/api/foto?siap=1').then(setFotoSiap).catch(() => {}); }, []);
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null, alasan_kat: '', alasan_ket: '', refund: null, dana_hangus: '' });
@@ -197,13 +200,14 @@ export default function FormPage() {
     if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
     { const dt = detailUntuk(lead); if (dt?.wajib && !String(lead.sumber_detail || '').trim()) return toast('Isi ' + dt.label.toLowerCase()); }
     if (lead.status === 'Drop' && !String(lead.alasan || '').trim()) return toast('Alasan drop wajib diisi');
+    if (!editId && /walk/i.test(lead.sumber || '') && fotoSiap[lead.project] && !lead.foto) return toast('Lampirkan foto konsumen walk in');
     setBusy(true);
     try {
       if (editId) {
         await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
         toast('Lead berhasil diperbarui');
       } else {
-        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify(lead) });
+        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
         toast('Lead tersimpan — ' + d.lead_code);
       }
       setEditId(null); setDup(null);
@@ -263,7 +267,7 @@ export default function FormPage() {
       if (le) mulaiEdit(le); else toast('Lead ' + kodeEdit + ' tidak ditemukan atau bukan milik Anda');
       return;
     }
-    const sah = me.role === 'markom' ? ['lead', 'fu', 'l2s'] : ['lead', 'fu', 'trx'];
+    const sah = me.role === 'markom' ? ['lead', 'fu', 'l2s'] : me.leadAgent ? ['lead', 'trx'] : ['lead', 'fu', 'trx'];
     const tujuan = sah.includes(t) ? t : (kode ? 'fu' : null);
     if (tujuan) setTab(tujuan);
     const l = kode ? leads.find(x => x.lead_code === kode) : null;
@@ -529,6 +533,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
       <div className="tab-langkah" role="tablist" aria-label="Jenis input">
         {(isMarkom
           ? [['lead', 'Lead Baru', 'Konsumen baru masuk'], ['fu', 'Follow Up', 'Catat hasil FU'], ['l2s', 'Leads to Sales', 'Oper ke sales']]
+          : me?.leadAgent ? [['lead', 'Konsumen Baru', 'Konsumen dari agent'], ['trx', 'Reserved / Booking', 'Transaksi & berkas']]
           : [['lead', 'Lead Baru', 'Walk in / referensi'], ['fu', 'Follow Up', 'Catat hasil FU wajib'], ['trx', 'Reserved / Booking', 'Transaksi & berkas']]).map(([k, t, ket], i) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>
             <span className="tl-no">{i + 1}</span>
@@ -541,6 +546,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
         <div className="form-grid">
           <div className="field"><label>Tanggal Lead</label><input type="date" {...fl('tgl')} /></div>
           <div className="field"><label>Nama Konsumen <span className="req">*</span></label><input {...fl('nama')} placeholder="Nama lengkap" /></div>
+          {!editId && /walk/i.test(lead.sumber || '') && <FotoKunjungan nilai={lead.foto} onUbah={v => setLead({ ...lead, foto: v })} label="Foto konsumen walk in" wajib={!!fotoSiap[lead.project]} ket={fotoSiap[lead.project] ? undefined : 'Opsional — pilih project dulu; penyimpanan foto project ini belum dipasang.'} />}
           <div className="field"><label>WhatsApp</label><input {...fl('wa')} placeholder="08xxxxxxxxxx" /></div>
           <div className="field full"><label>Kontak tambahan <span className="hint" style={{ textTransform: 'none', fontWeight: 400 }}>— nomor kedua, pasangan / keluarga yang ikut memutuskan (opsional)</span></label>
             {(lead.kontak || []).map((k, i) => <div key={i} className="kontak-baris">
