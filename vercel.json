@@ -23,6 +23,18 @@
     {
       "path": "/api/mi-sync/meta-rinci",
       "schedule": "42 22 * * *"
+    },
+    {
+      "path": "/api/cron/pengingat-sales",
+      "schedule": "0 2 * * 1-6"
+    },
+    {
+      "path": "/api/cron/pengingat-sales",
+      "schedule": "0 6 * * 1-6"
+    },
+    {
+      "path": "/api/cron/pengingat-sales",
+      "schedule": "0 9 * * 1-6"
     }
   ]
 }

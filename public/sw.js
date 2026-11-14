@@ -80,3 +80,19 @@ self.addEventListener('fetch', e => {
     );
   }
 });
+
+// ===== Web Push: notifikasi HP walau CRM tertutup =====
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { isi: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.judul || 'CRM Sales CHL', {
+    body: d.isi || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag, renotify: !!d.tag, data: { url: d.url || '/' },
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const tujuan = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) { if (c.url.startsWith(self.location.origin) && 'focus' in c) { c.navigate(tujuan).catch(() => {}); return c.focus(); } }
+    return self.clients.openWindow(tujuan);
+  }));
+});

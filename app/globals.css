@@ -1022,3 +1022,6 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .lp-kartu .field{display:flex;flex-direction:column;gap:4px}.lp-kartu .field.full{grid-column:1/-1}.lp-kartu label{font-size:11px;font-weight:700;color:#5B6E66;text-transform:uppercase;letter-spacing:.4px}
 .lp-kartu input,.lp-kartu select,.lp-kartu textarea{font:inherit;font-size:14.5px;padding:10px 11px;border:1px solid #DDD5C2;border-radius:10px;background:#fff;color:#10251E;width:100%;box-sizing:border-box}
 .lp-sec{font-size:12.5px;font-weight:800;color:#1E5B45;margin-top:4px}.lp-btn{width:100%;background:#1E5B45;color:#fff;border:0;border-radius:12px;padding:13px;font-weight:800;font-size:15px;cursor:pointer}.lp-btn:disabled{opacity:.6}
+.tg-fu{display:flex;flex-direction:column;gap:8px;margin-top:12px;font-size:13px}.tg-fu-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.tg-fu-chip{display:inline-block;padding:4px 10px;border-radius:99px;background:#FBEFD5;color:#10251E;text-decoration:none;font-size:12.5px;font-weight:600}.tg-fu-chip.telat{background:#F8DEDA;color:#8F2F1C}.tg-fu-chip small{font-weight:400}
+.push-ajak{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#FFF6E2;border:1px solid #E2BE7A;border-radius:12px;padding:9px 14px;margin:0 0 14px;font-size:13px;color:#10251E}

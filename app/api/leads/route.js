@@ -114,6 +114,11 @@ async function _POST(req) {
     // Standar FU wajib: lead yang langsung punya sales mulai dijadwalkan hari ini (Hari 1)
     if (!['Booking', 'Closing', 'Drop'].includes(b.status || 'New')) { try { await mulaiJadwalBaru(sql, code); } catch (e) { console.error('jadwal fu', e); } }
   }
+  // Web Push: lead baru dari Marcom / Manager langsung ke HP sales pemegangnya
+  if (sales && user.role !== 'sales') {
+    try { const { kirimPush } = await import('@/lib/push'); const u = await sql`SELECT username FROM users WHERE name = ${sales} AND role = 'sales' AND active = true`;
+      if (u.length) await kirimPush(sql, { usernames: u.map(x => x.username) }, { judul: '📩 Lead baru untukmu', isi: `${b.nama}${b.project ? ' · ' + b.project : ''}${b.sumber ? ' · ' + b.sumber : ''} — segera follow up selagi masih hangat!`, url: '/form?tab=fu&lead=' + code, tag: 'lead-' + code }); } catch (e) { console.error('push lead', e); }
+  }
   return Response.json({ ok: true, id, lead_code: code });
 }
 
@@ -187,6 +192,10 @@ async function _PATCH(req) {
   const sama = (k, a, c) => k === 'budget' ? Number(a || 0) === Number(c || 0)
     : (k === 'tgl' || k === 'next_fu') ? teks(a).slice(0, 10) === teks(c).slice(0, 10) : String(a ?? '') === String(c ?? '');
   const berubah = FIELDS.filter(k => k in b && !sama(k, b[k], cur[k]));
+  if (operKe) { // Web Push ke sales penerima lead (Leads to Sales / oper oleh Manager)
+    try { const { kirimPush } = await import('@/lib/push'); const u = await sql`SELECT username FROM users WHERE name = ${operKe} AND role = 'sales' AND active = true`;
+      if (u.length && !u.some(x => x.username === user.username)) await kirimPush(sql, { usernames: u.map(x => x.username) }, { judul: '📩 Lead baru untukmu', isi: `${m.nama}${m.project ? ' · ' + m.project : ''} dioper oleh ${user.name} — segera follow up selagi masih hangat!`, url: '/form?tab=fu&lead=' + cur.lead_code, tag: 'lead-' + cur.lead_code }); } catch (e) { console.error('push oper', e); }
+  }
   return Response.json({ ok: true, lead_code: cur.lead_code, nama: m.nama, berubah, oper: operKe || undefined });
 }
 

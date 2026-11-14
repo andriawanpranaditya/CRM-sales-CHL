@@ -3,6 +3,7 @@ import { bolehPresentasi } from '@/lib/presentasi';
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import { PopupPengingat } from '@/components/TargetSales';
+import PushNotif from '@/components/PushNotif';
 import BusyIndicator from '@/components/BusyIndicator';
 import IkonMenu from '@/components/IkonMenu';
 import { useEffect, useState } from 'react';
@@ -210,6 +211,7 @@ export default function Shell({ user, children }) {
           <ReminderBell user={user} />
         </div>
         <BusyIndicator />
+        <PushNotif user={user} />
         {children}
         {!user.leadAgent && <PopupPengingat user={user} />}
         {user.leadAgent && <ArahkanAgent />}

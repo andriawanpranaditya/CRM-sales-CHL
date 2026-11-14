@@ -26,6 +26,33 @@ export default function ReminderBell({ user }) {
   const [open, setOpen] = useState(false);
   const notified = useRef(false);
   const dataRef = useRef(null);
+  // Manager: pemeriksaan ringan tiap ±40 detik — transaksi baru & laporan agent langsung muncul (dengan bunyi & notifikasi perangkat)
+  const [baru, setBaru] = useState({ trx: [], agent: [], belumDibaca: 0 });
+  const kunciDibaca = 'crm_notif_dibaca_' + (user?.username || '');
+  async function cekBaru(awal = false) {
+    if (user?.role !== 'manager') return;
+    try {
+      const d = await api('/api/notif-baru', { silent: true });
+      let dibaca = 0; try { dibaca = Number(localStorage.getItem(kunciDibaca) || 0); } catch {}
+      if (!dibaca && awal) { dibaca = Math.max(0, ...d.trx.map(x => x.id)); try { localStorage.setItem(kunciDibaca, String(dibaca)); } catch {} }
+      const trxBaru = d.trx.filter(x => x.id > dibaca);
+      const agentLama = (dataRef.current?.agentMenunggu || []).map(x => x.id);
+      const agentBaru = d.agent.filter(x => !agentLama.includes(x.id));
+      setBaru(b => {
+        const sebelum = b.trx.map(x => x.id).concat(b.agent.map(x => 'a' + x.id));
+        const muncul = [...trxBaru.filter(x => !sebelum.includes(x.id)), ...(awal ? [] : agentBaru.filter(x => !sebelum.includes('a' + x.id)))];
+        if (muncul.length && !awal) {
+          playChime();
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            const x = muncul[0];
+            try { new Notification('CRM Sales CHL', { body: x.jenis ? `${x.jenis === 'Batal' ? '❌' : '🧾'} ${x.jenis}: ${x.nama || x.lead_code} · ${x.unit || x.project} (${x.sales || '-'})` : `📥 Laporan agent: ${x.konsumen} (${x.lead_agent})`, icon: '/icon-192.png' }); } catch {}
+          }
+        }
+        return { trx: trxBaru, agent: d.agent, belumDibaca: trxBaru.length };
+      });
+      if (agentBaru.length && !awal) load();
+    } catch {}
+  }
 
   async function load() {
     try {
@@ -53,6 +80,13 @@ export default function ReminderBell({ user }) {
     load();
     const segar = () => { if (document.visibilityState === 'visible' && Date.now() - terakhir >= 5 * 60 * 1000) { terakhir = Date.now(); load(); } };
     const t = setInterval(segar, 60 * 1000);
+    cekBaru(true);
+    const cepat = () => { if (document.visibilityState === 'visible') cekBaru(); };
+    const t2 = setInterval(cepat, 40 * 1000);
+    document.addEventListener('visibilitychange', cepat);
+    window.addEventListener('focus', cepat);
+    const dibacaLain = () => setBaru(x => ({ ...x, trx: [], belumDibaca: 0 })); // lonceng lain (HP/desktop) sudah dibaca
+    window.addEventListener('crm-notif-dibaca', dibacaLain);
     document.addEventListener('visibilitychange', segar);
 
     // Bunyi "ding" + getar pada interaksi PERTAMA pengguna hari ini bila ada FU jatuh tempo
@@ -73,17 +107,19 @@ export default function ReminderBell({ user }) {
     window.addEventListener('keydown', onFirstTouch);
 
     return () => {
-      clearInterval(t);
+      clearInterval(t); clearInterval(t2);
+      document.removeEventListener('visibilitychange', cepat); window.removeEventListener('focus', cepat); window.removeEventListener('crm-notif-dibaca', dibacaLain);
       document.removeEventListener('visibilitychange', segar);
       window.removeEventListener('pointerdown', onFirstTouch);
       window.removeEventListener('keydown', onFirstTouch);
     };
   }, []);
 
-  const total = data ? data.total : 0;
+  const total = (data ? data.total : 0) + baru.belumDibaca;
 
   function toggle() {
     if (!open && data && data.total > 0) playChime();
+    if (open && baru.trx.length) { const maks = Math.max(...baru.trx.map(x => x.id)); try { localStorage.setItem(kunciDibaca, String(maks)); } catch {} setBaru(b => ({ ...b, trx: [], belumDibaca: 0 })); window.dispatchEvent(new Event('crm-notif-dibaca')); }
     setOpen(v => !v);
     // Minta izin notifikasi browser saat pertama kali lonceng dibuka
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -117,6 +153,12 @@ export default function ReminderBell({ user }) {
         <div className="bell-backdrop" onClick={() => setOpen(false)} />
         <div className="bell-panel">
           <div className="bell-head">{data?.peran === 'collection' ? 'Pengingat Collection & KPR' : 'Pengingat Follow Up'} {data ? '— ' + fmtDate(data.today) : ''}</div>
+          {baru.trx.length > 0 && <div className="bell-list" style={{ paddingBottom: 0 }}>
+            <div className="bell-sub">🧾 Transaksi baru ({baru.trx.length})</div>
+            {baru.trx.map(x => (<a key={'tx' + x.id} href={'/leads?lead=' + encodeURIComponent(x.lead_code || '')} className="rem-item" style={{ borderLeftColor: x.jenis === 'Batal' ? 'var(--red)' : x.jenis === 'Booking' ? 'var(--green)' : 'var(--brass, #C99C4F)' }}>
+              <span><b>{x.nama || x.lead_code}</b> · {x.unit || '-'}<br /><span className="hint">{x.project} · {x.sales || '-'} · {new Date(x.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></span>
+              <span className={'badge ' + (x.jenis === 'Batal' ? 'b-overdue' : x.jenis === 'Booking' ? 'b-close' : 'b-today')}>{x.jenis}</span></a>))}
+          </div>}
           {!data || !total ? (
             <div className="hint" style={{ padding: '14px 16px' }}>✅ Tidak ada pengingat. Mantap!</div>
           ) : (

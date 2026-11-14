@@ -75,7 +75,6 @@ export function PopupPengingat({ user }) {
   const tutup = () => { try { localStorage.setItem(kunci(slot), '1'); } catch {} setSlot(null); };
   const p = d.pesan, h = d.harian.ini, k = d.harian.kemarin;
   const judul = slot === 'pagi' ? `Pagi, ${d.depan}!` : slot === 'siang' ? `Udah jam 1, ${d.depan}` : `Rekap hari ini, ${d.depan}`;
-  const kerjakan = [...d.jadwalFu.slice(0, 4).map(x => 'FU ' + x), ...d.janjiHariIni.map(j => `janji temu ${j.nama} jam ${j.jam}`)];
   const baris = [['Follow up dilakukan', 'fu'], ['Janji temu dibuat', 'janji'], ['Kunjungan / visit', 'visit'], ['Lead mandiri baru', 'lead'], ['Booking', 'booking']];
   return (<div className="tg-overlay" role="dialog" aria-modal="true"><div className="tg-pop">
     <div className="tg-pop-head"><div><div className="tg-pop-eyebrow">{JUDUL[slot][0]}</div><div className="tg-pop-judul">{judul} {JUDUL[slot][1]}</div></div><div style={{ fontSize: 30 }}>⏰</div></div>
@@ -87,7 +86,13 @@ export function PopupPengingat({ user }) {
         : <p>{slot === 'pagi' ? p.pagi : p.siang}</p>}
       {slot === 'pagi' && <p className={'tg-rekap ' + (['warning', 'bahaya'].includes(p.bulanan.nada) ? 'turun' : 'naik')}><b>Target bulan ini:</b> {p.bulanan.isi}</p>}
       <AngkaTarget d={d} kecil />
-      {slot !== 'sore' && kerjakan.length > 0 && <p className="tg-kerjakan"><b>Kerjakan sekarang:</b> {kerjakan.join(' · ')}</p>}
+      {((d.fuTerlambat || []).length > 0 || (d.fuHariIni || []).length > 0) && <div className="tg-fu">
+        {(d.fuTerlambat || []).length > 0 && <div><b style={{ color: '#B4482A' }}>⏰ Terlambat di-follow up ({d.fuTerlambat.length})</b>
+          <div className="tg-fu-list">{d.fuTerlambat.slice(0, 8).map(x => <a key={x.lead_code} href={'/form?tab=fu&lead=' + encodeURIComponent(x.lead_code)} onClick={tutup} className="tg-fu-chip telat">{x.nama}<small> · {tglPendek(x.next_fu)}</small></a>)}{d.fuTerlambat.length > 8 && <span className="hint">+{d.fuTerlambat.length - 8} lagi</span>}</div></div>}
+        {(d.fuHariIni || []).length > 0 && <div><b>📅 {slot === 'sore' ? 'Masih jatuh tempo hari ini' : 'Jatuh tempo hari ini'} ({d.fuHariIni.length})</b>
+          <div className="tg-fu-list">{d.fuHariIni.slice(0, 8).map(x => <a key={x.lead_code} href={'/form?tab=fu&lead=' + encodeURIComponent(x.lead_code)} onClick={tutup} className="tg-fu-chip">{x.nama}</a>)}{d.fuHariIni.length > 8 && <span className="hint">+{d.fuHariIni.length - 8} lagi</span>}</div></div>}
+      </div>}
+      {slot !== 'sore' && d.janjiHariIni.length > 0 && <p className="tg-kerjakan"><b>Janji temu hari ini:</b> {d.janjiHariIni.map(j => `${j.nama} jam ${j.jam}`).join(' · ')}</p>}
     </div>
     <div className="tg-pop-aksi"><a className="sort-btn" href="/beranda" onClick={tutup}>Lihat lead prioritas</a><button className="btn btn-primary" style={{ width: 'auto' }} onClick={tutup}>Siap, gas! 💪</button></div>
   </div></div>);

@@ -110,6 +110,17 @@ async function _POST(req) {
   const insTrx = await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, datang, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${datangDari(b)}, ${user.username}) RETURNING id`;
+  // Web Push ke HP Manager: Reserved / Booking / Batal baru
+  if (['Reserved', 'Booking', 'Batal'].includes(b.jenis)) {
+    try {
+      const { kirimPush } = await import('@/lib/push');
+      const ld = (await sql`SELECT nama, sales, project FROM leads WHERE lead_code = ${b.lead_code}`)[0] || {};
+      const ikon = { Reserved: '🟡', Booking: '🟢', Batal: '❌' }[b.jenis];
+      await kirimPush(sql, { role: 'manager' }, { judul: `${ikon} ${b.jenis} baru — ${b.project || ld.project || ''}`.trim(),
+        isi: `${ld.nama || b.lead_code} · ${b.unit || '-'} · sales ${ld.sales || '-'}${b.jenis === 'Batal' && catatan ? ' · ' + String(catatan).slice(0, 80) : Number(b.nilai) ? ' · Rp' + Number(b.nilai).toLocaleString('id-ID') : ''}`,
+        url: '/leads?lead=' + encodeURIComponent(b.lead_code), tag: 'trx-' + (insTrx[0]?.id || b.lead_code) });
+    } catch (e) { console.error('push trx', e); }
+  }
   // Batal: dana dibayar / hangus / dikembalikan & Refund / Non-refund (dipakai Laporan Penjualan & analisa pembatalan)
   if (b.jenis === 'Batal' && insTrx[0]?.id && (b.dana_dibayar != null || b.batal_refund != null)) {
     await siapkanKolomPenjualan(sql);
