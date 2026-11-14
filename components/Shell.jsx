@@ -2,6 +2,7 @@
 import { bolehPresentasi } from '@/lib/presentasi';
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
+import { PopupPengingat } from '@/components/TargetSales';
 import BusyIndicator from '@/components/BusyIndicator';
 import IkonMenu from '@/components/IkonMenu';
 import { useEffect, useState } from 'react';
@@ -16,6 +17,7 @@ const MENUS = [
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
+  { href: '/target', ico: '🎯', label: 'Target Sales', roles: ['manager'] },
   { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
   { href: '/collection', ico: '💰', label: 'Collection & KPR', roles: ['manager', 'ceo', 'collection'] },
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
@@ -201,6 +203,7 @@ export default function Shell({ user, children }) {
         </div>
         <BusyIndicator />
         {children}
+        <PopupPengingat user={user} />
         <div className="copyright">copyright &copy; 2026 by Andriawanp</div>
       </main>
     </div>

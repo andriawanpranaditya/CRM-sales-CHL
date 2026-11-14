@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { TargetBulanIni } from '@/components/TargetSales';
 import Ringkasan from '@/components/CollectionRingkasan';
 import React, { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
@@ -450,6 +451,7 @@ export default function BerandaPage() {
         </div>}
       </div>
       <p className="bd-hello">{sapa()}, {depan(me?.name)}{pimpinan && sebagai !== 'pimpinan' ? ' · pratinjau beranda ' + (sebagai === 'sales' ? 'Sales (seluruh tim)' : 'Marcom') : ''}</p>
+      {me?.role === 'sales' && <TargetBulanIni />}
       {!d ? <div className="loading">Menyiapkan beranda…</div> : d.peran === 'pimpinan' ? <Pimpinan d={d} me={me} proj={proj} setProj={setProj} daftarProj={daftarProj} /> : d.peran === 'sales' ? <Sales d={d} /> : d.peran === 'collection' ? <Collection me={me} /> : <Marcom d={d} />}
     </div>
   );

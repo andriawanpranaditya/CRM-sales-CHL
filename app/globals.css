@@ -994,3 +994,23 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pz-cetak.pz-render,body .pz-cetak{display:block!important;position:fixed;left:-20000px;top:0;width:1280px;z-index:-1;pointer-events:none}.pz-cetak .pz-hal{width:1280px;height:720px;overflow:hidden;position:relative;background:#F7F3EA}
 
 .kontak-baris{display:grid;grid-template-columns:1.2fr .9fr 1.1fr 1.4fr auto;gap:6px;margin-bottom:6px}@media (max-width:720px){.kontak-baris{grid-template-columns:1fr 1fr}}
+/* Target bulanan sales & pop-up pengingat */
+.tg-wrap{display:flex;flex-direction:column;gap:14px;margin:6px 0 18px}.tg-kartu{padding:18px 20px}.tg-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.tg-head b{font-size:16px}
+.tg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}.tg-grid.kecil{gap:8px;margin-top:12px}@media (max-width:760px){.tg-grid{grid-template-columns:1fr 1fr}}
+.tg-m{border:1px solid var(--line,#E6DFD0);border-radius:14px;padding:12px 14px;background:var(--card,#fff)}.tg-grid.kecil .tg-m{padding:9px 11px}
+.tg-l{font-size:12px;color:var(--muted,#5B6E66);font-weight:600}.tg-v{font-size:26px;font-weight:800;margin:4px 0}.tg-grid.kecil .tg-v{font-size:20px;margin:2px 0 0}.tg-v small{font-size:14px;color:var(--muted,#8A9A93);font-weight:600}
+.tg-bar{height:8px;border-radius:99px;background:var(--paper,#EDE7DA);overflow:hidden}.tg-bar i{display:block;height:100%;border-radius:99px}.tg-s{font-size:11.5px;color:var(--muted,#5B6E66);margin-top:6px}
+.tg-chip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}.tg-chip.hijau{background:#DDEFE4;color:#1E5B45}.tg-chip.kuning{background:#FBEFD5;color:#8A5F14}.tg-chip.merah{background:#F8DEDA;color:#B4482A}
+.tg-info{margin-top:12px;background:var(--brass-soft,#FFF6E2);border-left:4px solid var(--brass,#C99C4F);border-radius:10px;padding:9px 13px;font-size:13px}
+.tg-bawah{display:flex;gap:14px;flex-wrap:wrap}.tg-tb{width:100%;border-collapse:collapse;font-size:12.8px}.tg-tb th{text-align:left;font-size:11px;color:var(--muted,#5B6E66);padding:7px 8px;border-bottom:1px solid var(--line,#E6DFD0)}.tg-tb td{padding:8px;border-bottom:1px solid var(--line,#EFE9DC);vertical-align:top}
+.tg-sub{display:block;font-size:11px;color:var(--muted,#8A9A93);font-weight:400}
+.tg-pesan{border-color:#E2BE7A!important;background:#FFF8E6!important;color:#10251E}.tg-pesan p{font-size:13.5px;line-height:1.6;margin:10px 0 0}.tg-pesan.bahaya,.tg-pesan.warning{border-color:#E7A79C!important;background:#FDF1EE!important}
+.tg-pesan.selamat,.tg-pesan.top,.tg-pesan.apresiasi{border-color:#A9D3BC!important;background:#EEF8F2!important}.tg-tambahan{border-top:1px dashed #E2BE7A;padding-top:8px}
+.tg-overlay{position:fixed;inset:0;z-index:300;background:rgba(16,37,30,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.tg-pop{width:min(580px,100%);max-height:92vh;overflow:auto;background:#FFFDF8;color:#10251E;border-radius:22px;box-shadow:0 30px 60px rgba(0,0,0,.35)}
+.tg-pop-head{background:linear-gradient(135deg,#1F6A50,#185A43);color:#F4EFE3;padding:18px 22px;display:flex;justify-content:space-between;align-items:center}
+.tg-pop-eyebrow{font-size:12px;letter-spacing:1.5px;color:#E2BE7A;font-weight:800}.tg-pop-judul{font-size:20px;font-weight:800;margin-top:2px}
+.tg-pop-isi{padding:16px 22px;font-size:14px;line-height:1.6}.tg-pop-isi p{margin:0 0 10px}.tg-pop .tg-m{background:#fff}
+.tg-rekap{border-radius:10px;padding:10px 12px;font-size:13.3px}.tg-rekap.turun{background:#F8DEDA}.tg-rekap.naik{background:#DDEFE4}.tg-rekap.sama{background:#FBEFD5}
+.tg-kerjakan{font-size:13px;margin-top:12px!important}.tg-pop-aksi{padding:0 22px 18px;display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.tg-tb td:last-child{white-space:nowrap;width:1%}.tg-tb td:nth-child(3){min-width:120px}
