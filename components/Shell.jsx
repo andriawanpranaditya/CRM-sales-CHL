@@ -36,6 +36,82 @@ const MENUS = [
   { href: '/log', ico: '🕘', label: 'Log Aktivitas', roles: ['manager'] },
 ];
 
+// ===== Kelompok menu (sub menu) =====
+const GRUP = [
+  ['Penjualan', ['/form', '/leads', '/janjian', '/booking', '/kunjungan-agent']],
+  ['Tim Sales', ['/target', '/kepatuhan-fu', '/kegiatan']],
+  ['Produk', ['/stock', '/price-list', '/kpr']],
+  ['Collection & KPR', ['/collection', '/kpr-proses']],
+  ['Marketing', ['/marcom', '/wa-inbox', '/ai-asisten']],
+  ['Laporan', ['/report', '/presentasi', '/dashboard']],
+  ['Pengaturan', ['/settings', '/users', '/log']],
+];
+// Menu yang tetap di luar kelompok (laptop) & 4 tombol bar bawah (HP) per peran
+const UTAMA = { manager: ['/beranda', '/dashboard'], ceo: ['/beranda', '/dashboard'], sales: ['/beranda', '/form', '/leads', '/janjian'], markom: ['/beranda', '/form', '/leads', '/marcom'],
+  collection: ['/beranda', '/collection', '/kpr-proses'], admin: ['/dashboard', '/booking'] };
+const BAR = { manager: ['/beranda', '/leads', '/janjian', '/dashboard'], ceo: ['/beranda', '/dashboard', '/leads', '/janjian'], sales: ['/beranda', '/form', '/leads', '/janjian'],
+  markom: ['/beranda', '/form', '/leads', '/marcom'], collection: ['/beranda', '/collection', '/kpr-proses', '/stock'], admin: ['/dashboard', '/booking', '/stock', '/price-list'] };
+const LABEL_PENDEK = { '/beranda': 'Beranda', '/leads': 'Lead', '/janjian': 'Janjian', '/dashboard': 'Dashboard', '/form': 'Input', '/marcom': 'Analisa', '/collection': 'Collection',
+  '/kpr-proses': 'KPR', '/stock': 'Stok', '/booking': 'Booking', '/kpr': 'Simulasi', '/price-list': 'Price List' };
+const aktifDi = (path, href) => path === href || path.startsWith(href + '/');
+
+function susunMenu(menus, user) {
+  const utama = user.leadAgent ? menus.map(m => m.href) : (UTAMA[user.role] || ['/beranda']);
+  const luar = menus.filter(m => utama.includes(m.href));
+  const grup = GRUP.map(([nama, hrefs]) => [nama, hrefs.map(h => menus.find(m => m.href === h)).filter(m => m && !utama.includes(m.href))]).filter(([, isi]) => isi.length);
+  const tunggal = grup.filter(([, isi]) => isi.length === 1).map(([, isi]) => isi[0]);
+  const sisa = menus.filter(m => !utama.includes(m.href) && !GRUP.some(([, h]) => h.includes(m.href)));
+  return { luar: [...luar, ...tunggal, ...sisa], grup: grup.filter(([, isi]) => isi.length > 1) };
+}
+
+function Ubin({ href, ico, besar }) { // kotak ikon 3D
+  return <span className={'ubin' + (besar ? ' besar' : '')}><IkonMenu href={href} cadangan={ico} /></span>;
+}
+
+function NavLaptop({ menus, user, path, badge }) {
+  const { luar, grup } = susunMenu(menus, user);
+  const [buka, setBuka] = useState(() => { try { return JSON.parse(localStorage.getItem('menu-buka') || '[]'); } catch { return []; } });
+  const grupAktif = grup.find(([, isi]) => isi.some(m => aktifDi(path, m.href)))?.[0];
+  const terbuka = n => buka.includes(n) || n === grupAktif;
+  const tog = n => setBuka(b => { const x = terbuka(n) ? b.filter(y => y !== n) : [...b, n]; try { localStorage.setItem('menu-buka', JSON.stringify(x)); } catch {} return x; });
+  const item = m => (<Link key={m.href} href={m.href} className={'nav-it' + (aktifDi(path, m.href) ? ' active' : '')}>
+    <Ubin href={m.href} ico={m.ico} /><span>{m.label}</span>{badge[m.href] ? <span className="nav-bd">{badge[m.href]}</span> : null}</Link>);
+  return (<nav className="nav">
+    {luar.map(item)}
+    {grup.map(([nama, isi]) => { const o = terbuka(nama), n = isi.reduce((a, m) => a + (badge[m.href] || 0), 0);
+      return (<div key={nama} className={'nav-grup' + (o ? ' buka' : '')}>
+        <button type="button" className={'nav-it nav-judul' + (nama === grupAktif ? ' berisi' : '')} onClick={() => tog(nama)} aria-expanded={o}>
+          <Ubin href={'g:' + nama} ico="▸" /><span>{nama}</span>{!o && n ? <span className="nav-bd">{n}</span> : null}<span className="nav-panah">{o ? '▾' : '▸'}</span></button>
+        {o && <div className="nav-sub">{isi.map(item)}</div>}</div>); })}
+  </nav>);
+}
+
+function NavHP({ menus, user, path, badge }) {
+  const [buka, setBuka] = useState(false);
+  useEffect(() => { setBuka(false); }, [path]);
+  const barHref = user.leadAgent ? menus.map(m => m.href).slice(0, 5) : (BAR[user.role] || menus.slice(0, 4).map(m => m.href));
+  const bar = barHref.map(h => menus.find(m => m.href === h)).filter(Boolean);
+  const lain = menus.filter(m => !barHref.includes(m.href));
+  const grup = GRUP.map(([nama, hrefs]) => [nama, hrefs.map(h => lain.find(m => m.href === h)).filter(Boolean)]).filter(([, isi]) => isi.length);
+  const sisa = lain.filter(m => !GRUP.some(([, h]) => h.includes(m.href)));
+  if (sisa.length) grup.push(['Lainnya', sisa]);
+  const menuAktif = lain.some(m => aktifDi(path, m.href)), nLain = lain.reduce((a, m) => a + (badge[m.href] || 0), 0);
+  return (<>
+    <nav className="mbar">
+      {bar.map(m => (<Link key={m.href} href={m.href} className={'mbar-it' + (aktifDi(path, m.href) ? ' active' : '')}>
+        <Ubin href={m.href} ico={m.ico} /><span>{LABEL_PENDEK[m.href] || m.label}</span>{badge[m.href] ? <span className="nav-bd">{badge[m.href]}</span> : null}</Link>))}
+      {lain.length > 0 && <button type="button" className={'mbar-it' + (menuAktif || buka ? ' active' : '')} onClick={() => setBuka(v => !v)} aria-expanded={buka}>
+        <Ubin href="g:Menu" ico="▦" /><span>Menu</span>{nLain ? <span className="nav-bd">{nLain}</span> : null}</button>}
+    </nav>
+    {buka && <div className="msheet-redup" onClick={() => setBuka(false)}><div className="msheet" onClick={e => e.stopPropagation()}>
+      <div className="msheet-gagang" onClick={() => setBuka(false)} />
+      {grup.map(([nama, isi]) => (<div key={nama}><div className="msheet-judul">{nama}</div>
+        <div className="msheet-grid">{isi.map(m => (<Link key={m.href} href={m.href} className={'msheet-it' + (aktifDi(path, m.href) ? ' active' : '')}>
+          <Ubin href={m.href} ico={m.ico} besar /><span>{m.label}</span>{badge[m.href] ? <span className="nav-bd">{badge[m.href]}</span> : null}</Link>))}</div></div>))}
+    </div></div>}
+  </>);
+}
+
 const IkonMatahari = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>);
 const IkonBulan = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></svg>);
 
@@ -56,6 +132,12 @@ export default function Shell({ user, children }) {
   const router = useRouter();
   // Lead agent (Esteem, LJH): hanya input Reserved/Booking, Simulasi, Price List & Master Stock — tanpa kewajiban sales
   const MENU_AGENT = ['/form', '/kpr', '/price-list', '/stock'];
+  const [badge, setBadge] = useState({});
+  useEffect(() => {
+    if (user.role !== 'manager') return;
+    const muat = () => { if (document.visibilityState === 'visible') fetch('/api/notif-baru').then(r => r.ok ? r.json() : null).then(d => d && setBadge({ '/kunjungan-agent': (d.agent || []).length })).catch(() => {}); };
+    muat(); const t = setInterval(muat, 60000); return () => clearInterval(t);
+  }, [user.role]);
   const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
 
   // ===== Mode terang / gelap — per user, tersimpan di akun =====
@@ -179,13 +261,7 @@ export default function Shell({ user, children }) {
           <div className="logo">CRM<span> SALES</span></div>
           <small>Cipta Harmoni Lestari</small>
         </div>
-        <nav className="nav">
-          {menus.map(m => (
-            <Link key={m.href} href={m.href} className={path === m.href || path.startsWith(m.href + '/') ? 'active' : ''}>
-              <span className="ico"><IkonMenu href={m.href} cadangan={m.ico} /></span><span>{m.label}</span>
-            </Link>
-          ))}
-        </nav>
+        <NavLaptop menus={menus} user={user} path={path} badge={badge} />
         <div className="side-theme">
           <div className="theme-switch" role="group" aria-label="Tema tampilan">
             <button aria-pressed={tema === 'light'} onClick={() => pilihTema('light')}><IkonMatahari />Terang</button>
@@ -202,6 +278,7 @@ export default function Shell({ user, children }) {
           </div>
         </div>
       </aside>
+      <NavHP menus={menus} user={user} path={path} badge={badge} />
       <main className="main">
         {/* Laptop: tombol tema & lonceng melayang di kanan atas pita judul, sejajar tepi kanan konten */}
         <div className="atas-kanan">
