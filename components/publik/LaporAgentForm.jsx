@@ -39,7 +39,7 @@ export default function LaporAgentForm({ token }) {
     <div className="lp-kartu form-grid">
       <div className="field full"><div className="lp-sec">Data agent</div></div>
       <div className="field full"><label>Nama agent *</label><input value={f.agent_nama} onChange={ubah('agent_nama')} /></div>
-      <div className="field full"><label>Kantor / agency *</label><input value={f.agent_kantor} onChange={ubah('agent_kantor')} placeholder="mis. Ray White Gading Serpong" /></div>
+      <div className="field full"><label>Kantor / agency *</label><input value={f.agent_kantor} onChange={ubah('agent_kantor')} placeholder={'mis. ' + (info.leadAgent || (info.project === 'PERMAI INDAH' ? 'LJH' : 'Esteem'))} /></div>
       <div className="field full"><label>No. HP agent *</label><input value={f.agent_hp} onChange={ubah('agent_hp')} inputMode="tel" placeholder="nomor Anda (bukan nomor konsumen)" /></div>
       <div className="field full"><div className="lp-sec">Data konsumen</div></div>
       <div className="field full"><label>Nama konsumen *</label><input value={f.konsumen} onChange={ubah('konsumen')} /></div>
