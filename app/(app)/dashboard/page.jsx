@@ -9,6 +9,22 @@ import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
 
 // hanyaReport: 'lengkap' (Report Word/PDF) | 'excel' (Data Excel) → dipakai menu Report; filterLuar = { d1, d2, proj } dari filter bersama menu Report
+// Report Lengkap tampil langsung di halaman: isi report dipecah per bagian (h2) menjadi kartu bergaya CRM
+function ReportDiHalaman({ html, redup }) {
+  const bagian = useMemo(() => {
+    let body = (/<body[^>]*>([\s\S]*)<\/body>/i.exec(html) || [, html])[1];
+    // kop dokumen (logo + judul) tidak perlu di halaman
+    const kop = body.indexOf('REPORT SALES &amp; MARKETING');
+    if (kop >= 0) { const akhir = body.indexOf('</table>', kop); if (akhir >= 0) body = body.slice(akhir + 8); }
+    return body.split(/(?=<h2[\s>])/i).map(x => x.trim()).filter(Boolean);
+  }, [html]);
+  const [info, ...isi] = bagian[0] && !/^<h2/i.test(bagian[0]) ? bagian : ['', ...bagian];
+  return (<div className="rl-view" style={{ opacity: redup ? .55 : 1 }}>
+    {info && <div className="rl-info" dangerouslySetInnerHTML={{ __html: info }} />}
+    {isi.map((h, i) => <section key={i} className="rl-kartu" dangerouslySetInnerHTML={{ __html: h }} />)}
+  </div>);
+}
+
 export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const [lastUpd, setLastUpd] = useState(null);
   const versiRef = useRef(null); // sidik data terakhir yang sudah dimuat (lihat /api/versi)
@@ -1175,10 +1191,10 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
           </div>
         )}
         {hanyaReport === 'lengkap' && <div className="rp-preview">
-          <div className="rp-preview-bar"><b>👁 Preview Report Lengkap</b><span className="hint">{muatPreview ? 'Menyusun report…' : 'isi sama persis dengan Report Word / PDF'}</span><span style={{ flex: 1 }} />
+          <div className="rp-preview-bar"><b>📊 Report Lengkap</b><span className="hint">{muatPreview ? 'Menyusun report…' : 'isi sama dengan Report Word / PDF — unduh lewat tombol di atas'}</span><span style={{ flex: 1 }} />
             <button className="sort-btn" disabled={muatPreview} onClick={() => { setMuatPreview(true); downloadWord('preview').catch(() => setMuatPreview(false)); }}>↻ Perbarui</button></div>
-          {preview ? <iframe title="Preview Report Lengkap" srcDoc={preview} className="rp-preview-frame" style={{ opacity: muatPreview ? .5 : 1 }} />
-            : <div className="loading" style={{ padding: 40 }}>Menyusun preview report…</div>}
+          {preview ? <ReportDiHalaman html={preview} redup={muatPreview} />
+            : <div className="loading" style={{ padding: 40 }}>Menyusun report…</div>}
         </div>}
         {hanyaReport === 'lengkap' && <span className="hint">Report mengikuti filter periode &amp; project di atas; isinya lead, follow up, booking, stok, KPR, janjian, dan marketing, plus satu halaman ringkasan penjualan. Detail per transaksi ada di tab Laporan Penjualan.</span>}
         {hanyaReport === 'excel' && <span className="hint">Excel berisi data mentah lead, follow up, dan transaksi sesuai periode &amp; project, dan juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>}
