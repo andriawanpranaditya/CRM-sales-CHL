@@ -45,6 +45,13 @@ export async function POST(req) {
     await sql`INSERT INTO agent_link (username, nama, project, token) VALUES (${lama.username}, ${lama.nama}, ${b.project || lama.project}, ${tokenBaru(lama.nama)})`;
     return Response.json({ ok: true });
   }
+  // Hapus riwayat laporan yang DITOLAK (satu atau semua)
+  if (b.aksi === 'hapus-ditolak') {
+    const r = b.semua ? await sql`DELETE FROM agent_laporan WHERE status = 'Ditolak' RETURNING id`
+      : await sql`DELETE FROM agent_laporan WHERE id = ${Number(b.id)} AND status = 'Ditolak' RETURNING id`;
+    if (!r.length) return Response.json({ error: 'Hanya laporan yang ditolak yang bisa dihapus' }, { status: 400 });
+    return Response.json({ ok: true, terhapus: r.length });
+  }
   const lap = (await sql`SELECT *, tgl::text AS tgl FROM agent_laporan WHERE id = ${Number(b.id)}`)[0];
   if (!lap) return Response.json({ error: 'Laporan tidak ditemukan' }, { status: 404 });
   const t = (x, n = 200) => String(x ?? '').trim().slice(0, n);

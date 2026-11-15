@@ -38,8 +38,8 @@ const MENUS = [
 
 // ===== Kelompok menu (sub menu) =====
 const GRUP = [
-  ['Penjualan', ['/form', '/leads', '/janjian', '/booking', '/kunjungan-agent']],
-  ['Tim Sales', ['/target', '/kepatuhan-fu', '/kegiatan']],
+  ['Penjualan', ['/form', '/booking']],
+  ['Tim Sales', ['/leads', '/janjian', '/kunjungan-agent', '/target', '/kepatuhan-fu', '/kegiatan']],
   ['Produk', ['/stock', '/price-list', '/kpr']],
   ['Collection & KPR', ['/collection', '/kpr-proses']],
   ['Marketing', ['/marcom', '/wa-inbox', '/ai-asisten']],

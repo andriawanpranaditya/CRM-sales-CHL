@@ -21,7 +21,8 @@ export default function KunjunganAgent() {
       <div className="sub">Laporan dari agent di bawah lead agent · dicek Manager sebelum masuk sebagai lead &amp; visitor</div></div>
       <a className="sort-btn" href="/api/kunjungan-agent?excel=1">⬇ Excel</a></div>
 
-    <div className="card"><b>📥 Laporan masuk</b>
+    <div className="card"><div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><b>📥 Laporan masuk</b><span style={{ flex: 1 }} />
+      {d.laporan.some(x => x.status === 'Ditolak') && <button className="sort-btn" disabled={busy} onClick={() => { const n = d.laporan.filter(x => x.status === 'Ditolak').length; if (confirm(`Hapus semua riwayat laporan yang ditolak (${n})? Tidak bisa dibatalkan.`)) aksi({ aksi: 'hapus-ditolak', semua: true }, r => `${r.terhapus} riwayat laporan ditolak dihapus`); }}>🗑 Hapus semua yang ditolak</button>}</div>
       {d.laporan.length ? <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Kunjungan</th><th>Konsumen</th><th>Agent</th><th>Lead agent</th><th>Minat</th><th>Foto</th><th>Status</th><th></th></tr></thead>
         <tbody>{d.laporan.map(x => <tr key={x.id}>
           <td style={{ whiteSpace: 'nowrap' }}>{tgl(x.tgl)}{x.jam ? ' ' + x.jam : ''}</td>
@@ -36,7 +37,8 @@ export default function KunjunganAgent() {
             <button className="btn btn-primary" style={{ width: 'auto', padding: '4px 10px' }} disabled={busy} onClick={() => aksi({ aksi: 'setujui', id: x.id }, r => `Disetujui — ${r.lead_code} masuk sebagai lead & visitor`)}>Setujui</button>{' '}
             {(x.dobel || []).length > 0 && <button className="sort-btn" disabled={busy} title="Tambahkan kunjungan ke lead yang sudah ada" onClick={() => aksi({ aksi: 'setujui', id: x.id, leadCode: x.dobel[0].lead_code }, () => `Kunjungan ditambahkan ke ${x.dobel[0].lead_code}`)}>Gabung ke {x.dobel[0].lead_code}</button>}{' '}
             <button className="sort-btn" onClick={() => setEd({ ...x })}>Ubah</button>{' '}
-            <button className="sort-btn" disabled={busy} onClick={() => { const a = prompt('Alasan menolak laporan ini?'); if (a) aksi({ aksi: 'tolak', id: x.id, alasan: a }, () => 'Laporan ditolak'); }}>Tolak</button></>}</td></tr>)}</tbody></table></div>
+            <button className="sort-btn" disabled={busy} onClick={() => { const a = prompt('Alasan menolak laporan ini?'); if (a) aksi({ aksi: 'tolak', id: x.id, alasan: a }, () => 'Laporan ditolak'); }}>Tolak</button></>}
+            {x.status === 'Ditolak' && <button className="sort-btn" disabled={busy} title="Hapus riwayat laporan yang ditolak" onClick={() => { if (confirm(`Hapus riwayat laporan ${x.konsumen} (ditolak)? Tidak bisa dibatalkan.`)) aksi({ aksi: 'hapus-ditolak', id: x.id }, () => 'Riwayat laporan dihapus'); }}>🗑 Hapus</button>}</td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada laporan. Bagikan link di bawah ke agent.</p>}</div>
 
     <div className="tg-bawah" style={{ marginTop: 14, alignItems: 'flex-start' }}>
