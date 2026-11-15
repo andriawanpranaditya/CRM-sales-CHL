@@ -937,11 +937,12 @@ ${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper
 <h2>3. KINERJA PER SALES (lead masuk &amp; transaksi pada periode)</h2>
 <table><tr><th>Sales / PIC</th><th style="text-align:center">Lead</th><th style="text-align:center">Transaksi</th><th style="text-align:center">Masih Reserved</th><th style="text-align:center">Booking berjalan</th><th style="text-align:center">Batal saat Reserved</th><th style="text-align:center">Batal setelah Booking</th><th style="text-align:center">Closing Rate</th></tr>
 ${(() => {
-      const LAIN = 'Lainnya (tanpa akun)';
-      const keAkun = n => akunS.includes(n) ? n : LAIN;
+      const LAIN = 'Lainnya (tanpa akun)', BELUM = 'Belum dioper (Marcom)';
+      // Sales kosong / "-" = lead Marcom yang belum diserahkan ke sales; nama tanpa akun = sales lama / agent lain
+      const keAkun = n => akunS.includes(n) ? n : (!String(n || '').trim() || /^-+$/.test(String(n).trim())) ? BELUM : LAIN;
       const L0 = pl.map(l => ({ ...l, _pj: keAkun(pjL(l)) }));
       const X0 = LP ? LP.map(x => ({ ...x, _pj: keAkun(pjX(x)) })) : [];
-      const nama = [...akunS.filter(n => L0.some(l => l._pj === n) || X0.some(x => x._pj === n)), ...((L0.some(l => l._pj === LAIN) || X0.some(x => x._pj === LAIN)) ? [LAIN] : [])];
+      const nama = [...akunS.filter(n => L0.some(l => l._pj === n) || X0.some(x => x._pj === n)), ...[BELUM, LAIN].filter(k => L0.some(l => l._pj === k) || X0.some(x => x._pj === k))];
       const h = (L, X) => ({ lead: L.length, trx: X.length, rv: X.filter(x => x.status === 'Reserved').length, bk: X.filter(x => x.status === 'Booking').length,
         brv: X.filter(x => x.status === 'Batal' && !x.tgl_booking).length, bbk: X.filter(x => x.status === 'Batal' && x.tgl_booking).length });
       const tr = (n, r, b) => `<tr${b ? ' style="font-weight:bold;background:#F5F2EA"' : ''}><td><b>${esc(n)}</b></td><td style="text-align:center">${r.lead}</td><td style="text-align:center">${r.trx}</td><td style="text-align:center">${r.rv}</td><td style="text-align:center"><b>${r.bk}</b></td><td style="text-align:center">${r.brv}</td><td style="text-align:center">${r.bbk}</td><td style="text-align:center"><b>${r.lead ? Math.round(r.bk / r.lead * 100) + '%' : (r.bk ? '—' : '0%')}</b></td></tr>`;
@@ -949,7 +950,7 @@ ${(() => {
       return nama.map(n => tr(n, h(L0.filter(l => l._pj === n), X0.filter(x => x._pj === n)))).join('') + tr('Total', h(L0, X0), true);
     })()}
 </table>
-<p class="muted" style="font-size:8.5pt">Transaksi, Masih Reserved, Booking berjalan &amp; Batal = kontrak yang dijual pada periode (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — sama dengan Report → Laporan Penjualan. Nama sales disatukan ke akun (in-house → akunnya, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH); nama tanpa akun di baris Lainnya. Sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
+<p class="muted" style="font-size:8.5pt">Transaksi, Masih Reserved, Booking berjalan &amp; Batal = kontrak yang dijual pada periode (tanggal Booking; tanggal Reserved bila belum Booking), status per hari ini — sama dengan Report → Laporan Penjualan. Nama sales disatukan ke akun (in-house → akunnya, agent Bio sejak Feb 2025 → Esteem, agent Permai → LJH); lead tanpa sales (lead Marcom yang belum diserahkan ke sales atau di-drop Marcom sebelum dioper) di baris <b>Belum dioper (Marcom)</b>${(() => { const B = pl.filter(l => { const n = pjL(l); return !akunS.includes(n) && (!String(n || '').trim() || /^-+$/.test(String(n).trim())); }); if (!B.length) return ''; const nw = B.filter(l => (l.status || 'New') === 'New').length, dr = B.filter(l => l.status === 'Drop').length; return ` — periode ini ${B.length} lead: ${nw} masih New menunggu dioper, ${dr} di-drop Marcom${B.length - nw - dr > 0 ? `, ${B.length - nw - dr} status lain` : ''}`; })()}; nama sales yang tidak punya akun (sales lama / agent lain) di baris Lainnya (tanpa akun). Sales tetap tampil walau lead-nya masuk periode sebelumnya (Total Lead bisa 0, Closing Rate ditandai —). Closing Rate = Booking ÷ total lead masuk periode.</p>
 
 <h2>4. MASTER STOCK — PETA SITEPLAN</h2>
 <p class="muted">Posisi unit per hari ini · <span style="color:#B3402F">&#9679;</span> terjual · <span style="color:#C9922E">&#9679;</span> reserved · sisanya tersedia.</p>
