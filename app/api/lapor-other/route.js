@@ -21,7 +21,10 @@ export async function POST(req) {
   if (b.website) return Response.json({ ok: true });
   const l = await ambilLink(sql, b.token);
   if (!l) return Response.json({ error: 'Link tidak berlaku. Minta link terbaru ke tim marketing.' }, { status: 404 });
-  const c = cekDataOther(b.other || {}); if (c.error) return Response.json({ error: c.error }, { status: 400 });
+  const { pengirimSah } = await import('@/lib/pengirim');
+  const pg = await pengirimSah(sql, { tipe: 'other', project: l.project, hp: b.hp, perangkat: b.perangkat });
+  if (!pg) return Response.json({ error: 'Nomor Anda belum diverifikasi tim marketing. Muat ulang halaman untuk verifikasi.' }, { status: 403 });
+  const c = { d: { jenis: pg.jenis || 'Internal employee', nama: pg.nama, divisi: pg.divisi || '', hp: pg.hp } };
   const t = (x, n = 200) => String(x ?? '').trim().slice(0, n);
   const T = b.trx || {}, K = b.konsumen || {}, B = b.berkas || {};
   const d = { trx_jenis: ['Reserved', 'Booking'].includes(T.jenis) ? T.jenis : '', unit: t(T.unit, 60), tgl: /^\d{4}-\d{2}-\d{2}$/.test(T.tgl || '') ? T.tgl : null,
@@ -36,9 +39,8 @@ export async function POST(req) {
   if (tersedia && !tersedia.includes(d.unit)) return Response.json({ error: `Unit ${d.unit} sudah tidak tersedia — pilih unit lain` }, { status: 400 });
   const hari = (await sql`SELECT count(*)::int AS n FROM other_laporan WHERE token = ${l.token} AND created_at > now() - interval '1 day'`)[0]?.n || 0;
   if (hari >= 30) return Response.json({ error: 'Terlalu banyak kiriman dari link ini hari ini' }, { status: 429 });
-  let ktp = null, npwp = null, berkas = {};
+  const ktp = pg.ktp || null, npwp = pg.npwp || null; let berkas = {};
   try {
-    if (c.d.jenis === 'External') { ktp = await simpanDok(sql, l.project, { nama: `KTP ${c.d.nama}`, data: b.other.ktp.data }); npwp = await simpanDok(sql, l.project, { nama: `NPWP ${c.d.nama}`, data: b.other.npwp.data }); }
     berkas = { transfer: await simpanDokDb(sql, B.transfer.data), ktp: await simpanDokDb(sql, B.ktp.data), npwp: await simpanDokDb(sql, B.npwp.data) };
   } catch (e) { return Response.json({ error: e.message }, { status: 502 }); }
   await sql`INSERT INTO other_laporan (token, project, jenis, nama, divisi, hp, ktp, npwp, konsumen, konsumen_wa, konsumen_email, konsumen_nik, alamat, tgl, trx_jenis, unit, nilai, bayar, catatan, berkas)

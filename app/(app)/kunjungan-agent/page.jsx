@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
 import { judulAgent } from '@/lib/judul-link';
+import KartuQR from '@/components/KartuQR';
 
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const tgl = t => t ? `${Number(t.slice(8, 10))} ${BLN[Number(t.slice(5, 7)) - 1]}` : '';
@@ -10,7 +11,7 @@ const namaBulan = b => b ? `${['Januari', 'Februari', 'Maret', 'April', 'Mei', '
 const CHIP = { Menunggu: 'b-today', Disetujui: 'b-upcoming', Ditolak: 'b-lost' };
 
 export default function KunjunganAgent() {
-  const [d, setD] = useState(null), [ed, setEd] = useState(null), [busy, setBusy] = useState(false), [foto, setFoto] = useState(null);
+  const [d, setD] = useState(null), [ed, setEd] = useState(null), [busy, setBusy] = useState(false), [foto, setFoto] = useState(null), [qr, setQr] = useState(null);
   const muat = () => api('/api/kunjungan-agent').then(setD).catch(e => toast(e.message));
   useEffect(() => { muat(); }, []);
   const aksi = async (body, ok) => { setBusy(true); try { const r = await api('/api/kunjungan-agent', { method: 'POST', body: JSON.stringify(body) }); toast(ok(r)); setEd(null); await muat(); } catch (e) { toast(e.message); } finally { setBusy(false); } };
@@ -45,7 +46,9 @@ export default function KunjunganAgent() {
     <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Agent Visitor per lead agent</b>
       {d.links.length ? <div className="lk-list">{d.links.map(l => { const url = `${asal}/lapor/${l.token}`; return <div className="lk-row" key={l.username}>
         <div className="lk-proj">{judulAgent(l.project)}<span className="tg-sub">Lead agent {l.nama}{!l.fotoSiap ? ' · foto belum dipasang' : ''}</span></div><div className="lk-url">{url}</div>
-        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(`${judulAgent(l.project)}\n${url}`); toast('Judul & link disalin'); }}>📋 Salin</button>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => setQr({ judul: judulAgent(l.project), url, project: l.project })}>🔳 QR code</button>
+          <button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin link</button>
+          <a className="sort-btn" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer" href={'https://wa.me/?text=' + encodeURIComponent(`${judulAgent(l.project)}\n${url}`)}>💬 Kirim via WA</a>
           <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', username: l.username }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
         : <p className="hint">Belum ada akun lead agent. Tandai akun Esteem &amp; LJH sebagai <b>Lead agent</b> di menu Pengguna.</p>}
       <p className="hint" style={{ marginTop: 10 }}>Bagikan link ke agent di bawah lead agent. Laporan otomatis tercatat atas nama lead agent &amp; project-nya; agent tidak perlu login.</p></div>
@@ -65,6 +68,7 @@ export default function KunjunganAgent() {
         <button className="sort-btn" disabled={busy} onClick={() => aksi({ aksi: 'ubah', id: ed.id, data: ed }, () => 'Perubahan disimpan')}>Simpan</button>
         <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={() => aksi({ aksi: 'setujui', id: ed.id, data: ed }, r => `Disetujui — ${r.lead_code}`)}>Simpan &amp; setujui</button></div>
     </div></div>}
+    {qr && <KartuQR {...qr} ket="Scan untuk lapor kunjungan konsumen" onTutup={() => setQr(null)} />}
     {foto && <div className="tg-overlay" onClick={() => setFoto(null)}><img src={'/api/foto?ref=' + encodeURIComponent(foto)} alt="Foto kunjungan" style={{ maxWidth: '92vw', maxHeight: '86vh', borderRadius: 14, background: '#fff' }} /></div>}
   </>);
 }

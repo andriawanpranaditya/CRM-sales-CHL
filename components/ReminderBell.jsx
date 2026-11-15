@@ -27,7 +27,9 @@ export default function ReminderBell({ user }) {
   const notified = useRef(false);
   const dataRef = useRef(null);
   // Manager: pemeriksaan ringan tiap ±40 detik — transaksi baru & laporan agent langsung muncul (dengan bunyi & notifikasi perangkat)
-  const [baru, setBaru] = useState({ trx: [], agent: [], belumDibaca: 0 });
+  const [baru, setBaru] = useState({ trx: [], agent: [], pengirim: [], belumDibaca: 0 });
+  const baruRef = useRef({ pengirim: [] });
+  async function verifikasi(id) { try { await api('/api/pengirim', { method: 'POST', body: JSON.stringify({ aksi: 'verifikasi', id }) }); setBaru(b => ({ ...b, pengirim: b.pengirim.filter(x => x.id !== id) })); } catch (e) { alert(e.message); } }
   const kunciDibaca = 'crm_notif_dibaca_' + (user?.username || '');
   async function cekBaru(awal = false) {
     if (user?.role !== 'manager') return;
@@ -38,6 +40,9 @@ export default function ReminderBell({ user }) {
       const trxBaru = d.trx.filter(x => x.id > dibaca);
       const agentLama = (dataRef.current?.agentMenunggu || []).map(x => x.id);
       const agentBaru = d.agent.filter(x => !agentLama.includes(x.id));
+      const pgLama = (baruRef.current.pengirim || []).map(x => x.id), pgBaru = (d.pengirim || []).filter(x => !pgLama.includes(x.id));
+      baruRef.current = { pengirim: d.pengirim || [] };
+      if (!awal && pgBaru.length) { playChime(); if (typeof Notification !== 'undefined' && Notification.permission === 'granted') { try { new Notification('🛡️ Pengirim baru perlu verifikasi', { body: pgBaru.map(x => x.nama).join(', '), icon: '/icon-192.png' }); } catch {} } }
       setBaru(b => {
         const sebelum = b.trx.map(x => x.id).concat(b.agent.map(x => 'a' + x.id));
         const muncul = [...trxBaru.filter(x => !sebelum.includes(x.id)), ...(awal ? [] : agentBaru.filter(x => !sebelum.includes('a' + x.id)))];
@@ -48,7 +53,7 @@ export default function ReminderBell({ user }) {
             try { new Notification('CRM Sales CHL', { body: x.jenis ? `${x.jenis === 'Batal' ? '❌' : '🧾'} ${x.jenis}: ${x.nama || x.lead_code} · ${x.unit || x.project} (${x.sales || '-'})` : `📥 Laporan agent: ${x.konsumen} (${x.lead_agent})`, icon: '/icon-192.png' }); } catch {}
           }
         }
-        return { trx: trxBaru, agent: d.agent, belumDibaca: trxBaru.length };
+        return { trx: trxBaru, agent: d.agent, pengirim: d.pengirim || [], belumDibaca: trxBaru.length };
       });
       if (agentBaru.length && !awal) load();
     } catch {}
@@ -115,7 +120,7 @@ export default function ReminderBell({ user }) {
     };
   }, []);
 
-  const total = (data ? data.total : 0) + baru.belumDibaca;
+  const total = (data ? data.total : 0) + baru.belumDibaca + (baru.pengirim || []).length;
 
   function toggle() {
     if (!open && data && data.total > 0) playChime();
@@ -153,6 +158,12 @@ export default function ReminderBell({ user }) {
         <div className="bell-backdrop" onClick={() => setOpen(false)} />
         <div className="bell-panel">
           <div className="bell-head">{data?.peran === 'collection' ? 'Pengingat Collection & KPR' : 'Pengingat Follow Up'} {data ? '— ' + fmtDate(data.today) : ''}</div>
+          {(baru.pengirim || []).length > 0 && <div className="bell-list" style={{ paddingBottom: 0 }}>
+            <div className="bell-sub">🛡️ Pengirim baru — perlu verifikasi ({baru.pengirim.length})</div>
+            {baru.pengirim.map(x => (<div key={'pg' + x.id} className="rem-item" style={{ borderLeftColor: 'var(--brass, #C99C4F)' }}>
+              <span><b>{x.nama}</b><br /><span className="hint">{x.tipe === 'agent' ? 'Agent Visitor' : 'Sales Channel'} · {x.project} · {x.hp}{x.kantor ? ' · ' + x.kantor : ''}</span></span>
+              <button className="btn btn-primary" style={{ width: 'auto', padding: '5px 10px', fontSize: 12 }} onClick={e => { e.preventDefault(); verifikasi(x.id); }}>✅ Verifikasi</button></div>))}
+          </div>}
           {baru.trx.length > 0 && <div className="bell-list" style={{ paddingBottom: 0 }}>
             <div className="bell-sub">🧾 Transaksi baru ({baru.trx.length})</div>
             {baru.trx.map(x => (<a key={'tx' + x.id} href={'/leads?lead=' + encodeURIComponent(x.lead_code || '')} className="rem-item" style={{ borderLeftColor: x.jenis === 'Batal' ? 'var(--red)' : x.jenis === 'Booking' ? 'var(--green)' : 'var(--brass, #C99C4F)' }}>

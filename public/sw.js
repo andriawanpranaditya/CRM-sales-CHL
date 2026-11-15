@@ -85,11 +85,20 @@ self.addEventListener('fetch', e => {
 self.addEventListener('push', e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { isi: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.judul || 'CRM Sales CHL', {
-    body: d.isi || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag, renotify: !!d.tag, data: { url: d.url || '/' },
+    body: d.isi || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag, renotify: !!d.tag, data: { url: d.url || '/', ...(d.data || {}) },
+    actions: Array.isArray(d.aksi) ? d.aksi.slice(0, 2) : [], requireInteraction: Array.isArray(d.aksi) && d.aksi.length > 0,
   }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
+  const dt = e.notification.data || {};
+  if (e.action === 'verifikasi' && dt.verifikasiId) {
+    e.waitUntil(fetch('/api/pengirim', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aksi: 'verifikasi', id: dt.verifikasiId }) })
+      .then(r => r.json().then(j => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => self.registration.showNotification(ok ? '✅ Pengirim terverifikasi' : 'Verifikasi gagal', { body: ok ? `${j.nama || 'Pengirim'} sekarang bisa mengirim data.` : (j.error || 'Buka CRM untuk memverifikasi.'), icon: '/icon-192.png', tag: 'verif-' + dt.verifikasiId }))
+      .catch(() => self.registration.showNotification('Verifikasi gagal', { body: 'Buka CRM untuk memverifikasi.', icon: '/icon-192.png' })));
+    return;
+  }
   const tujuan = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin).href;
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     for (const c of list) { if (c.url.startsWith(self.location.origin) && 'focus' in c) { c.navigate(tujuan).catch(() => {}); return c.focus(); } }

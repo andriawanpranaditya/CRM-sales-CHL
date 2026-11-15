@@ -1,5 +1,5 @@
 'use client';
-// Form laporan kunjungan agent — PUBLIK, tanpa login. Link dibagikan lead agent ke agent di bawahnya.
+// Form laporan kunjungan agent (Agent Visitor) — PUBLIK, tanpa login & tanpa verifikasi pengirim.
 import { useEffect, useState } from 'react';
 import FotoKunjungan from '@/components/FotoKunjungan';
 
@@ -24,18 +24,18 @@ export default function LaporAgentForm({ token }) {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Gagal mengirim');
       try { localStorage.setItem('agent-saya', JSON.stringify({ agent_nama: f.agent_nama, agent_kantor: f.agent_kantor, agent_hp: f.agent_hp })); } catch {}
-      setSelesai(true);
+      setSelesai(true); window.scrollTo(0, 0);
     } catch (e) { setPesan(e.message); } finally { setKirim(false); }
   }
   if (!info) return <div className="lp"><div className="lp-kartu"><p>Memuat…</p></div></div>;
   if (!info.ok) return <div className="lp"><div className="lp-kartu"><h2>Link tidak berlaku</h2><p>{info.error}</p></div></div>;
   const nama = info.project === 'BIO DISTRICT' ? 'Bio District' : info.project === 'PERMAI INDAH' ? 'Permai Indah' : info.project;
-  if (selesai) return (<div className="lp"><div className="lp-head"><div className="lp-e">AGENT VISITOR</div><div className="lp-j">Agent Visitor {nama}</div><div className="lp-s">Lead agent: {info.leadAgent}</div></div>
+  const Kepala = () => <div className="lp-head"><div className="lp-e">AGENT VISITOR</div><div className="lp-j">Agent Visitor {nama}</div>
+    <div className="lp-s">Lead agent: {info.leadAgent} · isi setelah konsumen berkunjung ke lokasi. Tidak perlu login dan tidak perlu nomor konsumen.</div></div>;
+  if (selesai) return (<div className="lp"><Kepala />
     <div className="lp-kartu" style={{ textAlign: 'center' }}><div style={{ fontSize: 44 }}>✅</div><h2>Terima kasih, laporan terkirim</h2><p>Laporan kunjungan <b>{f.konsumen}</b> sudah diterima dan akan dicek tim marketing.</p>
       <button className="lp-btn" onClick={() => { setSelesai(false); setF(x => ({ ...KOSONG, agent_nama: x.agent_nama, agent_kantor: x.agent_kantor, agent_hp: x.agent_hp, tgl: hariIni() })); setFoto(null); }}>Lapor kunjungan lain</button></div></div>);
-  return (<div className="lp">
-    <div className="lp-head"><div className="lp-e">AGENT VISITOR</div><div className="lp-j">Agent Visitor {nama}</div>
-      <div className="lp-s">Lead agent: {info.leadAgent} · isi setelah konsumen berkunjung ke lokasi. Tidak perlu login dan tidak perlu nomor konsumen.</div></div>
+  return (<div className="lp"><Kepala />
     <div className="lp-kartu form-grid">
       <div className="field full"><div className="lp-sec">Data agent</div></div>
       <div className="field full"><label>Nama agent *</label><input value={f.agent_nama} onChange={ubah('agent_nama')} /></div>

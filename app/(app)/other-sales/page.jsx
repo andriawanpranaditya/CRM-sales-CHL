@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
 import { judulOther } from '@/lib/judul-link';
+import KartuQR from '@/components/KartuQR';
+import PanelPengirim from '@/components/PanelPengirim';
 
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const tgl = t => t ? `${Number(String(t).slice(8, 10))} ${BLN[Number(String(t).slice(5, 7)) - 1]}` : '';
@@ -10,7 +12,7 @@ const CHIP = { Menunggu: 'b-today', Disetujui: 'b-upcoming', Ditolak: 'b-lost' }
 const Dok = ({ r, l, buka }) => r ? <button className="sort-btn" style={{ padding: '2px 8px', marginRight: 4 }} onClick={() => buka(r)}>📄 {l}</button> : null;
 
 export default function OtherSales() {
-  const [d, setD] = useState(null), [busy, setBusy] = useState(false), [lihat, setLihat] = useState(null);
+  const [d, setD] = useState(null), [busy, setBusy] = useState(false), [lihat, setLihat] = useState(null), [qr, setQr] = useState(null);
   const muat = () => api('/api/other-sales').then(setD).catch(e => toast(e.message));
   useEffect(() => { muat(); }, []);
   const aksi = async (body, ok) => { setBusy(true); try { const r = await api('/api/other-sales', { method: 'POST', body: JSON.stringify(body) }); toast(ok(r)); await muat(); } catch (e) { toast(e.message); } finally { setBusy(false); } };
@@ -21,6 +23,7 @@ export default function OtherSales() {
     <div className="page-head"><div><h1>Other Sales {d.menunggu ? <span className="badge b-overdue" style={{ fontSize: 12, verticalAlign: 'middle' }}>{d.menunggu} menunggu konfirmasi</span> : null}</h1>
       <div className="sub">Penjualan dari internal employee atau external tanpa akun CRM · lewat link (dicek Manager) atau input Manager di Form Input → Sales / PIC → Other Sales</div></div></div>
 
+    <PanelPengirim tipe="other" onLihat={setLihat} />
     <div className="card"><div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><b>📥 Kiriman masuk</b><span style={{ flex: 1 }} />
       {d.laporan.some(x => x.status === 'Ditolak') && <button className="sort-btn" disabled={busy} onClick={() => { if (confirm('Hapus semua riwayat kiriman yang ditolak?')) aksi({ aksi: 'hapus-ditolak', semua: true }, r => `${r.terhapus} kiriman ditolak dihapus`); }}>🗑 Hapus semua yang ditolak</button>}</div>
       {d.laporan.length ? <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Tanggal</th><th>Konsumen</th><th>Other Sales</th><th>Project</th><th>Transaksi</th><th>Status</th><th></th></tr></thead>
@@ -42,7 +45,9 @@ export default function OtherSales() {
     <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Sales Channel per project</b>
       <div className="lk-list">{d.links.map(l => { const url = `${asal}/other/${l.token}`; return <div className="lk-row" key={l.project}>
         <div className="lk-proj">{judulOther(l.project)}<span className="tg-sub">{l.project}</span></div><div className="lk-url">{url}</div>
-        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(`${judulOther(l.project)}\n${url}`); toast('Judul & link disalin'); }}>📋 Salin</button>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => setQr({ judul: judulOther(l.project), url, project: l.project })}>🔳 QR code</button>
+          <button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin link</button>
+          <a className="sort-btn" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer" href={'https://wa.me/?text=' + encodeURIComponent(`${judulOther(l.project)}\n${url}`)}>💬 Kirim via WA</a>
           <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', project: l.project }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
       <p className="hint" style={{ marginTop: 10 }}>Internal employee wajib isi divisi &amp; no. HP; external wajib no. HP + foto KTP &amp; NPWP dirinya. Keduanya wajib data transaksi, HP, email &amp; NIK konsumen, serta bukti transfer, KTP &amp; NPWP konsumen. Setelah disetujui: lead, transaksi Reserved/Booking &amp; berkas tercatat atas nama Other Sales.</p></div>
 
@@ -51,6 +56,7 @@ export default function OtherSales() {
         <tbody>{d.daftar.map(s => <tr key={s.id}><td><b>{s.nama}</b><span className="tg-sub">{s.project}</span></td><td>{s.jenis}{s.divisi ? <span className="tg-sub">{s.divisi}</span> : null}</td><td>{s.hp}</td>
           <td><Dok r={s.ktp} l="KTP" buka={setLihat} /><Dok r={s.npwp} l="NPWP" buka={setLihat} />{!s.ktp && !s.npwp ? <span className="hint">—</span> : null}</td><td>{s.lead}</td><td>{s.booking}</td></tr>)}</tbody></table>
         : <p className="hint" style={{ marginTop: 6 }}>Belum ada Other Sales.</p>}</div>
+    {qr && <KartuQR {...qr} ket="Scan untuk input Reserved / Booking" onTutup={() => setQr(null)} />}
     {lihat && <div className="tg-overlay" onClick={() => setLihat(null)}><img src={'/api/foto?ref=' + encodeURIComponent(lihat)} alt="Dokumen" style={{ maxWidth: '92vw', maxHeight: '86vh', borderRadius: 14, background: '#fff' }} /></div>}
   </>);
 }
