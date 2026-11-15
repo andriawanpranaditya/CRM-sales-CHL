@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { siapkanOther, cekDataOther, simpanDok, simpanDokDb, unitTersedia } from '@/lib/other-sales';
+import { siapkanOther, cekDataOther, simpanDok, simpanDokDb, unitTersedia, unitDenganStatus } from '@/lib/other-sales';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,7 @@ export async function GET(req) {
   const sql = db();
   const l = await ambilLink(sql, new URL(req.url).searchParams.get('token'));
   if (!l) return Response.json({ ok: false, error: 'Link tidak berlaku. Minta link terbaru ke tim marketing.' }, { status: 404 });
-  return Response.json({ ok: true, project: l.project, unit: await unitTersedia(sql, l.project).catch(() => []) });
+  return Response.json({ ok: true, project: l.project, unit: await unitDenganStatus(sql, l.project).catch(() => []) });
 }
 export async function POST(req) {
   const sql = db();
