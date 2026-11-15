@@ -157,34 +157,31 @@ export default function BookingPage() {
       )}
 
       <div className="tbl-wrap"><table>
-        <thead><tr><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Project</th><th>Blok/Unit</th><th>Jenis</th>
-          <th>Tanggal</th><th className="num">Nilai Reserved / Booking</th><th className="num">Nilai Transaksi</th><th>Cara Bayar</th><th>Berkas</th><th>Catatan</th>{isMgr && <th>Aksi</th>}</tr></thead>
+        <thead><tr><th>ID Lead</th><th>Nama</th><th>Sales</th><th>Project / Unit</th><th>Jenis / Tanggal</th>
+          <th className="num">Nilai Reserved / Booking · Transaksi</th><th>Cara Bayar</th><th>Berkas</th><th>Catatan</th>{isMgr && <th>Aksi</th>}</tr></thead>
         <tbody>
           {rows.length ? rows.map(t => (
             <tr key={t.id}>
               <td data-label="ID Lead"><span className="id-tag">{t.lead_code}</span></td>
               <td data-label="Nama"><b>{t.nama || ''}</b>{t.tipe ? <span className="hint"> · {t.tipe}</span> : null}</td>
               <td data-label="Sales">{t.sales || ''}</td>
-              <td data-label="Project">{t.project || ''}</td>
-              <td data-label="Blok/Unit">{t.unit || '—'}</td>
-              <td data-label="Jenis"><span className={'badge ' + (BADGE[t.jenis === 'Batal' ? 'Lost' : t.jenis] || 'b-cold')}>{t.jenis}</span></td>
-              <td data-label="Tanggal">{fmtDate(t.tgl)}</td>
-              <td className="num" data-label="Nilai Reserved / Booking">{fmtRp(t.nilai)}</td>
-              <td className="num" data-label="Nilai Transaksi">{t.nilai_jual ? <b>{fmtRp(t.nilai_jual)}</b> : <span className="hint">—</span>}</td>
+              <td data-label="Project / Unit">{t.project || ''}<span className="sub2" style={{ display: 'block' }}><b>{t.unit || '—'}</b></span></td>
+              <td data-label="Jenis / Tanggal"><span className={'badge ' + (BADGE[t.jenis === 'Batal' ? 'Lost' : t.jenis] || 'b-cold')}>{t.jenis}</span><span className="sub2" style={{ display: 'block', marginTop: 3 }}>{fmtDate(t.tgl)}</span></td>
+              <td className="num" data-label="Nilai">{fmtRp(t.nilai)}<span className="sub2" style={{ display: 'block' }}>{t.nilai_jual ? <b>{fmtRp(t.nilai_jual)}</b> : '—'}</span></td>
               <td data-label="Cara Bayar">{t.bayar || ''}</td>
               <td data-label="Berkas">{t.unit ? <>
                 <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
-                  href={'/api/berkas?view=1&jenis=transfer&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 TF</a>{' '}
+                  href={'/api/berkas?view=1&jenis=transfer&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 TF</a><br />
                 <a className="id-tag" style={{ textDecoration: 'none' }} target="_blank" rel="noreferrer"
                   href={'/api/berkas?view=1&jenis=ktp&project=' + encodeURIComponent(t.project || '') + '&unit=' + encodeURIComponent(t.unit) + '&lead_code=' + encodeURIComponent(t.lead_code)}>📎 KTP</a>
               </> : <span className="hint">—</span>}</td>
               <td data-label="Catatan">{t._riwayat ? <span className="hint" style={{ display: 'block' }}>{t._riwayat} → {t.jenis}</span> : null}{t.catatan}</td>
               {isMgr && <td data-label="Aksi" style={{ whiteSpace: 'nowrap' }}>
-                <button className="sort-btn" style={{ padding: '4px 9px' }} onClick={() => setEdit({ ...t, tgl: (t.tgl || '').slice(0, 10) })}>Edit</button>{' '}
+                <button className="sort-btn" style={{ padding: '4px 9px', display: 'block', marginBottom: 4 }} onClick={() => setEdit({ ...t, tgl: (t.tgl || '').slice(0, 10) })}>Edit</button>
                 {me.role !== 'ceo' && <button className="sort-btn" style={{ padding: '4px 9px', color: 'var(--red)', borderColor: 'var(--red-soft)' }} onClick={() => hapus(t)}>Hapus</button>}
               </td>}
             </tr>
-          )) : <tr><td colSpan={isMgr ? 12 : 11} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi.</td></tr>}
+          )) : <tr><td colSpan={isMgr ? 10 : 9} style={{ textAlign: 'center', color: 'var(--muted)', padding: 24 }}>Belum ada transaksi.</td></tr>}
         </tbody>
       </table></div>
       <Toast />
