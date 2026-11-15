@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
+import { judulAgent } from '@/lib/judul-link';
 
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const tgl = t => t ? `${Number(t.slice(8, 10))} ${BLN[Number(t.slice(5, 7)) - 1]}` : '';
@@ -41,10 +42,10 @@ export default function KunjunganAgent() {
             {x.status === 'Ditolak' && <button className="sort-btn" disabled={busy} title="Hapus riwayat laporan yang ditolak" onClick={() => { if (confirm(`Hapus riwayat laporan ${x.konsumen} (ditolak)? Tidak bisa dibatalkan.`)) aksi({ aksi: 'hapus-ditolak', id: x.id }, () => 'Riwayat laporan dihapus'); }}>🗑 Hapus</button>}</td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada laporan. Bagikan link di bawah ke agent.</p>}</div>
 
-    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link laporan per lead agent</b>
+    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Agent Visitor per lead agent</b>
       {d.links.length ? <div className="lk-list">{d.links.map(l => { const url = `${asal}/lapor/${l.token}`; return <div className="lk-row" key={l.username}>
-        <div className="lk-proj">{l.nama}<span className="tg-sub">{l.project || '—'}{!l.fotoSiap ? ' · foto belum dipasang' : ''}</span></div><div className="lk-url">{url}</div>
-        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin</button>
+        <div className="lk-proj">{judulAgent(l.project)}<span className="tg-sub">Lead agent {l.nama}{!l.fotoSiap ? ' · foto belum dipasang' : ''}</span></div><div className="lk-url">{url}</div>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(`${judulAgent(l.project)}\n${url}`); toast('Judul & link disalin'); }}>📋 Salin</button>
           <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', username: l.username }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
         : <p className="hint">Belum ada akun lead agent. Tandai akun Esteem &amp; LJH sebagai <b>Lead agent</b> di menu Pengguna.</p>}
       <p className="hint" style={{ marginTop: 10 }}>Bagikan link ke agent di bawah lead agent. Laporan otomatis tercatat atas nama lead agent &amp; project-nya; agent tidak perlu login.</p></div>

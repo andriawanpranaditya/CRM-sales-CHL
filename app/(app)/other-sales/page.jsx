@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api } from '@/components/util';
+import { judulOther } from '@/lib/judul-link';
 
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const tgl = t => t ? `${Number(String(t).slice(8, 10))} ${BLN[Number(String(t).slice(5, 7)) - 1]}` : '';
@@ -38,10 +39,10 @@ export default function OtherSales() {
             {x.status === 'Ditolak' && <button className="sort-btn" disabled={busy} onClick={() => { if (confirm('Hapus riwayat kiriman ini?')) aksi({ aksi: 'hapus-ditolak', id: x.id }, () => 'Riwayat dihapus'); }}>🗑 Hapus</button>}</td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada kiriman. Bagikan link di bawah.</p>}</div>
 
-    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Other Sales per project</b>
+    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Sales Channel per project</b>
       <div className="lk-list">{d.links.map(l => { const url = `${asal}/other/${l.token}`; return <div className="lk-row" key={l.project}>
-        <div className="lk-proj">{l.project}</div><div className="lk-url">{url}</div>
-        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin</button>
+        <div className="lk-proj">{judulOther(l.project)}<span className="tg-sub">{l.project}</span></div><div className="lk-url">{url}</div>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(`${judulOther(l.project)}\n${url}`); toast('Judul & link disalin'); }}>📋 Salin</button>
           <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', project: l.project }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
       <p className="hint" style={{ marginTop: 10 }}>Internal employee wajib isi divisi &amp; no. HP; external wajib no. HP + foto KTP &amp; NPWP dirinya. Keduanya wajib data transaksi, HP, email &amp; NIK konsumen, serta bukti transfer, KTP &amp; NPWP konsumen. Setelah disetujui: lead, transaksi Reserved/Booking &amp; berkas tercatat atas nama Other Sales.</p></div>
 
