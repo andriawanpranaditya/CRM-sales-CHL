@@ -165,7 +165,19 @@ async function _PATCH(req) {
   const m = { ...cur };
   for (const k of FIELDS) if (k in b) m[k] = b[k];
   if (b.kode_wa) { const pk = await petakanKodeWA(sql, b.kode_wa); if (pk) { if (!m.campaign) m.campaign = pk.campaign; if (!m.konten) m.konten = pk.konten; } }
-  let operKe = null;
+  let operKe = null, otherBaru = null;
+  if (b.other && ['manager', 'ceo'].includes(user.role)) {
+    const { cekDataOther, simpanDok, daftarkanOther } = await import('@/lib/other-sales');
+    const c = cekDataOther(b.other); if (c.error) return Response.json({ error: c.error }, { status: 400 });
+    if (String(b.wa ?? cur.wa ?? '').replace(/\D/g, '').length < 9) return Response.json({ error: 'No. WhatsApp konsumen wajib diisi untuk penjualan Other Sales' }, { status: 400 });
+    try {
+      const pj = b.project || cur.project;
+      const ktp = b.other.ktp?.data ? await simpanDok(sql, pj, { nama: 'KTP ' + c.d.nama, data: b.other.ktp.data }) : null;
+      const npwp = b.other.npwp?.data ? await simpanDok(sql, pj, { nama: 'NPWP ' + c.d.nama, data: b.other.npwp.data }) : null;
+      otherBaru = await daftarkanOther(sql, pj, { ...c.d, ktp, npwp }, user.username); otherBaru.jenis = c.d.jenis;
+    } catch (e) { return Response.json({ error: e.message }, { status: 502 }); }
+    b.sales = otherBaru.nama;
+  }
   if (['manager', 'ceo', 'markom'].includes(user.role) && 'sales' in b && b.sales) {
     if ((cur.sales || '') !== b.sales) operKe = b.sales;
     m.sales = b.sales;
@@ -190,7 +202,7 @@ async function _PATCH(req) {
     }
   }
   // Oper hanya ke sales yang memegang project lead ini (bila sales tsb dibatasi per project)
-  if (operKe && m.project) {
+  if (operKe && m.project && !otherBaru) {
     try {
       const t = await sql`SELECT projects FROM users WHERE name = ${operKe} AND role = 'sales' LIMIT 1`;
       const pp = t[0]?.projects;
@@ -210,6 +222,7 @@ async function _PATCH(req) {
     updated_at = now()
     WHERE id = ${b.id}`;
   if (Array.isArray(b.kontak)) { await siapkanKontak(sql); await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, m.wa))}::jsonb WHERE id = ${b.id}`; }
+  if (otherBaru) await sql`UPDATE leads SET other_id = ${otherBaru.id}, sales_tipe = ${otherBaru.jenis === 'External' ? 'other-external' : 'other-internal'} WHERE id = ${b.id}`;
   await tandaiOleh(sql, cur.lead_code, user.username, m.status === 'Drop' ? String(b.alasan || '').trim() : '');
   if (m.status && m.status !== cur.status) await sinkronJanjianLead(sql, cur.lead_code, { status: m.status, catatan: '', oleh: user.name, dari: 'perubahan status lead' });
   // Riwayat serah terima — tidak boleh menggagalkan penyimpanan lead
@@ -218,7 +231,7 @@ async function _PATCH(req) {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
     // Standar FU wajib: lead dioper ke sales → jadwal wajib dimulai hari ini (Hari 1, maks. 1 jam)
-    if (!['Booking', 'Closing', 'Drop'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
+    if (!otherBaru && !['Booking', 'Closing', 'Drop'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
   }
   // Untuk log aktivitas: field yang benar-benar berubah
   const teks = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '');

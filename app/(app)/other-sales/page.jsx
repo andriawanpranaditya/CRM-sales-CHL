@@ -25,7 +25,7 @@ export default function OtherSales() {
       {d.laporan.length ? <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Tanggal</th><th>Konsumen</th><th>Other Sales</th><th>Project</th><th>Transaksi</th><th>Status</th><th></th></tr></thead>
         <tbody>{d.laporan.map(x => <tr key={x.id}>
           <td style={{ whiteSpace: 'nowrap' }}>{tgl(x.tgl || x.created_at)}</td>
-          <td><b>{x.konsumen}</b><span className="tg-sub">{[x.konsumen_wa, x.konsumen_email, x.konsumen_nik ? 'NIK ' + x.konsumen_nik : ''].filter(Boolean).join(' · ')}</span>{x.alamat ? <span className="tg-sub">{x.alamat}</span> : null}{x.catatan ? <span className="tg-sub">{x.catatan}</span> : null}</td>
+          <td><b>{x.konsumen}</b><span className="tg-sub">{[x.konsumen_wa, x.konsumen_email, x.konsumen_nik ? 'NIK ' + x.konsumen_nik : ''].filter(Boolean).join(' · ')}</span>{x.alamat ? <span className="tg-sub">{x.alamat}</span> : null}{x.leadAda ? <span className="tg-sub" style={{ color: '#1E5B45', fontWeight: 700 }}>↪ sudah ada: {x.leadAda.lead_code} {x.leadAda.nama} ({x.leadAda.sales || 'belum dioper'}) — lead ini yang dipakai</span> : null}{x.catatan ? <span className="tg-sub">{x.catatan}</span> : null}</td>
           <td><b>{x.nama}</b><span className="tg-sub">{x.jenis}{x.divisi ? ' · ' + x.divisi : ''} · {x.hp}</span>{(x.ktp || x.npwp) && <div style={{ marginTop: 3 }}><Dok r={x.ktp} l="KTP" buka={setLihat} /><Dok r={x.npwp} l="NPWP" buka={setLihat} /></div>}</td>
           <td>{x.project}</td>
           <td>{x.trx_jenis ? <><b>{x.trx_jenis}</b> · {x.unit}<span className="tg-sub">Rp{Number(x.nilai || 0).toLocaleString('id-ID')} · {x.bayar}</span>

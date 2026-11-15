@@ -4,6 +4,18 @@ import { siapkanOther, linkOther, daftarkanOther, tokenOther } from '@/lib/other
 
 export const dynamic = 'force-dynamic';
 
+// Lead yang sama di project ini berdasarkan nomor WA konsumen (WA utama atau kontak tambahan)
+async function cariLeadSama(sql, lap) {
+  const wa = String(lap.konsumen_wa || '').replace(/\D/g, '').replace(/^0/, '62').replace(/^8/, '628');
+  if (wa.length < 9) return null;
+  try {
+    return (await sql`SELECT lead_code, nama, sales, status FROM leads l WHERE project = ${lap.project} AND (
+      regexp_replace(regexp_replace(regexp_replace(COALESCE(l.wa,''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa}
+      OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(l.kontak, '[]'::jsonb)) k WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(k->>'wa',''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa}))
+      ORDER BY id LIMIT 1`)[0] || null;
+  } catch { return (await sql`SELECT lead_code, nama, sales, status FROM leads WHERE project = ${lap.project} AND regexp_replace(regexp_replace(regexp_replace(COALESCE(wa,''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa} ORDER BY id LIMIT 1`.catch(() => []))[0] || null; }
+}
+
 // Manager: kiriman Other Sales → setujui (jadi lead dengan PIC Other Sales) / tolak / hapus yang ditolak · kelola link
 export async function GET() {
   const { err } = await requireUser(['manager']); if (err) return err;
@@ -11,6 +23,7 @@ export async function GET() {
   const links = await linkOther(sql);
   const laporan = await sql`SELECT o.*, o.tgl::text AS tgl, EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = o.lead_code AND t.jenis IN ('Booking', 'Closing')) AS booking
     FROM other_laporan o ORDER BY (o.status = 'Menunggu') DESC, o.created_at DESC LIMIT 300`;
+  for (const x of laporan) if (x.status === 'Menunggu') x.leadAda = await cariLeadSama(sql, x);
   const daftar = await sql`SELECT s.*, (SELECT count(*)::int FROM leads l WHERE l.other_id = s.id) AS lead,
       (SELECT count(*)::int FROM leads l JOIN transactions t ON t.lead_code = l.lead_code WHERE l.other_id = s.id AND t.jenis IN ('Booking', 'Closing')) AS booking
     FROM other_sales s ORDER BY s.created_at DESC LIMIT 200`;
@@ -45,10 +58,21 @@ export async function POST(req) {
   const catatan = [`Other Sales: ${lap.nama} (${lap.jenis}${lap.divisi ? ' – ' + lap.divisi : ''}, HP ${lap.hp})`, lap.catatan].filter(Boolean).join(' · ');
   const tglL = lap.tgl || new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
   const statusL = lap.trx_jenis === 'Booking' ? 'Booking' : 'Hot';
-  const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, sumber, project, bayar, domisili, budget, sales, status, catatan, created_by)
-    VALUES (${tglL}, ${lap.konsumen}, ${lap.konsumen_wa || ''}, ${lap.konsumen_email || ''}, 'Other Sales', ${lap.project}, ${lap.bayar || ''}, ${lap.alamat || ''}, 0, ${os.nama}, ${statusL}, ${catatan}, ${user.username}) RETURNING id`;
-  const kode = 'LEAD-' + String(ins[0].id).padStart(4, '0');
-  await sql`UPDATE leads SET lead_code = ${kode}, other_id = ${os.id}, sales_tipe = ${lap.jenis === 'External' ? 'other-external' : 'other-internal'} WHERE id = ${ins[0].id}`;
+  // Konsumen sudah ada sebagai lead (mis. diinput Marcom & belum dioper)? → pakai lead itu, PIC diganti ke Other Sales
+  const ada = await cariLeadSama(sql, lap);
+  let kode;
+  if (ada) {
+    kode = ada.lead_code;
+    await sql`UPDATE leads SET sales = ${os.nama}, other_id = ${os.id}, sales_tipe = ${lap.jenis === 'External' ? 'other-external' : 'other-internal'},
+      email = COALESCE(NULLIF(email, ''), ${lap.konsumen_email || ''}), bayar = COALESCE(NULLIF(bayar, ''), ${lap.bayar || ''}), status = ${statusL},
+      catatan = TRIM(BOTH ' ·' FROM COALESCE(catatan, '') || ${' · ' + catatan}), updated_at = now() WHERE lead_code = ${kode}`;
+    try { await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${kode}, ${ada.sales || ''}, ${os.nama}, ${user.username})`; } catch {}
+  } else {
+    const ins = await sql`INSERT INTO leads (tgl, nama, wa, email, sumber, project, bayar, domisili, budget, sales, status, catatan, created_by)
+      VALUES (${tglL}, ${lap.konsumen}, ${lap.konsumen_wa || ''}, ${lap.konsumen_email || ''}, 'Other Sales', ${lap.project}, ${lap.bayar || ''}, ${lap.alamat || ''}, 0, ${os.nama}, ${statusL}, ${catatan}, ${user.username}) RETURNING id`;
+    kode = 'LEAD-' + String(ins[0].id).padStart(4, '0');
+    await sql`UPDATE leads SET lead_code = ${kode}, other_id = ${os.id}, sales_tipe = ${lap.jenis === 'External' ? 'other-external' : 'other-internal'} WHERE id = ${ins[0].id}`;
+  }
   if (lap.trx_jenis && lap.unit) {
     // Berkas transaksi (bukti transfer, KTP, NPWP) → sama seperti upload di Form Input
     const B = lap.berkas || {};

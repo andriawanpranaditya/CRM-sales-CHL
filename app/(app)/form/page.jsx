@@ -206,7 +206,7 @@ export default function FormPage() {
     setBusy(true);
     try {
       if (editId) {
-        const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
+        const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead, sales: lead.sales === '__other__' ? undefined : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined }) });
         toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — status & jadwal FU sudah tersimpan` : 'Lead berhasil diperbarui');
       } else {
         const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, sales: lead.sales === '__other__' ? '' : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
@@ -606,9 +606,9 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}
                 {/* Lead lama milik agent / nama tanpa akun: tetap tampil agar tidak terhapus saat edit, tapi tidak bisa dipilih untuk lead lain */}
                 {lead.sales && lead.sales !== '__other__' && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales}{/\(Other Sales/.test(lead.sales) ? '' : ' (tanpa akun)'}</option>}
-                {!editId && ['manager', 'ceo'].includes(me?.role) && <option value="__other__">➕ Other Sales (internal employee / external)…</option>}</select>}
+                {['manager', 'ceo'].includes(me?.role) && <option value="__other__">➕ Other Sales (internal employee / external)…</option>}</select>}
           </div>}
-          {!editId && lead.sales === '__other__' && <IsianOther nilai={lead.other} onUbah={v => setLead({ ...lead, other: v })} />}
+          {lead.sales === '__other__' && <IsianOther nilai={lead.other} onUbah={v => setLead({ ...lead, other: v })} />}
           <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
             {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>
           {lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
