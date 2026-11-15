@@ -109,6 +109,6 @@ async function laporanPeriode(q) {
   const per = {};
   rows.forEach(r => { const k = r.lead_agent || '-'; const p = per[k] || (per[k] = { lead_agent: k, project: r.project, laporan: 0, disetujui: 0, ditolak: 0, menunggu: 0, agent: new Set(), reserved: 0, booking: 0 });
     p.laporan++; if (r.status === 'Disetujui') p.disetujui++; else if (r.status === 'Ditolak') p.ditolak++; else p.menunggu++;
-    p.agent.add((r.agent_nama || '').toLowerCase()); if (r.booking) p.booking++; else if (r.reserved) p.reserved++; });
+    if (r.status === 'Disetujui') { p.agent.add((r.agent_nama || '').toLowerCase()); if (r.booking) p.booking++; else if (r.reserved) p.reserved++; } });
   return Response.json({ dari, sampai, rows, per: Object.values(per).map(p => ({ ...p, agent: p.agent.size })) });
 }

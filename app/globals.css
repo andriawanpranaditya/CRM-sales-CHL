@@ -1110,3 +1110,8 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .pg-baris{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line,#E6DFD0);border-radius:12px;margin-top:8px;background:var(--card,#fff)}
 .pg-baris.tunggu{background:#FFF8E6;border-color:#E2BE7A}.pg-aksi{display:flex;gap:8px;align-items:center;flex:none}.pg-ok{width:auto!important;padding:9px 18px!important;font-size:14px}
 @media(max-width:760px){.pg-baris{flex-direction:column;align-items:stretch}.pg-aksi{justify-content:flex-end}}
+
+/* Preview Report Lengkap */
+.rp-preview{flex-basis:100%;order:99;margin-top:12px;background:var(--card,#fff);border:1px solid var(--line,#E6DFD0);border-radius:16px;overflow:hidden}
+.rp-preview-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line,#E6DFD0);background:var(--paper,#F5F2EA)}
+.rp-preview-frame{display:block;width:100%;height:calc(100vh - 260px);min-height:520px;border:0;background:#fff;transition:opacity .2s}

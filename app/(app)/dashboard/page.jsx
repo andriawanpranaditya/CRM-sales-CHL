@@ -37,6 +37,8 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const [keg, setKeg] = useState([]);
   const [fotoKeg, setFotoKeg] = useState({});   // { idKegiatan: [dataURL, ...] } — hanya di memori
   const [panelFoto, setPanelFoto] = useState(false);
+  // Preview Report Lengkap di halaman (sama dengan isi Word/PDF)
+  const [preview, setPreview] = useState(''), [muatPreview, setMuatPreview] = useState(false);
   const [srcSel, setSrcSel] = useState([]); // [] = semua sumber; isi = daftar sumber terpilih (multi)
   const [srcOpen, setSrcOpen] = useState(false);
   useEffect(() => { if (filterLuar) { setD1(filterLuar.d1 || ''); setD2(filterLuar.d2 || ''); setProj(filterLuar.proj || ''); } }, [filterLuar?.d1, filterLuar?.d2, filterLuar?.proj]); // eslint-disable-line
@@ -75,6 +77,12 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const q = '/api/status-log?d1=' + (custom ? (d1 || '') : awalBln) + '&d2=' + (custom ? (d2 || '') : '') + '&project=' + encodeURIComponent(proj || '');
     api(q, { silent: true }).then(setSl).catch(() => setSl(null));
   }, [d1, d2, proj, lastUpd]); // eslint-disable-line
+  useEffect(() => {
+    if (hanyaReport !== 'lengkap' || !leads?.length) return;
+    setMuatPreview(true);
+    const t = setTimeout(() => { downloadWord('preview').catch(e => { console.error('preview report', e); setMuatPreview(false); }); }, 700);
+    return () => clearTimeout(t);
+  }, [hanyaReport, leads?.length, d1, d2, proj, lastUpd, fotoKeg]); // eslint-disable-line
   if (!leads) return <div className="loading">Memuat data dari database…</div>;
 
   // ===== Periode Dashboard: mengikuti tanggal report bila diisi; bila kosong = BULAN BERJALAN (tgl 1 s/d hari ini) =====
@@ -603,7 +611,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   });
 
   async function downloadWord(mode = 'word') {
-    catatUnduh('Dashboard', 'Report Sales & Marketing (' + (mode === 'pdf' ? 'PDF' : 'Word') + ')');
+    if (mode !== 'preview') catatUnduh('Dashboard', 'Report Sales & Marketing (' + (mode === 'pdf' ? 'PDF' : 'Word') + ')');
     // Ambil logo sebagai base64 agar tertanam di dokumen Word
     let logoTag = '';
     try {
@@ -1042,19 +1050,6 @@ ${jjData.rincian.slice(0, 60).map(x => { const ev = x.status === 'Reschedule' ||
 <td>${esc(x.jenis || '')}<br><span class="muted">${esc(x.lokasi || '')}</span></td><td style="color:${warnaSt[x.status] || '#10251E'};font-weight:bold">${esc(x.status)}</td><td>${esc(x.ket || '-')}</td></tr>`; }).join('')}</table>` : ''}`;
     })()}
 ${(() => {
-      if (!agData || !agData.rows || !agData.rows.length) return '';
-      const P = agData.per, c = 'style="text-align:right"', T = P.reduce((a, p) => ({ laporan: a.laporan + p.laporan, disetujui: a.disetujui + p.disetujui, ditolak: a.ditolak + p.ditolak, menunggu: a.menunggu + p.menunggu, agent: a.agent + p.agent, reserved: a.reserved + p.reserved, booking: a.booking + p.booking }), { laporan: 0, disetujui: 0, ditolak: 0, menunggu: 0, agent: 0, reserved: 0, booking: 0 });
-      const ok = agData.rows.filter(r => r.status === 'Disetujui');
-      return `<h2>6D. AGENT VISITOR <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(laporan kunjungan konsumen dari agent di bawah lead agent — tanggal kunjungan pada periode)</span></h2>
-<table style="font-size:9pt"><tr><th>Lead agent</th><th>Project</th><th ${c}>Laporan</th><th ${c}>Disetujui (visitor)</th><th ${c}>Ditolak</th><th ${c}>Menunggu</th><th ${c}>Agent aktif</th><th ${c}>Jadi Reserved</th><th ${c}>Jadi Booking</th><th ${c}>Konversi</th></tr>
-${P.map(p => `<tr><td><b>${esc(p.lead_agent)}</b></td><td>${esc(p.project)}</td><td ${c}>${p.laporan}</td><td ${c} style="color:#23694A;text-align:right"><b>${p.disetujui}</b></td><td ${c}>${p.ditolak}</td><td ${c}>${p.menunggu}</td><td ${c}>${p.agent}</td><td ${c}>${p.reserved}</td><td ${c}><b>${p.booking}</b></td><td ${c}>${p.disetujui ? Math.round(p.booking / p.disetujui * 100) : 0}%</td></tr>`).join('')}
-<tr style="font-weight:bold;background:#F5F2EA"><td colspan="2">Total</td><td ${c}>${T.laporan}</td><td ${c}>${T.disetujui}</td><td ${c}>${T.ditolak}</td><td ${c}>${T.menunggu}</td><td ${c}>${T.agent}</td><td ${c}>${T.reserved}</td><td ${c}>${T.booking}</td><td ${c}>${T.disetujui ? Math.round(T.booking / T.disetujui * 100) : 0}%</td></tr></table>
-${ok.length ? `<p style="margin:8px 0 4px"><b>Rincian kunjungan agent yang disetujui</b></p>
-<table style="font-size:9pt"><tr><th>Tanggal</th><th>Konsumen</th><th>Agent · kantor</th><th>Lead agent</th><th>Minat</th><th>Lead</th><th>Status sekarang</th></tr>
-${ok.map(r => `<tr><td>${fmtDate(r.tgl)}${r.jam ? ' ' + esc(r.jam) : ''}</td><td><b>${esc(r.konsumen)}</b></td><td>${esc(r.agent_nama)} · ${esc(r.agent_kantor || '')}</td><td>${esc(r.lead_agent)}</td><td>${esc([r.tipe, r.bayar, r.budget].filter(Boolean).join(' · ') || '—')}</td><td>${esc(r.lead_code || '')}</td><td>${r.booking ? '<b style="color:#23694A">Booking</b>' : r.reserved ? 'Reserved' : esc(r.lead_status || '—')}</td></tr>`).join('')}</table>` : ''}
-<p class="muted" style="font-size:8.5pt">Kunjungan agent yang disetujui otomatis tercatat sebagai visitor (janji temu berstatus Datang) atas nama lead agent, sehingga ikut terhitung di bagian Janjian Visit, Janjian &amp; Visitor, dan Presentasi Project.</p>`;
-    })()}
-${(() => {
       if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';
       const L = lpData.rows.filter(x => x.status !== 'Ganti kontrak'), bk = L.filter(x => x.status === 'Booking'), bt = L.filter(x => x.status === 'Batal'), rv = L.filter(x => x.status === 'Reserved');
       const nilaiL = bk.reduce((a, x) => a + (x.harga || 0), 0);
@@ -1077,9 +1072,23 @@ ${rek('Per sales', x => x.sales || '-')}
 ${posisi}
 <p class="muted" style="font-size:8.5pt">Angka sama dengan Report → Laporan Penjualan pada filter yang sama: kontrak dihitung menurut tanggal penjualannya (Booking; Reserved bila belum Booking), sehingga kontrak tahun lalu yang batal tahun ini tidak masuk periode ini; ganti kontrak tidak dihitung. Detail per konsumen dan daftar proses KPR ada di Laporan Penjualan (Excel/PDF).</p>`;
     })()}
+${(() => {
+      if (!agData || !agData.rows || !agData.rows.length) return '';
+      const P = agData.per, c = 'style="text-align:right"', T = P.reduce((a, p) => ({ laporan: a.laporan + p.laporan, disetujui: a.disetujui + p.disetujui, ditolak: a.ditolak + p.ditolak, menunggu: a.menunggu + p.menunggu, agent: a.agent + p.agent, reserved: a.reserved + p.reserved, booking: a.booking + p.booking }), { laporan: 0, disetujui: 0, ditolak: 0, menunggu: 0, agent: 0, reserved: 0, booking: 0 });
+      const ok = agData.rows.filter(r => r.status === 'Disetujui');
+      return `<h2>6E. AGENT VISITOR <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(laporan kunjungan konsumen dari agent di bawah lead agent — tanggal kunjungan pada periode)</span></h2>
+<table style="font-size:9pt"><tr><th>Lead agent</th><th>Project</th><th ${c}>Visitor</th><th ${c}>Agent aktif</th><th ${c}>Jadi Reserved</th><th ${c}>Jadi Booking</th><th ${c}>Konversi</th></tr>
+${P.map(p => `<tr><td><b>${esc(p.lead_agent)}</b></td><td>${esc(p.project)}</td><td ${c}><b>${p.disetujui}</b></td><td ${c}>${p.agent}</td><td ${c}>${p.reserved}</td><td ${c}><b>${p.booking}</b></td><td ${c}>${p.disetujui ? Math.round(p.booking / p.disetujui * 100) : 0}%</td></tr>`).join('')}
+<tr style="font-weight:bold;background:#F5F2EA"><td colspan="2">Total</td><td ${c}>${T.disetujui}</td><td ${c}>${T.agent}</td><td ${c}>${T.reserved}</td><td ${c}>${T.booking}</td><td ${c}>${T.disetujui ? Math.round(T.booking / T.disetujui * 100) : 0}%</td></tr></table>
+${ok.length ? `<p style="margin:8px 0 4px"><b>Rincian kunjungan agent yang disetujui</b></p>
+<table style="font-size:9pt"><tr><th>Tanggal</th><th>Konsumen</th><th>Agent · kantor</th><th>Lead agent</th><th>Minat</th><th>Lead</th><th>Status sekarang</th></tr>
+${ok.map(r => `<tr><td>${fmtDate(r.tgl)}${r.jam ? ' ' + esc(r.jam) : ''}</td><td><b>${esc(r.konsumen)}</b></td><td>${esc(r.agent_nama)} · ${esc(r.agent_kantor || '')}</td><td>${esc(r.lead_agent)}</td><td>${esc([r.tipe, r.bayar, r.budget].filter(Boolean).join(' · ') || '—')}</td><td>${esc(r.lead_code || '')}</td><td>${r.booking ? '<b style="color:#23694A">Booking</b>' : r.reserved ? 'Reserved' : esc(r.lead_status || '—')}</td></tr>`).join('')}</table>` : ''}
+<p class="muted" style="font-size:8.5pt">Kunjungan agent yang disetujui otomatis tercatat sebagai visitor (janji temu berstatus Datang) atas nama lead agent, sehingga ikut terhitung di bagian Janjian Visit, Janjian &amp; Visitor, dan Presentasi Project.</p>`;
+    })()}
 ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomatis oleh CRM Sales CHL — copyright &copy; 2026 by Andriawanp.</p>
 </body></html>`;
 
+    if (mode === 'preview') { setPreview(html); setMuatPreview(false); return; }
     if (mode === 'pdf') {
       // Report PDF: buka jendela cetak berisi report yang sama -> pilih "Save as PDF"
       const w = window.open('', '_blank');
@@ -1165,6 +1174,12 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
               </div>)) : <span className="hint">Tidak ada kegiatan pada project &amp; rentang tanggal yang dipilih.</span>}
           </div>
         )}
+        {hanyaReport === 'lengkap' && <div className="rp-preview">
+          <div className="rp-preview-bar"><b>👁 Preview Report Lengkap</b><span className="hint">{muatPreview ? 'Menyusun report…' : 'isi sama persis dengan Report Word / PDF'}</span><span style={{ flex: 1 }} />
+            <button className="sort-btn" disabled={muatPreview} onClick={() => { setMuatPreview(true); downloadWord('preview').catch(() => setMuatPreview(false)); }}>↻ Perbarui</button></div>
+          {preview ? <iframe title="Preview Report Lengkap" srcDoc={preview} className="rp-preview-frame" style={{ opacity: muatPreview ? .5 : 1 }} />
+            : <div className="loading" style={{ padding: 40 }}>Menyusun preview report…</div>}
+        </div>}
         {hanyaReport === 'lengkap' && <span className="hint">Report mengikuti filter periode &amp; project di atas; isinya lead, follow up, booking, stok, KPR, janjian, dan marketing, plus satu halaman ringkasan penjualan. Detail per transaksi ada di tab Laporan Penjualan.</span>}
         {hanyaReport === 'excel' && <span className="hint">Excel berisi data mentah lead, follow up, dan transaksi sesuai periode &amp; project, dan juga mengikuti pilihan <b>Sumber</b> (boleh pilih lebih dari satu — klik untuk centang). Data di luar pilihan tidak ikut diunduh; kosongkan tanggal untuk mengunduh seluruh periode.</span>}
       </div>
