@@ -20,6 +20,7 @@ const MENUS = [
   { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
   { href: '/target', ico: '🎯', label: 'Target Sales', roles: ['manager'] },
   { href: '/kunjungan-agent', ico: '📥', label: 'Kunjungan Agent', roles: ['manager'] },
+  { href: '/other-sales', ico: '🤝', label: 'Other Sales', roles: ['manager'] },
   { href: '/wa-inbox', ico: '💬', label: 'Inbox WhatsApp', roles: ['manager', 'markom'] }, // Marcom membalas dari nomor official; Manager untuk kontrol
   { href: '/collection', ico: '💰', label: 'Collection & KPR', roles: ['manager', 'ceo', 'collection'] },
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
@@ -39,7 +40,7 @@ const MENUS = [
 // ===== Kelompok menu (sub menu) =====
 const GRUP = [
   ['Penjualan', ['/form', '/booking']],
-  ['Tim Sales', ['/leads', '/janjian', '/kunjungan-agent', '/target', '/kepatuhan-fu', '/kegiatan']],
+  ['Tim Sales', ['/leads', '/janjian', '/kunjungan-agent', '/other-sales', '/target', '/kepatuhan-fu', '/kegiatan']],
   ['Produk', ['/stock', '/price-list', '/kpr']],
   ['Collection & KPR', ['/collection', '/kpr-proses']],
   ['Marketing', ['/marcom', '/wa-inbox', '/ai-asisten']],
@@ -135,7 +136,7 @@ export default function Shell({ user, children }) {
   const [badge, setBadge] = useState({});
   useEffect(() => {
     if (user.role !== 'manager') return;
-    const muat = () => { if (document.visibilityState === 'visible') fetch('/api/notif-baru').then(r => r.ok ? r.json() : null).then(d => d && setBadge({ '/kunjungan-agent': (d.agent || []).length })).catch(() => {}); };
+    const muat = () => { if (document.visibilityState === 'visible') fetch('/api/notif-baru').then(r => r.ok ? r.json() : null).then(d => d && setBadge({ '/kunjungan-agent': (d.agent || []).length, '/other-sales': (d.other || []).length })).catch(() => {}); };
     muat(); const t = setInterval(muat, 60000); return () => clearInterval(t);
   }, [user.role]);
   const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));

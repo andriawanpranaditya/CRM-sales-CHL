@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import PilihLead from '@/components/PilihLead';
 import FotoKunjungan from '@/components/FotoKunjungan';
+import IsianOther, { cekOtherKlien, kirimOther } from '@/components/IsianOther';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
@@ -197,6 +198,7 @@ export default function FormPage() {
   async function simpanLead() {
     if (!lead.nama.trim()) return toast('Nama Konsumen wajib diisi');
     if (!isMarkom && !lead.sales) return toast('Sales / PIC wajib dipilih');
+    if (lead.sales === '__other__') { const salah = cekOtherKlien(lead.other); if (salah) return toast(salah); if (String(lead.wa || '').replace(/\D/g, '').length < 9) return toast('No. WhatsApp konsumen wajib diisi untuk penjualan Other Sales'); }
     if (/walk/i.test(lead.sumber || '') && !lead.walkin_info) return toast('Pilih Walk In tahu dari mana');
     { const dt = detailUntuk(lead); if (dt?.wajib && !String(lead.sumber_detail || '').trim()) return toast('Isi ' + dt.label.toLowerCase()); }
     if (lead.status === 'Drop' && !String(lead.alasan || '').trim()) return toast('Alasan drop wajib diisi');
@@ -207,7 +209,7 @@ export default function FormPage() {
         const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
         toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — status & jadwal FU sudah tersimpan` : 'Lead berhasil diperbarui');
       } else {
-        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
+        const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, sales: lead.sales === '__other__' ? '' : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
         toast('Lead tersimpan — ' + d.lead_code);
       }
       setEditId(null); setDup(null);
@@ -603,8 +605,10 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}
                 {/* Lead lama milik agent / nama tanpa akun: tetap tampil agar tidak terhapus saat edit, tapi tidak bisa dipilih untuk lead lain */}
-                {lead.sales && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales} (tanpa akun)</option>}</select>}
+                {lead.sales && lead.sales !== '__other__' && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales}{/\(Other Sales/.test(lead.sales) ? '' : ' (tanpa akun)'}</option>}
+                {!editId && ['manager', 'ceo'].includes(me?.role) && <option value="__other__">➕ Other Sales (internal employee / external)…</option>}</select>}
           </div>}
+          {!editId && lead.sales === '__other__' && <IsianOther nilai={lead.other} onUbah={v => setLead({ ...lead, other: v })} />}
           <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
             {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>
           {lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>

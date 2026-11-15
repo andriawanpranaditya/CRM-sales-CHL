@@ -205,9 +205,13 @@ export async function GET() {
   if (user.role === 'manager') {
     try { agentMenunggu = await sql`SELECT id, konsumen, agent_nama, lead_agent, tgl::text AS tgl FROM agent_laporan WHERE status = 'Menunggu' ORDER BY created_at DESC LIMIT 20`; } catch {}
   }
+  let otherMenunggu = [];
+  if (user.role === 'manager') {
+    try { otherMenunggu = await sql`SELECT id, konsumen, nama, jenis, project FROM other_laporan WHERE status = 'Menunggu' ORDER BY created_at DESC LIMIT 20`; } catch {}
+  }
   let ubahMenunggu = [];
   if (user.role === 'manager') {
     try { ubahMenunggu = await sql`SELECT a.id, a.lead_code, a.nama_pengaju, l.nama FROM lead_ubah a LEFT JOIN leads l ON l.lead_code = a.lead_code WHERE a.status = 'Menunggu' ORDER BY a.created_at DESC LIMIT 20`; } catch {}
   }
-  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, agentMenunggu, ubahMenunggu, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length + agentMenunggu.length + ubahMenunggu.length });
+  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, agentMenunggu, ubahMenunggu, otherMenunggu, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length + agentMenunggu.length + ubahMenunggu.length + otherMenunggu.length });
 }

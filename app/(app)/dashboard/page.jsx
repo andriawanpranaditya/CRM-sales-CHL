@@ -939,10 +939,11 @@ ${slr.perSales.length ? (() => { const T = slr.perSales.reduce((a, r) => ({ oper
 ${(() => {
       const LAIN = 'Lainnya (tanpa akun)', BELUM = 'Belum dioper (Marcom)';
       // Sales kosong / "-" = lead Marcom yang belum diserahkan ke sales; nama tanpa akun = sales lama / agent lain
-      const keAkun = n => akunS.includes(n) ? n : (!String(n || '').trim() || /^-+$/.test(String(n).trim())) ? BELUM : LAIN;
+      const OTH = n => /\(Other Sales/i.test(String(n || ''));
+      const keAkun = n => (akunS.includes(n) || OTH(n)) ? n : (!String(n || '').trim() || /^-+$/.test(String(n).trim())) ? BELUM : LAIN;
       const L0 = pl.map(l => ({ ...l, _pj: keAkun(pjL(l)) }));
       const X0 = LP ? LP.map(x => ({ ...x, _pj: keAkun(pjX(x)) })) : [];
-      const nama = [...akunS.filter(n => L0.some(l => l._pj === n) || X0.some(x => x._pj === n)), ...[BELUM, LAIN].filter(k => L0.some(l => l._pj === k) || X0.some(x => x._pj === k))];
+      const nama = [...akunS.filter(n => L0.some(l => l._pj === n) || X0.some(x => x._pj === n)), ...[...new Set([...L0, ...X0].map(x => x._pj).filter(OTH))], ...[BELUM, LAIN].filter(k => L0.some(l => l._pj === k) || X0.some(x => x._pj === k))];
       const h = (L, X) => ({ lead: L.length, trx: X.length, rv: X.filter(x => x.status === 'Reserved').length, bk: X.filter(x => x.status === 'Booking').length,
         brv: X.filter(x => x.status === 'Batal' && !x.tgl_booking).length, bbk: X.filter(x => x.status === 'Batal' && x.tgl_booking).length });
       const tr = (n, r, b) => `<tr${b ? ' style="font-weight:bold;background:#F5F2EA"' : ''}><td><b>${esc(n)}</b></td><td style="text-align:center">${r.lead}</td><td style="text-align:center">${r.trx}</td><td style="text-align:center">${r.rv}</td><td style="text-align:center"><b>${r.bk}</b></td><td style="text-align:center">${r.brv}</td><td style="text-align:center">${r.bbk}</td><td style="text-align:center"><b>${r.lead ? Math.round(r.bk / r.lead * 100) + '%' : (r.bk ? '—' : '0%')}</b></td></tr>`;

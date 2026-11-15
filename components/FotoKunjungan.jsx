@@ -14,7 +14,7 @@ export async function kecilkanFoto(file, maks = 1280, mutu = 0.7) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-export default function FotoKunjungan({ nilai, onUbah, label = 'Foto kunjungan', wajib = false, ket }) {
+export default function FotoKunjungan({ nilai, onUbah, label = 'Foto kunjungan', wajib = false, ket, maks = 1280, mutu = 0.7 }) {
   const ref = useRef(null), [proses, setProses] = useState(false);
   return (<div className="field full"><label>{label}{wajib ? <span className="req"> *</span> : null}</label>
     <div className="foto-kj">
@@ -24,6 +24,6 @@ export default function FotoKunjungan({ nilai, onUbah, label = 'Foto kunjungan',
         <div className="hint">{nilai ? `Siap dikirim · ±${nilai.kb} KB` : (ket || 'Foto konsumen di marketing gallery / di depan unit. Otomatis dikecilkan sebelum dikirim.')}</div></div>
       <input ref={ref} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={async e => {
         const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
-        setProses(true); try { onUbah(await kecilkanFoto(f)); } catch { alert('Foto tidak bisa dibaca, coba foto lain'); } finally { setProses(false); } }} />
+        setProses(true); try { onUbah(await kecilkanFoto(f, maks, mutu)); } catch { alert('Foto tidak bisa dibaca, coba foto lain'); } finally { setProses(false); } }} />
     </div></div>);
 }

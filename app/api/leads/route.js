@@ -50,7 +50,21 @@ async function _POST(req) {
   if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
   if (b.status === 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
-  const sales = user.role === 'sales' ? user.name : (b.sales || '');
+  let sales = user.role === 'sales' ? user.name : (b.sales || '');
+  // Other Sales (internal employee / external tanpa akun) — diinput Manager / CEO sebagai cadangan link
+  let otherInfo = null;
+  if (b.other && ['manager', 'ceo'].includes(user.role)) {
+    const { cekDataOther, simpanDok, daftarkanOther } = await import('@/lib/other-sales');
+    const c = cekDataOther(b.other); if (c.error) return Response.json({ error: c.error }, { status: 400 });
+    if (String(b.wa || '').replace(/\D/g, '').length < 9) return Response.json({ error: 'No. WhatsApp konsumen wajib diisi untuk penjualan Other Sales' }, { status: 400 });
+    const sq = db();
+    try {
+      const ktp = b.other.ktp?.data ? await simpanDok(sq, b.project, { nama: 'KTP ' + c.d.nama, data: b.other.ktp.data }) : null;
+      const npwp = b.other.npwp?.data ? await simpanDok(sq, b.project, { nama: 'NPWP ' + c.d.nama, data: b.other.npwp.data }) : null;
+      otherInfo = await daftarkanOther(sq, b.project, { ...c.d, ktp, npwp }, user.username);
+    } catch (e) { return Response.json({ error: e.message }, { status: 502 }); }
+    sales = otherInfo.nama; otherInfo.jenis = c.d.jenis;
+  }
   // Markom boleh input lead tanpa sales — PIC ditetapkan nanti via Leads to Sales
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
@@ -101,6 +115,7 @@ async function _POST(req) {
   if (['Laki-laki', 'Perempuan'].includes(b.gender)) await sql`UPDATE leads SET gender = ${b.gender} WHERE id = ${ins[0].id}`;
   if (perluDetail(b) && b.sumber_detail) await sql`UPDATE leads SET sumber_detail = ${String(b.sumber_detail).trim().slice(0, 200)} WHERE id = ${ins[0].id}`;
   if (Array.isArray(b.kontak)) await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, b.wa))}::jsonb WHERE id = ${ins[0].id}`;
+  if (otherInfo) await sql`UPDATE leads SET other_id = ${otherInfo.id}, sales_tipe = ${otherInfo.jenis === 'External' ? 'other-external' : 'other-internal'} WHERE id = ${ins[0].id}`;
   if (fotoRef) { try { await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS foto text`; await sql`UPDATE leads SET foto = ${fotoRef} WHERE id = ${ins[0].id}`; } catch (e) { console.error('foto lead', e); } }
   const id = ins[0].id;
   const code = 'LEAD-' + String(id).padStart(4, '0');
@@ -135,7 +150,7 @@ async function _PATCH(req) {
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   // Mengganti sales hanya ke akun Sales aktif; nilai lama (agent / tanpa akun) tetap boleh dipertahankan
-  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales') {
+  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales' && !/\(Other Sales/i.test(b.sales)) {
     const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${b.sales}`;
     if (!ok.length) return Response.json({ error: `"${b.sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
   }
