@@ -1072,3 +1072,13 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .lp-chip button{border:0;background:none;color:#8A5F14;text-decoration:underline;font:inherit;cursor:pointer;padding:0}
 .lp-seg{display:flex;gap:8px}.lp-seg button{flex:1;padding:10px;border-radius:10px;border:1px solid #DDD5C2;background:#fff;font:inherit;font-weight:700;color:#10251E;cursor:pointer}.lp-seg button.on{background:#E8D49E;border-color:#C99C4F}
 .lp-kartu .foto-kj{color:#10251E}
+
+/* Link per project / lead agent & tabel tanpa geser */
+.lk-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.lk-row{display:grid;grid-template-columns:minmax(150px,200px) 1fr auto;gap:14px;align-items:center;background:var(--paper,#F5F2EA);border:1px solid var(--line,#E6DFD0);border-radius:14px;padding:12px 14px}
+.lk-proj{font-weight:800;font-size:14px}.lk-url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all;color:var(--ink,#10251E)}
+.lk-aksi{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:760px){.lk-row{grid-template-columns:1fr}.lk-aksi{justify-content:flex-start}}
+.lk-tabel{width:100%;table-layout:auto}.lk-tabel th{white-space:nowrap}.lk-tabel td{white-space:normal;overflow-wrap:break-word;word-break:normal}.lk-tabel td:last-child{white-space:nowrap;width:1%}
+@media(max-width:760px){.lk-tabel thead{display:none}.lk-tabel,.lk-tabel tbody,.lk-tabel tr,.lk-tabel td{display:block;width:100%}
+  .lk-tabel tr{border:1px solid var(--line,#E6DFD0);border-radius:12px;padding:8px 10px;margin-bottom:8px;background:var(--card,#fff)}.lk-tabel td{border:0!important;padding:3px 0!important}}

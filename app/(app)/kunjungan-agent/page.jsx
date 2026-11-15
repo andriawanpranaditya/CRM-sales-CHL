@@ -23,7 +23,7 @@ export default function KunjunganAgent() {
 
     <div className="card"><div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><b>📥 Laporan masuk</b><span style={{ flex: 1 }} />
       {d.laporan.some(x => x.status === 'Ditolak') && <button className="sort-btn" disabled={busy} onClick={() => { const n = d.laporan.filter(x => x.status === 'Ditolak').length; if (confirm(`Hapus semua riwayat laporan yang ditolak (${n})? Tidak bisa dibatalkan.`)) aksi({ aksi: 'hapus-ditolak', semua: true }, r => `${r.terhapus} riwayat laporan ditolak dihapus`); }}>🗑 Hapus semua yang ditolak</button>}</div>
-      {d.laporan.length ? <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Kunjungan</th><th>Konsumen</th><th>Agent</th><th>Lead agent</th><th>Minat</th><th>Foto</th><th>Status</th><th></th></tr></thead>
+      {d.laporan.length ? <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Kunjungan</th><th>Konsumen</th><th>Agent</th><th>Lead agent</th><th>Minat</th><th>Foto</th><th>Status</th><th></th></tr></thead>
         <tbody>{d.laporan.map(x => <tr key={x.id}>
           <td style={{ whiteSpace: 'nowrap' }}>{tgl(x.tgl)}{x.jam ? ' ' + x.jam : ''}</td>
           <td><b>{x.konsumen}</b>{x.catatan ? <span className="tg-sub">{x.catatan}</span> : null}
@@ -41,20 +41,18 @@ export default function KunjunganAgent() {
             {x.status === 'Ditolak' && <button className="sort-btn" disabled={busy} title="Hapus riwayat laporan yang ditolak" onClick={() => { if (confirm(`Hapus riwayat laporan ${x.konsumen} (ditolak)? Tidak bisa dibatalkan.`)) aksi({ aksi: 'hapus-ditolak', id: x.id }, () => 'Riwayat laporan dihapus'); }}>🗑 Hapus</button>}</td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada laporan. Bagikan link di bawah ke agent.</p>}</div>
 
-    <div className="tg-bawah" style={{ marginTop: 14, alignItems: 'flex-start' }}>
-      <div className="card" style={{ flex: 1.3, minWidth: 0 }}><b>🔗 Link laporan per lead agent</b>
-        {d.links.length ? <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Lead agent</th><th>Project</th><th>Link</th><th></th></tr></thead>
-          <tbody>{d.links.map(l => { const url = `${asal}/lapor/${l.token}`; return <tr key={l.username}><td><b>{l.nama}</b></td><td>{l.project || '—'}{!l.fotoSiap && <span className="tg-sub">foto belum dipasang</span>}</td>
-            <td style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>{url}</td>
-            <td style={{ whiteSpace: 'nowrap' }}><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>Salin</button>{' '}
-              <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', username: l.username }, () => 'Link baru dibuat'); }}>Ganti link</button></td></tr>; })}</tbody></table></div>
-          : <p className="hint">Belum ada akun lead agent. Tandai akun Esteem &amp; LJH sebagai <b>Lead agent</b> di menu Pengguna.</p>}
-        <p className="hint" style={{ marginTop: 8 }}>Bagikan link ke agent di bawah lead agent. Laporan otomatis tercatat atas nama lead agent &amp; project-nya; agent tidak perlu login.</p></div>
-      <div className="card" style={{ flex: 1, minWidth: 0 }}><b>📊 Visitor dari agent</b>
-        <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Bulan</th><th>Lead agent</th><th>Laporan</th><th>Disetujui</th><th>Jadi Booking</th></tr></thead>
-          <tbody>{d.rekap.length ? d.rekap.map(r => <tr key={r.bulan + r.lead_agent}><td>{namaBulan(r.bulan)}</td><td><b>{r.lead_agent}</b></td><td>{r.laporan}</td><td>{r.disetujui}</td><td>{r.booking}</td></tr>)
-            : <tr><td colSpan={5} className="hint">Belum ada data.</td></tr>}</tbody></table></div></div>
-    </div>
+    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link laporan per lead agent</b>
+      {d.links.length ? <div className="lk-list">{d.links.map(l => { const url = `${asal}/lapor/${l.token}`; return <div className="lk-row" key={l.username}>
+        <div className="lk-proj">{l.nama}<span className="tg-sub">{l.project || '—'}{!l.fotoSiap ? ' · foto belum dipasang' : ''}</span></div><div className="lk-url">{url}</div>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin</button>
+          <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', username: l.username }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
+        : <p className="hint">Belum ada akun lead agent. Tandai akun Esteem &amp; LJH sebagai <b>Lead agent</b> di menu Pengguna.</p>}
+      <p className="hint" style={{ marginTop: 10 }}>Bagikan link ke agent di bawah lead agent. Laporan otomatis tercatat atas nama lead agent &amp; project-nya; agent tidak perlu login.</p></div>
+
+    <div className="card" style={{ marginTop: 14 }}><b>📊 Visitor dari agent</b>
+      {d.rekap.length ? <table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Bulan</th><th>Lead agent</th><th>Laporan</th><th>Disetujui</th><th>Jadi Booking</th></tr></thead>
+        <tbody>{d.rekap.map(r => <tr key={r.bulan + r.lead_agent}><td>{namaBulan(r.bulan)}</td><td><b>{r.lead_agent}</b></td><td>{r.laporan}</td><td>{r.disetujui}</td><td>{r.booking}</td></tr>)}</tbody></table>
+        : <p className="hint" style={{ marginTop: 6 }}>Belum ada data.</p>}</div>
 
     {ed && <div className="tg-overlay" onClick={e => { if (e.target === e.currentTarget) setEd(null); }}><div className="tg-pop" style={{ padding: 18 }}>
       <h3 style={{ marginTop: 0 }}>Ubah laporan · {ed.agent_nama}</h3>

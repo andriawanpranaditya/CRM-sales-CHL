@@ -22,7 +22,7 @@ export default function OtherSales() {
 
     <div className="card"><div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><b>📥 Kiriman masuk</b><span style={{ flex: 1 }} />
       {d.laporan.some(x => x.status === 'Ditolak') && <button className="sort-btn" disabled={busy} onClick={() => { if (confirm('Hapus semua riwayat kiriman yang ditolak?')) aksi({ aksi: 'hapus-ditolak', semua: true }, r => `${r.terhapus} kiriman ditolak dihapus`); }}>🗑 Hapus semua yang ditolak</button>}</div>
-      {d.laporan.length ? <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Tanggal</th><th>Konsumen</th><th>Other Sales</th><th>Project</th><th>Transaksi</th><th>Status</th><th></th></tr></thead>
+      {d.laporan.length ? <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Tanggal</th><th>Konsumen</th><th>Other Sales</th><th>Project</th><th>Transaksi</th><th>Status</th><th></th></tr></thead>
         <tbody>{d.laporan.map(x => <tr key={x.id}>
           <td style={{ whiteSpace: 'nowrap' }}>{tgl(x.tgl || x.created_at)}</td>
           <td><b>{x.konsumen}</b><span className="tg-sub">{[x.konsumen_wa, x.konsumen_email, x.konsumen_nik ? 'NIK ' + x.konsumen_nik : ''].filter(Boolean).join(' · ')}</span>{x.alamat ? <span className="tg-sub">{x.alamat}</span> : null}{x.catatan ? <span className="tg-sub">{x.catatan}</span> : null}</td>
@@ -38,19 +38,18 @@ export default function OtherSales() {
             {x.status === 'Ditolak' && <button className="sort-btn" disabled={busy} onClick={() => { if (confirm('Hapus riwayat kiriman ini?')) aksi({ aksi: 'hapus-ditolak', id: x.id }, () => 'Riwayat dihapus'); }}>🗑 Hapus</button>}</td></tr>)}</tbody></table></div>
         : <p className="hint">Belum ada kiriman. Bagikan link di bawah.</p>}</div>
 
-    <div className="tg-bawah" style={{ marginTop: 14, alignItems: 'flex-start' }}>
-      <div className="card" style={{ flex: 1, minWidth: 0 }}><b>🔗 Link Other Sales per project</b>
-        <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Project</th><th>Link</th><th></th></tr></thead>
-          <tbody>{d.links.map(l => { const url = `${asal}/other/${l.token}`; return <tr key={l.project}><td><b>{l.project}</b></td><td style={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-all' }}>{url}</td>
-            <td style={{ whiteSpace: 'nowrap' }}><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>Salin</button>{' '}
-              <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', project: l.project }, () => 'Link baru dibuat'); }}>Ganti link</button></td></tr>; })}</tbody></table></div>
-        <p className="hint" style={{ marginTop: 8 }}>Internal employee wajib isi divisi &amp; no. HP; external wajib no. HP + foto KTP &amp; NPWP dirinya. Keduanya wajib data transaksi, HP, email &amp; NIK konsumen, serta bukti transfer, KTP &amp; NPWP konsumen. Setelah disetujui: lead, transaksi Reserved/Booking &amp; berkas tercatat atas nama Other Sales.</p></div>
-      <div className="card" style={{ flex: 1.2, minWidth: 0 }}><b>👤 Daftar Other Sales</b>
-        <div className="tbl-wrap"><table className="tg-tb" style={{ marginTop: 8 }}><thead><tr><th>Nama</th><th>Jenis</th><th>No. HP</th><th>Dokumen</th><th>Lead</th><th>Booking</th></tr></thead>
-          <tbody>{d.daftar.length ? d.daftar.map(s => <tr key={s.id}><td><b>{s.nama}</b><span className="tg-sub">{s.project}</span></td><td>{s.jenis}{s.divisi ? <span className="tg-sub">{s.divisi}</span> : null}</td><td>{s.hp}</td>
-            <td><Dok r={s.ktp} l="KTP" buka={setLihat} /><Dok r={s.npwp} l="NPWP" buka={setLihat} />{!s.ktp && !s.npwp ? <span className="hint">—</span> : null}</td><td>{s.lead}</td><td>{s.booking}</td></tr>)
-            : <tr><td colSpan={6} className="hint">Belum ada.</td></tr>}</tbody></table></div></div>
-    </div>
+    <div className="card" style={{ marginTop: 14 }}><b>🔗 Link Other Sales per project</b>
+      <div className="lk-list">{d.links.map(l => { const url = `${asal}/other/${l.token}`; return <div className="lk-row" key={l.project}>
+        <div className="lk-proj">{l.project}</div><div className="lk-url">{url}</div>
+        <div className="lk-aksi"><button className="sort-btn" onClick={() => { navigator.clipboard?.writeText(url); toast('Link disalin'); }}>📋 Salin</button>
+          <button className="sort-btn" onClick={() => { if (confirm('Buat link baru? Link lama langsung tidak berlaku.')) aksi({ aksi: 'link-baru', project: l.project }, () => 'Link baru dibuat'); }}>↻ Ganti link</button></div></div>; })}</div>
+      <p className="hint" style={{ marginTop: 10 }}>Internal employee wajib isi divisi &amp; no. HP; external wajib no. HP + foto KTP &amp; NPWP dirinya. Keduanya wajib data transaksi, HP, email &amp; NIK konsumen, serta bukti transfer, KTP &amp; NPWP konsumen. Setelah disetujui: lead, transaksi Reserved/Booking &amp; berkas tercatat atas nama Other Sales.</p></div>
+
+    <div className="card" style={{ marginTop: 14 }}><b>👤 Daftar Other Sales</b>
+      {d.daftar.length ? <table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Nama</th><th>Jenis</th><th>No. HP</th><th>Dokumen</th><th>Lead</th><th>Booking</th></tr></thead>
+        <tbody>{d.daftar.map(s => <tr key={s.id}><td><b>{s.nama}</b><span className="tg-sub">{s.project}</span></td><td>{s.jenis}{s.divisi ? <span className="tg-sub">{s.divisi}</span> : null}</td><td>{s.hp}</td>
+          <td><Dok r={s.ktp} l="KTP" buka={setLihat} /><Dok r={s.npwp} l="NPWP" buka={setLihat} />{!s.ktp && !s.npwp ? <span className="hint">—</span> : null}</td><td>{s.lead}</td><td>{s.booking}</td></tr>)}</tbody></table>
+        : <p className="hint" style={{ marginTop: 6 }}>Belum ada Other Sales.</p>}</div>
     {lihat && <div className="tg-overlay" onClick={() => setLihat(null)}><img src={'/api/foto?ref=' + encodeURIComponent(lihat)} alt="Dokumen" style={{ maxWidth: '92vw', maxHeight: '86vh', borderRadius: 14, background: '#fff' }} /></div>}
   </>);
 }
