@@ -5,6 +5,27 @@ import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
 const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
+// Perubahan data lead dari sales — menunggu persetujuan Manager
+function PersetujuanUbah({ onSelesai }) {
+  const [d, setD] = useState(null), [busy, setBusy] = useState(false);
+  const muat = () => api('/api/lead-ubah').then(setD).catch(() => {});
+  useEffect(() => { muat(); }, []);
+  if (!d || !d.ajuan.length) return null;
+  const tampil = (f, v) => f === 'kontak' ? (Array.isArray(v) && v.length ? v.map(k => [k.nama, k.hubungan, k.wa].filter(Boolean).join(' · ')).join('; ') : '—')
+    : f === 'budget' ? (Number(v) ? 'Rp' + Number(v).toLocaleString('id-ID') : '—') : f === 'tgl' ? (String(v || '').slice(0, 10) || '—') : (String(v ?? '').trim() || '—');
+  const aksi = async (body, pesan) => { setBusy(true); try { await api('/api/lead-ubah', { method: 'POST', body: JSON.stringify(body) }); toast(pesan); await muat(); onSelesai?.(); } catch (e) { toast(e.message); } finally { setBusy(false); } };
+  return (<div className="card" style={{ marginBottom: 12, borderColor: 'var(--brass)' }}>
+    <b>✏️ Perubahan data dari sales — menunggu persetujuan ({d.ajuan.length})</b>
+    <div className="tbl-wrap"><table style={{ marginTop: 8 }}><thead><tr><th>Lead</th><th>Diajukan</th><th>Perubahan</th><th></th></tr></thead>
+      <tbody>{d.ajuan.map(a => <tr key={a.id}>
+        <td><b>{a.lead_code}</b> {a.nama_lead}<span className="sub2">{[a.project, a.sales].filter(Boolean).join(' · ')}</span></td>
+        <td>{a.nama_pengaju}<span className="sub2">{new Date(a.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></td>
+        <td>{(a.perubahan || []).map((u, i) => <div key={i} style={{ fontSize: 12.5 }}><b>{d.label[u.field] || u.field}:</b> <s style={{ color: 'var(--muted)' }}>{tampil(u.field, u.lama)}</s> → <b>{tampil(u.field, u.baru)}</b></div>)}</td>
+        <td style={{ whiteSpace: 'nowrap' }}><button className="btn btn-primary" style={{ width: 'auto', padding: '4px 10px' }} disabled={busy} onClick={() => aksi({ aksi: 'setujui', id: a.id }, 'Perubahan disetujui & diterapkan')}>Setujui</button>{' '}
+          <button className="sort-btn" disabled={busy} onClick={() => { const al = prompt('Alasan menolak (opsional)?') ; if (al !== null) aksi({ aksi: 'tolak', id: a.id, alasan: al }, 'Perubahan ditolak'); }}>Tolak</button></td></tr>)}</tbody></table></div>
+  </div>);
+}
+
 // Gabung lead dobel (daftar disepakati di lib/gabung-lead.js) — khusus Manager; muncul sampai dijalankan
 function GabungLead({ onSelesai }) {
   const [st, setSt] = useState(null), [hasil, setHasil] = useState(null), [jalan, setJalan] = useState(false);
@@ -198,6 +219,7 @@ export default function LeadsPage() {
         <div className="stamp"><b>{rows.length}</b> lead</div>
       </div>
       {me?.role === 'manager' && <GabungLead onSelesai={async () => setLeads(await api('/api/leads'))} />}
+      {me?.role === 'manager' && <PersetujuanUbah onSelesai={async () => setLeads(await api('/api/leads'))} />}
       <div className="form-tabs" style={{ marginBottom: 12 }}>
         <button className={tab === 'lead' ? 'active' : ''} onClick={() => setTab('lead')}>1 · Lead</button>
         <button className={tab === 'fu' ? 'active' : ''} onClick={() => setTab('fu')}>2 · Riwayat Follow Up</button>

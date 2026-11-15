@@ -204,8 +204,8 @@ export default function FormPage() {
     setBusy(true);
     try {
       if (editId) {
-        await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
-        toast('Lead berhasil diperbarui');
+        const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead }) });
+        toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — status & jadwal FU sudah tersimpan` : 'Lead berhasil diperbarui');
       } else {
         const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
         toast('Lead tersimpan — ' + d.lead_code);

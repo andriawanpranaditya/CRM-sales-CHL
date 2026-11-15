@@ -198,6 +198,13 @@ export default function ReminderBell({ user }) {
               </>}
               {data.terlambat.map(r => <Item key={'t' + r.lead_code} r={r} late />)}
               {data.hariIni.map(r => <Item key={'h' + r.lead_code} r={r} />)}
+              {(data.ubahMenunggu || []).length > 0 && <>
+                <div className="bell-sub">✏️ Perubahan data lead dari sales — perlu persetujuan ({data.ubahMenunggu.length})</div>
+                {data.ubahMenunggu.map(x => (
+                  <a key={'ub' + x.id} href="/leads" className="rem-item" style={{ borderLeftColor: 'var(--brass, #C99C4F)' }}>
+                    <span><b>{x.nama || x.lead_code}</b><br /><span className="hint">{x.lead_code} · diajukan {x.nama_pengaju}</span></span>
+                    <span className="badge b-today">Cek</span></a>))}
+              </>}
               {(data.agentMenunggu || []).length > 0 && <>
                 <div className="bell-sub">📥 Laporan kunjungan agent — perlu dicek ({data.agentMenunggu.length})</div>
                 {data.agentMenunggu.map(x => (

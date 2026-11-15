@@ -156,6 +156,24 @@ async function _PATCH(req) {
     m.sales = b.sales;
   }
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
+  // Sales mengubah DATA lead (identitas & profil) → perlu persetujuan Manager. Status, jadwal FU & catatan tetap langsung tersimpan.
+  let ajuan = null;
+  if (user.role === 'sales') {
+    const { siapkanLeadUbah, FIELD_DIJAGA, samaNilai } = await import('@/lib/lead-ubah');
+    const ubah = [];
+    for (const k of FIELD_DIJAGA) if (k in b && !samaNilai(k, b[k], cur[k])) { ubah.push({ field: k, lama: cur[k] ?? '', baru: b[k] ?? '' }); m[k] = cur[k]; }
+    if (Array.isArray(b.kontak)) {
+      const baru = bersihKontak(b.kontak, cur.wa), lama = Array.isArray(cur.kontak) ? cur.kontak : [];
+      if (JSON.stringify(baru) !== JSON.stringify(bersihKontak(lama, cur.wa))) ubah.push({ field: 'kontak', lama, baru });
+      delete b.kontak;
+    }
+    if (ubah.length) {
+      await siapkanLeadUbah(sql);
+      await sql`UPDATE lead_ubah SET status = 'Diganti' WHERE lead_code = ${cur.lead_code} AND status = 'Menunggu' AND diajukan_oleh = ${user.username}`;
+      await sql`INSERT INTO lead_ubah (lead_code, lead_id, perubahan, diajukan_oleh, nama_pengaju) VALUES (${cur.lead_code}, ${cur.id}, ${JSON.stringify(ubah)}::jsonb, ${user.username}, ${user.name})`;
+      ajuan = ubah.length;
+    }
+  }
   // Oper hanya ke sales yang memegang project lead ini (bila sales tsb dibatasi per project)
   if (operKe && m.project) {
     try {
@@ -196,7 +214,7 @@ async function _PATCH(req) {
     try { const { kirimPush } = await import('@/lib/push'); const u = await sql`SELECT username FROM users WHERE name = ${operKe} AND role = 'sales' AND active = true`;
       if (u.length && !u.some(x => x.username === user.username)) await kirimPush(sql, { usernames: u.map(x => x.username) }, { judul: '📩 Lead baru untukmu', isi: `${m.nama}${m.project ? ' · ' + m.project : ''} dioper oleh ${user.name} — segera follow up selagi masih hangat!`, url: '/form?tab=fu&lead=' + cur.lead_code, tag: 'lead-' + cur.lead_code }); } catch (e) { console.error('push oper', e); }
   }
-  return Response.json({ ok: true, lead_code: cur.lead_code, nama: m.nama, berubah, oper: operKe || undefined });
+  return Response.json({ ok: true, lead_code: cur.lead_code, nama: m.nama, berubah, oper: operKe || undefined, menunggu: ajuan || undefined });
 }
 
 // Hapus lead (beserta follow up & transaksinya) atau CLEAR SEMUA data — khusus manager
