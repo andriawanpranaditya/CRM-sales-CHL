@@ -116,13 +116,14 @@ export async function GET(req) {
     perBulan: Object.entries(leads.reduce((a, l) => { const m = tglLead(l).slice(0, 7); a[m] = (a[m] || 0) + 1; return a; }, {})).sort(),
   };
   // Visitor (aturan sama dengan menu Janjian & Visitor)
-  let visitor = { total: 0, walkin: 0, janji: 0, tanpaJanji: 0, trx: 0, offline: 0, perInfo: [] };
+  let visitor = { total: 0, walkin: 0, janji: 0, tanpaJanji: 0, trx: 0, agent: 0, offline: 0, perInfo: [] };
   try {
     const vis = (await hitungVisitor(sql, { dari, sampai: today, pp: [pj] })).filter(v => v.hitung);
     const info = {};
     vis.forEach(v => {
       if (v.kategori === 'walkin') { visitor.walkin++; const k = String(v.walkin_info || 'tidak diisi').trim() || 'tidak diisi'; info[k] = (info[k] || 0) + 1; }
       else if (v.kategori === 'janji') visitor.janji++; else if (v.kategori === 'tanpa') visitor.tanpaJanji++; else visitor.trx++;
+      if (v.agent) visitor.agent++;
     });
     visitor.total = vis.length; visitor._rows = vis.map(v => ({ tgl: v.tgl, lead_code: v.lead_code, kategori: v.kategori }));
     visitor.perInfo = Object.entries(info).sort((a, b) => b[1] - a[1]);

@@ -317,7 +317,7 @@ function TabVisitor({ me, fSales }) {
     <div className="jj-kpi">
       <div className="card"><span className="hint">Visitor {hariIni ? 'hari ini' : tglPendek(tgl)}</span><b className="jj-besar">{rk.total}</b>
         <div className="bd-chips kp">{rk.janji ? <span className="kp-pill sm kp-ok">{rk.janji} janji temu</span> : null}{rk.walkin ? <span className="kp-pill sm kp-wait">{rk.walkin} walk in</span> : null}
-          {rk.tanpa ? <span className="kp-pill sm kp-wait">{rk.tanpa} tanpa janji</span> : null}{rk.trx ? <span className="kp-pill sm kp-done">{rk.trx} Reserved/Booking</span> : null}</div></div>
+          {rk.tanpa ? <span className="kp-pill sm kp-wait">{rk.tanpa} tanpa janji</span> : null}{rk.trx ? <span className="kp-pill sm kp-done">{rk.trx} Reserved/Booking</span> : null}{rk.agent ? <span className="kp-pill sm kp-ok">{rk.agent} dari agent</span> : null}</div></div>
       <div className="card"><span className="hint">Akan datang</span><b className="jj-besar">{rk.akan}</b><span className="hint">janji temu yang belum tiba</span></div>
       <div className="card"><span className="hint">Perlu update</span><b className="jj-besar" style={{ color: rk.update ? 'var(--red)' : undefined }}>{rk.update}</b><span className="hint">jam lewat, hasil belum diisi</span></div>
       <div className="card"><span className="hint">7 hari terakhir</span>
@@ -404,7 +404,7 @@ function TabRekap({ mode, fSales }) {
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Janji temu bulan ini</h3>
       <div className="bd-chips"><span>Total <b>{d.bulan.n}</b></span><span>Datang <b>{d.bulan.datang}{d.bulan.n ? ` (${Math.round(d.bulan.datang / d.bulan.n * 100)}%)` : ''}</b></span><span>Reschedule <b>{d.bulan.resch}</b></span><span>Batal <b>{d.bulan.batal}</b></span></div>
-      <p className="hint" style={{ margin: '8px 0' }}>Visitor bulan ini: <b>{vis.total}</b> (janji temu {vis.janji} · walk in {vis.walkin} · tanpa janji {vis.tanpa} · Reserved/Booking {vis.trx})</p>
+      <p className="hint" style={{ margin: '8px 0' }}>Visitor bulan ini: <b>{vis.total}</b> (janji temu {vis.janji} · walk in {vis.walkin} · tanpa janji {vis.tanpa} · Reserved/Booking {vis.trx}{vis.agent ? ` · termasuk ${vis.agent} kunjungan agent` : ''})</p>
       <div className="jj-bar">{d.depan.map(x => (<div key={x.tgl}><i style={{ height: Math.round(x.n / maks * 100) + '%', background: ['Sabtu', 'Minggu'].includes(x.hari) ? 'var(--gold)' : 'var(--side-active-bg)' }} /><span>{x.hari.slice(0, 3)} {x.n}</span></div>))}</div>
       <span className="hint">Janji temu terjadwal 7 hari ke depan · akhir pekan ditandai emas</span>
     </div>

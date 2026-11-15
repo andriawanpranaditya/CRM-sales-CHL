@@ -473,6 +473,17 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       const t = String(k.tgl || '').slice(0, 10);
       return (!proj || k.project === proj) && (!d1 || t >= d1) && (!d2 || t <= d2);
     }).sort((a, b) => String(a.tgl || '').localeCompare(String(b.tgl || '')));
+    // Agent Visitor — laporan kunjungan dari agent pada periode
+    try {
+      const ag = await api('/api/kunjungan-agent?laporan=1&dari=' + (d1 || '') + '&sampai=' + (d2 || '') + '&project=' + encodeURIComponent(proj || ''));
+      if (ag?.rows?.length) buatSheet('Agent Visitor', 'AGENT VISITOR (LAPORAN KUNJUNGAN AGENT)', [
+        { h: 'Tgl kunjungan', k: 'tgl', w: 13 }, { h: 'Jam', k: 'jam', w: 7 }, { h: 'Konsumen', k: 'konsumen', w: 24 }, { h: 'Agent', k: 'agent_nama', w: 20 },
+        { h: 'Kantor', k: 'agent_kantor', w: 18 }, { h: 'HP agent', k: 'agent_hp', w: 15 }, { h: 'Lead agent', k: 'lead_agent', w: 12 }, { h: 'Project', k: 'project', w: 14 },
+        { h: 'Tipe', k: 'tipe', w: 12 }, { h: 'Cara bayar', k: 'bayar', w: 12 }, { h: 'Domisili', k: 'domisili', w: 14 }, { h: 'Budget', k: 'budget', w: 14 },
+        { h: 'Catatan', k: 'catatan', w: 34, wrap: true }, { h: 'Status laporan', k: 'status', w: 12 }, { h: 'Alasan tolak', k: 'alasan', w: 20, wrap: true },
+        { h: 'ID Lead', k: 'lead_code', w: 11 }, { h: 'Hasil', k: 'hasil', w: 12 }],
+        ag.rows.map(r => ({ ...r, tgl: dd(r.tgl), hasil: r.booking ? 'Booking' : r.reserved ? 'Reserved' : (r.lead_status || '') })));
+    } catch {}
     buatSheet('Kegiatan', 'KEGIATAN SALES & MARKETING', [
       { h: 'Tanggal', k: 'tgl', w: 11 }, { h: 'Bulan', k: 'bulan', w: 9 }, { h: 'Jenis Kegiatan', k: 'jenis', w: 28 },
       { h: 'Project', k: 'proj', w: 15 }, { h: 'Lokasi / Tempat', k: 'lok', w: 26 }, { h: 'PIC / Peserta', k: 'pic', w: 20 },
@@ -614,6 +625,9 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       const hariJJ = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
       jjData = await api('/api/janjian?laporan=1&dari=' + (d1 || '2026-09-01') + '&sampai=' + (d2 || hariJJ) + '&project=' + encodeURIComponent(proj || ''));
     } catch {}
+    // Agent Visitor (laporan kunjungan dari agent di bawah lead agent) pada periode report
+    let agData = null;
+    try { agData = await api('/api/kunjungan-agent?laporan=1&dari=' + (d1 || '') + '&sampai=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
     // Ringkasan penjualan (Reserved → Booking / Batal) — satu halaman; detail per transaksi ada di menu Report → Laporan Penjualan
     let lpData = null;
     try { lpData = await api('/api/laporan-penjualan?d1=' + (d1 || '') + '&d2=' + (d2 || '') + '&project=' + encodeURIComponent(proj || '')); } catch {}
@@ -1026,6 +1040,19 @@ ${jjData.rincian.length ? `<p style="margin:8px 0 4px"><b>Rincian reschedule, ba
 <table style="font-size:9pt"><tr><th>Tanggal · jam</th><th>Lead</th><th>Sales</th><th>Jenis · lokasi</th><th>Status</th><th>Keterangan / alasan</th></tr>
 ${jjData.rincian.slice(0, 60).map(x => { const ev = x.status === 'Reschedule' || x.status === 'Batal'; const tglK = ev ? new Date(x.waktu) : null; const tk = ev && !isNaN(tglK) ? `${['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][tglK.getDay()]} ${tglK.toLocaleDateString('id-ID')} ${tglK.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}<br><span class="muted">dicatat · janji ${fmtDate(x.tgl)}</span>` : `${hariN(x.tgl)} ${fmtDate(x.tgl)} ${esc(String(x.jam || '').slice(0, 5).replace(':', '.'))}`; return `<tr><td>${tk}</td><td><b>${esc(x.nama || x.lead_code)}</b><br><span class="muted">${esc(x.project || '')}</span></td><td>${esc(x.sales || '-')}</td>
 <td>${esc(x.jenis || '')}<br><span class="muted">${esc(x.lokasi || '')}</span></td><td style="color:${warnaSt[x.status] || '#10251E'};font-weight:bold">${esc(x.status)}</td><td>${esc(x.ket || '-')}</td></tr>`; }).join('')}</table>` : ''}`;
+    })()}
+${(() => {
+      if (!agData || !agData.rows || !agData.rows.length) return '';
+      const P = agData.per, c = 'style="text-align:right"', T = P.reduce((a, p) => ({ laporan: a.laporan + p.laporan, disetujui: a.disetujui + p.disetujui, ditolak: a.ditolak + p.ditolak, menunggu: a.menunggu + p.menunggu, agent: a.agent + p.agent, reserved: a.reserved + p.reserved, booking: a.booking + p.booking }), { laporan: 0, disetujui: 0, ditolak: 0, menunggu: 0, agent: 0, reserved: 0, booking: 0 });
+      const ok = agData.rows.filter(r => r.status === 'Disetujui');
+      return `<h2>6D. AGENT VISITOR <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(laporan kunjungan konsumen dari agent di bawah lead agent — tanggal kunjungan pada periode)</span></h2>
+<table style="font-size:9pt"><tr><th>Lead agent</th><th>Project</th><th ${c}>Laporan</th><th ${c}>Disetujui (visitor)</th><th ${c}>Ditolak</th><th ${c}>Menunggu</th><th ${c}>Agent aktif</th><th ${c}>Jadi Reserved</th><th ${c}>Jadi Booking</th><th ${c}>Konversi</th></tr>
+${P.map(p => `<tr><td><b>${esc(p.lead_agent)}</b></td><td>${esc(p.project)}</td><td ${c}>${p.laporan}</td><td ${c} style="color:#23694A;text-align:right"><b>${p.disetujui}</b></td><td ${c}>${p.ditolak}</td><td ${c}>${p.menunggu}</td><td ${c}>${p.agent}</td><td ${c}>${p.reserved}</td><td ${c}><b>${p.booking}</b></td><td ${c}>${p.disetujui ? Math.round(p.booking / p.disetujui * 100) : 0}%</td></tr>`).join('')}
+<tr style="font-weight:bold;background:#F5F2EA"><td colspan="2">Total</td><td ${c}>${T.laporan}</td><td ${c}>${T.disetujui}</td><td ${c}>${T.ditolak}</td><td ${c}>${T.menunggu}</td><td ${c}>${T.agent}</td><td ${c}>${T.reserved}</td><td ${c}>${T.booking}</td><td ${c}>${T.disetujui ? Math.round(T.booking / T.disetujui * 100) : 0}%</td></tr></table>
+${ok.length ? `<p style="margin:8px 0 4px"><b>Rincian kunjungan agent yang disetujui</b></p>
+<table style="font-size:9pt"><tr><th>Tanggal</th><th>Konsumen</th><th>Agent · kantor</th><th>Lead agent</th><th>Minat</th><th>Lead</th><th>Status sekarang</th></tr>
+${ok.map(r => `<tr><td>${fmtDate(r.tgl)}${r.jam ? ' ' + esc(r.jam) : ''}</td><td><b>${esc(r.konsumen)}</b></td><td>${esc(r.agent_nama)} · ${esc(r.agent_kantor || '')}</td><td>${esc(r.lead_agent)}</td><td>${esc([r.tipe, r.bayar, r.budget].filter(Boolean).join(' · ') || '—')}</td><td>${esc(r.lead_code || '')}</td><td>${r.booking ? '<b style="color:#23694A">Booking</b>' : r.reserved ? 'Reserved' : esc(r.lead_status || '—')}</td></tr>`).join('')}</table>` : ''}
+<p class="muted" style="font-size:8.5pt">Kunjungan agent yang disetujui otomatis tercatat sebagai visitor (janji temu berstatus Datang) atas nama lead agent, sehingga ikut terhitung di bagian Janjian Visit, Janjian &amp; Visitor, dan Presentasi Project.</p>`;
     })()}
 ${(() => {
       if (!lpData || !Array.isArray(lpData.rows) || !lpData.rows.length) return '';

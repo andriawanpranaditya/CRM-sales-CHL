@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic';
 
 // Manager: cek laporan kunjungan agent → setujui (jadi lead & visitor) / ubah / tolak · kelola link · rekap & Excel
 export async function GET(req) {
+  const q0 = new URL(req.url).searchParams;
+  if (q0.get('laporan')) return laporanPeriode(q0);
   const { err } = await requireUser(['manager']); if (err) return err;
   const sql = db();
   await siapkanAgent(sql);
-  const q = new URL(req.url).searchParams;
+  const q = q0;
   const links = await linkLeadAgent(sql);
   const laporan = await sql`SELECT a.*, a.tgl::text AS tgl, l.status AS lead_status,
       EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = a.lead_code AND t.jenis IN ('Booking', 'Closing')) AS booking
@@ -88,4 +90,25 @@ export async function POST(req) {
   if (L.foto) await sql`UPDATE janjian SET foto = ${L.foto} WHERE id = ${j[0].id}`;
   await sql`UPDATE agent_laporan SET status = 'Disetujui', lead_code = ${kode}, dicek_oleh = ${user.name}, dicek_at = now() WHERE id = ${lap.id}`;
   return Response.json({ ok: true, lead_code: kode });
+}
+
+// Laporan Agent Visitor per periode (dipakai Report Lengkap & Data Excel) — berdasarkan tanggal kunjungan
+async function laporanPeriode(q) {
+  const { user, err } = await requireUser(['manager', 'ceo']); if (err) return err;
+  const sql = db(); await siapkanAgent(sql);
+  const dari = /^\d{4}-\d{2}-\d{2}$/.test(q.get('dari') || '') ? q.get('dari') : '2000-01-01', sampai = /^\d{4}-\d{2}-\d{2}$/.test(q.get('sampai') || '') ? q.get('sampai') : '2100-01-01';
+  const pj = q.get('project') || '';
+  let rows = await sql`SELECT a.id, a.tgl::text AS tgl, a.jam, a.konsumen, a.agent_nama, a.agent_kantor, a.agent_hp, a.lead_agent, a.project, a.tipe, a.bayar, a.domisili, a.budget,
+      a.catatan, a.status, a.alasan, a.lead_code, a.created_at, l.status AS lead_status,
+      EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = a.lead_code AND t.jenis IN ('Booking', 'Closing')) AS booking,
+      EXISTS (SELECT 1 FROM transactions t WHERE t.lead_code = a.lead_code AND t.jenis = 'Reserved') AS reserved
+    FROM agent_laporan a LEFT JOIN leads l ON l.lead_code = a.lead_code
+    WHERE a.tgl >= ${dari}::date AND a.tgl <= ${sampai}::date ORDER BY a.tgl, a.id`;
+  if (pj) rows = rows.filter(r => r.project === pj);
+  if (user.projects) rows = rows.filter(r => user.projects.includes(r.project));
+  const per = {};
+  rows.forEach(r => { const k = r.lead_agent || '-'; const p = per[k] || (per[k] = { lead_agent: k, project: r.project, laporan: 0, disetujui: 0, ditolak: 0, menunggu: 0, agent: new Set(), reserved: 0, booking: 0 });
+    p.laporan++; if (r.status === 'Disetujui') p.disetujui++; else if (r.status === 'Ditolak') p.ditolak++; else p.menunggu++;
+    p.agent.add((r.agent_nama || '').toLowerCase()); if (r.booking) p.booking++; else if (r.reserved) p.reserved++; });
+  return Response.json({ dari, sampai, rows, per: Object.values(per).map(p => ({ ...p, agent: p.agent.size })) });
 }
