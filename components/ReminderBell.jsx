@@ -216,6 +216,27 @@ export default function ReminderBell({ user }) {
                     <span><b>{x.konsumen}</b><br /><span className="hint">{x.nama} · {x.jenis} · {x.project}</span></span>
                     <span className="badge b-today">Cek</span></a>))}
               </>}
+              {(data.siapOper || []).length > 0 && <>
+                <div className="bell-sub">🔥 Lead siap oper — segera oper ke sales ({data.siapOper.length})</div>
+                {data.siapOper.map(x => { const sisa = x.batas_bagi ? Math.round((new Date(x.batas_bagi).getTime() - Date.now()) / 60000) : null;
+                  return (<a key={'so' + x.lead_code} href={'/form?tab=l2s&lead=' + x.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                    <span><b>{x.lead_code} · {x.nama}</b><br /><span className="hint">{String(x.project || '').split(' ')[0]}{sisa != null ? (sisa > 0 ? ` · ${sisa} menit lagi dibagi otomatis` : ' · segera dibagi otomatis') : ''}</span></span>
+                    <span className="badge b-overdue">Oper</span></a>); })}
+              </>}
+              {(data.dibagiOtomatis || []).length > 0 && <>
+                <div className="bell-sub">🤖 Dibagi otomatis hari ini — tidak perlu oper lagi ({data.dibagiOtomatis.length})</div>
+                {data.dibagiOtomatis.map(x => (
+                  <a key={'do' + x.lead_code} href={'/form?tab=l2s&lead=' + x.lead_code} className="rem-item" style={{ borderLeftColor: 'var(--green)' }}>
+                    <span><b>{x.lead_code} · {x.nama}</b><br /><span className="hint">→ {x.sales} · {new Date(x.mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} · {x.alasan}</span></span>
+                    <span className="badge b-close">Konteks</span></a>))}
+              </>}
+              {(data.leadTelat || []).length > 0 && <>
+                <div className="bell-sub">🚨 Lead belum direspon sales — lewat batas ({data.leadTelat.length})</div>
+                {data.leadTelat.map(x => (
+                  <a key={'lt' + x.id} href="/distribusi" className="rem-item" style={{ borderLeftColor: 'var(--red)' }}>
+                    <span><b>{x.lead_code} · {x.nama}</b><br /><span className="hint">{x.sales} · masuk {new Date(x.mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' })} · {String(x.project || '').split(' ')[0]}</span></span>
+                    <span className="badge b-overdue">Tegur</span></a>))}
+              </>}
               {(data.ubahMenunggu || []).length > 0 && <>
                 <div className="bell-sub">✏️ Perubahan data lead dari sales — perlu persetujuan ({data.ubahMenunggu.length})</div>
                 {data.ubahMenunggu.map(x => (

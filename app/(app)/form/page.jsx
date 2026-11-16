@@ -6,10 +6,11 @@ import IsianOther, { cekOtherKlien, kirimOther } from '@/components/IsianOther';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
+import { kualitasLead, RENCANA_BELI } from '@/lib/kualitas-lead';
 import { muatPriceList } from '@/components/usePriceList';
 import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
-const EMPTY = { kontak: [], tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '', gender: '' };
+const EMPTY = { kontak: [], tgl: '', nama: '', wa: '', email: '', domisili: '', kerja: '', sumber: '', walkin_info: '', sumber_detail: '', project: '', tipe: '', tujuan: '', budget: '', bayar: '', sales: '', status: 'New', catatan: '', next_fu: '', campaign: '', konten: '', kode_wa: '', usia: '', gender: '', rencana_beli: '' };
 // Sumber lead "Lainnya" (dan Walk In yang tahu dari "Lainnya") wajib disebutkan sumbernya supaya asal lead tetap jelas
 const DETAIL_LAINNYA = { label: 'Sumber lainnya — sebutkan', ph: 'mis. brosur di minimarket, papan nama proyek', wajib: true };
 const DETAIL_WALKIN_LAINNYA = { label: 'Walk In — tahu dari mana, sebutkan', ph: 'mis. lewat depan lokasi, diajak teman, brosur', wajib: true };
@@ -107,6 +108,8 @@ export default function FormPage() {
   useEffect(() => { api('/api/foto?siap=1').then(setFotoSiap).catch(() => {}); }, []);
   const [salesWA, setSalesWA] = useState([]);
   const [l2sDone, setL2sDone] = useState(null);
+  const [antri, setAntri] = useState(null); // antrian Marcom: lead belum dioper + yang dibagi otomatis
+  const [kini, setKini] = useState(Date.now());
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null, alasan_kat: '', alasan_ket: '', refund: null, dana_hangus: '' });
   const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
   const [idn, setIdn] = useState(IDN0);
@@ -210,7 +213,7 @@ export default function FormPage() {
         toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — status & jadwal FU sudah tersimpan` : 'Lead berhasil diperbarui');
       } else {
         const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, sales: lead.sales === '__other__' ? '' : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
-        toast('Lead tersimpan — ' + d.lead_code);
+        toast('Lead tersimpan — ' + d.lead_code + (d.dibagi ? ' · dibagi otomatis ke ' + d.dibagi : ''));
       }
       setEditId(null); setDup(null);
       setLead({ ...EMPTY, tgl: todayISO(), sales: me?.role === 'sales' ? me.name : '' });
@@ -236,7 +239,7 @@ export default function FormPage() {
     setLead({ tgl: d10(l.tgl), nama: l.nama || '', wa: l.wa || '', email: l.email || '', domisili: l.domisili || '',
       kerja: l.kerja || '', sumber: l.sumber || '', project: l.project || '', tipe: l.tipe || '', tujuan: l.tujuan || '',
       budget: l.budget || '', bayar: l.bayar || '', sales: l.sales || '', status: l.status || 'New',
-      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || '', gender: l.gender || '', kontak: Array.isArray(l.kontak) ? l.kontak : [] });
+      catatan: l.catatan || '', next_fu: d10(l.next_fu), campaign: l.campaign || '', konten: l.konten || '' , usia: l.usia || '', gender: l.gender || '', rencana_beli: l.rencana_beli || '', kontak: Array.isArray(l.kontak) ? l.kontak : [] });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Mode edit: ' + l.lead_code + ' — ubah lalu klik Update Lead');
   }
@@ -274,7 +277,7 @@ export default function FormPage() {
     if (tujuan) setTab(tujuan);
     const l = kode ? leads.find(x => x.lead_code === kode) : null;
     if (!l) return;
-    if (tujuan === 'l2s') setL2s(v => ({ ...v, lead_code: kode }));
+    if (tujuan === 'l2s') pilihL2S(kode);
     else if (tujuan === 'fu') {
       if (me.role === 'markom') setFu(v => ({ ...v, lead_code: kode }));
       else setFu(v => fuUntukLead(l, v));
@@ -292,8 +295,10 @@ export default function FormPage() {
   // Template pesan oper lead ke sales (Leads to Sales)
   function templateL2S(l, salesName, konteks) {
     if (!l) return '';
+    const konteksSaja = l.sales && l.sales === salesName; // lead sudah dipegang sales ini (mis. dibagi otomatis) → hanya kirim konteks
+    const bts = antri?.batas_respon || 5, alih = antri?.batas_oper || 10;
     return `Halo ${salesName || '[Sales]'} 👋
-Ada lead baru untuk segera di-follow up:
+${konteksSaja ? 'Konteks dari Marcom untuk lead yang sudah Anda pegang:' : 'Ada lead baru untuk segera di-follow up:'}
 
 🆔 ID Lead: ${l.lead_code} (sudah ada di CRM Anda — langsung follow up di tab Follow Up, JANGAN input ulang)
 🧑 Nama: ${l.nama || '-'}
@@ -303,8 +308,22 @@ Ada lead baru untuk segera di-follow up:
 📝 Keterangan: ${l.catatan || '-'}
 💬 Yang ditanyakan lead: ${konteks || '-'}
 
-Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini. Mohon sapa paling lambat 1 jam & LANJUTKAN topik di atas (jangan mulai dari awal). Template pembuka sudah otomatis tersedia di tab Follow Up. Semangat closing! 💪`;
+Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini. Mohon sapa maksimal ${bts} menit (lewat ${alih} menit lead dialihkan otomatis ke sales lain) & LANJUTKAN topik di atas (jangan mulai dari awal). Template pembuka sudah otomatis tersedia di tab Follow Up. Semangat closing! 💪`;
   }
+  // Antrian Marcom: lead belum dioper (🔥 dengan hitung mundur) + lead yang dibagi otomatis
+  function muatAntri() { api('/api/distribusi?antrian=1', { silent: true }).then(a => setAntri({ ...a, offset: new Date(a.now).getTime() - Date.now() })).catch(() => {}); }
+  useEffect(() => {
+    if (!isMarkom || tab !== 'l2s') return;
+    muatAntri(); const t = setInterval(muatAntri, 30000), t2 = setInterval(() => setKini(Date.now()), 15000);
+    return () => { clearInterval(t); clearInterval(t2); };
+  }, [isMarkom, tab]); // eslint-disable-line
+  function pilihL2S(kode) {
+    const l = leads.find(x => x.lead_code === kode);
+    const sales = l?.sales || l2s.sales;
+    const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
+    setL2s({ ...l2s, lead_code: kode, sales, pesan: (oto && l) ? templateL2S(l, sales, l2s.konteks) : l2s.pesan });
+  }
+
   async function kirimL2S() {
     if (!l2s.lead_code) return toast('Pilih ID Lead dulu');
     if (!l2s.sales) return toast('Pilih Sales tujuan dulu');
@@ -312,14 +331,17 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
     const lObj = leads.find(x => x.lead_code === l2s.lead_code);
     const sObj = salesWA.find(x => x.name === l2s.sales);
     if (!sObj || !sObj.wa) return toast('Sales ini belum punya No. WA — minta manager mengisinya di menu Pengguna');
+    const konteksSaja = !!(lObj?.sales && lObj.sales === l2s.sales);
+    if (lObj?.sales && !konteksSaja && !confirm(`${lObj.lead_code} sudah dipegang ${lObj.sales}.\n\nPindahkan ke ${l2s.sales}? (Bila hanya ingin memberi konteks, pilih sales ${lObj.sales})`)) return;
     const diHP = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     let winWA = null;
     if (!diHP) { try { winWA = window.open('', '_blank'); } catch {} }
     setBusy(true);
     try {
-      await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: lObj.id, sales: l2s.sales }) });
-      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: 'Leads to Sales → ' + l2s.sales + ' · Konteks: ' + l2s.konteks.trim(), wa_pesan: l2s.pesan }) });
-      toast('Lead dioper ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲');
+      if (!konteksSaja) await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: lObj.id, sales: l2s.sales }) });
+      await api('/api/followups', { method: 'POST', body: JSON.stringify({ lead_code: l2s.lead_code, tgl: l2s.tgl, detail: (konteksSaja ? 'Konteks dari Marcom → ' : 'Leads to Sales → ') + l2s.sales + ' · Konteks: ' + l2s.konteks.trim(), wa_pesan: l2s.pesan }) });
+      toast(konteksSaja ? 'Konteks dikirim ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲' : 'Lead dioper ke ' + l2s.sales + ' — WhatsApp terbuka, tinggal kirim 📲');
+      muatAntri();
       if (diHP) setTimeout(() => { bukaWA(sObj.wa, l2s.pesan); }, 350);
       else bukaWA(sObj.wa, l2s.pesan, winWA);
       setL2sDone({ nama: lObj.nama, wa: lObj.wa, project: lObj.project, sales: l2s.sales, salesWa: sObj.wa });
@@ -592,14 +614,18 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             <div className="field"><label>{dt.label} {dt.wajib ? <span className="req">*</span> : null}</label>
               <input value={lead.sumber_detail || ''} onChange={e => setLead({ ...lead, sumber_detail: e.target.value })} placeholder={dt.ph} maxLength={200} /></div>) : null; })()}
           <div className="field"><label>Project</label><select {...fl('project')}>{opsi('project')}</select></div>
-          {!isMarkom && <div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
+          <div className="field"><label>Rencana Beli {isMarkom && <span className="hint">(penyaring)</span>}</label><select {...fl('rencana_beli')}>
+            {[''].concat(RENCANA_BELI).map(o => <option key={'rb' + o} value={o}>{o || '— pilih —'}</option>)}</select></div>
+          {<div className="field"><label>Tipe / Unit</label><select {...fl('tipe')}>{opsi('tipe')}</select></div>}
           {!isMarkom && <div className="field"><label>Tujuan Pembelian</label><select {...fl('tujuan')}>{opsi('tujuan')}</select></div>}
           <div className="field"><label>Rentang Usia</label><select {...fl('usia')}>
             {['', '< 25', '25–29', '30–34', '35–39', '40–44', '45–49', '50–54', '55+'].map(u => <option key={u} value={u}>{u || '— pilih —'}</option>)}</select></div>
           <div className="field"><label>Jenis Kelamin</label><select {...fl('gender')}>
             {['', 'Laki-laki', 'Perempuan'].map(g => <option key={g} value={g}>{g || '— pilih —'}</option>)}</select></div>
-          {!isMarkom && <div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
-          {!isMarkom && <div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
+          {<div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
+          {<div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
+          {isMarkom && (() => { const q = kualitasLead(lead); return (<div className="field full"><span className={'ds-chip ' + (q.label === 'siap' ? 'ds-merah' : q.label === 'nurture' ? 'ds-kuning' : 'ds-abu')}>{q.ikon} {q.teks}</span>
+            <span className="hint" style={{ marginLeft: 8 }}>{q.label === 'siap' ? 'Lead ini masuk antrian oper — oper ke sales lewat Leads to Sales sebelum dibagi otomatis.' : 'Untuk 🔥 Siap oper: nama jelas + minimal 2 dari rencana beli (≤ 6 bulan), cara bayar, budget, domisili, tipe. Kurang: ' + q.kurang.join(', ')}</span></div>); })()}
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />
@@ -760,13 +786,13 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
 
       {isMarkom && tab === 'l2s' && <div className="card">
         <div className="note" style={{ marginBottom: 10 }}>📮 <b>Leads to Sales</b> — oper lead ke sales: pilih lead & sales tujuan, pesan berisi data konsumen tersusun otomatis, klik <b>Kirim</b> → lead resmi berpindah ke sales tsb & WhatsApp sales terbuka berisi pesannya.</div>
+        {antri?.aktif && <AntrianOper antri={antri} kini={kini} pilih={pilihL2S} aktif={l2s.lead_code} />}
         <div className="form-grid">
           <div className="field"><label>ID Lead <span className="req">*</span></label>
-            <PilihLead leads={leads} value={l2s.lead_code} onPilih={kode => { const e = { target: { value: kode } };
-              const l = leads.find(x => x.lead_code === e.target.value);
-              const oto = !l2s.pesan.trim() || l2s.pesan.startsWith('Halo ');
-              setL2s({ ...l2s, lead_code: e.target.value, pesan: (oto && l) ? templateL2S(l, l2s.sales, l2s.konteks) : l2s.pesan });
-            }} /></div>
+            <PilihLead leads={leads} value={l2s.lead_code} onPilih={pilihL2S} />
+            {(() => { const l = leads.find(x => x.lead_code === l2s.lead_code); if (!l?.sales) return null;
+              const d = (antri?.dibagi || []).find(x => x.lead_code === l.lead_code);
+              return <span className="hint" style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Sudah dipegang {l.sales}{d ? ' — dibagi otomatis ' + new Date(d.mulai).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.') : ''} · tidak perlu oper lagi, cukup kirim konteks</span>; })()}</div>
           <div className="field"><label>Tanggal</label><input type="date" value={l2s.tgl} onChange={e => setL2s({ ...l2s, tgl: e.target.value })} /></div>
           <div className="field"><label>Sales Tujuan <span className="req">*</span></label>
             <select value={l2s.sales} onChange={e => {
@@ -796,8 +822,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               placeholder="Pilih lead & sales — pesan akan tersusun otomatis di sini." /></div>
         </div>
         <div className="form-foot">
-          <button className="btn btn-primary" onClick={kirimL2S} disabled={busy}>📲 Kirim</button>
-          <span className="hint">Lead otomatis berpindah menjadi milik sales terpilih & tercatat di riwayat follow up.</span>
+          <button className="btn btn-primary" onClick={kirimL2S} disabled={busy}>{(() => { const l = leads.find(x => x.lead_code === l2s.lead_code); return l?.sales && l.sales === l2s.sales ? '📲 Kirim konteks ke ' + l.sales : '📲 Kirim'; })()}</button>
+          <span className="hint">{(() => { const l = leads.find(x => x.lead_code === l2s.lead_code); return l?.sales && l.sales === l2s.sales ? 'Lead tetap milik ' + l.sales + ' — konteks tercatat di riwayat follow up.' : 'Lead otomatis berpindah menjadi milik sales terpilih & tercatat di riwayat follow up.'; })()}</span>
         </div>
         {l2sDone && (() => {
           const nomorSales = String(l2sDone.salesWa || '').replace(/[^0-9]/g, '').replace(/^62/, '0');
@@ -1023,4 +1049,31 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
       <Toast />
     </>
   );
+}
+
+// ===== Antrian oper Marcom: 🔥 siap oper (hitung mundur sebelum dibagi otomatis), 🟡/⚪ perlu dilengkapi, 🤖 sudah dibagi otomatis =====
+function AntrianOper({ antri, kini, pilih, aktif }) {
+  const [semua, setSemua] = useState(false);
+  const t = kini + (antri.offset || 0);
+  const jam = x => new Date(x).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(':', '.');
+  const urut = { siap: 0, nurture: 1, kosong: 2 };
+  const daftar = [...antri.antrian].sort((a, b) => urut[a.label] - urut[b.label] || String(a.batas_bagi || '').localeCompare(String(b.batas_bagi || '')));
+  const siap = daftar.filter(x => x.label === 'siap');
+  const tampil = semua ? daftar : daftar.slice(0, 6);
+  const hariIni = antri.dibagi.filter(x => t - new Date(x.mulai).getTime() < 24 * 3600e3);
+  return (<div className="ao-wrap">
+    <div className="ao-head"><b>Antrian oper</b><span className="hint">{siap.length} 🔥 siap oper · {daftar.length - siap.length} perlu dilengkapi · lead 🔥 yang belum dioper {antri.tunggu_marcom} menit (jam kerja) dibagi otomatis ke sales giliran</span></div>
+    {!daftar.length ? <p className="hint" style={{ margin: '6px 0' }}>Semua lead sudah dioper 👍</p> : (<div className="ao-list">
+      {tampil.map(x => { const sisa = x.batas_bagi ? new Date(x.batas_bagi).getTime() - t : null;
+        return (<button type="button" key={x.lead_code} className={'ao-it ao-' + x.label + (aktif === x.lead_code ? ' on' : '')} onClick={() => pilih(x.lead_code)}>
+          <span className="ao-ikon">{x.ikon}</span>
+          <span className="ao-isi"><b>{x.nama}</b><small>{x.lead_code} · {String(x.project || '').split(' ')[0] || '—'} · {x.sumber || '—'} · masuk {jam(x.masuk)}</small>
+            <small>{x.label === 'siap' ? 'Siap oper' : 'Lengkapi: ' + x.kurang.slice(0, 3).join(', ')}</small></span>
+          {sisa != null && <span className={'ao-waktu' + (sisa < 5 * 60e3 ? ' mendesak' : '')}>{sisa > 0 ? '⏳ ' + Math.ceil(sisa / 60e3) + ' mnt' : 'dibagi…'}</span>}
+        </button>); })}
+      {daftar.length > 6 && <button type="button" className="sort-btn" onClick={() => setSemua(v => !v)}>{semua ? 'Ringkas' : 'Lihat semua (' + daftar.length + ')'}</button>}
+    </div>)}
+    {hariIni.length > 0 && <div className="ao-dibagi"><b>🤖 Dibagi otomatis — tidak perlu oper lagi:</b>{' '}
+      {hariIni.map(x => <button type="button" key={x.lead_code} className="sort-btn" onClick={() => pilih(x.lead_code)}>{x.nama} → {x.sales} · {jam(x.mulai)}</button>)}</div>}
+  </div>);
 }

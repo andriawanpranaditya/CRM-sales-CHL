@@ -213,5 +213,21 @@ export async function GET() {
   if (user.role === 'manager') {
     try { ubahMenunggu = await sql`SELECT a.id, a.lead_code, a.nama_pengaju, l.nama FROM lead_ubah a LEFT JOIN leads l ON l.lead_code = a.lead_code WHERE a.status = 'Menunggu' ORDER BY a.created_at DESC LIMIT 20`; } catch {}
   }
-  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, agentMenunggu, ubahMenunggu, otherMenunggu, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length + agentMenunggu.length + ubahMenunggu.length + otherMenunggu.length });
+  // Marcom: lead 🔥 yang menunggu dioper (dengan batas waktu) + lead yang dibagi otomatis hari ini
+  let siapOper = [], dibagiOtomatis = [];
+  if (user.role === 'markom') {
+    try {
+      const { antrianMarcom } = await import('@/lib/distribusi-lead');
+      const a = await antrianMarcom(sql);
+      siapOper = a.antrian.filter(x => x.label === 'siap').map(x => ({ lead_code: x.lead_code, nama: x.nama, project: x.project, batas_bagi: x.batas_bagi }));
+      dibagiOtomatis = a.dibagi.filter(x => new Date(new Date(x.mulai).getTime() + 7 * 3600e3).toISOString().slice(0, 10) === today);
+    } catch (e) { console.error('antrian marcom bell', e); }
+  }
+  // Manager: lead yang belum direspon sales melewati batas (sudah dialihkan maksimal / dioper manual)
+  let leadTelat = [];
+  if (user.role === 'manager') {
+    try { leadTelat = await sql`SELECT d.id, d.lead_code, d.sales, d.mulai, l.nama, l.project FROM lead_distribusi d JOIN leads l ON l.lead_code = d.lead_code
+      WHERE d.status = 'menunggu' AND d.terlambat = true ORDER BY d.mulai LIMIT 20`; } catch {}
+  }
+  return Response.json({ today, hariIni, terlambat, belumDisentuh, stok, celah, aiSiap, janjian, agentMenunggu, ubahMenunggu, otherMenunggu, leadTelat, siapOper, dibagiOtomatis, celahTotal: typeof celahTotal !== 'undefined' ? celahTotal : null, total: janjian.length + rows.length + belumDisentuh.length + stok.length + celah.length + aiSiap.length + agentMenunggu.length + ubahMenunggu.length + otherMenunggu.length + leadTelat.length + siapOper.length });
 }

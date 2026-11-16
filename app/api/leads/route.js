@@ -134,7 +134,19 @@ async function _POST(req) {
     try { const { kirimPush } = await import('@/lib/push'); const u = await sql`SELECT username FROM users WHERE name = ${sales} AND role = 'sales' AND active = true`;
       if (u.length) await kirimPush(sql, { usernames: u.map(x => x.username) }, { judul: '📩 Lead baru untukmu', isi: `${b.nama}${b.project ? ' · ' + b.project : ''}${b.sumber ? ' · ' + b.sumber : ''} — segera follow up selagi masih hangat!`, url: '/form?tab=fu&lead=' + code, tag: 'lead-' + code }); } catch (e) { console.error('push lead', e); }
   }
-  return Response.json({ ok: true, id, lead_code: code });
+  // Distribusi lead otomatis: lead tanpa sales langsung dibagi bergiliran; lead yang dipilihkan sales oleh Marcom / Manager diukur waktu responnya
+  // (lead tanpa sales masuk antrian Marcom — dibagi otomatis bila 🔥 dan belum dioper dalam batas waktu)
+  let dibagi = null;
+  try {
+    const d = await import('@/lib/distribusi-lead');
+    await d.siapkanDistribusi(sql);
+    if (b.rencana_beli) await sql`UPDATE leads SET rencana_beli = ${String(b.rencana_beli).slice(0, 30)} WHERE id = ${id}`;
+    if (!otherInfo && !['Drop', 'Booking', 'Closing', 'Reserved'].includes(b.status || 'New')) {
+      if (!sales) { const r = await d.cekAntrian(sql, code); dibagi = r?.sales || null; }
+      else if (user.role !== 'sales') await d.catatOperManual(sql, code, sales);
+    }
+  } catch (e) { console.error('distribusi lead', e); }
+  return Response.json({ ok: true, id, lead_code: code, dibagi: dibagi || undefined });
 }
 
 async function _PATCH(req) {
@@ -222,6 +234,13 @@ async function _PATCH(req) {
     updated_at = now()
     WHERE id = ${b.id}`;
   if (Array.isArray(b.kontak)) { await siapkanKontak(sql); await sql`UPDATE leads SET kontak = ${JSON.stringify(bersihKontak(b.kontak, m.wa))}::jsonb WHERE id = ${b.id}`; }
+  // Rencana beli (penyaring kualitas lead) + cek antrian Marcom untuk lead yang belum punya sales
+  try {
+    const d = await import('@/lib/distribusi-lead');
+    await d.siapkanDistribusi(sql);
+    if ('rencana_beli' in b) await sql`UPDATE leads SET rencana_beli = ${String(b.rencana_beli || '').slice(0, 30)} WHERE id = ${b.id}`;
+    if (!m.sales) await d.cekAntrian(sql, cur.lead_code);
+  } catch (e) { console.error('antrian lead', e); }
   if (otherBaru) await sql`UPDATE leads SET other_id = ${otherBaru.id}, sales_tipe = ${otherBaru.jenis === 'External' ? 'other-external' : 'other-internal'} WHERE id = ${b.id}`;
   await tandaiOleh(sql, cur.lead_code, user.username, m.status === 'Drop' ? String(b.alasan || '').trim() : '');
   if (m.status && m.status !== cur.status) await sinkronJanjianLead(sql, cur.lead_code, { status: m.status, catatan: '', oleh: user.name, dari: 'perubahan status lead' });
@@ -232,6 +251,8 @@ async function _PATCH(req) {
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
     // Standar FU wajib: lead dioper ke sales → jadwal wajib dimulai hari ini (Hari 1, maks. 1 jam)
     if (!otherBaru && !['Booking', 'Closing', 'Drop'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
+    // Distribusi lead: oper manual tetap diukur waktu respon sales penerimanya
+    if (!otherBaru && user.role !== 'sales') { try { const { catatOperManual } = await import('@/lib/distribusi-lead'); await catatOperManual(sql, cur.lead_code, operKe); } catch {} }
   }
   // Untuk log aktivitas: field yang benar-benar berubah
   const teks = v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '');

@@ -13,7 +13,7 @@ async function daftar() {
 
 export default function PushNotif({ user }) {
   const [tampil, setTampil] = useState(false), [ios, setIos] = useState(false), [proses, setProses] = useState(false);
-  const boleh = user && (user.role === 'manager' || (user.role === 'sales' && !user.leadAgent));
+  const boleh = user && (user.role === 'manager' || user.role === 'markom' || (user.role === 'sales' && !user.leadAgent));
   useEffect(() => {
     if (!boleh || typeof window === 'undefined') return;
     const iPhone = /iPhone|iPad|iPod/i.test(navigator.userAgent), standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone;
@@ -25,7 +25,7 @@ export default function PushNotif({ user }) {
   if (!tampil) return null;
   const nanti = () => { try { localStorage.setItem('push-nanti', '1'); } catch {} setTampil(false); };
   if (ios) return <div className="push-ajak">📲 Agar notifikasi masuk ke iPhone: buka CRM di Safari → <b>Share</b> → <b>Add to Home Screen</b>, lalu buka CRM dari ikon itu.<button className="sort-btn" onClick={nanti}>Nanti</button></div>;
-  return (<div className="push-ajak">🔔 <span><b>Aktifkan notifikasi HP</b> — {user.role === 'manager' ? 'Reserved / Booking / Batal baru langsung masuk ke HP walau CRM tertutup.' : 'pengingat kerja & lead baru dari Marcom langsung masuk ke HP walau CRM tertutup.'}</span>
+  return (<div className="push-ajak">🔔 <span><b>Aktifkan notifikasi HP</b> — {user.role === 'manager' ? 'Reserved / Booking / Batal baru langsung masuk ke HP walau CRM tertutup.' : user.role === 'markom' ? 'pemberitahuan lead yang dibagi otomatis langsung masuk ke HP walau CRM tertutup.' : 'pengingat kerja & lead baru dari Marcom langsung masuk ke HP walau CRM tertutup.'}</span>
     <button className="btn btn-primary" style={{ width: 'auto', padding: '6px 14px' }} disabled={proses} onClick={async () => {
       setProses(true);
       try { const izin = await Notification.requestPermission(); if (izin === 'granted') { await daftar(); await api('/api/push', { method: 'POST', body: JSON.stringify({ tes: true }) }); setTampil(false); } else nanti(); }

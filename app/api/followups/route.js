@@ -109,6 +109,8 @@ async function _POST(req) {
   const insFu = await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
     VALUES (${b.lead_code}, ${b.tgl || null}, ${b.detail}, ${b.objection || ''}, ${b.next_action || ''}, ${b.next_tgl || null}, ${b.wa_pesan || ''}, ${user.username}, ${balas}) RETURNING id`;
   // Kontak yang dihubungi (bila lead punya lebih dari satu nomor / nama)
+  // Distribusi lead: FU pertama sales = lead sudah direspon (hitungan batas respon berhenti)
+  if (user.role === 'sales') { try { const { tandaiRespon } = await import('@/lib/distribusi-lead'); await tandaiRespon(sql, b.lead_code, user.username, 'FU'); } catch (e) { console.error('respon lead', e); } }
   if (b.kontak && insFu[0]?.id) { await siapkanKontak(sql); await sql`UPDATE followups SET kontak = ${String(b.kontak).slice(0, 120)} WHERE id = ${insFu[0].id}`; }
   // Status lead ikut diperbarui dari form follow up (Drop/Reserved/Booking diatur oleh logika di bawah)
   if (b.status && !['Drop', 'Reserved', 'Booking'].includes(b.next_action || '')) {

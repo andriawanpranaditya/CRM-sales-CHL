@@ -1146,3 +1146,73 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 @media(max-width:760px){ .main table.mb-kartu.lk-tabel tr{border:1px solid var(--line,#E6DFD0);border-radius:var(--radius,14px);margin-bottom:10px;background:var(--card,#fff)} .main table.mb-kartu.lk-tabel td{width:auto;border:0!important;padding:0!important} }
 @media(max-width:760px){ .main table.mb-kartu tbody tr:not(.row-detail) > td::before{white-space:normal;line-height:1.25;overflow-wrap:anywhere;text-align:left} }
 @media(max-width:760px){ .main table.mb-kartu tbody tr:not(.row-detail) > td{width:auto!important;max-width:none!important;min-width:0!important;white-space:normal!important} }
+
+/* ===== Distribusi lead: pop-up lead baru + hitung mundur ===== */
+.lm-overlay{position:fixed;inset:0;z-index:400;background:rgba(16,37,30,.62);display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(2px)}
+.lm-pop{width:min(440px,100%);max-height:94vh;overflow:auto;background:#FFFDF8;color:#10251E;border-radius:24px;box-shadow:0 30px 70px rgba(0,0,0,.4);animation:lmMasuk .25s ease-out}
+@keyframes lmMasuk{from{transform:translateY(16px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+.lm-head{background:linear-gradient(135deg,#1F6A50,#163F33);color:#F4EFE3;padding:16px 20px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.lm-eyebrow{font-size:11px;letter-spacing:1.4px;color:#E2BE7A;font-weight:800}
+.lm-nama{font-size:21px;font-weight:800;margin-top:2px;line-height:1.25;overflow-wrap:anywhere}
+.lm-hal{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;white-space:nowrap}
+.lm-hal button{background:rgba(255,255,255,.14);border:0;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:16px;line-height:1}
+.lm-hitung{text-align:center;padding:18px 16px 12px;border-bottom:1px solid #EFE7D6}
+.lm-angka{font-size:56px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1}
+.lm-ket{font-size:12.5px;color:#5B6E66;margin-top:6px}
+.lm-hijau .lm-angka{color:#1E6A4C}.lm-kuning .lm-angka{color:#B07A12}.lm-tenang .lm-angka{color:#2D5D8E;font-size:40px}
+.lm-merah .lm-angka{color:#B4482A;animation:lmDenyut 1s ease-in-out infinite}.lm-merah .lm-hitung{background:#FBEAE4}
+@keyframes lmDenyut{50%{opacity:.55}}
+.lm-isi{padding:12px 20px 4px;font-size:13.5px}
+.lm-baris{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #EDE5D3}
+.lm-baris span{color:#5B6E66}.lm-baris b{text-align:right;overflow-wrap:anywhere}
+.lm-pesan{margin:10px 0 6px;background:#F6EAD0;border-left:4px solid #C99C4F;border-radius:10px;padding:9px 12px;font-size:12.8px;line-height:1.5;color:#5A4013}
+.lm-pesan span{display:block;font-size:11px;font-weight:800;letter-spacing:.4px;color:#7A5414;margin-bottom:2px}
+.lm-aksi{padding:10px 20px 18px;display:flex;flex-direction:column;gap:8px}
+.lm-wa,.lm-tel{border:0;border-radius:999px;padding:13px 16px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.18);transition:transform .08s}
+.lm-wa:active,.lm-tel:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.lm-wa{background:#1F8B4C;color:#fff}.lm-tel{background:#fff;color:#1E6A4C;border:1.5px solid #1E6A4C;box-shadow:none}
+.lm-kecil{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}
+.lm-kecil button{background:none;border:0;color:#5B6E66;font-size:12px;font-weight:700;cursor:pointer;padding:4px 8px;text-decoration:underline}
+
+/* ===== Halaman Distribusi Lead ===== */
+.ds-top{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;align-items:start}
+.ds-chip{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.ds-hijau{background:var(--green-soft);color:var(--green)}.ds-kuning{background:var(--brass-soft);color:var(--brass-deep)}
+.ds-merah{background:var(--red-soft);color:var(--red)}.ds-abu{background:var(--gray-soft);color:var(--muted)}.ds-biru{background:var(--blue-soft);color:var(--blue)}
+.ds-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.ds-tbl th{text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ds-tbl td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.ds-tbl td small{display:block;color:var(--muted);font-size:11.5px}
+.ds-waktu{font-variant-numeric:tabular-nums;font-weight:800}
+.ds-aturan{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ds-aturan .field{margin:0}.ds-aturan .penuh{grid-column:1/-1}
+.ds-hari{display:flex;flex-wrap:wrap;gap:6px}
+.ds-hari label{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer;text-transform:none;letter-spacing:0;color:var(--ink)}
+.ds-hari input{width:auto}
+.ds-saklar{display:inline-flex;align-items:center;gap:8px;font-weight:800;font-size:13px;cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--card);color:var(--ink)}
+.ds-saklar i{width:34px;height:20px;border-radius:999px;background:var(--gray-soft);position:relative;transition:background .15s}
+.ds-saklar i::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .15s}
+.ds-saklar.on i{background:var(--green)}.ds-saklar.on i::after{left:16px}
+.ds-url{display:flex;gap:6px;align-items:center;background:var(--gray-soft);border-radius:12px;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere}
+.ds-url code{flex:1;min-width:0}
+.ds-langkah{margin:8px 0 0 18px;font-size:13px;line-height:1.7}
+.ds-periode{display:flex;gap:6px;flex-wrap:wrap}
+.ds-periode button{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer}
+.ds-periode button.on{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.ds-panduan summary{cursor:pointer;font-weight:800}
+.ds-panduan ol{margin:8px 0 0 18px;line-height:1.75;font-size:13px}
+@media (max-width:1100px){.ds-top{grid-template-columns:1fr}}
+@media (max-width:640px){.ds-aturan{grid-template-columns:1fr}.lm-angka{font-size:48px}}
+
+/* ===== Leads to Sales: antrian oper Marcom ===== */
+.ao-wrap{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:14px;background:var(--detail-bg)}
+.ao-head{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin-bottom:8px}
+.ao-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.ao-it{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:8px 10px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit}
+.ao-it.on{outline:2px solid var(--green)}
+.ao-siap{border-left-color:var(--red)}.ao-nurture{border-left-color:var(--brass)}.ao-kosong{border-left-color:var(--line)}
+.ao-ikon{font-size:18px}
+.ao-isi{flex:1;min-width:0;display:flex;flex-direction:column}.ao-isi b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ao-isi small{color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ao-waktu{font-weight:800;font-size:12px;color:var(--brass-deep);white-space:nowrap}.ao-waktu.mendesak{color:var(--red)}
+.ao-dibagi{margin-top:10px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}

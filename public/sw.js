@@ -1,4 +1,4 @@
-// Service worker CRM CHL v3 — cache pintar + bersih-bersih otomatis
+// Service worker CRM CHL v4 — cache pintar + bersih-bersih otomatis
 // - Aset statis (JS/CSS/gambar/font): cache-first (sekali unduh, seterusnya instan)
 // - Halaman: network-first (selalu terbaru, fallback cache saat offline)
 // - /api/: SELALU network — data CRM tidak pernah basi
@@ -86,7 +86,9 @@ self.addEventListener('push', e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) { d = { isi: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.judul || 'CRM Sales CHL', {
     body: d.isi || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag, renotify: !!d.tag, data: { url: d.url || '/', ...(d.data || {}) },
-    actions: Array.isArray(d.aksi) ? d.aksi.slice(0, 2) : [], requireInteraction: Array.isArray(d.aksi) && d.aksi.length > 0,
+    actions: Array.isArray(d.aksi) ? d.aksi.slice(0, 2) : [], requireInteraction: (Array.isArray(d.aksi) && d.aksi.length > 0) || !!(d.data && d.data.alarm),
+    // Lead baru: getar panjang & bunyi ulang tiap notifikasi diperbarui (tag sama + renotify)
+    vibrate: d.data && d.data.alarm ? [500, 200, 500, 200, 900, 300, 500] : undefined, silent: false,
   }));
 });
 self.addEventListener('notificationclick', e => {
@@ -97,6 +99,14 @@ self.addEventListener('notificationclick', e => {
       .then(r => r.json().then(j => ({ ok: r.ok, j })))
       .then(({ ok, j }) => self.registration.showNotification(ok ? '✅ Pengirim terverifikasi' : 'Verifikasi gagal', { body: ok ? `${j.nama || 'Pengirim'} sekarang bisa mengirim data.` : (j.error || 'Buka CRM untuk memverifikasi.'), icon: '/icon-192.png', tag: 'verif-' + dt.verifikasiId }))
       .catch(() => self.registration.showNotification('Verifikasi gagal', { body: 'Buka CRM untuk memverifikasi.', icon: '/icon-192.png' })));
+    return;
+  }
+  // Lead baru: "WA sekarang" → buka WhatsApp dengan pesan pembuka & catat lead sudah direspon
+  if (e.action === 'hubungi' && dt.wa && dt.lead) {
+    e.waitUntil(Promise.all([
+      self.clients.openWindow(dt.wa),
+      fetch('/api/distribusi', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aksi: 'respon', lead_code: dt.lead, cara: 'WA' }) }).catch(() => {}),
+    ]));
     return;
   }
   const tujuan = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin).href;

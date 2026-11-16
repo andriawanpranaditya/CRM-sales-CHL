@@ -35,6 +35,7 @@ async function catatFU(sql, user, leadCode, detail) {
     await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by)
       VALUES (${leadCode}, ${sekarangWIB().tgl}, ${detail}, '', '', null, '', ${user.username})`;
   } catch (e) { console.error('fu janjian', e); }
+  if (user.role === 'sales') { try { const { tandaiRespon } = await import('@/lib/distribusi-lead'); await tandaiRespon(sql, leadCode, user.username, 'Janjian'); } catch {} }
 }
 
 export async function GET(req) {

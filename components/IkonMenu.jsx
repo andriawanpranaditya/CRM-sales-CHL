@@ -31,6 +31,7 @@ const P = {
   '/settings': <><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></>,
   '/users': <><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0" /><path d="M19 8v6M22 11h-6" /></>,
   '/log': <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  '/distribusi': <><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></>,
   '/target': <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" /></>,
   '/kunjungan-agent': <><path d="M4 13l3-8h10l3 8v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><path d="M4 13h5l1 2h4l1-2h5" /></>,
   '/other-sales': <><path d="M8 12l2.5 2.5a2 2 0 0 0 2.8 0L18 10" /><path d="M2 10l4-4 3 1 3-2 3 2 3-1 4 4-6 7-3 1-3-1z" /></>,

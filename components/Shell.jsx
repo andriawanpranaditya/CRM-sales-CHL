@@ -4,6 +4,7 @@ import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import { PopupPengingat } from '@/components/TargetSales';
 import PushNotif from '@/components/PushNotif';
+import LeadMasuk from '@/components/LeadMasuk';
 import KartuTabelHP from '@/components/KartuTabelHP';
 import BusyIndicator from '@/components/BusyIndicator';
 import IkonMenu from '@/components/IkonMenu';
@@ -17,6 +18,7 @@ const MENUS = [
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
+  { href: '/distribusi', ico: '⚡', label: 'Distribusi Lead', roles: ['manager', 'ceo', 'sales'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
   { href: '/target', ico: '🎯', label: 'Target Sales', roles: ['manager'] },
@@ -41,7 +43,7 @@ const MENUS = [
 // ===== Kelompok menu (sub menu) =====
 const GRUP = [
   ['Penjualan', ['/form', '/booking']],
-  ['Tim Sales', ['/leads', '/janjian', '/kunjungan-agent', '/other-sales', '/target', '/kepatuhan-fu', '/kegiatan']],
+  ['Tim Sales', ['/leads', '/distribusi', '/janjian', '/kunjungan-agent', '/other-sales', '/target', '/kepatuhan-fu', '/kegiatan']],
   ['Produk', ['/stock', '/price-list', '/kpr']],
   ['Collection & KPR', ['/collection', '/kpr-proses']],
   ['Marketing', ['/marcom', '/wa-inbox', '/ai-asisten']],
@@ -172,7 +174,7 @@ export default function Shell({ user, children }) {
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
     if (path.startsWith('/presentasi') && !bolehPresentasi(user)) { router.replace('/beranda'); return; }
-    if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/report') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan')) router.replace('/beranda');
+    if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/report') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan') && !path.startsWith('/distribusi')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
     if (['markom', 'admin'].includes(user.role) && path.startsWith('/kpr-proses')) router.replace(user.role === 'admin' ? '/dashboard' : '/beranda');
@@ -291,6 +293,7 @@ export default function Shell({ user, children }) {
         </div>
         <BusyIndicator />
         <PushNotif user={user} />
+        <LeadMasuk user={user} />
         <KartuTabelHP />
         {children}
         {!user.leadAgent && <PopupPengingat user={user} />}

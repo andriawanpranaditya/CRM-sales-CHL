@@ -67,13 +67,27 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
 
   // 1) Nomor sudah terdaftar -> catat sebagai "lead membalas" (sekali per hari) & munculkan di lonceng pemegangnya
   await siapkanKontak(sql);
-  const ada = await sql`SELECT lead_code, status FROM leads
+  const ada = await sql`SELECT lead_code, status, nama, wa AS wa_lead, project AS l_project, sumber, tipe, sales, updated_at FROM leads
     WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(wa, ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa}
        OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(kontak, '[]'::jsonb)) k
                   WHERE regexp_replace(regexp_replace(regexp_replace(COALESCE(k->>'wa', ''), '[^0-9]', '', 'g'), '^0', '62'), '^8', '628') = ${wa})
     ORDER BY id LIMIT 1`;
   if (ada.length) {
     const l = ada[0];
+    // Lead Drop lebih dari 90 hari menghubungi lagi → diperlakukan sebagai lead baru & dibagi ulang ke sales
+    if (l.status === 'Drop' && l.updated_at && Date.now() - new Date(l.updated_at).getTime() > 90 * 864e5) {
+      try {
+        const d = await import('@/lib/distribusi-lead');
+        await d.siapkanDistribusi(sql);
+        const cfg = await d.ambilCfg(sql);
+        if (cfg.aktif) {
+          // masuk lagi ke antrian Marcom seperti lead baru
+          await sql`UPDATE leads SET status = 'New', sales = '', siap_oper_at = NULL, antri_sejak = now(), updated_at = now() WHERE lead_code = ${l.lead_code} AND status = 'Drop'`;
+          try { await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${l.lead_code}, ${l.sales || ''}, '', 'sistem-distribusi')`; } catch {}
+          await d.cekAntrian(sql, l.lead_code);
+        }
+      } catch (e) { console.error('distribusi drop lama', e); }
+    }
     const sudah = await sql`SELECT 1 FROM followups WHERE lead_code = ${l.lead_code} AND created_by = 'auto-wa' AND tgl = ${hari} LIMIT 1`;
     if (!sudah.length) {
       await sql`INSERT INTO followups (lead_code, tgl, detail, objection, next_action, next_tgl, wa_pesan, created_by, balas)
@@ -133,6 +147,9 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   await sql`UPDATE wa_inbox SET lead_code = ${code} WHERE msg_id = ${m.id}`;
   await catatPercakapan(sql, wa, project, code, 'user', isi);
   await balasAI(sql, { wa, project, lead_code: code, phoneId, msgId: m.id });
+  // Distribusi lead: chat WA baru masuk antrian Marcom (dibagi otomatis bila 🔥 & belum dioper dalam batas waktu)
+  try { const { cekAntrian } = await import('@/lib/distribusi-lead'); const cek = (await sql`SELECT ai_status FROM leads WHERE lead_code = ${code}`)[0];
+    if ((cek?.ai_status || '') !== 'aktif') await cekAntrian(sql, code); } catch (e) { console.error('distribusi wa', e); }
 }
 
 async function catatPercakapan(sql, wa, project, lead_code, peran, isi) {
