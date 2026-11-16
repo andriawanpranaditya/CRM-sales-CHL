@@ -3,6 +3,8 @@ import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
 import { siapkanKpr, statusKpr } from '@/lib/kpr';
 import { imporPenjualan, SUMBER_PENJUALAN } from '@/lib/impor-penjualan';
 import { denganLog } from '@/lib/log';
+import { PROMO, PROGRAM_BIO, PROGRAM_PERMAI } from '@/lib/presentasi';
+import { PERMAI } from '@/lib/pricelist';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +22,9 @@ async function siapkanKolomPenjualan(sql) {
 const tglOk = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const tglStr = t => (t instanceof Date ? t.toISOString() : String(t || '')).slice(0, 10);
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+// Rupiah ringkas: Rp1,25 M / Rp179,2 jt
+const rpS = n => { const v = Number(n) || 0; return v >= 1e9 ? 'Rp' + (v / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : 'Rp' + (v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt'; };
+const teksPlafon = r => r.plafon ? `plafon ${rpS(r.plafon)}${r.plafon_sumber === 'disetujui' ? ' (disetujui bank)' : r.plafon_sumber === 'standar' ? ' (standar subsidi)' : ' (pengajuan)'}` : 'plafon belum dicatat';
 const tglId = t => { const d = tglStr(t); return d ? `${Number(d.slice(8, 10))} ${BLN[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : ''; };
 
 function teksUpdate(r) {
@@ -28,11 +33,11 @@ function teksUpdate(r) {
   if (r.status === 'Batal') return `Batal ${tglId(r.tgl_batal)}` + (r.alasan_batal ? ` — ${r.alasan_batal}` : '');
   if (/kpr/i.test(r.bayar || '')) {
     const k = r.kpr;
-    if (k?.akad_realisasi) return tambah(`Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : ''), r.no_kontrak ? 'kontrak ' + r.no_kontrak : '', k.catatan, r.catatan);
-    if (k?.akad_tgl) return tambah(`Rencana akad ${tglId(k.akad_tgl)}` + (k.akad_bank ? ` (${k.akad_bank})` : '') + ' — SP3K terbit', k.catatan);
+    if (k?.akad_realisasi) return tambah(`Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : ''), r.plafon ? teksPlafon(r) : '', r.no_kontrak ? 'kontrak ' + r.no_kontrak : '', k.catatan, r.catatan);
+    if (k?.akad_tgl) return tambah(`Rencana akad ${tglId(k.akad_tgl)}` + (k.akad_bank ? ` (${k.akad_bank})` : '') + ' — SP3K terbit', teksPlafon(r), k.catatan);
     if (r.status === 'Reserved') return 'Reserved — KPR ' + (k?.label && k.label !== 'Menunggu Booking' ? k.label : 'belum dimulai') + ' (dihitung setelah Booking)';
-    if (!k) return 'Booking — proses KPR belum dicatat';
-    return tambah(`Proses KPR: ${k.label}` + (k.banks.length ? ` (${k.banks.join(', ')})` : '') + (k.updated_at ? ` · update ${tglId(k.updated_at)}` : ''), k.catatan);
+    if (!k) return tambah('Booking — proses KPR belum dicatat', r.plafon ? teksPlafon(r) : '');
+    return tambah(`Proses KPR: ${k.label}` + (k.banks.length ? ` (${k.banks.join(', ')})` : '') + (k.updated_at ? ` · update ${tglId(k.updated_at)}` : ''), teksPlafon(r), k.catatan);
   }
   const awal = r.status === 'Booking' ? 'Booking — ' : 'Reserved — ';
   if (/bertahap/i.test(r.bayar || '')) return awal + `Cash bertahap${r.cicilan ? ' ' + r.cicilan + 'x' : ''}` + (r.catatan ? ` · ${r.catatan}` : '');
@@ -100,6 +105,27 @@ export async function GET(req) {
     g.lama = g.tgl_reserved && g.tgl_booking ? Math.round((Date.parse(g.tgl_booking) - Date.parse(g.tgl_reserved)) / 86400000) : (g.tgl_booking ? 0 : null);
     return g;
   });
+  // Status KPR per lead (semua kontrak — dipakai juga untuk total plafon di posisi s.d. hari ini)
+  const kodes = [...new Set(rows.map(g => g.lead_code))];
+  if (kodes.length) {
+    const ks = await sql`SELECT k.id, k.lead_code, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, k.catatan, k.plafon FROM kpr k WHERE k.lead_code = ANY(${kodes}::text[])`;
+    const ids = ks.map(k => k.id);
+    const bk = ids.length ? await sql`SELECT id, kpr_id, bank, tahap, plafon_setuju FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id` : [];
+    const peta = {};
+    ks.forEach(k => { const b = bk.filter(x => x.kpr_id === k.id); const st = statusKpr(k, b, 'Booking');
+      const setuju = Number((b.find(x => x.id === k.akad_bank_id) || {}).plafon_setuju) || Math.max(0, ...b.map(x => Number(x.plafon_setuju) || 0));
+      peta[k.lead_code] = { label: st.label, kategori: st.kategori, banks: b.filter(x => !['Ditolak', 'Tidak dilanjutkan'].includes(x.tahap)).map(x => x.bank),
+        akad_bank: (b.find(x => x.id === k.akad_bank_id) || {}).bank || '', akad_tgl: k.akad_tgl, akad_realisasi: k.akad_realisasi, updated_at: tglStr(k.updated_at), catatan: String(k.catatan || '').trim(),
+        plafon_setuju: setuju || null, plafon_aju: Number(k.plafon) || null }; });
+    rows.forEach(g => { g.kpr = peta[g.lead_code] || null; });
+  }
+  // Plafon KPR: disetujui bank (SP3K) → pengajuan di Proses KPR → Permai: plafon standar KPR subsidi
+  rows.forEach(g => {
+    if (!/kpr/i.test(g.bayar || '')) return;
+    if (g.kpr?.plafon_setuju) { g.plafon = g.kpr.plafon_setuju; g.plafon_sumber = 'disetujui'; }
+    else if (g.kpr?.plafon_aju) { g.plafon = g.kpr.plafon_aju; g.plafon_sumber = 'pengajuan'; }
+    else if (/permai/i.test(g.project || '')) { g.plafon = PERMAI.plafon; g.plafon_sumber = 'standar'; }
+  });
   // ===== Posisi kumulatif s.d. hari ini (tidak terpengaruh filter periode; tetap mengikuti filter project & sales) =====
   const hariIni = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
   const kodesSemua = [...new Set(rows.map(g => g.lead_code))];
@@ -108,7 +134,7 @@ export async function GET(req) {
   const jum = (arr, f) => arr.reduce((a, g) => a + (Number(g[f]) || 0), 0);
   const aktif = rows.filter(g => g.status === 'Booking'), resv = rows.filter(g => g.status === 'Reserved');
   const batalBk = rows.filter(g => g.status === 'Batal' && g.tgl_booking), batalRv = rows.filter(g => g.status === 'Batal' && !g.tgl_booking);
-  const kpr = aktif.filter(g => /kpr/i.test(g.bayar || '')), akad = kpr.filter(g => akadPeta[g.lead_code]);
+  const kpr = aktif.filter(g => /kpr/i.test(g.bayar || '')), akad = kpr.filter(g => akadPeta[g.lead_code]), belum = kpr.filter(g => !akadPeta[g.lead_code]);
   // Semua angka per tahun & per periode memakai TANGGAL PENJUALAN (tgl Booking; tgl Reserved bila belum sempat Booking),
   // sehingga kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya, bukan di tahun pembatalannya.
   const tglJual = g => g.tgl_booking || g.tgl_reserved || g.tgl_batal || '';
@@ -116,6 +142,8 @@ export async function GET(req) {
   const kumulatif = {
     per: hariIni,
     penjualan: { n: aktif.length, nilai: jum(aktif, 'harga'), cash: jum(aktif, 'harga_cash'), kpr: kpr.length, akad: akad.length, belumAkad: kpr.length - akad.length, bertahap: aktif.filter(g => /bertahap/i.test(g.bayar || '')).length, keras: aktif.filter(g => /keras/i.test(g.bayar || '')).length },
+    plafonKpr: { akad: jum(akad, 'plafon'), belumAkad: jum(belum, 'plafon'), total: jum(kpr, 'plafon'), tercatat: kpr.filter(g => g.plafon).length, kosong: kpr.filter(g => !g.plafon).length,
+      standar: kpr.filter(g => g.plafon_sumber === 'standar').length },
     reserved: { n: resv.length, nilai: jum(resv, 'harga') },
     bookingTercatat: { n: aktif.length + batalBk.length, nilai: jum(aktif, 'harga') + jum(batalBk, 'harga') },
     batalBooking: { n: batalBk.length, nilai: jum(batalBk, 'harga'), nonrefund: batalBk.filter(g => g.batal_refund === false).length, refund: batalBk.filter(g => g.batal_refund === true).length,
@@ -136,18 +164,6 @@ export async function GET(req) {
   const dalam = t => t && (!d1 || t >= d1) && (!d2 || t <= d2);
   if (d1 || d2) rows = rows.filter(g => dalam(tglJual(g)));
 
-  // Status KPR per lead
-  const kodes = [...new Set(rows.map(g => g.lead_code))];
-  if (kodes.length) {
-    const ks = await sql`SELECT k.id, k.lead_code, k.slik_tgl, k.akad_bank_id, k.akad_tgl::text AS akad_tgl, k.akad_realisasi::text AS akad_realisasi, k.updated_at, k.catatan FROM kpr k WHERE k.lead_code = ANY(${kodes}::text[])`;
-    const ids = ks.map(k => k.id);
-    const bk = ids.length ? await sql`SELECT id, kpr_id, bank, tahap FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id` : [];
-    const peta = {};
-    ks.forEach(k => { const b = bk.filter(x => x.kpr_id === k.id); const st = statusKpr(k, b, 'Booking');
-      peta[k.lead_code] = { label: st.label, kategori: st.kategori, banks: b.filter(x => !['Ditolak', 'Tidak dilanjutkan'].includes(x.tahap)).map(x => x.bank),
-        akad_bank: (b.find(x => x.id === k.akad_bank_id) || {}).bank || '', akad_tgl: k.akad_tgl, akad_realisasi: k.akad_realisasi, updated_at: tglStr(k.updated_at), catatan: String(k.catatan || '').trim() }; });
-    rows.forEach(g => { g.kpr = peta[g.lead_code] || null; });
-  }
   // Status tampilan: Booking yang akad KPR-nya sudah terealisasi ditampilkan "Akad" (tetap dihitung sebagai Booking di ringkasan)
   rows.forEach(g => { g.akad = g.status === 'Booking' && /kpr/i.test(g.bayar || '') && g.kpr?.akad_realisasi ? g.kpr.akad_realisasi : null; g.status_tampil = g.akad ? 'Akad' : g.status;
     g.proses_kpr = g.status === 'Booking' && /kpr/i.test(g.bayar || '') && !g.akad; });
@@ -160,7 +176,19 @@ export async function GET(req) {
     const done = sudah[0]?.items || {};
     imporTersedia = Object.entries(SUMBER_PENJUALAN).filter(([p, src]) => !(done[p] === (src.versi || src.per)) && (!pj || pj === p)).map(([p, src]) => ({ project: p, per: src.per, label: src.label, kpr: (src.kpr || []).length }));
   }
-  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, imporTersedia });
+  // Prospek bulan berjalan — daftar yang diisi manual di Presentasi Project (Kelola prospek)
+  let prospek = [];
+  try {
+    const simpan = (await sql`SELECT items FROM settings WHERE key = 'presentasi_prospek'`.catch(() => []))[0]?.items || {};
+    const harga = { 'BIO DISTRICT': Object.fromEntries((PROGRAM_BIO.tipe || []).map(t => [t.tipe.slice(-1), t.harga])), 'PERMAI INDAH': { A: PROGRAM_PERMAI.harga, B: PROGRAM_PERMAI.harga, C: PROGRAM_PERMAI.harga, X: PROGRAM_PERMAI.harga } };
+    prospek = ['BIO DISTRICT', 'PERMAI INDAH'].filter(p => (!pj || pj === p) && (!user.projects || user.projects.includes(p))).map(p => {
+      const ps = simpan[p] || PROMO[p]?.prospek || { daftar: [] };
+      const daftar = (ps.daftar || []).filter(x => !sales || x.sales === sales).map(x => { const h = (x.tipe || []).map(t => harga[p]?.[t]).filter(Boolean), u = Number(x.unit) || 1;
+        return { ...x, unit: u, nilai_min: h.length ? Math.min(...h) * u : 0, nilai_max: h.length ? Math.max(...h) * u : 0 }; });
+      return { project: p, bulan: ps.bulan || hariIni.slice(0, 7), daftar };
+    }).filter(x => x.daftar.length || !pj);
+  } catch (e) { console.error('prospek laporan', e); }
+  return Response.json({ d1, d2, project: pj, sales, dibuat: new Date().toISOString(), oleh: user.name, rows, kumulatif, imporTersedia, prospek });
 }
 
 // ===== Impor buku penjualan resmi (Manager) — cek dulu, lalu impor; setelah impor tombolnya tidak tampil lagi =====

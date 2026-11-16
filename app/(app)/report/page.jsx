@@ -186,12 +186,12 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
 
   async function unduhExcel() {
     setBusy(true);
-    try { await buatExcelPenjualan({ rows: semuaRows, periode, d1, d2, proj, fSales, me, kum: d.kumulatif }); catatUnduh('Report', 'Laporan Penjualan (Excel)'); toast('Excel laporan penjualan terunduh'); }
+    try { await buatExcelPenjualan({ rows: semuaRows, periode, d1, d2, proj, fSales, me, kum: d.kumulatif, prospek: d.prospek || [] }); catatUnduh('Report', 'Laporan Penjualan (Excel)'); toast('Excel laporan penjualan terunduh'); }
     catch (e) { toast(e.message); } finally { setBusy(false); }
   }
   function unduhPdf() {
     const w = window.open('', '_blank'); if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
-    w.document.open(); w.document.write(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum: d.kumulatif })); w.document.close();
+    w.document.open(); w.document.write(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum: d.kumulatif, prospek: d.prospek || [] })); w.document.close();
     w.onload = () => { w.focus(); w.print(); }; setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
     catatUnduh('Report', 'Laporan Penjualan (PDF)'); toast('Jendela cetak terbuka — pilih "Save as PDF" 📄');
   }
@@ -204,6 +204,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
         <span className="hint">{rows.length} transaksi · {periode}{proj ? ' · ' + proj : ''}{fSales ? ' · sales ' + fSales : ''}. Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</span>
       </div>
       {d.kumulatif && <PosisiPenjualan k={d.kumulatif} proj={proj} impor={d.imporTersedia || []} busy={busy} imporJual={imporJual} />}
+      {(d.prospek || []).length > 0 && <ProspekBulan prospek={d.prospek} />}
       <h3 style={{ margin: '18px 0 8px' }}>Penjualan pada periode terpilih · {periode}</h3>
       <div className="rp-kpi">
         {[['Transaksi', ringkas.n, 'semua kontrak Reserved / Booking pada periode'], ['Masih Reserved', ringkas.reserved, 'unit tertahan Reserved hari ini'], ['Booking', ringkas.booking, `penjualan bersih · ${Math.round(ringkas.konversi * 100)}% dari transaksi`],
@@ -241,6 +242,30 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
     </>
   );
 }
+// ===== Prospek bulan berjalan (diisi manual di Presentasi Project → Kelola prospek) =====
+const BLN_PJ = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const blnPanjang = b => b ? BLN_PJ[Number(b.slice(5, 7)) - 1] + ' ' + b.slice(0, 4) : '';
+const nilaiProspek = x => !x.nilai_max ? '—' : x.nilai_min === x.nilai_max ? rpM(x.nilai_max) : rpM(x.nilai_min) + '–' + rpM(x.nilai_max);
+function ringkasProspek(prospek) {
+  const semua = prospek.flatMap(p => p.daftar);
+  const siap = semua.filter(x => x.tahap === 'Siap Booking');
+  return { n: semua.length, unit: semua.reduce((a, x) => a + (x.unit || 1), 0), min: semua.reduce((a, x) => a + (x.nilai_min || 0), 0), max: semua.reduce((a, x) => a + (x.nilai_max || 0), 0),
+    siap: siap.length, unitSiap: siap.reduce((a, x) => a + (x.unit || 1), 0), nilaiSiap: siap.reduce((a, x) => a + (x.nilai_max || 0), 0) };
+}
+function ProspekBulan({ prospek }) {
+  const R = ringkasProspek(prospek);
+  return (<div className="card" style={{ marginTop: 12 }}>
+    <h3 style={{ marginTop: 0 }}>Prospek {blnPanjang(prospek[0]?.bulan)} · {R.n} prospek · {R.unit} unit</h3>
+    <p className="hint" style={{ margin: '0 0 8px' }}>Perkiraan nilai {R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking {R.siap} prospek ({R.unitSiap} unit, ±{rpM(R.nilaiSiap)}). Sumber: daftar prospek yang diisi di Presentasi Project.</p>
+    {prospek.map(p => (<div key={p.project} style={{ marginTop: 8 }}><b style={{ fontSize: 13 }}>{p.project} · {blnPanjang(p.bulan)}</b>
+      {p.daftar.length ? <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table>
+        <thead><tr><th>No</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th className="num">Unit</th><th className="num">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
+        <tbody>{p.daftar.map((x, i) => (<tr key={i}><td data-label="No">{i + 1}</td><td data-label="Prospek"><b>{x.nama}</b></td><td data-label="Sales">{x.sales || '—'}{x.peran ? <span className="sub2">{x.peran}</span> : null}</td>
+          <td data-label="Minat unit">{x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—'}</td><td className="num" data-label="Unit">{x.unit || 1}</td><td className="num" data-label="Nilai">{nilaiProspek(x)}</td>
+          <td data-label="Tahap"><b>{x.tahap || '—'}</b></td><td data-label="Update">{x.update || '—'}</td><td data-label="Langkah">{x.langkah || '—'}</td></tr>))}</tbody></table></div>
+        : <p className="hint">Belum ada prospek bulan ini.</p>}</div>))}
+  </div>);
+}
 // ===== Posisi penjualan kumulatif s.d. hari ini — Reserved, Booking, Batal, penjualan bersih =====
 function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
   const b = k.batalBooking, p = k.penjualan;
@@ -259,6 +284,7 @@ function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
       <div><b style={{ fontSize: 13 }}>Penjualan bersih menurut cara bayar & akad</b>
         <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table><tbody>
           <tr><td>KPR</td><td className="num"><b>{p.kpr}</b> unit</td><td className="hint">{p.akad} sudah akad · {p.belumAkad} belum akad</td></tr>
+          {k.plafonKpr && <tr><td>Plafon KPR</td><td className="num"><b>{rpM(k.plafonKpr.total)}</b></td><td className="hint">sudah akad {rpM(k.plafonKpr.akad)} · belum akad {rpM(k.plafonKpr.belumAkad)}{k.plafonKpr.kosong ? ` · ${k.plafonKpr.kosong} konsumen belum ada data plafon` : ''}{k.plafonKpr.standar ? ` · ${k.plafonKpr.standar} Permai pakai plafon standar subsidi` : ''}</td></tr>}
           <tr><td>Cash bertahap / cicilan</td><td className="num"><b>{p.bertahap}</b> unit</td><td className="hint">dibayar bertahap ke developer</td></tr>
           {p.keras ? <tr><td>Cash keras</td><td className="num"><b>{p.keras}</b> unit</td><td></td></tr> : null}
         </tbody></table></div></div>
@@ -300,7 +326,7 @@ function TabelRekap({ rows, total, konversi, rata }) {
 }
 
 // ---------- Excel: Posisi s.d. hari ini, Kontrak Batal, Ringkasan (rumus), Detail, Proses KPR, Keterangan ----------
-async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum }) {
+async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum, prospek = [] }) {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook(); wb.creator = 'CRM Sales CHL';
   const HIJAU = 'FF12302A', EMAS = 'FFE2BE7A', KREM = 'FFF5F2EA', GARIS = 'FFE6E1D5';
@@ -319,7 +345,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
     const b = kum.batalBooking, p = kum.penjualan;
     const isi = [
       ['Total penjualan bersih (Booking aktif)', p.n, p.nilai, 'Nilai kontrak termasuk PPN' + (p.cash ? ` · harga cash ${fmtRp(p.cash)}` : '')],
-      ['   KPR — sudah akad', p.akad, null, ''], ['   KPR — belum akad', p.belumAkad, null, ''], ['   Cash bertahap / cicilan', p.bertahap, null, ''], ['   Cash keras', p.keras, null, ''],
+      ['   KPR — sudah akad', p.akad, kum.plafonKpr?.akad ?? null, 'Nilai = total plafon KPR'], ['   KPR — belum akad', p.belumAkad, kum.plafonKpr?.belumAkad ?? null, 'Nilai = total plafon KPR' + (kum.plafonKpr?.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : '')], ['   Cash bertahap / cicilan', p.bertahap, null, ''], ['   Cash keras', p.keras, null, ''],
       ['Reserved aktif', kum.reserved.n, kum.reserved.nilai, 'Belum diakui sebagai penjualan'],
       ['Booking tercatat (aktif + batal)', kum.bookingTercatat.n, kum.bookingTercatat.nilai, 'Semua kontrak yang pernah Booking'],
       ['Batal setelah Booking (nilai kontrak)', b.n, b.nilai, `Non-refund ${b.nonrefund} · refund ${b.refund}`],
@@ -413,11 +439,26 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
   // ---- Proses KPR ----
   const kp = wb.addWorksheet('Proses KPR');
   judul(kp, 'Proses KPR — status terakhir konsumen KPR', 'Proses KPR dihitung sejak Booking. Konsumen yang batal tercatat "Dihentikan".');
-  head(kp, 4, ['Kode Lead', 'Konsumen', 'Project · Unit', 'Sales', 'Status transaksi', 'Bank', 'Tahap KPR', 'Rencana Akad', 'Realisasi Akad', 'Update status terakhir']);
+  head(kp, 4, ['Kode Lead', 'Konsumen', 'Project · Unit', 'Sales', 'Status transaksi', 'Bank', 'Tahap KPR', 'Rencana Akad', 'Realisasi Akad', 'Plafon KPR (Rp)', 'Sumber plafon', 'Update status terakhir']);
   rows.filter(r => /kpr/i.test(r.bayar || '')).forEach((x, i) => { const r = 5 + i, k = x.kpr;
-    kp.getRow(r).values = [x.lead_code, x.nama, `${x.project} · ${x.unit}`, x.sales, x.status, k?.banks?.join(', ') || '-', x.status === 'Batal' ? 'Dihentikan' : (k ? k.label + (x.status === 'Reserved' ? ' (menunggu Booking)' : '') : '-'), tgl(k?.akad_tgl), tgl(k?.akad_realisasi), x.update_terakhir];
-    rapikan(kp, r, 10, i % 2 === 1); [8, 9].forEach(c => { kp.getRow(r).getCell(c).numFmt = TGL; }); kp.getRow(r).getCell(7).font = { name: 'Arial', bold: true, size: 10 }; });
-  [11, 22, 26, 9, 14, 12, 26, 13, 13, 46].forEach((w, i) => { kp.getColumn(i + 1).width = w; }); kp.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
+    kp.getRow(r).values = [x.lead_code, x.nama, `${x.project} · ${x.unit}`, x.sales, x.status, k?.banks?.join(', ') || '-', x.status === 'Batal' ? 'Dihentikan' : (k ? k.label + (x.status === 'Reserved' ? ' (menunggu Booking)' : '') : '-'), tgl(k?.akad_tgl), tgl(k?.akad_realisasi), x.plafon || null, x.plafon ? ({ disetujui: 'Disetujui bank', pengajuan: 'Pengajuan', standar: 'Standar subsidi' }[x.plafon_sumber] || '') : 'Belum dicatat', x.update_terakhir];
+    rapikan(kp, r, 12, i % 2 === 1); [8, 9].forEach(c => { kp.getRow(r).getCell(c).numFmt = TGL; }); kp.getRow(r).getCell(10).numFmt = RP; kp.getRow(r).getCell(7).font = { name: 'Arial', bold: true, size: 10 }; });
+  { const nK = rows.filter(r => /kpr/i.test(r.bayar || '')).length, tr2 = 5 + nK; kp.getCell(`A${tr2}`).value = 'Total plafon (Booking & Akad)'; kp.getCell(`A${tr2}`).font = { name: 'Arial', bold: true };
+    kp.getCell(`J${tr2}`).value = { formula: `SUMIFS(J5:J${Math.max(5, tr2 - 1)},E5:E${Math.max(5, tr2 - 1)},"<>Batal")` }; kp.getCell(`J${tr2}`).numFmt = RP; kp.getCell(`J${tr2}`).font = { name: 'Arial', bold: true }; }
+  [11, 22, 26, 9, 14, 12, 26, 13, 13, 18, 16, 46].forEach((w, i) => { kp.getColumn(i + 1).width = w; });
+  // ---- Prospek bulan berjalan ----
+  if (prospek.length) {
+    const pr = wb.addWorksheet('Prospek');
+    judul(pr, 'Prospek ' + blnPanjang(prospek[0]?.bulan), 'Daftar prospek yang diisi di Presentasi Project · perkiraan nilai = harga price list × unit');
+    head(pr, 4, ['No', 'Project', 'Prospek', 'Sales / Agent', 'Peran', 'Minat unit', 'Unit', 'Perkiraan nilai min (Rp)', 'Perkiraan nilai maks (Rp)', 'Tahap', 'Update terakhir', 'Langkah berikut']);
+    let rr = 5;
+    prospek.forEach(p => p.daftar.forEach(x => { const row = pr.getRow(rr);
+      [rr - 4, p.project, x.nama, x.sales || '', x.peran || '', x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / '), x.unit || 1, x.nilai_min || null, x.nilai_max || null, x.tahap || '', x.update || '', x.langkah || ''].forEach((v, c) => { row.getCell(c + 1).value = v; });
+      [8, 9].forEach(c => { row.getCell(c).numFmt = RP; }); rapikan(pr, rr, 12, rr % 2); rr++; }));
+    pr.getCell(`A${rr}`).value = 'Total'; pr.getCell(`A${rr}`).font = { name: 'Arial', bold: true };
+    ['G', 'H', 'I'].forEach(c => { pr.getCell(`${c}${rr}`).value = { formula: `SUM(${c}5:${c}${Math.max(5, rr - 1)})` }; pr.getCell(`${c}${rr}`).font = { name: 'Arial', bold: true }; if (c !== 'G') pr.getCell(`${c}${rr}`).numFmt = RP; });
+    [5, 14, 22, 18, 16, 20, 7, 18, 18, 14, 46, 46].forEach((w, i) => { pr.getColumn(i + 1).width = w; }); pr.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
+  } kp.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
 
   // ---- Keterangan ----
   const kt = wb.addWorksheet('Keterangan');
@@ -436,7 +477,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
 }
 
 // ---------- PDF: HTML siap cetak (A4 mendatar) ----------
-function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum }) {
+function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum, prospek = [] }) {
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const warna = { Booking: '#1E6A4C', Akad: '#0F5A3A', Batal: '#B4482A', Reserved: '#7A5414', 'Ganti kontrak': '#5B6E66' };
   const rek = (judul, data, konversi, rata) => `<h3>${judul}</h3><table><tr><th>Nama</th><th class="r">Unit</th><th class="r">Booking</th><th class="r">Batal</th><th class="r">Reserved</th><th class="r">Nilai penjualan</th><th class="r">${konversi ? 'Konversi' : 'Porsi'}</th>${rata ? '<th class="r">Rata-rata hari</th>' : ''}</tr>
@@ -456,6 +497,11 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   <p class="muted">KPR ${kum.penjualan.kpr} unit (${kum.penjualan.akad} sudah akad, ${kum.penjualan.belumAkad} belum akad) · cash bertahap ${kum.penjualan.bertahap} unit${kum.penjualan.keras ? ' · cash keras ' + kum.penjualan.keras + ' unit' : ''}. Batal setelah Booking: non-refund ${kum.batalBooking.nonrefund} kontrak (nilai kontrak ${rpM(kum.batalBooking.nilaiNonrefund)}), refund ${kum.batalBooking.refund} kontrak (nilai kontrak ${rpM(kum.batalBooking.nilaiRefund)}). Uang dari konsumen yang batal: dibayar ${fmtRp(kum.batalBooking.dibayar)}, hangus ${fmtRp(kum.batalBooking.hangus)}, dikembalikan ${fmtRp(kum.batalBooking.dikembalikan)}.</p>
   <table><tr><th>Tahun penjualan</th><th class="r">Transaksi</th><th class="r">Masih Reserved</th><th class="r">Booking berjalan</th><th class="r">Nilai Booking</th><th class="r">Batal saat Reserved</th><th class="r">Batal setelah Booking</th><th class="r">Nilai batal Booking</th></tr>${kum.perTahun.map(t => `<tr><td><b>${t.tahun}</b></td><td class="r"><b>${(t.reserved || 0) + t.aktif + t.batalReserved + t.batal}</b></td><td class="r">${t.reserved || 0}</td><td class="r"><b>${t.aktif}</b></td><td class="r"><b>${rpM(t.nilaiAktif)}</b></td><td class="r">${t.batalReserved}</td><td class="r">${t.batal}</td><td class="r">${rpM(t.nilaiBatal)}</td></tr>`).join('')}</table>
   <p class="muted">Per tahun penjualan (tanggal Booking; Reserved bila belum Booking): Transaksi = Masih Reserved + Booking berjalan + Batal saat Reserved + Batal setelah Booking. Kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya.</p>` : ''}
+  ${kum?.plafonKpr ? `<p class="muted"><b>Plafon KPR</b>: total ${rpM(kum.plafonKpr.total)} — sudah akad ${rpM(kum.plafonKpr.akad)} · belum akad ${rpM(kum.plafonKpr.belumAkad)}${kum.plafonKpr.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : ''}${kum.plafonKpr.standar ? ` · ${kum.plafonKpr.standar} unit Permai memakai plafon standar subsidi` : ''}.</p>` : ''}
+  ${prospek.some(p => p.daftar.length) ? (() => { const R = ringkasProspek(prospek); return `<h2>Prospek ${esc(blnPanjang(prospek[0]?.bulan))} · ${R.n} prospek · ${R.unit} unit</h2>
+  <p class="muted">Perkiraan nilai ${R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking ${R.siap} prospek (${R.unitSiap} unit, ±${rpM(R.nilaiSiap)}).</p>
+  <table><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr>
+  ${prospek.flatMap(p => p.daftar.map(x => ({ ...x, project: p.project }))).map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.project)}</td><td><b>${esc(x.nama)}</b></td><td>${esc(x.sales || '—')}${x.peran ? '<br><span class="muted">' + esc(x.peran) + '</span>' : ''}</td><td>${esc(x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—')}</td><td class="r">${x.unit || 1}</td><td class="r">${nilaiProspek(x)}</td><td><b>${esc(x.tahap || '—')}</b></td><td>${esc(x.update || '—')}</td><td>${esc(x.langkah || '—')}</td></tr>`).join('')}</table>`; })() : ''}
   <h2>Ringkasan penjualan · ${esc(periode)}</h2>
   <div class="kpi">${[['Transaksi', ringkas.n, 'semua kontrak Reserved / Booking pada periode'], ['Masih Reserved', ringkas.reserved, 'tertahan Reserved hari ini'], ['Booking', ringkas.booking, 'penjualan bersih · ' + Math.round(ringkas.konversi * 100) + '% dari transaksi'], ['Batal saat Reserved', ringkas.batalRv, 'batal sebelum sempat Booking'], ['Batal setelah Booking', ringkas.batalBk, 'kontrak Booking yang batal'], ['Nilai penjualan', rpM(ringkas.nilai), 'harga jual unit Booking']]
     .map(([l, v, k], i) => `<div class="${i === 5 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
@@ -470,8 +516,9 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
     const perTahap = {}; pk.forEach(r => { const l = r.kpr?.akad_tgl ? 'SP3K / rencana akad' : (r.kpr?.label || 'Belum dicatat'); perTahap[l] = (perTahap[l] || 0) + 1; });
     return `<h2 style="page-break-before:always">Proses KPR berjalan · ${pk.length} konsumen</h2>
   <p class="muted">Booking dengan cara bayar KPR yang belum akad, diurutkan dari Booking terlama. Per tahap: ${Object.entries(perTahap).map(([l, n]) => `${esc(l)} ${n}`).join(' · ')}.</p>
-  <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Hari sejak Booking</th><th>Status KPR terakhir</th></tr>
-  ${pk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)}</td><td>${esc(r.sales || '—')}</td><td>${fmtDate(r.tgl_booking)}</td><td class="r">${lama(r.tgl_booking)}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>`;
+  <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Hari sejak Booking</th><th class="r">Plafon KPR</th><th>Status KPR terakhir</th></tr>
+  ${pk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)}</td><td>${esc(r.sales || '—')}</td><td>${fmtDate(r.tgl_booking)}</td><td class="r">${lama(r.tgl_booking)}</td><td class="r">${r.plafon ? fmtRp(r.plafon) + '<br><span class="muted">' + ({ disetujui: 'disetujui bank', pengajuan: 'pengajuan', standar: 'standar subsidi' }[r.plafon_sumber] || '') + '</span>' : '<span class="muted">belum dicatat</span>'}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}
+  <tr><td colspan="6"><b>Total plafon KPR berjalan</b></td><td class="r"><b>${fmtRp(pk.reduce((a, r) => a + (r.plafon || 0), 0))}</b></td><td></td></tr></table>`;
   })()}
   <h2 style="page-break-before:always">Detail transaksi</h2>
   <p class="muted">Satu baris = satu konsumen/unit. Tanggal Reserved tampil di kolom Status bila konsumen sempat Reserved. Kolom terakhir = update status terakhir (akad / rencana akad / proses KPR / cara bayar cash).</p>
