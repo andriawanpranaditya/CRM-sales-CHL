@@ -251,19 +251,21 @@ function ringkasProspek(prospek) {
   const semua = prospek.flatMap(p => p.daftar);
   const siap = semua.filter(x => x.tahap === 'Siap Booking');
   return { n: semua.length, unit: semua.reduce((a, x) => a + (x.unit || 1), 0), min: semua.reduce((a, x) => a + (x.nilai_min || 0), 0), max: semua.reduce((a, x) => a + (x.nilai_max || 0), 0),
-    siap: siap.length, unitSiap: siap.reduce((a, x) => a + (x.unit || 1), 0), nilaiSiap: siap.reduce((a, x) => a + (x.nilai_max || 0), 0) };
+    siap: siap.length, unitSiap: siap.reduce((a, x) => a + (x.unit || 1), 0), nilaiSiap: siap.reduce((a, x) => a + (x.nilai_max || 0), 0),
+    // target closing di bulan prospek
+    tgt: (() => { const bl = prospek[0]?.bulan || ''; const t = semua.filter(x => x.target && x.target.startsWith(bl)); return { n: t.length, unit: t.reduce((a, x) => a + (x.unit || 1), 0), nilai: t.reduce((a, x) => a + (x.nilai_max || 0), 0) }; })() };
 }
 function ProspekBulan({ prospek }) {
   const R = ringkasProspek(prospek);
   return (<div className="card" style={{ marginTop: 12 }}>
     <h3 style={{ marginTop: 0 }}>Prospek {blnPanjang(prospek[0]?.bulan)} · {R.n} prospek · {R.unit} unit</h3>
-    <p className="hint" style={{ margin: '0 0 8px' }}>Perkiraan nilai {R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking {R.siap} prospek ({R.unitSiap} unit, ±{rpM(R.nilaiSiap)}). Sumber: daftar prospek yang diisi di Presentasi Project.</p>
+    <p className="hint" style={{ margin: '0 0 8px' }}>Perkiraan nilai {R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking {R.siap} prospek ({R.unitSiap} unit, ±{rpM(R.nilaiSiap)}){R.tgt.n ? ` · target closing ${blnPanjang(prospek[0]?.bulan)}: ${R.tgt.n} prospek (${R.tgt.unit} unit, ±${rpM(R.tgt.nilai)})` : ''}. Sumber: daftar prospek yang diisi di Presentasi Project.</p>
     {prospek.map(p => (<div key={p.project} style={{ marginTop: 8 }}><b style={{ fontSize: 13 }}>{p.project} · {blnPanjang(p.bulan)}</b>
       {p.daftar.length ? <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table>
-        <thead><tr><th>No</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th className="num">Unit</th><th className="num">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
+        <thead><tr><th>No</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th className="num">Unit</th><th className="num">Perkiraan nilai</th><th>Tahap</th><th>Target closing</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
         <tbody>{p.daftar.map((x, i) => (<tr key={i}><td data-label="No">{i + 1}</td><td data-label="Prospek"><b>{x.nama}</b></td><td data-label="Sales">{x.sales || '—'}{x.peran ? <span className="sub2">{x.peran}</span> : null}</td>
           <td data-label="Minat unit">{x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—'}</td><td className="num" data-label="Unit">{x.unit || 1}</td><td className="num" data-label="Nilai">{nilaiProspek(x)}</td>
-          <td data-label="Tahap"><b>{x.tahap || '—'}</b></td><td data-label="Update">{x.update || '—'}</td><td data-label="Langkah">{x.langkah || '—'}</td></tr>))}</tbody></table></div>
+          <td data-label="Tahap"><b>{x.tahap || '—'}</b></td><td data-label="Target closing">{x.target ? fmtDate(x.target) : '—'}</td><td data-label="Update">{x.update || '—'}</td><td data-label="Langkah">{x.langkah || '—'}</td></tr>))}</tbody></table></div>
         : <p className="hint">Belum ada prospek bulan ini.</p>}</div>))}
   </div>);
 }
@@ -471,14 +473,14 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
   if (prospek.length) {
     const pr = wb.addWorksheet('Prospek');
     judul(pr, 'Prospek ' + blnPanjang(prospek[0]?.bulan), 'Daftar prospek yang diisi di Presentasi Project · perkiraan nilai = harga price list × unit');
-    head(pr, 4, ['No', 'Project', 'Prospek', 'Sales / Agent', 'Peran', 'Minat unit', 'Unit', 'Perkiraan nilai min (Rp)', 'Perkiraan nilai maks (Rp)', 'Tahap', 'Update terakhir', 'Langkah berikut']);
+    head(pr, 4, ['No', 'Project', 'Prospek', 'Sales / Agent', 'Peran', 'Minat unit', 'Unit', 'Perkiraan nilai min (Rp)', 'Perkiraan nilai maks (Rp)', 'Tahap', 'Target closing', 'Update terakhir', 'Langkah berikut']);
     let rr = 5;
     prospek.forEach(p => p.daftar.forEach(x => { const row = pr.getRow(rr);
-      [rr - 4, p.project, x.nama, x.sales || '', x.peran || '', x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / '), x.unit || 1, x.nilai_min || null, x.nilai_max || null, x.tahap || '', x.update || '', x.langkah || ''].forEach((v, c) => { row.getCell(c + 1).value = v; });
-      [8, 9].forEach(c => { row.getCell(c).numFmt = RP; }); rapikan(pr, rr, 12, rr % 2); rr++; }));
+      [rr - 4, p.project, x.nama, x.sales || '', x.peran || '', x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / '), x.unit || 1, x.nilai_min || null, x.nilai_max || null, x.tahap || '', x.target ? new Date(x.target + 'T00:00:00') : null, x.update || '', x.langkah || ''].forEach((v, c) => { row.getCell(c + 1).value = v; });
+      [8, 9].forEach(c => { row.getCell(c).numFmt = RP; }); row.getCell(11).numFmt = TGL; rapikan(pr, rr, 13, rr % 2); rr++; }));
     pr.getCell(`A${rr}`).value = 'Total'; pr.getCell(`A${rr}`).font = { name: 'Arial', bold: true };
     ['G', 'H', 'I'].forEach(c => { pr.getCell(`${c}${rr}`).value = { formula: `SUM(${c}5:${c}${Math.max(5, rr - 1)})` }; pr.getCell(`${c}${rr}`).font = { name: 'Arial', bold: true }; if (c !== 'G') pr.getCell(`${c}${rr}`).numFmt = RP; });
-    [5, 14, 22, 18, 16, 20, 7, 18, 18, 14, 46, 46].forEach((w, i) => { pr.getColumn(i + 1).width = w; }); pr.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
+    [5, 14, 22, 18, 16, 20, 7, 18, 18, 14, 13, 46, 46].forEach((w, i) => { pr.getColumn(i + 1).width = w; }); pr.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
   } kp.views = [{ state: 'frozen', ySplit: 4, showGridLines: false }];
 
   // ---- Keterangan ----
@@ -524,9 +526,9 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   <p class="muted">Per tahun penjualan (tanggal Booking; Reserved bila belum Booking): Transaksi = Masih Reserved + Booking berjalan + Batal saat Reserved + Batal setelah Booking. Kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya.</p>` : ''}
   ${kum?.plafonKpr ? `<p class="muted"><b>Plafon KPR masih proses</b> (${kum.plafonKpr.n} konsumen belum akad): ${rpM(kum.plafonKpr.total)}${kum.plafonKpr.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : ''}${kum.plafonKpr.sementara ? ` · ${kum.plafonKpr.sementara} konsumen memakai harga transaksi karena plafon belum tercatat` : ''}.</p>` : ''}
   ${prospek.some(p => p.daftar.length) ? (() => { const R = ringkasProspek(prospek); return `<h2>Prospek ${esc(blnPanjang(prospek[0]?.bulan))} · ${R.n} prospek · ${R.unit} unit</h2>
-  <p class="muted">Perkiraan nilai ${R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking ${R.siap} prospek (${R.unitSiap} unit, ±${rpM(R.nilaiSiap)}).</p>
-  <table><colgroup><col style="width:3%"><col style="width:9%"><col style="width:11%"><col style="width:10%"><col style="width:10%"><col style="width:4%"><col style="width:10%"><col style="width:8%"><col style="width:17%"><col></colgroup><thead><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
-  ${prospek.flatMap(p => p.daftar.map(x => ({ ...x, project: p.project }))).map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.project)}</td><td><b>${esc(x.nama)}</b></td><td>${esc(x.sales || '—')}${x.peran ? '<br><span class="muted">' + esc(x.peran) + '</span>' : ''}</td><td>${esc(x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—')}</td><td class="r">${x.unit || 1}</td><td class="r">${nilaiProspek(x)}</td><td><b>${esc(x.tahap || '—')}</b></td><td>${esc(x.update || '—')}</td><td>${esc(x.langkah || '—')}</td></tr>`).join('')}</table>`; })() : ''}
+  <p class="muted">Perkiraan nilai ${R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking ${R.siap} prospek (${R.unitSiap} unit, ±${rpM(R.nilaiSiap)})${R.tgt.n ? ` · <b>target closing ${esc(blnPanjang(prospek[0]?.bulan))}: ${R.tgt.n} prospek (${R.tgt.unit} unit, ±${rpM(R.tgt.nilai)})</b>` : ''}.</p>
+  <table><colgroup><col style="width:3%"><col style="width:8%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:4%"><col style="width:10%"><col style="width:8%"><col style="width:7%"><col style="width:16%"><col></colgroup><thead><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Target closing</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
+  ${prospek.flatMap(p => p.daftar.map(x => ({ ...x, project: p.project }))).map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.project)}</td><td><b>${esc(x.nama)}</b></td><td>${esc(x.sales || '—')}${x.peran ? '<br><span class="muted">' + esc(x.peran) + '</span>' : ''}</td><td>${esc(x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—')}</td><td class="r">${x.unit || 1}</td><td class="r">${nilaiProspek(x)}</td><td><b>${esc(x.tahap || '—')}</b></td><td>${x.target ? fmtDate(x.target) : '—'}</td><td>${esc(x.update || '—')}</td><td>${esc(x.langkah || '—')}</td></tr>`).join('')}</table>`; })() : ''}
   ${(() => {
     // Proses KPR berjalan (Booking KPR belum akad) — semua periode, posisi hari ini — tepat di bawah Prospek
     if (!kum) return '';

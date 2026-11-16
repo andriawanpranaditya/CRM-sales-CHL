@@ -165,7 +165,7 @@ function KelolaProspek({ P, simpan, onSimpan }) {
   return (<details className="card pz-cek pz-kp"><summary><b>✎ Kelola prospek — {P.nama}</b> <span className="hint">({rows.length} prospek · tambah, ubah, atau hapus; tersimpan untuk slide Prospek)</span></summary>
     <div className="pz-kp-atas"><label>Bulan <input type="month" value={bulan} onChange={e => { setBulan(e.target.value); setUbah(true); }} /></label>
       <span className="hint">Kolom "Nilai" dipakai untuk menghitung potensi nilai{permai ? ' (harga Permai Bisa)' : ' dari harga Price List per tipe'}.</span></div>
-    <div className="tbl-wrap"><table className="pz-kp-tb"><thead><tr><th>#</th><th>Nama prospek</th><th>Sales / agent</th><th>Peran</th><th>Minat unit</th>{permai ? null : <th>Nilai (tipe)</th>}<th>Unit</th><th>Update terakhir</th><th>Tahap</th><th>Langkah berikut</th><th></th></tr></thead>
+    <div className="tbl-wrap"><table className="pz-kp-tb"><thead><tr><th>#</th><th>Nama prospek</th><th>Sales / agent</th><th>Peran</th><th>Minat unit</th>{permai ? null : <th>Nilai (tipe)</th>}<th>Unit</th><th>Update terakhir</th><th>Tahap</th><th>Target closing</th><th>Langkah berikut</th><th></th></tr></thead>
       <tbody>{rows.map((x, i) => <tr key={i}>
         <td>{i + 1}</td>
         <td><input value={x.nama || ''} onChange={e => set(i, 'nama', e.target.value)} placeholder="Nama" /></td>
@@ -176,11 +176,12 @@ function KelolaProspek({ P, simpan, onSimpan }) {
         <td><input type="number" min={1} max={20} value={x.unit || 1} onChange={e => set(i, 'unit', Number(e.target.value) || 1)} style={{ width: 54 }} /></td>
         <td><textarea rows={2} value={x.update || ''} onChange={e => set(i, 'update', e.target.value)} /></td>
         <td><select value={x.tahap || 'Follow up'} onChange={e => set(i, 'tahap', e.target.value)}>{[...new Set([...TAHAP_PROSPEK, x.tahap].filter(Boolean))].map(t => <option key={t}>{t}</option>)}</select></td>
+        <td><input type="date" value={x.target || ''} onChange={e => set(i, 'target', e.target.value)} style={{ width: 138 }} title="Target closing (Booking)" /></td>
         <td><textarea rows={2} value={x.langkah || ''} onChange={e => set(i, 'langkah', e.target.value)} /></td>
         <td><button className="sort-btn" title="Hapus prospek" onClick={() => { setRows(r => r.filter((_, j) => j !== i)); setUbah(true); }}>🗑</button></td></tr>)}
-        {!rows.length && <tr><td colSpan={11} className="hint" style={{ textAlign: 'center', padding: 14 }}>Belum ada prospek — slide menampilkan "Belum ada prospek bulan ini".</td></tr>}</tbody></table></div>
+        {!rows.length && <tr><td colSpan={12} className="hint" style={{ textAlign: 'center', padding: 14 }}>Belum ada prospek — slide menampilkan "Belum ada prospek bulan ini".</td></tr>}</tbody></table></div>
     <datalist id="kp-peran"><option value="Sales in-house" /><option value="Agent" /><option value="Walk in" /></datalist>
-    <div className="pz-kp-aksi"><button className="sort-btn" onClick={() => { setRows(r => [...r, { nama: '', sales: '', peran: 'Sales in-house', keteranganUnit: '', tipe: permai ? ['X'] : [], unit: 1, update: '', tahap: 'Follow up', langkah: '' }]); setUbah(true); }}>+ Tambah prospek</button>
+    <div className="pz-kp-aksi"><button className="sort-btn" onClick={() => { setRows(r => [...r, { nama: '', sales: '', peran: 'Sales in-house', keteranganUnit: '', tipe: permai ? ['X'] : [], unit: 1, update: '', tahap: 'Follow up', target: '', langkah: '' }]); setUbah(true); }}>+ Tambah prospek</button>
       <span style={{ flex: 1 }} />
       {simpan && <button className="sort-btn" onClick={() => { if (confirm('Kembalikan daftar prospek ke daftar awal?')) onSimpan({ reset: true }); }}>↺ Daftar awal</button>}
       <button className="btn btn-primary" style={{ width: 'auto' }} disabled={!ubah} onClick={() => onSimpan({ bulan, daftar: rows.map(x => permai ? { ...x, tipe: ['X'] } : x) })}>Simpan prospek</button></div></details>);

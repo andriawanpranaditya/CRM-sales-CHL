@@ -31,7 +31,7 @@ export async function POST(req) {
       const daftar = (Array.isArray(b.daftar) ? b.daftar : []).slice(0, 30).map(x => ({
         nama: t(x.nama, 80), sales: t(x.sales, 60), peran: t(x.peran, 40), keteranganUnit: t(x.keteranganUnit, 80),
         tipe: (Array.isArray(x.tipe) ? x.tipe : []).filter(y => ['A', 'B', 'C', 'X'].includes(y)), unit: Math.max(1, Math.min(20, Number(x.unit) || 1)),
-        update: t(x.update), tahap: t(x.tahap, 40), langkah: t(x.langkah) })).filter(x => x.nama.trim());
+        update: t(x.update), tahap: t(x.tahap, 40), langkah: t(x.langkah), target: /^\d{4}-\d{2}-\d{2}$/.test(String(x.target || '')) ? x.target : '' })).filter(x => x.nama.trim());
       semua[b.project] = { bulan: /^\d{4}-\d{2}$/.test(b.bulan || '') ? b.bulan : null, daftar };
     }
     await sql`INSERT INTO settings (key, items) VALUES ('presentasi_prospek', ${JSON.stringify(semua)}) ON CONFLICT (key) DO UPDATE SET items = ${JSON.stringify(semua)}`;
