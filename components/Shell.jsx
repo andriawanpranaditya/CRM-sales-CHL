@@ -4,6 +4,7 @@ import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import { PopupPengingat } from '@/components/TargetSales';
 import PushNotif from '@/components/PushNotif';
+import KartuTabelHP from '@/components/KartuTabelHP';
 import BusyIndicator from '@/components/BusyIndicator';
 import IkonMenu from '@/components/IkonMenu';
 import { useEffect, useState } from 'react';
@@ -290,6 +291,7 @@ export default function Shell({ user, children }) {
         </div>
         <BusyIndicator />
         <PushNotif user={user} />
+        <KartuTabelHP />
         {children}
         {!user.leadAgent && <PopupPengingat user={user} />}
         {user.leadAgent && <ArahkanAgent />}

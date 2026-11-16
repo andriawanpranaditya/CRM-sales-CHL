@@ -1127,3 +1127,22 @@ button:not(:disabled):active,.sort-btn:active,.btn:active{transform:scale(.97)}
 .rl-kartu tr:last-child td{border-bottom:0}.rl-kartu .muted,.rl-kartu p.muted{color:#6B7A70}.rl-kartu p{margin:6px 0}
 .rl-kartu img{max-width:100%;height:auto;border-radius:8px}
 .rl-kartu .kpi{display:inline-block;border:1px solid #E6DFD0;border-radius:12px;padding:8px 14px;margin:4px 8px 4px 0;background:#fff}.rl-kartu .kpi b{font-size:18px;color:#1E5B45}
+
+/* ===== HP: baris tabel → kartu ringkas 2 kolom (keterangan di atas nilai) ===== */
+@media(max-width:760px){
+  .main table.mb-kartu tbody tr:not(.row-detail){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;padding:12px 14px;align-items:start}
+  .main table.mb-kartu tbody tr:not(.row-detail) > td{display:block;padding:0;border:0;text-align:left;min-width:0;overflow-wrap:anywhere;font-size:13px}
+  .main table.mb-kartu tbody tr:not(.row-detail) > td::before{display:block;margin:0 0 2px;font-size:9.5px;letter-spacing:.5px}
+  .main table.mb-kartu tbody tr:not(.row-detail) > td[colspan]{grid-column:1/-1}
+  .main table.mb-kartu td.mb-judul{grid-column:1/-1;order:-1;font-size:15px;font-weight:700;padding-bottom:8px!important;border-bottom:1px solid var(--line)!important}
+  .main table.mb-kartu td.mb-judul::before{content:none!important}
+  .main table.mb-kartu td.mb-penuh{grid-column:1/-1}
+  .main table.mb-kartu td.mb-aksi{grid-column:1/-1;order:99;display:flex!important;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding-top:8px!important;border-top:1px dashed var(--line)!important}
+  .main table.mb-kartu td.mb-aksi::before{content:none!important}
+  .main table.mb-kartu td.num{text-align:left}
+  .main table.mb-kartu td .sub2,.main table.mb-kartu td .tg-sub{display:block;margin-top:2px}
+  .tbl-leads .clamp2{text-align:left!important}
+}
+@media(max-width:760px){ .main table.mb-kartu.lk-tabel tr{border:1px solid var(--line,#E6DFD0);border-radius:var(--radius,14px);margin-bottom:10px;background:var(--card,#fff)} .main table.mb-kartu.lk-tabel td{width:auto;border:0!important;padding:0!important} }
+@media(max-width:760px){ .main table.mb-kartu tbody tr:not(.row-detail) > td::before{white-space:normal;line-height:1.25;overflow-wrap:anywhere;text-align:left} }
+@media(max-width:760px){ .main table.mb-kartu tbody tr:not(.row-detail) > td{width:auto!important;max-width:none!important;min-width:0!important;white-space:normal!important} }
