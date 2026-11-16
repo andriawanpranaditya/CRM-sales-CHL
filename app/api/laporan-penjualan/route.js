@@ -33,7 +33,7 @@ function teksUpdate(r) {
   if (r.status === 'Batal') return `Batal ${tglId(r.tgl_batal)}` + (r.alasan_batal ? ` — ${r.alasan_batal}` : '');
   if (/kpr/i.test(r.bayar || '')) {
     const k = r.kpr;
-    if (k?.akad_realisasi) return tambah(`Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : ''), r.plafon ? teksPlafon(r) : '', r.no_kontrak ? 'kontrak ' + r.no_kontrak : '', k.catatan, r.catatan);
+    if (k?.akad_realisasi) return tambah(`Akad terealisasi ${tglId(k.akad_realisasi)}` + (k.akad_bank ? ` (${k.akad_bank})` : ''), r.no_kontrak ? 'kontrak ' + r.no_kontrak : '', k.catatan, r.catatan);
     if (k?.akad_tgl) return tambah(`Rencana akad ${tglId(k.akad_tgl)}` + (k.akad_bank ? ` (${k.akad_bank})` : '') + ' — SP3K terbit', teksPlafon(r), k.catatan);
     if (r.status === 'Reserved') return 'Reserved — KPR ' + (k?.label && k.label !== 'Menunggu Booking' ? k.label : 'belum dimulai') + ' (dihitung setelah Booking)';
     if (!k) return tambah('Booking — proses KPR belum dicatat', r.plafon ? teksPlafon(r) : '');
@@ -121,7 +121,7 @@ export async function GET(req) {
   }
   // Plafon KPR: disetujui bank (SP3K) → pengajuan di Proses KPR → Permai: plafon standar KPR subsidi
   rows.forEach(g => {
-    if (!/kpr/i.test(g.bayar || '')) return;
+    if (!/kpr/i.test(g.bayar || '') || g.status !== 'Booking' || g.kpr?.akad_realisasi) return; // hanya yang masih proses KPR
     if (g.kpr?.plafon_setuju) { g.plafon = g.kpr.plafon_setuju; g.plafon_sumber = 'disetujui'; }
     else if (g.kpr?.plafon_aju) { g.plafon = g.kpr.plafon_aju; g.plafon_sumber = 'pengajuan'; }
     else if (/permai/i.test(g.project || '')) { g.plafon = PERMAI.plafon; g.plafon_sumber = 'standar'; }
@@ -142,8 +142,9 @@ export async function GET(req) {
   const kumulatif = {
     per: hariIni,
     penjualan: { n: aktif.length, nilai: jum(aktif, 'harga'), cash: jum(aktif, 'harga_cash'), kpr: kpr.length, akad: akad.length, belumAkad: kpr.length - akad.length, bertahap: aktif.filter(g => /bertahap/i.test(g.bayar || '')).length, keras: aktif.filter(g => /keras/i.test(g.bayar || '')).length },
-    plafonKpr: { akad: jum(akad, 'plafon'), belumAkad: jum(belum, 'plafon'), total: jum(kpr, 'plafon'), tercatat: kpr.filter(g => g.plafon).length, kosong: kpr.filter(g => !g.plafon).length,
-      standar: kpr.filter(g => g.plafon_sumber === 'standar').length },
+    // Plafon hanya untuk konsumen yang MASIH PROSES KPR (Booking KPR belum akad)
+    plafonKpr: { n: belum.length, total: jum(belum, 'plafon'), tercatat: belum.filter(g => g.plafon).length, kosong: belum.filter(g => !g.plafon).length,
+      standar: belum.filter(g => g.plafon_sumber === 'standar').length },
     reserved: { n: resv.length, nilai: jum(resv, 'harga') },
     bookingTercatat: { n: aktif.length + batalBk.length, nilai: jum(aktif, 'harga') + jum(batalBk, 'harga') },
     batalBooking: { n: batalBk.length, nilai: jum(batalBk, 'harga'), nonrefund: batalBk.filter(g => g.batal_refund === false).length, refund: batalBk.filter(g => g.batal_refund === true).length,
@@ -159,6 +160,10 @@ export async function GET(req) {
         batal: batalBk.filter(di).length, nilaiBatal: jum(batalBk.filter(di), 'harga'), reserved: resv.filter(di).length, batalReserved: batalRv.filter(di).length }; }),
   };
 
+  // KPR yang masih berjalan (Booking KPR, belum akad) — semua periode, posisi hari ini
+  kumulatif.prosesKpr = belum.map(g => ({ lead_code: g.lead_code, nama: g.nama, project: g.project, unit: g.unit, tipe: g.tipe, sales: g.sales, tgl_booking: g.tgl_booking, harga: g.harga,
+    plafon: g.plafon || null, plafon_sumber: g.plafon_sumber || '', banks: g.kpr?.banks || [], tahap: g.kpr ? (g.kpr.akad_tgl ? 'SP3K / rencana akad' : g.kpr.label) : 'Belum dicatat',
+    update: teksUpdate({ ...g, status: 'Booking' }) })).sort((a, b) => String(a.tgl_booking || '').localeCompare(String(b.tgl_booking || '')));
   // Filter periode: kontrak yang TANGGAL PENJUALANNYA (Booking; Reserved bila belum Booking) ada di dalam rentang.
   // Status tetap posisi per hari ini — kontrak tahun lalu yang batal tahun ini tidak masuk laporan tahun ini.
   const dalam = t => t && (!d1 || t >= d1) && (!d2 || t <= d2);
