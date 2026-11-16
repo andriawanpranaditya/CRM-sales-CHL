@@ -6,7 +6,7 @@ import IsianOther, { cekOtherKlien, kirimOther } from '@/components/IsianOther';
 import Toast, { toast } from '@/components/Toast';
 import { api, waLink, bukaWA, todayISO, fmtDate, reminder, BADGE } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
-import { kualitasLead, RENCANA_BELI } from '@/lib/kualitas-lead';
+import { kualitasLead, RENCANA_BELI, teksKriteria } from '@/lib/kualitas-lead';
 import { muatPriceList } from '@/components/usePriceList';
 import { statusFU, susunPesan, rencanaJadwal, aturStatus, hariIniWIB, tambahHari, fmtTglPanjang, NURTURE, ALASAN_TUNTAS, ALASAN_DROP_DINI, ALASAN_DROP_LAIN, MAKS_HARI_PERCAKAPAN } from '@/lib/fuwajib';
 
@@ -110,6 +110,7 @@ export default function FormPage() {
   const [l2sDone, setL2sDone] = useState(null);
   const [antri, setAntri] = useState(null); // antrian Marcom: lead belum dioper + yang dibagi otomatis
   const [kini, setKini] = useState(Date.now());
+  const [kriteria, setKriteria] = useState(null); // kriteria 🔥 Siap oper dari Manager
   const [trx, setTrx] = useState({ lead_code: '', jenis: 'Booking', tgl: todayISO(), nilai: '', nilai_jual: '', catatan: '', project: '', bayar: '', unit: '', cicilan: '', datang: null, alasan_kat: '', alasan_ket: '', refund: null, dana_hangus: '' });
   const IDN0 = { nama_ktp: '', nik: '', npwp: '', email: '', alamat: '', rt_rw: '', kel_desa: '', kecamatan: '', kota_kab: '', provinsi: '', alamat_domisili: '' };
   const [idn, setIdn] = useState(IDN0);
@@ -311,6 +312,7 @@ ${konteksSaja ? 'Konteks dari Marcom untuk lead yang sudah Anda pegang:' : 'Ada 
 Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini. Mohon sapa maksimal ${bts} menit (lewat ${alih} menit lead dialihkan otomatis ke sales lain) & LANJUTKAN topik di atas (jangan mulai dari awal). Template pembuka sudah otomatis tersedia di tab Follow Up. Semangat closing! 💪`;
   }
   // Antrian Marcom: lead belum dioper (🔥 dengan hitung mundur) + lead yang dibagi otomatis
+  useEffect(() => { if (isMarkom) api('/api/distribusi?kriteria=1', { silent: true }).then(x => setKriteria(x.kriteria)).catch(() => {}); }, [isMarkom]); // eslint-disable-line
   function muatAntri() { api('/api/distribusi?antrian=1', { silent: true }).then(a => setAntri({ ...a, offset: new Date(a.now).getTime() - Date.now() })).catch(() => {}); }
   useEffect(() => {
     if (!isMarkom || tab !== 'l2s') return;
@@ -624,8 +626,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
             {['', 'Laki-laki', 'Perempuan'].map(g => <option key={g} value={g}>{g || '— pilih —'}</option>)}</select></div>
           {<div className="field"><label>Budget (Rp)</label><InputRupiah {...fl('budget')} placeholder="contoh: 500.000.000" /></div>}
           {<div className="field"><label>Cara Pembayaran</label><select {...fl('bayar')}>{opsi('bayar')}</select></div>}
-          {isMarkom && (() => { const q = kualitasLead(lead); return (<div className="field full"><span className={'ds-chip ' + (q.label === 'siap' ? 'ds-merah' : q.label === 'nurture' ? 'ds-kuning' : 'ds-abu')}>{q.ikon} {q.teks}</span>
-            <span className="hint" style={{ marginLeft: 8 }}>{q.label === 'siap' ? 'Lead ini masuk antrian oper — oper ke sales lewat Leads to Sales sebelum dibagi otomatis.' : 'Untuk 🔥 Siap oper: nama jelas + minimal 2 dari rencana beli (≤ 6 bulan), cara bayar, budget, domisili, tipe. Kurang: ' + q.kurang.join(', ')}</span></div>); })()}
+          {isMarkom && (() => { const q = kualitasLead(lead, kriteria || undefined); return (<div className="field full"><span className={'ds-chip ' + (q.label === 'siap' ? 'ds-merah' : q.label === 'nurture' ? 'ds-kuning' : 'ds-abu')}>{q.ikon} {q.teks}</span>
+            <span className="hint" style={{ marginLeft: 8 }}>{q.label === 'siap' ? 'Lead ini masuk antrian oper — oper ke sales lewat Leads to Sales sebelum dibagi otomatis.' : 'Untuk 🔥 Siap oper: ' + teksKriteria(kriteria || undefined) + '. Kurang: ' + (q.kurang.join(', ') || '—')}</span></div>); })()}
           {!isMarkom && <div className="field"><label>Sales / PIC <span className="req">*</span></label>
             {me?.role === 'sales'
               ? <input value={me.name} disabled />

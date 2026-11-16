@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/components/util';
 import Toast, { toast as tampil } from '@/components/Toast';
 import { tesAlarm } from '@/components/LeadMasuk';
+import InputRupiah from '@/components/InputRupiah';
+import { DATA_PENYARING, rapikanKriteria, teksKriteria } from '@/lib/kualitas-lead';
 
 const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const PERIODE = [['hari', 'Hari ini'], ['7', '7 hari'], ['bulan', 'Bulan ini'], ['30', '30 hari']];
@@ -187,6 +189,20 @@ export default function DistribusiPage() {
           <div className="field"><label>Tunggu Marcom oper (menit)</label><input type="number" min="0" value={cfg.tunggu_marcom} onChange={e => set('tunggu_marcom', e.target.value)} /></div>
           <div className="field penuh"><label>Lead yang dibagi otomatis</label><select value={cfg.hanya_siap ? '1' : '0'} onChange={e => set('hanya_siap', e.target.value === '1')}>
             <option value="1">Hanya lead 🔥 Siap oper (nama jelas + min. 2 data penyaring)</option><option value="0">Semua lead tanpa sales</option></select></div>
+          <div className="field penuh ds-kriteria"><label>🔥 Kriteria Siap oper</label>
+            {(() => { const K = rapikanKriteria(cfg.kriteria); const setK = (k, v) => set('kriteria', { ...K, [k]: v });
+              return (<div className="ds-krit">
+                <label className="ds-cek"><input type="checkbox" checked={K.nama_wajib} onChange={e => setK('nama_wajib', e.target.checked)} /> Nama jelas wajib (bukan "WA 08xx")</label>
+                <div className="ds-krit-sub">Data penyaring yang dihitung:</div>
+                <div className="ds-hari">{DATA_PENYARING.map(([k, l]) => (<label key={k}><input type="checkbox" checked={K.data.includes(k)}
+                  onChange={e => setK('data', e.target.checked ? [...K.data, k] : K.data.filter(x => x !== k))} />{l}</label>))}</div>
+                <label className="ds-cek">Minimal <input type="number" min="0" max={K.data.length} value={K.minimal} style={{ width: 64 }} onChange={e => setK('minimal', e.target.value)} /> data dari {K.data.length} yang dicentang harus terisi</label>
+                <label className="ds-cek"><input type="checkbox" checked={K.jauh_nurture} onChange={e => setK('jauh_nurture', e.target.checked)} /> Rencana beli &gt; 6 bulan = nurture (tidak dibagi ke sales)</label>
+                <div className="ds-krit-sub">Budget minimal per project (kosongkan = bebas):</div>
+                <div className="ds-aturan">{(d.projects || []).map(p => (<div className="field" key={p}><label>{p}</label>
+                  <InputRupiah value={K.budget_min[p] || ''} onChange={e => setK('budget_min', { ...K.budget_min, [p]: Number(e.target.value) || 0 })} placeholder="bebas" /></div>))}</div>
+                <p className="hint" style={{ margin: 0 }}>Aturan sekarang: <b>{teksKriteria(K)}</b>. Lead dengan budget terisi tapi di bawah minimum tidak menjadi 🔥.</p>
+              </div>); })()}</div>
           <div className="field penuh"><label>Hari kerja</label><div className="ds-hari">{HARI.map((h, n) => (<label key={h}><input type="checkbox" checked={cfg.hari.includes(n)}
             onChange={e => set('hari', e.target.checked ? [...cfg.hari, n] : cfg.hari.filter(x => x !== n))} />{h}</label>))}</div></div>
           <div className="field penuh"><label>Pesan pembuka WA (otomatis terisi)</label><textarea rows={3} value={cfg.pesan} onChange={e => set('pesan', e.target.value)} />

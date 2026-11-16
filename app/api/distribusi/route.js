@@ -17,6 +17,8 @@ export async function GET(req) {
     const pending = user.role === 'sales' ? await leadMenungguSaya(sql, user.username) : [];
     return Response.json({ now: new Date().toISOString(), pending });
   }
+  // Kriteria 🔥 Siap oper (dipakai Form Input Marcom untuk label kualitas)
+  if (q.get('kriteria') === '1') { const c = await ambilCfg(sql); const { teksKriteria } = await import('@/lib/kualitas-lead'); return Response.json({ kriteria: c.kriteria, teks: teksKriteria(c.kriteria) }); }
   // Antrian Marcom (belum dioper) + lead yang baru dibagi otomatis — untuk Marcom (Leads to Sales) & Manager
   if (q.get('antrian') === '1') {
     if (!['manager', 'ceo', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
@@ -49,8 +51,11 @@ export async function GET(req) {
   const tick = (await sql`SELECT key, items FROM settings WHERE key IN ('distribusi_tick', 'distribusi_cron')`.catch(() => []));
   const t = k => tick.find(x => x.key === k)?.items?.t || null;
   const { kunci, ...cfgUmum } = cfg;
+  let projects = [];
+  try { const pr = (await sql`SELECT items FROM settings WHERE key = 'project'`)[0]?.items; projects = Array.isArray(pr) ? pr : []; } catch {}
+  if (!projects.length) projects = ['BIO DISTRICT', 'PERMAI INDAH'];
   return Response.json({
-    now: new Date().toISOString(), today, awal, periode, cfg: user.role === 'manager' ? cfg : cfgUmum, hari, rentang, sales,
+    now: new Date().toISOString(), today, awal, periode, cfg: user.role === 'manager' ? cfg : cfgUmum, hari, rentang, sales, projects,
     tick: t('distribusi_tick'), cron: t('distribusi_cron'),
   });
 }
@@ -82,7 +87,7 @@ export async function POST(req) {
   }
   if (user.role !== 'manager') return Response.json({ error: 'Khusus Manager' }, { status: 403 });
   if (b.aksi === 'setelan') {
-    const izinkan = ['aktif', 'jam_mulai', 'jam_selesai', 'hari', 'batas_respon', 'batas_oper', 'maks_oper', 'maks_antrian', 'ulang_notif', 'tunggu_ai', 'pesan', 'tunggu_marcom', 'hanya_siap'];
+    const izinkan = ['aktif', 'jam_mulai', 'jam_selesai', 'hari', 'batas_respon', 'batas_oper', 'maks_oper', 'maks_antrian', 'ulang_notif', 'tunggu_ai', 'pesan', 'tunggu_marcom', 'hanya_siap', 'kriteria'];
     const baru = Object.fromEntries(Object.entries(b.cfg || {}).filter(([k]) => izinkan.includes(k)));
     return Response.json({ ok: true, cfg: await simpanCfg(sql, baru) });
   }
