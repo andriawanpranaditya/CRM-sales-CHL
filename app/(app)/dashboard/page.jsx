@@ -4,7 +4,7 @@ import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import Link from 'next/link';
-import { api, fmtRp, fmtDate, reminder, catatUnduh } from '@/components/util';
+import { api, fmtRp, fmtDate, reminder, catatUnduh, tanpaHeaderCetak } from '@/components/util';
 
 const AKTIF = ['New', 'Cold', 'Warm', 'Hot', 'Appointment', 'Site Visit', 'Booking'];
 
@@ -1110,7 +1110,7 @@ ${marcomHtml}\n<p class="muted" style="margin-top:24px">Report ini dibuat otomat
       const w = window.open('', '_blank');
       if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
       w.document.open();
-      w.document.write(html.replace('</head>', '<style>@page{size:A4 portrait;margin:14mm} body{background:#fff} table{page-break-inside:auto} tr{page-break-inside:avoid} h2{page-break-after:avoid}</style></head>'));
+      w.document.write(tanpaHeaderCetak(html.replace('</head>', '<style>@page{size:A4 portrait;margin:14mm} body{background:#fff} table{page-break-inside:auto} tr{page-break-inside:avoid} h2{page-break-after:avoid}</style></head>'), { atas: '14mm', samping: '14mm' }));
       w.document.close();
       w.onload = () => { w.focus(); w.print(); };
       setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);

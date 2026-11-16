@@ -2,7 +2,7 @@
 import { penanggungKinerja } from '@/lib/sales-kinerja';
 import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
-import { api, fmtRp, fmtDate, catatUnduh } from '@/components/util';
+import { api, fmtRp, fmtDate, catatUnduh, tanpaHeaderCetak } from '@/components/util';
 import Dashboard from '../dashboard/page';
 
 // ===== Menu Report (Manager & CEO): satu filter bersama untuk semua tab =====
@@ -191,7 +191,7 @@ function TabPenjualan({ proj, d1, d2, fSales, me }) {
   }
   function unduhPdf() {
     const w = window.open('', '_blank'); if (!w) return toast('Izinkan pop-up untuk membuat PDF, lalu coba lagi');
-    w.document.open(); w.document.write(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum: d.kumulatif, prospek: d.prospek || [] })); w.document.close();
+    w.document.open(); w.document.write(tanpaHeaderCetak(htmlPenjualan({ rows: semuaRows, periode, proj, fSales, ringkas, perBayar, perProject, me, kum: d.kumulatif, prospek: d.prospek || [] }))); w.document.close();
     w.onload = () => { w.focus(); w.print(); }; setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 900);
     catatUnduh('Report', 'Laporan Penjualan (PDF)'); toast('Jendela cetak terbuka — pilih "Save as PDF" 📄');
   }
@@ -509,7 +509,11 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   h2{font-size:12pt;color:#12302A;margin:16px 0 4px} h3{font-size:10.5pt;color:#12302A;margin:12px 0 4px} .muted{color:#5B6E66;font-size:8.5pt}
   .kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0} .kpi div{background:#F5F2EA;border-radius:8px;padding:8px 10px;-webkit-print-color-adjust:exact;print-color-adjust:exact} .kpi b{display:block;font-size:16pt;color:#12302A} .kpi .emas{background:#E2BE7A}
   table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:6px} th{background:#12302A;color:#E2BE7A;text-align:left;padding:4px 5px;font-size:8pt;-webkit-print-color-adjust:exact;print-color-adjust:exact} td{padding:4px 5px;border-bottom:1px solid #E6E1D5;vertical-align:top} .r{text-align:right}
-  .dua{display:grid;grid-template-columns:1fr 1fr;gap:14px} .ket{color:#5B6E66;font-size:8pt;margin-top:10px} tr{page-break-inside:avoid}
+  .dua{display:grid;grid-template-columns:1fr 1fr;gap:14px;break-inside:avoid} .ket{color:#5B6E66;font-size:8pt;margin-top:10px} tr{page-break-inside:avoid;break-inside:avoid}
+  thead{display:table-header-group} .r{white-space:nowrap} .kpi{break-inside:avoid;page-break-inside:avoid} h2,h3{break-after:avoid;page-break-after:avoid}
+  .baru{break-before:page;page-break-before:always} .blok{break-inside:avoid;page-break-inside:avoid}
+  td .muted{font-size:7.5pt} .kt{font-size:7.8pt;line-height:1.35;padding-left:8px;text-indent:-8px;margin-bottom:1px} .kt:before{content:'• ';color:#9A6B1F}
+  .tb-kpr td,.tb-det td{font-size:8pt}
   </style></head><body>
   <div class="kop"><div><b>LAPORAN PENJUALAN</b> &nbsp; CRM Sales CHL · ${esc(periode)} · ${esc(proj || 'Semua project')}${fSales ? ' · sales ' + esc(fSales) : ''}</div><div style="font-size:8.5pt">Dicetak ${new Date().toLocaleString('id-ID')} · oleh ${esc(me?.name || '')}</div></div>
   ${kum ? `<h2>Posisi penjualan s.d. ${fmtDate(kum.per)}</h2>
@@ -521,7 +525,7 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   ${kum?.plafonKpr ? `<p class="muted"><b>Plafon KPR masih proses</b> (${kum.plafonKpr.n} konsumen belum akad): ${rpM(kum.plafonKpr.total)}${kum.plafonKpr.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : ''}${kum.plafonKpr.sementara ? ` · ${kum.plafonKpr.sementara} konsumen memakai harga transaksi karena plafon belum tercatat` : ''}.</p>` : ''}
   ${prospek.some(p => p.daftar.length) ? (() => { const R = ringkasProspek(prospek); return `<h2>Prospek ${esc(blnPanjang(prospek[0]?.bulan))} · ${R.n} prospek · ${R.unit} unit</h2>
   <p class="muted">Perkiraan nilai ${R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking ${R.siap} prospek (${R.unitSiap} unit, ±${rpM(R.nilaiSiap)}).</p>
-  <table><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr>
+  <table><colgroup><col style="width:3%"><col style="width:9%"><col style="width:11%"><col style="width:10%"><col style="width:10%"><col style="width:4%"><col style="width:10%"><col style="width:8%"><col style="width:17%"><col></colgroup><thead><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr></thead>
   ${prospek.flatMap(p => p.daftar.map(x => ({ ...x, project: p.project }))).map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.project)}</td><td><b>${esc(x.nama)}</b></td><td>${esc(x.sales || '—')}${x.peran ? '<br><span class="muted">' + esc(x.peran) + '</span>' : ''}</td><td>${esc(x.keteranganUnit || (x.tipe || []).map(t => t === 'X' ? 'Rumah subsidi' : 'Tipe ' + t).join(' / ') || '—')}</td><td class="r">${x.unit || 1}</td><td class="r">${nilaiProspek(x)}</td><td><b>${esc(x.tahap || '—')}</b></td><td>${esc(x.update || '—')}</td><td>${esc(x.langkah || '—')}</td></tr>`).join('')}</table>`; })() : ''}
   ${(() => {
     // Proses KPR berjalan (Booking KPR belum akad) — semua periode, posisi hari ini — tepat di bawah Prospek
@@ -529,23 +533,23 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
     const pk = kum.prosesKpr || [];
     const total = pk.reduce((a, r) => a + (r.plafon || 0), 0), kosong = pk.filter(r => !r.plafon).length;
     const perTahap = {}; pk.forEach(r => { perTahap[r.tahap] = (perTahap[r.tahap] || 0) + 1; });
-    return `<h2>Proses KPR berjalan · ${pk.length} konsumen · plafon ${rpM(total)}</h2>
+    return `<h2 class="baru">Proses KPR berjalan · ${pk.length} konsumen · plafon ${rpM(total)}</h2>
   <p class="muted">Booking KPR yang belum akad, posisi ${fmtDate(kum.per)}, diurutkan dari Booking terlama.${pk.length ? ' Per tahap: ' + Object.entries(perTahap).map(([l, n]) => `${esc(l)} ${n}`).join(' · ') + '.' : ''}${kosong ? ` ${kosong} konsumen belum ada data plafon.` : ''}</p>
-  ${pk.length ? `<table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Hari sejak Booking</th><th class="r">Plafon KPR</th><th>Status KPR terakhir</th></tr>
-  ${pk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)}</td><td>${esc(r.sales || '—')}</td><td>${fmtDate(r.tgl_booking)}</td><td class="r">${hariSejak(r.tgl_booking, kum.per)}</td><td class="r">${r.plafon ? fmtRp(r.plafon) + '<br><span class="muted">' + (SUMBER_PLAFON[r.plafon_sumber] || '') + '</span>' : '<span class="muted">belum dicatat</span>'}</td><td>${esc(r.update)}</td></tr>`).join('')}
+  ${pk.length ? `<table class="tb-kpr"><colgroup><col style="width:3%"><col style="width:12%"><col style="width:11%"><col style="width:8%"><col style="width:7%"><col style="width:5%"><col style="width:11%"><col></colgroup><thead><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Hari</th><th class="r">Plafon KPR</th><th>Keterangan proses KPR</th></tr></thead>
+  ${pk.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)}</td><td>${esc(r.sales || '—')}</td><td>${fmtDate(r.tgl_booking)}</td><td class="r">${hariSejak(r.tgl_booking, kum.per)}</td><td class="r">${r.plafon ? fmtRp(r.plafon) + '<br><span class="muted">' + (SUMBER_PLAFON[r.plafon_sumber] || '') + '</span>' : '<span class="muted">belum dicatat</span>'}</td><td>${String(r.update || '').split(' · ').filter(Boolean).map(t => '<div class="kt">' + esc(t) + '</div>').join('')}</td></tr>`).join('')}
   <tr><td colspan="6"><b>Total plafon KPR berjalan</b></td><td class="r"><b>${fmtRp(total)}</b></td><td></td></tr></table>` : '<p class="muted">Tidak ada proses KPR yang berjalan.</p>'}`;
   })()}
-  <h2>Ringkasan penjualan · ${esc(periode)}</h2>
+  <div class="blok" style="margin-top:14px"><h2>Ringkasan penjualan · ${esc(periode)}</h2>
   <div class="kpi">${[['Transaksi', ringkas.n, 'semua kontrak Reserved / Booking pada periode'], ['Masih Reserved', ringkas.reserved, 'tertahan Reserved hari ini'], ['Booking', ringkas.booking, 'penjualan bersih · ' + Math.round(ringkas.konversi * 100) + '% dari transaksi'], ['Batal saat Reserved', ringkas.batalRv, 'batal sebelum sempat Booking'], ['Batal setelah Booking', ringkas.batalBk, 'kontrak Booking yang batal'], ['Nilai penjualan', rpM(ringkas.nilai), 'harga jual unit Booking']]
     .map(([l, v, k], i) => `<div class="${i === 5 ? 'emas' : ''}"><span class="muted">${l}</span><b>${v}</b><span class="muted">${k}</span></div>`).join('')}</div>
   <p class="muted">Tanda jadi Reserved diterima <b>${fmtRp(ringkas.tj)}</b> · Booking fee tercatat <b>${fmtRp(ringkas.bf)}</b> (hanya BF yang terkonfirmasi)</p>
-  <div class="dua"><div>${rek('Per cara bayar', perBayar, false)}</div><div>${rek('Per project', perProject, true)}</div></div>
-  <h2 style="page-break-before:always">Detail transaksi</h2>
+  <div class="dua blok"><div>${rek('Per cara bayar', perBayar, false)}</div><div>${rek('Per project', perProject, true)}</div></div></div>
+  <h2 class="baru">Detail transaksi</h2>
   <p class="muted">Satu baris = satu konsumen/unit. Tanggal Reserved tampil di kolom Status bila konsumen sempat Reserved. Kolom terakhir = update status terakhir (akad / rencana akad / proses KPR / cara bayar cash).</p>
-  <table><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th>Harga jual</th><th>Cara bayar</th><th>Status</th><th>Update status terakhir</th></tr>
+  <table class="tb-det"><colgroup><col style="width:3%"><col style="width:13%"><col style="width:12%"><col style="width:10%"><col style="width:9%"><col style="width:10%"><col style="width:7%"><col style="width:8%"><col></colgroup><thead><tr><th>No</th><th>Konsumen</th><th>Project · Unit</th><th>Sales</th><th>Booking</th><th class="r">Harga jual</th><th>Cara bayar</th><th>Status</th><th>Update status terakhir</th></tr></thead>
   ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.nama)}</b><br><span class="muted">${esc(r.lead_code)} · ${esc(r.sumber)}</span></td><td>${esc(r.project)}<br>${esc(r.unit)} ${r.tipe ? '· ' + esc(r.tipe) : ''}</td><td>${esc(r.sales || '—')}</td>
     <td>${r.tgl_booking ? fmtDate(r.tgl_booking) + (r.nilai_booking ? '<br><span class="muted">BF ' + fmtRp(r.nilai_booking) + '</span>' : '') : '—'}</td>
-    <td>${fmtRp(r.harga)}</td><td>${esc(r.cara_bayar || '—')}</td><td style="color:${warna[r.status_tampil || r.status]};font-weight:bold">${r.status_tampil || r.status}${r.akad ? '<br><span class="muted">' + fmtDate(r.akad) + '</span>' : ''}${r.tgl_batal ? '<br><span class="muted">' + fmtDate(r.tgl_batal) + '</span>' : ''}${r.tgl_reserved ? '<br><span class="muted">Reserved ' + fmtDate(r.tgl_reserved) + '</span>' : ''}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>
+    <td class="r">${fmtRp(r.harga)}</td><td>${esc(r.cara_bayar || '—')}</td><td style="color:${warna[r.status_tampil || r.status]};font-weight:bold">${r.status_tampil || r.status}${r.akad ? '<br><span class="muted">' + fmtDate(r.akad) + '</span>' : ''}${r.tgl_batal ? '<br><span class="muted">' + fmtDate(r.tgl_batal) + '</span>' : ''}${r.tgl_reserved ? '<br><span class="muted">Reserved ' + fmtDate(r.tgl_reserved) + '</span>' : ''}</td><td>${esc(r.update_terakhir)}</td></tr>`).join('')}</table>
   <p class="ket">Keterangan: <b>Reserved</b> = tanda jadi untuk mengunci unit (belum dihitung penjualan) · <b>Booking</b> = booking fee, penjualan diakui pada tanggal ini · <b>Akad</b> = Booking KPR yang akadnya sudah terealisasi (tetap dihitung sebagai Booking) · <b>Batal</b> = unit kembali ke stok · <b>Konversi</b> = Booking bersih ÷ seluruh kontrak · Kontrak dihitung menurut tanggal penjualannya (tgl Booking; tgl Reserved bila belum Booking), status per hari ini.</p>
   </body></html>`;
 }
@@ -575,7 +579,7 @@ function TabLeads({ proj, d1, d2, fSales, me }) {
     drop: rows.filter(r => ['Drop', 'Lost'].includes(r.status)).length, dom: rows.filter(r => !r.domisili).length, belum: rows.filter(r => !r.nFu).length };
   function unduhPdf() {
     const w = window.open('', '_blank'); if (!w) { toast('Izinkan pop-up untuk mengunduh PDF'); return; }
-    w.document.open(); w.document.write(htmlLeads({ rows, judul, R, per, me })); w.document.close();
+    w.document.open(); w.document.write(tanpaHeaderCetak(htmlLeads({ rows, judul, R, per, me }), { atas: '10mm', samping: '10mm' })); w.document.close();
     catatUnduh('Leads ke Sales (PDF)', judul);
   }
   async function unduhExcel() {

@@ -48,9 +48,11 @@ function teksUpdate(r) {
 const normK = t => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 function mirip(a, b) {
   const x = normK(a), y = normK(b); if (!x || !y) return false;
-  if (x.includes(y) || y.includes(x)) return true;
-  const A = new Set(x.split(' ')), B = new Set(y.split(' ')); let s = 0; A.forEach(w => { if (B.has(w)) s++; });
-  return s / Math.max(1, Math.min(A.size, B.size)) >= 0.75;
+  if (x === y || (y.length >= 12 && x.includes(y)) || (x.length >= 12 && y.includes(x))) return true;
+  const A = new Set(x.split(' ')), B = new Set(y.split(' '));
+  if (Math.min(A.size, B.size) < 6) return false; // kalimat pendek: hanya dianggap sama bila persis / termuat (mis. "Sudah sign" ≠ "Belum sign")
+  let s = 0; A.forEach(w => { if (B.has(w)) s++; });
+  return s / Math.min(A.size, B.size) >= 0.8;
 }
 const tglPendekId = t => { const d = new Date(t); return isNaN(d) ? '' : `${new Date(d.getTime() + 7 * 3600e3).getUTCDate()} ${BLN[new Date(d.getTime() + 7 * 3600e3).getUTCMonth()]}`; };
 async function keteranganKpr(sql, kodes) {
@@ -64,7 +66,9 @@ async function keteranganKpr(sql, kodes) {
   const berkasP = await daftarBerkas(sql);
   for (const k of ks) {
     const bagian = [], sudah = [];
-    const tambah = (teks, kunci = teks) => { if (!teks || sudah.some(x => mirip(x, kunci))) return; sudah.push(kunci); bagian.push(teks); };
+    // potongan kalimat (dipisah titik / " · ") yang sudah tertulis tidak diulang
+    const potong = t => String(t || '').split(/\s+·\s+|\.(?=\s|[A-Z])|\n+/).map(x => x.replace(/^\s*(catatan|kendala[^:]*)\s*:\s*/i, '').trim()).filter(x => x.length > 2);
+    const tambah = (teks, kunci = teks) => { if (!teks || sudah.some(x => mirip(x, kunci))) return; sudah.push(kunci, ...potong(kunci)); bagian.push(teks); };
     const b = bk.filter(x => x.kpr_id === k.id);
     b.forEach(x => { const ao = String(x.ao_nama || '').trim(); const cb = String(x.cabang || '').trim();
       tambah(`${x.bank}${cb && cb !== '-' ? ' ' + cb : ''}${ao && ao !== '-' ? ' (AO ' + ao + ')' : ''}: ${x.tahap}${x.kendala ? ' — ' + String(x.kendala).trim() : ''}`, x.kendala ? x.kendala : x.bank + ' ' + x.tahap); });
@@ -79,7 +83,9 @@ async function keteranganKpr(sql, kodes) {
       const m = /^(Catatan|Kendala [^:]+|Dari Report Proses KPR[^:]*):\s*(.+)$/s.exec(String(l.isi || ''));
       if (!m || n >= 4) continue;
       const isi = m[2].trim(); if (!isi || sudah.some(x => mirip(x, isi))) continue;
-      sudah.push(isi); bagian.push(`${tglPendekId(l.waktu)}: ${isi}`); n++;
+      const baru = potong(isi).filter(f => !sudah.some(x => mirip(x, f)));
+      if (!baru.length) continue;
+      sudah.push(isi, ...baru); bagian.push(`${tglPendekId(l.waktu)}: ${baru.join('. ')}`); n++;
     }
     const upd = [k.updated_at, ...b.map(x => x.updated_at)].filter(Boolean).map(x => new Date(x).getTime()).sort((a, c) => c - a)[0];
     out[k.lead_code] = bagian.join(' · ') + (upd ? ` · update terakhir ${tglId(new Date(upd + 7 * 3600e3).toISOString())}` : '');

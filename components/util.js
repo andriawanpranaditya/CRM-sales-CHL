@@ -88,3 +88,19 @@ export function catatUnduh(modul, detail) {
     fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unduh: true, modul, detail }) }).catch(() => {});
   } catch {}
 }
+
+// ===== Cetak PDF tanpa tulisan "about:blank", tanggal & judul di tepi halaman =====
+// Header/footer bawaan browser hanya muncul di area margin halaman → margin @page dibuat 0,
+// jarak tepi diganti baris kosong thead/tfoot yang otomatis berulang di setiap halaman.
+export function tanpaHeaderCetak(html, { atas = '12mm', samping = '14mm' } = {}) {
+  let h = String(html);
+  if (/@page\s*\{/.test(h)) h = h.replace(/@page\s*\{([^}]*)\}/, (m, isi) => '@page{' + (isi.replace(/margin\s*:[^;}]+;?/g, '').trim().replace(/;?$/, ';')) + 'margin:0}');
+  else h = h.replace('</head>', '<style>@page{margin:0}</style></head>');
+  const css = `<style>.hal-cetak{width:100%;border-collapse:collapse;margin:0;border:0}.hal-cetak>thead>tr>td,.hal-cetak>tfoot>tr>td,.hal-cetak>tbody>tr>td{border:0!important;padding:0!important;background:none!important}
+.hal-cetak>tbody>tr{page-break-inside:auto!important;break-inside:auto!important}.hal-cetak-isi{padding:0 ${samping}}</style>`;
+  h = h.includes('</head>') ? h.replace('</head>', css + '</head>') : css + h;
+  const spasi = `<div style="height:${atas}"></div>`;
+  h = h.replace(/<body([^>]*)>/, `<body$1><table class="hal-cetak"><thead><tr><td>${spasi}</td></tr></thead><tfoot><tr><td>${spasi}</td></tr></tfoot><tbody><tr><td><div class="hal-cetak-isi">`);
+  h = h.replace('</body>', '</div></td></tr></tbody></table></body>');
+  return h;
+}
