@@ -1,10 +1,9 @@
 import { db } from '@/lib/db';
 import { requireUser, lihatBaris, pesanProyek } from '@/lib/auth';
-import { siapkanKpr, statusKpr } from '@/lib/kpr';
+import { siapkanKpr, statusKpr, daftarBerkas } from '@/lib/kpr';
 import { imporPenjualan, SUMBER_PENJUALAN } from '@/lib/impor-penjualan';
 import { denganLog } from '@/lib/log';
 import { PROMO, PROGRAM_BIO, PROGRAM_PERMAI } from '@/lib/presentasi';
-import { PERMAI } from '@/lib/pricelist';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +23,7 @@ const tglStr = t => (t instanceof Date ? t.toISOString() : String(t || '')).slic
 const BLN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 // Rupiah ringkas: Rp1,25 M / Rp179,2 jt
 const rpS = n => { const v = Number(n) || 0; return v >= 1e9 ? 'Rp' + (v / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' M' : 'Rp' + (v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt'; };
-const teksPlafon = r => r.plafon ? `plafon ${rpS(r.plafon)}${r.plafon_sumber === 'disetujui' ? ' (disetujui bank)' : r.plafon_sumber === 'standar' ? ' (standar subsidi)' : ' (pengajuan)'}` : 'plafon belum dicatat';
+const teksPlafon = r => r.plafon ? `plafon ${rpS(r.plafon)}${r.plafon_sumber === 'disetujui' ? ' (disetujui bank)' : r.plafon_sumber === 'harga' ? ' (harga transaksi, sementara)' : ' (pengajuan)'}` : 'plafon belum dicatat';
 const tglId = t => { const d = tglStr(t); return d ? `${Number(d.slice(8, 10))} ${BLN[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : ''; };
 
 function teksUpdate(r) {
@@ -43,6 +42,49 @@ function teksUpdate(r) {
   if (/bertahap/i.test(r.bayar || '')) return awal + `Cash bertahap${r.cicilan ? ' ' + r.cicilan + 'x' : ''}` + (r.catatan ? ` · ${r.catatan}` : '');
   if (/cash/i.test(r.bayar || '')) return awal + 'Cash keras' + (r.catatan ? `, ${r.catatan}` : '');
   return awal + (r.bayar || 'cara bayar belum diisi') + (r.catatan ? ` · ${r.catatan}` : '');
+}
+
+// ===== Keterangan lengkap Proses KPR (bank & AO, tahap, kendala, rencana akad, SLIK, berkas, catatan & riwayat) — tanpa kalimat dobel =====
+const normK = t => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function mirip(a, b) {
+  const x = normK(a), y = normK(b); if (!x || !y) return false;
+  if (x.includes(y) || y.includes(x)) return true;
+  const A = new Set(x.split(' ')), B = new Set(y.split(' ')); let s = 0; A.forEach(w => { if (B.has(w)) s++; });
+  return s / Math.max(1, Math.min(A.size, B.size)) >= 0.75;
+}
+const tglPendekId = t => { const d = new Date(t); return isNaN(d) ? '' : `${new Date(d.getTime() + 7 * 3600e3).getUTCDate()} ${BLN[new Date(d.getTime() + 7 * 3600e3).getUTCMonth()]}`; };
+async function keteranganKpr(sql, kodes) {
+  const out = {};
+  if (!kodes.length) return out;
+  const ks = await sql`SELECT id, lead_code, profil, berkas, slik_status, slik_catatan, akad_tgl::text AS akad_tgl, akad_bank_id, akad_catatan, catatan, updated_at FROM kpr WHERE lead_code = ANY(${kodes}::text[])`;
+  const ids = ks.map(k => k.id);
+  if (!ids.length) return out;
+  const bk = await sql`SELECT id, kpr_id, bank, ao_nama, cabang, tahap, kendala, updated_at FROM kpr_bank WHERE kpr_id = ANY(${ids}::int[]) ORDER BY id`;
+  const lg = await sql`SELECT kpr_id, waktu, isi FROM kpr_log WHERE kpr_id = ANY(${ids}::int[]) ORDER BY waktu DESC`.catch(() => []);
+  const berkasP = await daftarBerkas(sql);
+  for (const k of ks) {
+    const bagian = [], sudah = [];
+    const tambah = (teks, kunci = teks) => { if (!teks || sudah.some(x => mirip(x, kunci))) return; sudah.push(kunci); bagian.push(teks); };
+    const b = bk.filter(x => x.kpr_id === k.id);
+    b.forEach(x => { const ao = String(x.ao_nama || '').trim(); const cb = String(x.cabang || '').trim();
+      tambah(`${x.bank}${cb && cb !== '-' ? ' ' + cb : ''}${ao && ao !== '-' ? ' (AO ' + ao + ')' : ''}: ${x.tahap}${x.kendala ? ' — ' + String(x.kendala).trim() : ''}`, x.kendala ? x.kendala : x.bank + ' ' + x.tahap); });
+    if (k.akad_tgl) tambah(`Rencana akad ${tglId(k.akad_tgl)}${(b.find(x => x.id === k.akad_bank_id) || {}).bank ? ' (' + b.find(x => x.id === k.akad_bank_id).bank + ')' : ''}${k.akad_catatan ? ' — ' + k.akad_catatan : ''}`);
+    if (k.slik_status) tambah(`SLIK ${k.slik_status}${k.slik_catatan ? ' — ' + k.slik_catatan : ''}`, 'slik ' + k.slik_status + ' ' + (k.slik_catatan || ''));
+    const daftar = berkasP[k.profil] || [];
+    if (daftar.length) { const ok = (Array.isArray(k.berkas) ? k.berkas : []).filter(x => daftar.includes(x)).length; tambah(`Berkas ${ok}/${daftar.length} lengkap`, 'berkas lengkap'); }
+    if (k.catatan) tambah(`Catatan: ${String(k.catatan).trim()}`, k.catatan);
+    // Riwayat catatan & kendala sebelumnya (terbaru dulu, maks. 4) — yang sama / mirip dengan di atas tidak diulang
+    let n = 0;
+    for (const l of lg.filter(x => x.kpr_id === k.id)) {
+      const m = /^(Catatan|Kendala [^:]+|Dari Report Proses KPR[^:]*):\s*(.+)$/s.exec(String(l.isi || ''));
+      if (!m || n >= 4) continue;
+      const isi = m[2].trim(); if (!isi || sudah.some(x => mirip(x, isi))) continue;
+      sudah.push(isi); bagian.push(`${tglPendekId(l.waktu)}: ${isi}`); n++;
+    }
+    const upd = [k.updated_at, ...b.map(x => x.updated_at)].filter(Boolean).map(x => new Date(x).getTime()).sort((a, c) => c - a)[0];
+    out[k.lead_code] = bagian.join(' · ') + (upd ? ` · update terakhir ${tglId(new Date(upd + 7 * 3600e3).toISOString())}` : '');
+  }
+  return out;
 }
 
 export async function GET(req) {
@@ -119,12 +161,12 @@ export async function GET(req) {
         plafon_setuju: setuju || null, plafon_aju: Number(k.plafon) || null }; });
     rows.forEach(g => { g.kpr = peta[g.lead_code] || null; });
   }
-  // Plafon KPR: disetujui bank (SP3K) → pengajuan di Proses KPR → Permai: plafon standar KPR subsidi
+  // Plafon KPR: disetujui bank (SP3K) → pengajuan di Proses KPR → belum tercatat: sementara memakai harga transaksi
   rows.forEach(g => {
     if (!/kpr/i.test(g.bayar || '') || g.status !== 'Booking' || g.kpr?.akad_realisasi) return; // hanya yang masih proses KPR
     if (g.kpr?.plafon_setuju) { g.plafon = g.kpr.plafon_setuju; g.plafon_sumber = 'disetujui'; }
     else if (g.kpr?.plafon_aju) { g.plafon = g.kpr.plafon_aju; g.plafon_sumber = 'pengajuan'; }
-    else if (/permai/i.test(g.project || '')) { g.plafon = PERMAI.plafon; g.plafon_sumber = 'standar'; }
+    else if (g.harga) { g.plafon = g.harga; g.plafon_sumber = 'harga'; }
   });
   // ===== Posisi kumulatif s.d. hari ini (tidak terpengaruh filter periode; tetap mengikuti filter project & sales) =====
   const hariIni = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
@@ -144,7 +186,7 @@ export async function GET(req) {
     penjualan: { n: aktif.length, nilai: jum(aktif, 'harga'), cash: jum(aktif, 'harga_cash'), kpr: kpr.length, akad: akad.length, belumAkad: kpr.length - akad.length, bertahap: aktif.filter(g => /bertahap/i.test(g.bayar || '')).length, keras: aktif.filter(g => /keras/i.test(g.bayar || '')).length },
     // Plafon hanya untuk konsumen yang MASIH PROSES KPR (Booking KPR belum akad)
     plafonKpr: { n: belum.length, total: jum(belum, 'plafon'), tercatat: belum.filter(g => g.plafon).length, kosong: belum.filter(g => !g.plafon).length,
-      standar: belum.filter(g => g.plafon_sumber === 'standar').length },
+      sementara: belum.filter(g => g.plafon_sumber === 'harga').length },
     reserved: { n: resv.length, nilai: jum(resv, 'harga') },
     bookingTercatat: { n: aktif.length + batalBk.length, nilai: jum(aktif, 'harga') + jum(batalBk, 'harga') },
     batalBooking: { n: batalBk.length, nilai: jum(batalBk, 'harga'), nonrefund: batalBk.filter(g => g.batal_refund === false).length, refund: batalBk.filter(g => g.batal_refund === true).length,
@@ -163,7 +205,9 @@ export async function GET(req) {
   // KPR yang masih berjalan (Booking KPR, belum akad) — semua periode, posisi hari ini
   kumulatif.prosesKpr = belum.map(g => ({ lead_code: g.lead_code, nama: g.nama, project: g.project, unit: g.unit, tipe: g.tipe, sales: g.sales, tgl_booking: g.tgl_booking, harga: g.harga,
     plafon: g.plafon || null, plafon_sumber: g.plafon_sumber || '', banks: g.kpr?.banks || [], tahap: g.kpr ? (g.kpr.akad_tgl ? 'SP3K / rencana akad' : g.kpr.label) : 'Belum dicatat',
-    update: teksUpdate({ ...g, status: 'Booking' }) })).sort((a, b) => String(a.tgl_booking || '').localeCompare(String(b.tgl_booking || '')));
+    update: '' })).sort((a, b) => String(a.tgl_booking || '').localeCompare(String(b.tgl_booking || '')));
+  { const ket = await keteranganKpr(sql, [...new Set(kumulatif.prosesKpr.map(x => x.lead_code))]);
+    kumulatif.prosesKpr.forEach(x => { x.update = ket[x.lead_code] || 'Proses KPR belum dicatat di menu Proses KPR'; }); }
   // Filter periode: kontrak yang TANGGAL PENJUALANNYA (Booking; Reserved bila belum Booking) ada di dalam rentang.
   // Status tetap posisi per hari ini — kontrak tahun lalu yang batal tahun ini tidak masuk laporan tahun ini.
   const dalam = t => t && (!d1 || t >= d1) && (!d2 || t <= d2);

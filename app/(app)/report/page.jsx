@@ -268,7 +268,7 @@ function ProspekBulan({ prospek }) {
   </div>);
 }
 // ===== Proses KPR yang masih berjalan (Booking KPR belum akad) — posisi hari ini, di bawah Prospek =====
-const SUMBER_PLAFON = { disetujui: 'disetujui bank', pengajuan: 'pengajuan', standar: 'standar subsidi' };
+const SUMBER_PLAFON = { disetujui: 'disetujui bank', pengajuan: 'pengajuan', harga: 'harga transaksi (sementara)' };
 const hariSejak = (t, per) => t ? Math.max(0, Math.round((Date.parse(per) - Date.parse(t)) / 86400000)) : '';
 function ProsesKprBerjalan({ list, per }) {
   const total = list.reduce((a, x) => a + (x.plafon || 0), 0), kosong = list.filter(x => !x.plafon).length;
@@ -304,7 +304,7 @@ function PosisiPenjualan({ k, proj, impor = [], busy, imporJual }) {
       <div><b style={{ fontSize: 13 }}>Penjualan bersih menurut cara bayar & akad</b>
         <div className="tbl-wrap tbl-compact" style={{ marginTop: 6 }}><table><tbody>
           <tr><td>KPR</td><td className="num"><b>{p.kpr}</b> unit</td><td className="hint">{p.akad} sudah akad · {p.belumAkad} belum akad</td></tr>
-          {k.plafonKpr && <tr><td>Plafon KPR masih proses</td><td className="num"><b>{rpM(k.plafonKpr.total)}</b></td><td className="hint">{k.plafonKpr.n} konsumen belum akad{k.plafonKpr.kosong ? ` · ${k.plafonKpr.kosong} konsumen belum ada data plafon` : ''}{k.plafonKpr.standar ? ` · ${k.plafonKpr.standar} Permai pakai plafon standar subsidi` : ''}</td></tr>}
+          {k.plafonKpr && <tr><td>Plafon KPR masih proses</td><td className="num"><b>{rpM(k.plafonKpr.total)}</b></td><td className="hint">{k.plafonKpr.n} konsumen belum akad{k.plafonKpr.kosong ? ` · ${k.plafonKpr.kosong} konsumen belum ada data plafon` : ''}{k.plafonKpr.sementara ? ` · ${k.plafonKpr.sementara} konsumen pakai harga transaksi (plafon belum tercatat)` : ''}</td></tr>}
           <tr><td>Cash bertahap / cicilan</td><td className="num"><b>{p.bertahap}</b> unit</td><td className="hint">dibayar bertahap ke developer</td></tr>
           {p.keras ? <tr><td>Cash keras</td><td className="num"><b>{p.keras}</b> unit</td><td></td></tr> : null}
         </tbody></table></div></div>
@@ -458,7 +458,7 @@ async function buatExcelPenjualan({ rows, periode, d1, d2, proj, fSales, me, kum
 
   // ---- Proses KPR berjalan (Booking KPR belum akad, posisi hari ini) ----
   const kp = wb.addWorksheet('Proses KPR');
-  judul(kp, 'Proses KPR berjalan — Booking KPR yang belum akad', `Posisi ${kum ? fmtDate(kum.per) : ''} · semua periode · plafon: disetujui bank → pengajuan → (Permai) standar subsidi`);
+  judul(kp, 'Proses KPR berjalan — Booking KPR yang belum akad', `Posisi ${kum ? fmtDate(kum.per) : ''} · semua periode · plafon: disetujui bank → pengajuan → belum tercatat = harga transaksi (sementara)`);
   head(kp, 4, ['No', 'Kode Lead', 'Konsumen', 'Project · Unit', 'Sales', 'Tgl Booking', 'Hari sejak Booking', 'Bank', 'Tahap KPR', 'Plafon KPR (Rp)', 'Sumber plafon', 'Status KPR terakhir']);
   const pkx = kum?.prosesKpr || [];
   pkx.forEach((x, i) => { const r = 5 + i;
@@ -518,7 +518,7 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
   <p class="muted">KPR ${kum.penjualan.kpr} unit (${kum.penjualan.akad} sudah akad, ${kum.penjualan.belumAkad} belum akad) · cash bertahap ${kum.penjualan.bertahap} unit${kum.penjualan.keras ? ' · cash keras ' + kum.penjualan.keras + ' unit' : ''}. Batal setelah Booking: non-refund ${kum.batalBooking.nonrefund} kontrak (nilai kontrak ${rpM(kum.batalBooking.nilaiNonrefund)}), refund ${kum.batalBooking.refund} kontrak (nilai kontrak ${rpM(kum.batalBooking.nilaiRefund)}). Uang dari konsumen yang batal: dibayar ${fmtRp(kum.batalBooking.dibayar)}, hangus ${fmtRp(kum.batalBooking.hangus)}, dikembalikan ${fmtRp(kum.batalBooking.dikembalikan)}.</p>
   <table><tr><th>Tahun penjualan</th><th class="r">Transaksi</th><th class="r">Masih Reserved</th><th class="r">Booking berjalan</th><th class="r">Nilai Booking</th><th class="r">Batal saat Reserved</th><th class="r">Batal setelah Booking</th><th class="r">Nilai batal Booking</th></tr>${kum.perTahun.map(t => `<tr><td><b>${t.tahun}</b></td><td class="r"><b>${(t.reserved || 0) + t.aktif + t.batalReserved + t.batal}</b></td><td class="r">${t.reserved || 0}</td><td class="r"><b>${t.aktif}</b></td><td class="r"><b>${rpM(t.nilaiAktif)}</b></td><td class="r">${t.batalReserved}</td><td class="r">${t.batal}</td><td class="r">${rpM(t.nilaiBatal)}</td></tr>`).join('')}</table>
   <p class="muted">Per tahun penjualan (tanggal Booking; Reserved bila belum Booking): Transaksi = Masih Reserved + Booking berjalan + Batal saat Reserved + Batal setelah Booking. Kontrak tahun lalu yang batal tahun ini tetap dihitung di tahun penjualannya.</p>` : ''}
-  ${kum?.plafonKpr ? `<p class="muted"><b>Plafon KPR masih proses</b> (${kum.plafonKpr.n} konsumen belum akad): ${rpM(kum.plafonKpr.total)}${kum.plafonKpr.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : ''}${kum.plafonKpr.standar ? ` · ${kum.plafonKpr.standar} unit Permai memakai plafon standar subsidi` : ''}.</p>` : ''}
+  ${kum?.plafonKpr ? `<p class="muted"><b>Plafon KPR masih proses</b> (${kum.plafonKpr.n} konsumen belum akad): ${rpM(kum.plafonKpr.total)}${kum.plafonKpr.kosong ? ` · ${kum.plafonKpr.kosong} konsumen belum ada data plafon` : ''}${kum.plafonKpr.sementara ? ` · ${kum.plafonKpr.sementara} konsumen memakai harga transaksi karena plafon belum tercatat` : ''}.</p>` : ''}
   ${prospek.some(p => p.daftar.length) ? (() => { const R = ringkasProspek(prospek); return `<h2>Prospek ${esc(blnPanjang(prospek[0]?.bulan))} · ${R.n} prospek · ${R.unit} unit</h2>
   <p class="muted">Perkiraan nilai ${R.min === R.max ? rpM(R.max) : rpM(R.min) + '–' + rpM(R.max)} · siap Booking ${R.siap} prospek (${R.unitSiap} unit, ±${rpM(R.nilaiSiap)}).</p>
   <table><tr><th>No</th><th>Project</th><th>Prospek</th><th>Sales / agent</th><th>Minat unit</th><th class="r">Unit</th><th class="r">Perkiraan nilai</th><th>Tahap</th><th>Update terakhir</th><th>Langkah berikut</th></tr>
