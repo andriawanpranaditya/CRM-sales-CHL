@@ -17,6 +17,16 @@ export async function GET(req) {
     const pending = user.role === 'sales' ? await leadMenungguSaya(sql, user.username) : [];
     return Response.json({ now: new Date().toISOString(), pending });
   }
+  // Formulir WA otomatis (nama, domisili, budget) — pengaturan untuk Manager
+  if (q.get('form') === '1') {
+    if (!['manager', 'ceo', 'markom'].includes(user.role)) return Response.json({ error: 'Tidak punya akses' }, { status: 403 });
+    const fw = await import('@/lib/form-wa');
+    const waba = (await sql`SELECT items FROM settings WHERE key = 'wa_waba'`.catch(() => []))[0]?.items || {};
+    const nomor = await sql`SELECT phone_id, display, project FROM wa_nomor`.catch(() => []);
+    const st = await sql`SELECT count(*) FILTER (WHERE form_wa_at IS NOT NULL)::int AS dikirim, count(*) FILTER (WHERE form_wa_ok IS NOT NULL)::int AS terisi
+      FROM leads WHERE form_wa_at > now() - interval '30 days'`.catch(() => [{}]);
+    return Response.json({ form: await fw.ambilForm(sql), waba, nomor, flowJson: fw.flowJson(), statistik: st[0] || {}, token: !!(process.env.WA_TOKEN || process.env.META_TOKEN) });
+  }
   // Kriteria 🔥 Siap oper (dipakai Form Input Marcom untuk label kualitas)
   if (q.get('kriteria') === '1') { const c = await ambilCfg(sql); const { teksKriteria } = await import('@/lib/kualitas-lead'); return Response.json({ kriteria: c.kriteria, teks: teksKriteria(c.kriteria) }); }
   // Antrian Marcom (belum dioper) + lead yang baru dibagi otomatis — untuk Marcom (Leads to Sales) & Manager
@@ -90,6 +100,23 @@ export async function POST(req) {
     const izinkan = ['aktif', 'jam_mulai', 'jam_selesai', 'hari', 'batas_respon', 'batas_oper', 'maks_oper', 'maks_antrian', 'ulang_notif', 'tunggu_ai', 'pesan', 'tunggu_marcom', 'hanya_siap', 'kriteria'];
     const baru = Object.fromEntries(Object.entries(b.cfg || {}).filter(([k]) => izinkan.includes(k)));
     return Response.json({ ok: true, cfg: await simpanCfg(sql, baru) });
+  }
+  if (b.aksi === 'form-simpan') { const fw = await import('@/lib/form-wa'); await fw.siapkanForm(sql); return Response.json({ ok: true, form: await fw.simpanForm(sql, b.form || {}) }); }
+  if (b.aksi === 'form-buat') {
+    const fw = await import('@/lib/form-wa');
+    const waba = (await sql`SELECT items FROM settings WHERE key = 'wa_waba'`.catch(() => []))[0]?.items || {};
+    const id = String(b.waba || waba[b.project] || '').replace(/\D/g, '');
+    if (!id) return Response.json({ error: 'ID akun WhatsApp Business belum diketahui — kirim satu chat ke nomor WA project ini dulu, atau isi Flow ID manual dari WhatsApp Manager' }, { status: 400 });
+    try { return Response.json({ ok: true, flow_id: await fw.buatFlow(sql, b.project, id), form: await fw.ambilForm(sql) }); }
+    catch (e) { return Response.json({ error: e.message }, { status: 502 }); }
+  }
+  if (b.aksi === 'form-tes') {
+    const fw = await import('@/lib/form-wa');
+    let wa = String(b.wa || '').replace(/\D/g, ''); if (wa.startsWith('0')) wa = '62' + wa.slice(1);
+    const nomor = (await sql`SELECT phone_id FROM wa_nomor WHERE project = ${b.project || ''} ORDER BY updated_at DESC NULLS LAST LIMIT 1`.catch(() => []))[0];
+    if (!nomor || wa.length < 10) return Response.json({ error: 'Nomor tujuan / nomor WA project belum lengkap' }, { status: 400 });
+    try { const jenis = await fw.kirimForm(sql, { phoneId: nomor.phone_id, wa, project: b.project, lead_code: 'TES' }); return Response.json({ ok: !!jenis, jenis }); }
+    catch (e) { return Response.json({ error: e.message }, { status: 502 }); }
   }
   if (b.aksi === 'jalankan') return Response.json({ ok: true, ...(await jalankanDistribusi(sql, { paksa: true })) });
   return Response.json({ error: 'Aksi tidak dikenal' }, { status: 400 });

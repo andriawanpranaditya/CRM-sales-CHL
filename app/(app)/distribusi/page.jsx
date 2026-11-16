@@ -4,6 +4,7 @@ import { api } from '@/components/util';
 import Toast, { toast as tampil } from '@/components/Toast';
 import { tesAlarm } from '@/components/LeadMasuk';
 import InputRupiah from '@/components/InputRupiah';
+import FormWA from '@/components/FormWA';
 import { DATA_PENYARING, rapikanKriteria, teksKriteria } from '@/lib/kualitas-lead';
 
 const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -259,6 +260,8 @@ export default function DistribusiPage() {
         try { const x = await api('/api/distribusi', { method: 'POST', body: JSON.stringify({ aksi: 'jalankan' }) }); tampil(`Dicek: ${x.dibagi || 0} dibagi · ${x.dialihkan || 0} dialihkan · ${x.notif || 0} notifikasi`); muat(); }
         catch (e) { tampil(e.message); } }}>Jalankan pengecekan sekarang</button>
     </div>}
+
+    {manager && <FormWA />}
 
     <div style={{ marginTop: 14 }}><PanduanHP terbuka={sales} /></div>
     <Toast />

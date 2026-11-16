@@ -35,6 +35,13 @@ function tandaSah(raw, sig) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+const wabaTersimpan = new Set();
+async function simpanWaba(sql, project, id) {
+  const k = project + ':' + id; if (!project || wabaTersimpan.has(k)) return;
+  try { await sql`INSERT INTO settings (key, items) VALUES ('wa_waba', ${JSON.stringify({ [project]: String(id) })}::jsonb)
+    ON CONFLICT (key) DO UPDATE SET items = settings.items || ${JSON.stringify({ [project]: String(id) })}::jsonb`; wabaTersimpan.add(k); } catch {}
+}
+
 let siap = false;
 async function siapkan(sql) {
   if (siap) return;
@@ -49,7 +56,7 @@ async function siapkan(sql) {
 function isiPesan(m) {
   if (m.type === 'text') return m.text?.body || '';
   if (m.type === 'button') return m.button?.text || '';
-  if (m.type === 'interactive') return m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || '';
+  if (m.type === 'interactive') return m.interactive?.type === 'nfm_reply' ? '📝 [Formulir WA terisi]' : (m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || '');
   return `[${m.type || 'pesan'}]`;
 }
 
@@ -74,6 +81,9 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
     ORDER BY id LIMIT 1`;
   if (ada.length) {
     const l = ada[0];
+    // Jawaban formulir WA (nama, domisili, budget) — formulir WhatsApp Flows atau balasan teks berformat
+    const nfm = m.type === 'interactive' && m.interactive?.type === 'nfm_reply';
+    try { const { tanganiBalasan } = await import('@/lib/form-wa'); await tanganiBalasan(sql, { m, wa, project, phoneId, lead_code: l.lead_code, isi }); } catch (e) { console.error('form wa', e); }
     // Lead Drop lebih dari 90 hari menghubungi lagi → diperlakukan sebagai lead baru & dibagi ulang ke sales
     if (l.status === 'Drop' && l.updated_at && Date.now() - new Date(l.updated_at).getTime() > 90 * 864e5) {
       try {
@@ -96,7 +106,7 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
     await sql`UPDATE leads SET next_fu = ${hari}, updated_at = now()
       WHERE lead_code = ${l.lead_code} AND status NOT IN ('Drop', 'Closing') AND (next_fu IS NULL OR next_fu > ${hari})`;
     await sql`UPDATE wa_inbox SET lead_code = ${l.lead_code} WHERE msg_id = ${m.id}`;
-    await catatPercakapan(sql, wa, project, l.lead_code, 'user', isi);
+    if (!nfm) await catatPercakapan(sql, wa, project, l.lead_code, 'user', isi);
     await balasAI(sql, { wa, project, lead_code: l.lead_code, phoneId, msgId: m.id });
     return;
   }
@@ -148,8 +158,12 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   await catatPercakapan(sql, wa, project, code, 'user', isi);
   await balasAI(sql, { wa, project, lead_code: code, phoneId, msgId: m.id });
   // Distribusi lead: chat WA baru masuk antrian Marcom (dibagi otomatis bila 🔥 & belum dioper dalam batas waktu)
-  try { const { cekAntrian } = await import('@/lib/distribusi-lead'); const cek = (await sql`SELECT ai_status FROM leads WHERE lead_code = ${code}`)[0];
-    if ((cek?.ai_status || '') !== 'aktif') await cekAntrian(sql, code); } catch (e) { console.error('distribusi wa', e); }
+  const cekAI = (await sql`SELECT ai_status FROM leads WHERE lead_code = ${code}`)[0];
+  if ((cekAI?.ai_status || '') !== 'aktif') {
+    // Formulir WA otomatis: nama, domisili, budget (bila Asisten AI tidak sedang melayani)
+    try { const { kirimForm } = await import('@/lib/form-wa'); await kirimForm(sql, { phoneId, wa, project, lead_code: code }); } catch (e) { console.error('form wa kirim', e); }
+    try { const { cekAntrian } = await import('@/lib/distribusi-lead'); await cekAntrian(sql, code); } catch (e) { console.error('distribusi wa', e); }
+  }
 }
 
 async function catatPercakapan(sql, wa, project, lead_code, peran, isi) {
@@ -180,7 +194,7 @@ async function balasAI(sql, { wa, project, lead_code, phoneId, msgId }) {
     await sql`UPDATE leads SET
         nama = CASE WHEN (nama IS NULL OR nama = '' OR nama LIKE 'WA %') AND ${d.nama || ''} <> '' THEN ${d.nama || ''} ELSE nama END,
         domisili = CASE WHEN COALESCE(domisili, '') = '' THEN ${d.domisili || ''} ELSE domisili END,
-        budget = CASE WHEN COALESCE(budget, 0) = 0 THEN ${Number(d.budget) || 0} ELSE budget END,
+        budget = CASE WHEN COALESCE(budget, 0) = 0 THEN ${Number(d.budget) || 0}::bigint ELSE budget END,
         bayar = CASE WHEN COALESCE(bayar, '') = '' THEN ${d.bayar || ''} ELSE bayar END,
         usia = CASE WHEN COALESCE(usia, '') = '' THEN ${d.usia || ''} ELSE usia END,
         tujuan = CASE WHEN COALESCE(tujuan, '') = '' THEN ${d.tujuan || ''} ELSE tujuan END,
@@ -220,6 +234,8 @@ export async function POST(req) {
   for (const e of body.entry || []) {
     for (const c of e.changes || []) {
       const v = c.value || {};
+      // Simpan ID akun WhatsApp Business per project (dipakai untuk membuat formulir WA otomatis)
+      if (e.id && c.field === 'messages') { const pj0 = peta[String(v.metadata?.display_phone_number || '').replace(/[^0-9]/g, '')] || ''; await simpanWaba(sql, pj0, e.id); }
       if (/echo/i.test(c.field || '')) {
         const pj = peta[String(v.metadata?.display_phone_number || '').replace(/[^0-9]/g, '')] || '';
         for (const e of (v.message_echoes || v.messages || [])) { try { await prosesEcho(sql, e, pj); } catch (err) { console.error('echo', err); } }
