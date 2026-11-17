@@ -313,6 +313,29 @@ export async function GET(req) {
         AND (${proj}::text IS NULL OR l.project = ${proj})
       GROUP BY 1 ORDER BY dioper DESC`;
   } catch (e) { console.error('handoff', e); }
+  // Kapan lead Marcom pertama merespon (hitungan hari sejak lead masuk): respon = follow up bertanda "lead membalas"
+  // atau lead dioper ke sales (Marcom hanya mengoper lead yang sudah membalas). Dipakai menimbang biaya template WA.
+  let responLead = null;
+  try {
+    responLead = (await sql`
+      WITH base AS (
+        SELECT l.lead_code, l.tgl,
+          (SELECT min(f.tgl) FROM followups f WHERE f.lead_code = l.lead_code AND (f.balas = true OR f.detail LIKE 'Leads to Sales%')) AS respon
+        FROM leads l
+        WHERE l.tgl IS NOT NULL
+          AND (l.created_by IN (SELECT username FROM users WHERE role = 'markom') OR l.created_by NOT IN (SELECT username FROM users))
+          AND (${d1}::date IS NULL OR l.tgl >= ${d1}::date) AND (${d2}::date IS NULL OR l.tgl <= ${d2}::date)
+          AND (${proj}::text IS NULL OR l.project = ${proj}))
+      SELECT count(*)::int AS total,
+        count(*) FILTER (WHERE respon IS NOT NULL AND respon - tgl <= 1)::int AS h1,
+        count(*) FILTER (WHERE respon IS NOT NULL AND respon - tgl BETWEEN 2 AND 3)::int AS h3,
+        count(*) FILTER (WHERE respon IS NOT NULL AND respon - tgl > 3)::int AS lebih,
+        count(*) FILTER (WHERE respon IS NULL)::int AS belum,
+        (SELECT count(*)::int FROM followups f JOIN base b ON b.lead_code = f.lead_code
+          WHERE f.tgl > b.tgl + 3 AND (b.respon IS NULL OR f.tgl <= b.respon)
+            AND f.detail NOT LIKE 'Leads to Sales%' AND COALESCE(f.created_by, '') <> 'auto-wa' AND f.balas IS DISTINCT FROM true) AS fu_lewat
+      FROM base`)[0] || null;
+  } catch (e) { console.error('respon lead', e); }
   const tanpaCamp = await sql`SELECT COALESCE(NULLIF(sumber, ''), '(kosong)') AS sumber, count(*)::int AS n FROM leads
     WHERE COALESCE(campaign, '') = ''
       AND (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
@@ -420,7 +443,7 @@ export async function GET(req) {
   } catch {}
   let capi = null;
   try { const { ringkasCapi } = await import('@/lib/meta-capi'); capi = await ringkasCapi(sql); } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, capi, syncsehat, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, responLead, capi, syncsehat, synclog, me: { role: user.role, username: user.username } });
 }
 
 async function _POST(req) {

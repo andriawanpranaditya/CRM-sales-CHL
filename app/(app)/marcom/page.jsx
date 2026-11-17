@@ -1446,6 +1446,20 @@ export default function MarcomPage() {
       </>)}
 
       {tab === 'tim' && (<>
+        {data.responLead && (() => {
+          const r = data.responLead, pc = n => r.total ? Math.round(n / r.total * 100) + '%' : '—';
+          const baris = [['Hari yang sama atau besoknya', r.h1, 'masih dalam jendela gratis'], ['Hari ke-2 sampai ke-3', r.h3, 'umumnya masih dalam 72 jam untuk lead iklan WA'],
+            ['Setelah lebih dari 3 hari', r.lebih, 'baru merespon setelah follow up lanjutan'], ['Belum pernah merespon', r.belum, '']];
+          return (<div className="card" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Kapan Lead Marcom Pertama Merespon <span className="hint">(lead masuk pada periode & project terpilih · dihitung per hari sejak lead masuk)</span></h3>
+            <div className="tbl-wrap tbl-compact"><table>
+              <thead><tr><th>Respon pertama</th><th className="num">Lead</th><th className="num">Porsi</th><th>Keterangan</th></tr></thead>
+              <tbody>{baris.map(([lb, n, ket]) => (<tr key={lb}><td data-label="Respon"><b>{lb}</b></td><td className="num" data-label="Lead"><b>{n}</b></td><td className="num" data-label="Porsi">{pc(n)}</td><td data-label="Ket">{ket}</td></tr>))}
+                <tr><td data-label="Respon"><b>Total lead</b></td><td className="num" data-label="Lead"><b>{r.total}</b></td><td className="num" data-label="Porsi">100%</td><td></td></tr></tbody>
+            </table></div>
+            <span className="hint">Respon = follow up bertanda "lead membalas" atau lead dioper ke sales. Follow up yang dikirim setelah hari ke-3 ke lead yang belum merespon pada periode ini: <b>{r.fu_lewat}</b> pesan — bila nomor official dipindah ke sambungan CRM, pesan seperti ini menjadi template berbayar (perkiraan {r.fu_lewat} × Rp590 = Rp{Math.round(r.fu_lewat * 590).toLocaleString('id-ID')}, belum pajak).</span>
+          </div>);
+        })()}
         <div className="card" style={{ marginBottom: 12 }}>
           <h3 style={{ marginTop: 0 }}>Respon Lead Setelah Dioper ke Sales <span className="hint">(membalas = sales menandai "lead membalas" atau status lead naik sesudah serah terima)</span></h3>
           <div className="tbl-wrap tbl-compact"><table>
