@@ -156,6 +156,8 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   await sql`UPDATE leads SET lead_code = ${code} WHERE id = ${ins[0].id}`;
   await sql`UPDATE wa_inbox SET lead_code = ${code} WHERE msg_id = ${m.id}`;
   await catatPercakapan(sql, wa, project, code, 'user', isi);
+  // Umpan balik ke Meta: lead baru dari iklan klik-ke-WA (dilewati bila bukan dari iklan)
+  if (ref?.ctwa_clid) { try { const { kirimEventMeta } = await import('@/lib/meta-capi'); await kirimEventMeta(sql, code, 'LeadSubmitted'); } catch (e) { console.error('capi lead', e); } }
   await balasAI(sql, { wa, project, lead_code: code, phoneId, msgId: m.id });
   // Distribusi lead: chat WA baru masuk antrian Marcom (dibagi otomatis bila 🔥 & belum dioper dalam batas waktu)
   const cekAI = (await sql`SELECT ai_status FROM leads WHERE lead_code = ${code}`)[0];

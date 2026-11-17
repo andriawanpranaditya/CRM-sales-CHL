@@ -1412,6 +1412,23 @@ export default function MarcomPage() {
           </table></div>
           <span className="hint">Sehat = tarikan terakhir sukses dalam 36 jam. "Belum pernah" atau "kunci belum diisi" berarti sumber itu belum tersambung; "gagal" menampilkan penyebabnya di kolom Keterangan.</span>
         </div>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Umpan Balik ke Meta <span className="hint">(status lead dari iklan klik-ke-WA yang dikabarkan ke Meta)</span></h3>
+          <div className="tbl-wrap tbl-compact"><table>
+            <thead><tr><th>Kejadian</th><th>Pemicu di CRM</th><th className="num">Terkirim</th><th className="num">Gagal</th><th>Terakhir</th></tr></thead>
+            <tbody>{[['LeadSubmitted', 'Chat pertama dari iklan'], ['QualifiedLead', 'Sales mengonfirmasi lead membalas'], ['Purchase', 'Transaksi Booking']].map(([ev, pemicu]) => {
+              const b = (data.capi?.jml || []).filter(x => x.event === ev);
+              const n = st => b.filter(x => x.status === st).reduce((a, x) => a + x.n, 0);
+              const akhir = b.map(x => x.terakhir).filter(Boolean).sort().pop();
+              return (<tr key={ev}><td data-label="Kejadian"><b>{ev}</b></td><td data-label="Pemicu">{pemicu}</td>
+                <td className="num" data-label="Terkirim"><b>{n('terkirim')}</b></td>
+                <td className="num" data-label="Gagal" style={{ color: n('gagal') ? 'var(--red)' : undefined }}>{n('gagal')}</td>
+                <td data-label="Terakhir">{akhir ? new Date(akhir).toLocaleString('id-ID') : '—'}</td></tr>);
+            })}</tbody>
+          </table></div>
+          {data.capi?.galat && <div className="hint" style={{ color: 'var(--red)' }}>Kegagalan terakhir ({data.capi.galat.event}, {new Date(data.capi.galat.created_at).toLocaleString('id-ID')}): {data.capi.galat.pesan}</div>}
+          <span className="hint">Hanya lead yang datang dari iklan klik-ke-WhatsApp yang dikirim, masing-masing kejadian sekali per lead. Kiriman yang gagal dicoba lagi pada kejadian berikutnya untuk lead itu.</span>
+        </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Riwayat Tarikan Data <span className="hint">(40 terakhir)</span></h3>
           <div className="tbl-wrap tbl-compact"><table>

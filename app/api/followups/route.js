@@ -111,6 +111,8 @@ async function _POST(req) {
   // Kontak yang dihubungi (bila lead punya lebih dari satu nomor / nama)
   // Distribusi lead: FU pertama sales = lead sudah direspon (hitungan batas respon berhenti)
   if (user.role === 'sales') { try { const { tandaiRespon } = await import('@/lib/distribusi-lead'); await tandaiRespon(sql, b.lead_code, user.username, 'FU'); } catch (e) { console.error('respon lead', e); } }
+  // Umpan balik ke Meta: lead dinilai layak saat sales (bukan Marcom / catatan otomatis) mengonfirmasi lead membalas
+  if (balas === true && user.role !== 'markom') { try { const { kirimEventMeta } = await import('@/lib/meta-capi'); await kirimEventMeta(sql, b.lead_code, 'QualifiedLead'); } catch (e) { console.error('capi layak', e); } }
   if (b.kontak && insFu[0]?.id) { await siapkanKontak(sql); await sql`UPDATE followups SET kontak = ${String(b.kontak).slice(0, 120)} WHERE id = ${insFu[0].id}`; }
   // Status lead ikut diperbarui dari form follow up (Drop/Reserved/Booking diatur oleh logika di bawah)
   if (b.status && !['Drop', 'Reserved', 'Booking'].includes(b.next_action || '')) {

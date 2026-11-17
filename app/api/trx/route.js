@@ -110,6 +110,8 @@ async function _POST(req) {
   const insTrx = await sql`INSERT INTO transactions (lead_code, jenis, tgl, nilai, nilai_jual, catatan, project, bayar, unit, cicilan, datang, created_by)
     VALUES (${b.lead_code}, ${b.jenis}, ${b.tgl || null}, ${Number(b.nilai) || 0}, ${b.nilai_jual ? Number(b.nilai_jual) : null}, ${catatan},
             ${b.project || ''}, ${b.bayar || ''}, ${b.unit || ''}, ${cicilanDari(b)}, ${datangDari(b)}, ${user.username}) RETURNING id`;
+  // Umpan balik ke Meta: penjualan diakui saat Booking (Reserved belum dihitung)
+  if (b.jenis === 'Booking') { try { const { kirimEventMeta } = await import('@/lib/meta-capi'); await kirimEventMeta(sql, b.lead_code, 'Purchase', { nilai: Number(b.nilai_jual) || Number(b.nilai) || 0 }); } catch (e) { console.error('capi booking', e); } }
   // Web Push ke HP Manager: Reserved / Booking / Batal baru
   if (['Reserved', 'Booking', 'Batal'].includes(b.jenis)) {
     try {
@@ -214,6 +216,7 @@ async function _PATCH(req) {
       catatan = ${catatan}
     WHERE id = ${b.id}`;
   await sinkronStatus(sql, rows[0].lead_code, user.username, `Transaksi diedit → ${b.jenis}`);
+  if (b.jenis === 'Booking') { try { const { kirimEventMeta } = await import('@/lib/meta-capi'); await kirimEventMeta(sql, rows[0].lead_code, 'Purchase', { nilai: Number(b.nilai_jual) || Number(b.nilai) || 0 }); } catch (e) { console.error('capi booking', e); } }
   return Response.json({ ok: true });
 }
 

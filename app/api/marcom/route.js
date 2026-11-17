@@ -418,7 +418,9 @@ export async function GET(req) {
       igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
     }
   } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, syncsehat, synclog, me: { role: user.role, username: user.username } });
+  let capi = null;
+  try { const { ringkasCapi } = await import('@/lib/meta-capi'); capi = await ringkasCapi(sql); } catch {}
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, capi, syncsehat, synclog, me: { role: user.role, username: user.username } });
 }
 
 async function _POST(req) {
