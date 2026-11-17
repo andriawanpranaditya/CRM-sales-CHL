@@ -274,9 +274,9 @@ export async function GET(req) {
     GROUP BY 1`;
 
   // Website & SEO (hasil tarikan konektor GA4 + Search Console)
-  let ga4 = [], gsc = [], synclog = [];
+  let ga4 = [], gsc = [], synclog = [], syncsehat = [];
   try {
-    [ga4, gsc, synclog] = await Promise.all([
+    [ga4, gsc, synclog, syncsehat] = await Promise.all([
       sql`SELECT source_medium, sum(sessions)::int AS sessions, sum(users)::int AS users, sum(key_events)::int AS key_events
           FROM mi_ga4_daily
           WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
@@ -286,7 +286,10 @@ export async function GET(req) {
           FROM mi_gsc_daily
           WHERE (${d1}::date IS NULL OR tgl >= ${d1}::date) AND (${d2}::date IS NULL OR tgl <= ${d2}::date)
           GROUP BY 1 ORDER BY clicks DESC, impressions DESC LIMIT 30`,
-      sql`SELECT * FROM mi_sync_log ORDER BY id DESC LIMIT 12`,
+      sql`SELECT * FROM mi_sync_log ORDER BY waktu DESC, id DESC LIMIT 40`,
+      // Kesehatan sambungan: tarikan TERAKHIR tiap sumber + kapan terakhir sukses (tidak tergeser sumber yang sering berjalan)
+      sql`SELECT t.*, (SELECT max(waktu) FROM mi_sync_log s WHERE s.sumber = t.sumber AND s.status IN ('sukses', 'sebagian')) AS sukses_terakhir
+          FROM (SELECT DISTINCT ON (sumber) * FROM mi_sync_log WHERE sumber IS NOT NULL ORDER BY sumber, waktu DESC, id DESC) t`,
     ]);
   } catch {}
   const spendAll = await sql`SELECT campaign, sum(spend)::numeric AS total, max(tgl) AS terakhir, count(*)::int AS entri FROM mi_ads GROUP BY campaign`;
@@ -415,7 +418,7 @@ export async function GET(req) {
       igAkun = { followers: kini[0].followers, username: kini[0].username, tgl: kini[0].tgl, followersAwal: awalP[0]?.followers ?? null };
     }
   } catch {}
-  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, synclog, me: { role: user.role, username: user.username } });
+  return Response.json({ mulai: MULAI, campaigns, contents, ads, byCampaign, bySumber, byKonten, audiens, timLead, timKonten, spend: spendGab, perIklan, leadKonten, igAkun, igDemo, persona, fit, breakdown, targeting, usiaLead, hasilPlat, bookingDetail, bookingLain, marketing, spendAll, tanpaCamp, handoff, pangle7, amort, ga4, gsc, syncsehat, synclog, me: { role: user.role, username: user.username } });
 }
 
 async function _POST(req) {

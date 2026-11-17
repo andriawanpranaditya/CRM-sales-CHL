@@ -1393,8 +1393,27 @@ export default function MarcomPage() {
             </table></div>
           </div>
         </div>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Kesehatan Sambungan <span className="hint">(tarikan terakhir tiap sumber)</span></h3>
+          <div className="tbl-wrap tbl-compact"><table>
+            <thead><tr><th>Sumber</th><th>Kondisi</th><th>Tarikan Terakhir</th><th>Terakhir Sukses</th><th>Keterangan</th></tr></thead>
+            <tbody>{['GA4', 'Search Console', 'Meta Ads', 'Meta Ads (rincian)', 'Instagram', 'Google Ads'].map(nm => {
+              const r = (data.syncsehat || []).find(x => x.sumber === nm);
+              const jam = r ? (Date.now() - new Date(r.waktu).getTime()) / 3600000 : null;
+              const ok = r && (r.status === 'sukses' || r.status === 'sebagian');
+              const k = !r ? ['b-cold', 'belum pernah'] : r.status === 'gagal' ? ['b-hot', 'gagal'] : r.status === 'dilewati' ? ['b-cold', 'kunci belum diisi']
+                : r.status === 'berjalan' ? ['b-cold', 'sedang menarik'] : ok && jam > 36 ? ['b-hot', 'terlambat ' + Math.floor(jam / 24) + ' hari'] : ['b-warm', 'sehat'];
+              return (<tr key={nm}><td data-label="Sumber"><b>{nm}</b></td>
+                <td data-label="Kondisi"><span className={'badge ' + k[0]}>{k[1]}</span></td>
+                <td data-label="Terakhir">{r ? new Date(r.waktu).toLocaleString('id-ID') : '—'}</td>
+                <td data-label="Sukses">{r && r.sukses_terakhir ? new Date(r.sukses_terakhir).toLocaleString('id-ID') : '—'}</td>
+                <td data-label="Ket">{r ? r.pesan : 'Belum ada catatan tarikan untuk sumber ini.'}</td></tr>);
+            })}</tbody>
+          </table></div>
+          <span className="hint">Sehat = tarikan terakhir sukses dalam 36 jam. "Belum pernah" atau "kunci belum diisi" berarti sumber itu belum tersambung; "gagal" menampilkan penyebabnya di kolom Keterangan.</span>
+        </div>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Riwayat Tarikan Data</h3>
+          <h3 style={{ marginTop: 0 }}>Riwayat Tarikan Data <span className="hint">(40 terakhir)</span></h3>
           <div className="tbl-wrap tbl-compact"><table>
             <thead><tr><th>Waktu</th><th>Sumber</th><th>Status</th><th className="num">Baris</th><th>Keterangan</th></tr></thead>
             <tbody>{(data.synclog || []).length ? (data.synclog || []).map(r => (
