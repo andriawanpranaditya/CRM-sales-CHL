@@ -195,12 +195,12 @@ async function _PATCH(req) {
     m.sales = b.sales;
   }
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
-  // Sales mengubah DATA lead (identitas & profil) → perlu persetujuan Manager. Status, jadwal FU & catatan tetap langsung tersimpan.
+  // Sales mengubah data KRUSIAL lead (nama, WA & kontak tambahan, tanggal, sumber, project) → perlu persetujuan Manager. Field profil lain, status, jadwal FU & catatan langsung tersimpan.
   let ajuan = null;
   if (user.role === 'sales') {
-    const { siapkanLeadUbah, FIELD_DIJAGA, samaNilai } = await import('@/lib/lead-ubah');
+    const { siapkanLeadUbah, FIELD_SETUJU, samaNilai } = await import('@/lib/lead-ubah');
     const ubah = [];
-    for (const k of FIELD_DIJAGA) if (k in b && !samaNilai(k, b[k], cur[k])) { ubah.push({ field: k, lama: cur[k] ?? '', baru: b[k] ?? '' }); m[k] = cur[k]; }
+    for (const k of FIELD_SETUJU) if (k in b && !samaNilai(k, b[k], cur[k])) { ubah.push({ field: k, lama: cur[k] ?? '', baru: b[k] ?? '' }); m[k] = cur[k]; }
     if (Array.isArray(b.kontak)) {
       const baru = bersihKontak(b.kontak, cur.wa), lama = Array.isArray(cur.kontak) ? cur.kontak : [];
       if (JSON.stringify(baru) !== JSON.stringify(bersihKontak(lama, cur.wa))) ubah.push({ field: 'kontak', lama, baru });

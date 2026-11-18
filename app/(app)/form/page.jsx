@@ -211,7 +211,7 @@ export default function FormPage() {
     try {
       if (editId) {
         const r = await api('/api/leads', { method: 'PATCH', body: JSON.stringify({ id: editId, ...lead, sales: lead.sales === '__other__' ? undefined : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined }) });
-        toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — status & jadwal FU sudah tersimpan` : 'Lead berhasil diperbarui');
+        toast(r.menunggu ? `Perubahan data (${r.menunggu} kolom) dikirim ke Manager untuk disetujui — data lainnya sudah tersimpan` : 'Lead berhasil diperbarui');
       } else {
         const d = await api('/api/leads', { method: 'POST', body: JSON.stringify({ ...lead, sales: lead.sales === '__other__' ? '' : lead.sales, other: lead.sales === '__other__' ? kirimOther(lead.other) : undefined, foto: lead.foto ? { data: lead.foto.data } : undefined }) });
         toast('Lead tersimpan — ' + d.lead_code + (d.dibagi ? ' · dibagi otomatis ke ' + d.dibagi : ''));
