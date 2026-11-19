@@ -11,7 +11,6 @@ export const maxDuration = 60;
 const MODUL = 'Digital Marketing';
 const TOLAK = () => Response.json({ error: 'Menu ini sementara khusus akun Head of Sales & Marketing' }, { status: 403 });
 const galat = (pesan, status = 400) => Response.json({ error: pesan }, { status });
-const STATUS_TAMPIL = JSON.stringify(['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'PENDING_REVIEW', 'DISAPPROVED']);
 const HASIL = ['onsite_conversion.messaging_conversation_started_7d', 'lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead', 'link_click'];
 const rp = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 const idAkun = v => String(v || '').replace(/^act_/, '').replace(/[^0-9]/g, '');
@@ -44,13 +43,16 @@ export async function GET(req) {
 
     if (bagian === 'iklan') {
       const akun = idAkun(q.get('akun')); if (!akun) return galat('Akun iklan belum dipilih');
-      const mataUang = await mataUangAkun(akun), f = faktorUang(mataUang);
-      const [camp, adset, ads, ins] = await Promise.all([
-        mSemua(`act_${akun}/campaigns`, { fields: 'id,name,status,effective_status,objective,daily_budget,lifetime_budget', effective_status: STATUS_TAMPIL, limit: 100 }),
-        mSemua(`act_${akun}/adsets`, { fields: 'id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,optimization_goal,targeting', effective_status: STATUS_TAMPIL, limit: 100 }),
-        mSemua(`act_${akun}/ads`, { fields: 'id,name,status,effective_status,adset_id,campaign_id,creative{thumbnail_url,object_type}', effective_status: STATUS_TAMPIL, limit: 150 }),
-        mSemua(`act_${akun}/insights`, { level: 'ad', date_preset: 'last_7d', fields: 'ad_id,adset_id,campaign_id,spend,impressions,actions', limit: 300 }).catch(() => []),
-      ]);
+      // Hemat panggilan ke Meta (akun iklan dibatasi jumlah panggilannya): campaign + ad set + iklan diambil dalam SATU panggilan bersarang.
+      // Bawaan: hanya campaign yang saklarnya ON. ?mati=1 → campaign yang mati (dimuat hanya bila diminta).
+      const mati = q.get('mati') === '1';
+      const mataUang = /^[A-Z]{3}$/.test(q.get('mu') || '') ? q.get('mu') : 'IDR', f = faktorUang(mataUang);
+      const FA = 'id,name,status,effective_status,adset_id,campaign_id,creative{thumbnail_url,object_type}';
+      const FS = `id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,optimization_goal,targeting,ads.limit(40){${FA}}`;
+      const pohon = await mSemua(`act_${akun}/campaigns`, { fields: `id,name,status,effective_status,objective,daily_budget,lifetime_budget,adsets.limit(25){${FS}}`,
+        effective_status: JSON.stringify(mati ? ['PAUSED'] : ['ACTIVE', 'IN_PROCESS', 'WITH_ISSUES']), limit: mati ? 25 : 50 }, mati ? 3 : 2);
+      const camp = pohon, adset = pohon.flatMap(c => c.adsets?.data || []), ads = adset.flatMap(a => a.ads?.data || []);
+      const ins = mati ? [] : await mSemua(`act_${akun}/insights`, { level: 'ad', date_preset: 'last_7d', fields: 'ad_id,adset_id,campaign_id,spend,impressions,actions', limit: 300 }, 2).catch(() => []);
       const hasilDari = a => { for (const t of HASIL) { const x = (a || []).find(y => y.action_type === t); if (x) return { n: Number(x.value) || 0, jenis: t }; } return { n: 0, jenis: '' }; };
       const perAd = {}, perSet = {}, perCamp = {};
       const tambah = (o, k, s, i, h) => { const x = o[k] || (o[k] = { biaya: 0, tayang: 0, hasil: 0 }); x.biaya += s; x.tayang += i; x.hasil += h; };
@@ -62,7 +64,7 @@ export async function GET(req) {
         lokasi: [...(t.geo_locations?.cities || []).map(c => c.name + (c.radius ? ` +${c.radius}${c.distance_unit === 'mile' ? 'mil' : 'km'}` : '')), ...(t.geo_locations?.regions || []).map(c => c.name),
           ...(t.geo_locations?.custom_locations || []).map(c => (c.name || c.address_string || 'Titik peta') + (c.radius ? ` +${c.radius}km` : '')), ...(t.geo_locations?.countries || [])].slice(0, 12),
         otomatis: t.targeting_automation?.advantage_audience === 1 } : null;
-      return Response.json({ akun, mata_uang: mataUang,
+      return Response.json({ akun, mata_uang: mataUang, mati,
         campaign: camp.map(c => ({ id: c.id, nama: c.name, nyala: c.status === 'ACTIVE', status: c.effective_status, tujuan: c.objective, harian: uang(c.daily_budget), total: uang(c.lifetime_budget), k7: perCamp[c.id] || nol })),
         adset: adset.map(a => ({ id: a.id, nama: a.name, campaign_id: a.campaign_id, nyala: a.status === 'ACTIVE', status: a.effective_status, harian: uang(a.daily_budget), total: uang(a.lifetime_budget), sasaran: a.optimization_goal, target: tgt(a.targeting), k7: perSet[a.id] || nol })),
         iklan: ads.map(a => ({ id: a.id, nama: a.name, adset_id: a.adset_id, campaign_id: a.campaign_id, nyala: a.status === 'ACTIVE', status: a.effective_status, gambar: a.creative?.thumbnail_url || '', jenis: a.creative?.object_type || '', k7: perAd[a.id] || nol })) });

@@ -43,14 +43,17 @@ export default function DigitalMarketing() {
   const [st, setSt] = useState(null);
   const [tab, setTab] = useState('iklan');
   const [akun, setAkun] = useState('');
-  const [d, setD] = useState(null);          // data iklan akun terpilih
+  const [d, setD] = useState(null);          // campaign yang saklarnya ON di akun terpilih
+  const [dMati, setDMati] = useState(null);  // campaign yang mati — dimuat hanya bila diminta
   const [buka, setBuka] = useState({});      // campaign / ad set yang dibentangkan
   const [sibuk, setSibuk] = useState(false);
 
   useEffect(() => { api('/api/auth/me').then(setMe).catch(() => setMe({})); }, []);
   const muatStatus = () => api('/api/digital?bagian=status').then(r => { setSt(r); setAkun(a => a || r.akun?.[0]?.id || ''); }).catch(e => { toast(e.message); setSt({ galat: e.message, akun: [], wp: [] }); });
   useEffect(() => { if (me && bolehDigital(me)) muatStatus(); }, [me]); // eslint-disable-line
-  const muatIklan = () => { if (!akun) return; setD(null); api('/api/digital?bagian=iklan&akun=' + akun).then(setD).catch(e => { toast(e.message); setD({ galat: e.message, campaign: [], adset: [], iklan: [] }); }); };
+  const alamatIklan = mati => '/api/digital?bagian=iklan&akun=' + akun + '&mu=' + (st?.akun.find(a => a.id === akun)?.mata_uang || 'IDR') + (mati ? '&mati=1' : '');
+  const muatMati = () => { setDMati('memuat'); api(alamatIklan(true)).then(setDMati).catch(e => { toast(e.message); setDMati(null); }); };
+  const muatIklan = () => { if (!akun) return; setD(null); setDMati(null); api(alamatIklan(false)).then(setD).catch(e => { toast(e.message); setD({ galat: e.message, campaign: [], adset: [], iklan: [] }); }); };
   useEffect(() => { if (akun && (tab === 'iklan' || tab === 'baru')) muatIklan(); }, [akun, tab === 'iklan' || tab === 'baru']); // eslint-disable-line
 
   async function jalankan(pesanYakin, aksi, data, sukses, sesudah = muatIklan) {
@@ -86,7 +89,7 @@ export default function DigitalMarketing() {
       <button className="sort-btn" onClick={muatIklan} disabled={!akun}>Muat ulang</button>
     </div>}
 
-    {tab === 'iklan' && <TabIklan d={d} buka={buka} setBuka={setBuka} sibuk={sibuk} jalankan={jalankan} batas={st.batas} />}
+    {tab === 'iklan' && <TabIklan d={d} dMati={dMati} muatMati={muatMati} buka={buka} setBuka={setBuka} sibuk={sibuk} jalankan={jalankan} batas={st.batas} />}
     {tab === 'baru' && <TabBaru d={d} sibuk={sibuk} jalankan={jalankan} keIklan={() => setTab('iklan')} />}
     {tab === 'organik' && <TabOrganik sibuk={sibuk} setSibuk={setSibuk} punya={punya} />}
     {tab === 'web' && <TabWeb situs={st.wp} sibuk={sibuk} setSibuk={setSibuk} />}
@@ -95,15 +98,15 @@ export default function DigitalMarketing() {
 }
 
 // ===================== KELOLA IKLAN =====================
-function TabIklan({ d, buka, setBuka, sibuk, jalankan, batas }) {
+function TabIklan({ d, dMati, muatMati, buka, setBuka, sibuk, jalankan, batas }) {
   const [ubah, setUbah] = useState(null); // { jenis:'budget'|'target', id, ... }
   if (!d) return <div className="loading">Memuat iklan dari Meta…</div>;
   if (d.galat) return <div className="note" style={{ borderLeft: '4px solid var(--red)' }}>Gagal memuat iklan: {d.galat}</div>;
-  if (!d.campaign.length) return <div className="card"><p className="hint">Tidak ada campaign aktif atau mati di akun ini.</p></div>;
   const tog = id => setBuka(b => ({ ...b, [id]: !b[id] }));
   const saklar = (o, jenis, label) => (<button className={'sort-btn' + (o.nyala ? ' active' : '')} disabled={sibuk} style={{ padding: '4px 10px', fontSize: 11.5 }}
     onClick={() => jalankan(`${o.nyala ? 'MATIKAN' : 'NYALAKAN'} ${label} "${o.nama}"?${o.nyala ? '' : '\n\nSetelah menyala, iklan mulai memakai anggaran.'}`, 'status', { id: o.id, jenis, nyala: !o.nyala }, `${label} ${o.nyala ? 'dimatikan' : 'dinyalakan'} ✅`)}>
     {o.nyala ? 'ON' : 'OFF'}</button>);
+  const jalan = d.campaign.filter(c => c.k7.tayang > 0).sort((a, b) => b.k7.biaya - a.k7.biaya), diam = d.campaign.filter(c => !(c.k7.tayang > 0));
   const anggaran = (o, jenis) => o.harian
     ? <button className="sort-btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => setUbah({ jenis: 'budget', tingkat: jenis, id: o.id, nama: o.nama, lama: o.harian, harian: String(o.harian) })}>{rp(o.harian)}/hari ✎</button>
     : o.total ? <span className="hint">total {rp(o.total)}</span> : null;
@@ -133,16 +136,29 @@ function TabIklan({ d, buka, setBuka, sibuk, jalankan, batas }) {
       </div>
       <div className="hint" style={{ marginTop: 6 }}>Lokasi &amp; minat tidak berubah{ubah.lokasi?.length ? ' · lokasi sekarang: ' + ubah.lokasi.join(', ') : ''}.{ubah.otomatis ? ' Ad set ini memakai Advantage+ audience — Meta bisa menolak batas usia tertentu.' : ''}</div></div>}
 
-    {d.campaign.map(c => { const sets = d.adset.filter(a => a.campaign_id === c.id);
+    {jalan.length > 0 && <h3 style={{ margin: '4px 0 8px' }}>Sedang jalan — ada tayangan 7 hari terakhir ({jalan.length})</h3>}
+    {jalan.map(c => kartu(c, d))}
+    {!jalan.length && <div className="card" style={{ marginBottom: 10 }}><p className="hint">Tidak ada campaign yang tayang dalam 7 hari terakhir di akun ini.</p></div>}
+    {diam.length > 0 && <><h3 style={{ margin: '16px 0 4px' }}>Saklar ON tapi tidak ada aktivitas ({diam.length})</h3>
+      <div className="hint" style={{ marginBottom: 8 }}>Campaign ini menyala tetapi tidak tayang 7 hari terakhir — biasanya karena ad set/iklannya mati, jadwalnya sudah lewat, atau baru dibuat dan belum mulai. Tidak ada biaya yang berjalan.</div>
+      {diam.map(c => kartu(c, d))}</>}
+    <h3 style={{ margin: '16px 0 8px' }}>Campaign yang mati</h3>
+    {!dMati ? <button className="sort-btn" onClick={muatMati}>Tampilkan campaign yang mati</button>
+      : dMati === 'memuat' ? <div className="loading">Memuat campaign yang mati…</div>
+      : !dMati.campaign.length ? <p className="hint">Tidak ada campaign yang mati.</p> : dMati.campaign.map(c => kartu(c, dMati))}
+    <div className="hint" style={{ marginTop: 10 }}>“Hasil” = percakapan WhatsApp/lead/klik yang dicatat Meta 7 hari terakhir (untuk campaign yang mati angkanya tidak dimuat). Perubahan di sini langsung berlaku di Meta dan tercatat di tab Riwayat.</div>
+  </>);
+
+  function kartu(c, sumber) { const sets = sumber.adset.filter(a => a.campaign_id === c.id), diamOn = !sumber.mati && c.nyala && !(c.k7.tayang > 0);
       return (<div key={c.id} className="card" style={{ marginBottom: 10, padding: 14 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {saklar(c, 'campaign', 'Campaign')}
           <button type="button" onClick={() => tog(c.id)} style={{ background: 'none', border: 'none', color: 'var(--ink)', font: 'inherit', fontWeight: 800, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{buka[c.id] ? '▾' : '▸'} {c.nama}</button>
-          <Pil status={c.status} />{anggaran(c, 'campaign')}
+          {diamOn ? <span className="kp-pill sm kp-no">ON · tidak tayang</span> : <Pil status={c.status} />}{anggaran(c, 'campaign')}
           <span className="hint">{String(c.tujuan || '').replace('OUTCOME_', '').toLowerCase()} · {sets.length} ad set</span>
         </div>
-        <div style={{ marginTop: 4 }}><K7 k={c.k7} /></div>
-        {buka[c.id] && sets.map(a => { const iklan = d.iklan.filter(i => i.adset_id === a.id), t = a.target;
+        {!sumber.mati && <div style={{ marginTop: 4 }}><K7 k={c.k7} /></div>}
+        {buka[c.id] && sets.map(a => { const iklan = sumber.iklan.filter(i => i.adset_id === a.id), t = a.target;
           return (<div key={a.id} style={{ margin: '10px 0 0 14px', paddingLeft: 12, borderLeft: '2px solid var(--line)' }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {saklar(a, 'adset', 'Ad set')}
@@ -151,17 +167,15 @@ function TabIklan({ d, buka, setBuka, sibuk, jalankan, batas }) {
               {t && <button className="sort-btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => setUbah({ jenis: 'target', id: a.id, nama: a.nama, usia_min: String(t.usia_min || 18), usia_maks: String(t.usia_maks || 65), gender: t.gender, lokasi: t.lokasi, otomatis: t.otomatis })}>
                 usia {t.usia_min || 18}–{t.usia_maks || 65} · {t.gender} ✎</button>}
             </div>
-            <div style={{ marginTop: 4 }}><K7 k={a.k7} />{t?.lokasi?.length ? <span className="hint"> · lokasi: {t.lokasi.join(', ')}</span> : null}</div>
+            <div style={{ marginTop: 4 }}>{!sumber.mati && <K7 k={a.k7} />}{t?.lokasi?.length ? <span className="hint"> · lokasi: {t.lokasi.join(', ')}</span> : null}</div>
             {buka[a.id] && iklan.map(i => (<div key={i.id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 0 14px' }}>
               {saklar(i, 'ad', 'Iklan')}
               {i.gambar ? <img src={i.gambar} alt="" style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line)' }} /> : null}
-              <b style={{ fontSize: 13 }}>{i.nama}</b><Pil status={i.status} /><K7 k={i.k7} />
+              <b style={{ fontSize: 13 }}>{i.nama}</b><Pil status={i.status} />{!sumber.mati && <K7 k={i.k7} />}
             </div>))}
             {buka[a.id] && !iklan.length && <div className="hint" style={{ margin: '8px 0 0 14px' }}>Belum ada iklan di ad set ini.</div>}
           </div>); })}
-      </div>); })}
-    <div className="hint">“Hasil” = percakapan WhatsApp/lead/klik yang dicatat Meta 7 hari terakhir. Perubahan di sini langsung berlaku di Meta dan tercatat di tab Riwayat.</div>
-  </>);
+      </div>); }
 }
 
 // ===================== PASANG IKLAN BARU =====================
