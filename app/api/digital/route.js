@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { catat } from '@/lib/log';
-import { bolehDigital, tokenAds, sumberToken, mGet, mPost, mSemua, daftarAkun, faktorUang, bacaBatas, simpanBatas, BATAS_BAWAAN,
+import { bolehDigital, tokenAds, sumberToken, mGet, mPost, mHapus, mSemua, daftarAkun, faktorUang, bacaBatas, simpanBatas, BATAS_BAWAAN,
   siapkanMedia, situsWp, wp, teksKeHtml } from '@/lib/digital';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +73,18 @@ export async function GET(req) {
     if (bagian === 'halaman') { // Halaman Facebook & akun Instagram yang bisa diposting dengan token ini
       const h = await mSemua('me/accounts', { fields: 'id,name,instagram_business_account{id,username}', limit: 50 }, 2);
       return Response.json({ halaman: h.map(x => ({ id: x.id, nama: x.name, ig: x.instagram_business_account ? { id: x.instagram_business_account.id, nama: x.instagram_business_account.username } : null })) });
+    }
+
+    if (bagian === 'organik') { // postingan terakhir di Halaman Facebook & Instagram (untuk dilihat / dihapus)
+      const page = idObj(q.get('page_id')); if (!page) return galat('Halaman belum dipilih');
+      const h = await mGet(page, { fields: 'name,access_token,instagram_business_account' });
+      if (!h.access_token) return galat('Token tidak punya akses ke Halaman ini');
+      const ig = h.instagram_business_account?.id, out = { fb: [], ig: [], galatFb: '', galatIg: '' };
+      try { out.fb = ((await mGet(`${page}/posts`, { fields: 'id,message,created_time,full_picture,permalink_url', limit: 8 }, h.access_token)).data || [])
+        .map(p => ({ id: p.id, teks: p.message || '', tgl: p.created_time, gambar: p.full_picture || '', link: p.permalink_url || '' })); } catch (e) { out.galatFb = e.message; }
+      if (ig) { try { out.ig = ((await mGet(`${ig}/media`, { fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp', limit: 8 }, h.access_token)).data || [])
+        .map(p => ({ id: p.id, teks: p.caption || '', tgl: p.timestamp, gambar: p.thumbnail_url || (p.media_type === 'VIDEO' ? '' : p.media_url) || '', link: p.permalink || '', jenis: p.media_type })); } catch (e) { out.galatIg = e.message; } }
+      return Response.json(out);
     }
 
     if (bagian === 'wp') {
@@ -166,6 +178,31 @@ export async function POST(req) {
       return Response.json({ ok: true, id: iklan.id });
     }
 
+    // ---- hapus iklan (hanya iklan yang saklarnya MATI) ----
+    if (b.aksi === 'hapus_iklan') {
+      const id = idObj(b.id); if (!id) return galat('Iklan belum dipilih');
+      const o = await mGet(id, { fields: 'name,status,adset{name}' });
+      if (o.status === 'ACTIVE') return galat(`Iklan "${o.name}" masih ON. Matikan dulu, baru bisa dihapus.`);
+      await mHapus(id);
+      await log('Hapus', `iklan: ${o.name} (${id}) · ad set ${o.adset?.name || '-'}`);
+      return Response.json({ ok: true });
+    }
+
+    // ---- hapus postingan organik (Facebook / Instagram) ----
+    if (b.aksi === 'hapus_organik') {
+      const page = idObj(b.page_id), id = idObj(b.id), di = b.di === 'ig' ? 'ig' : 'fb';
+      if (!page || !id) return galat('Postingan belum dipilih');
+      const h = await mGet(page, { fields: 'name,access_token' });
+      if (!h.access_token) return galat('Token tidak punya akses ke Halaman ini');
+      try { await mHapus(id, h.access_token); }
+      catch (e) {
+        if (di === 'ig') return galat('Instagram menolak menghapus: ' + e.message + ' — menghapus postingan Instagram butuh izin instagram_manage_contents di token.', 502);
+        return galat('Facebook menolak menghapus: ' + e.message, 502);
+      }
+      await log('Hapus', `postingan ${di === 'ig' ? 'Instagram' : 'Facebook'} ${h.name}: ${String(b.teks || '').slice(0, 80) || id}`);
+      return Response.json({ ok: true });
+    }
+
     // ---- posting organik ke Halaman Facebook dan/atau Instagram ----
     if (b.aksi === 'organik') {
       const page = idObj(b.page_id), caption = String(b.caption || '').trim(), ke = Array.isArray(b.ke) ? b.ke : [];
@@ -234,6 +271,13 @@ export async function POST(req) {
       const p = await wp(s, 'posts/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.terbit ? 'publish' : 'draft' }) });
       await log('Update', `artikel website ${s.project} → ${b.terbit ? 'TERBIT' : 'draf'}: ${p.title?.rendered || id}`);
       return Response.json({ ok: true, link: p.link, status: p.status });
+    }
+    if (b.aksi === 'wp_hapus') { // pindah ke Trash WordPress (masih bisa dipulihkan dari admin WordPress selama 30 hari)
+      const s = situsWp().find(x => x.project === b.project); if (!s) return galat('Website project ini belum disambungkan');
+      const id = Number(b.id); if (!id) return galat('Artikel belum dipilih');
+      const p = await wp(s, 'posts/' + id, { method: 'DELETE' });
+      await log('Hapus', `artikel website ${s.project} → Trash: ${p.title?.rendered || p.title?.raw || id}`);
+      return Response.json({ ok: true });
     }
     return galat('Aksi tidak dikenal');
   } catch (e) { return galat(e.message || 'Gagal', 502); }

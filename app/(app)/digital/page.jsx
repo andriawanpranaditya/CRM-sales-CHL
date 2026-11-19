@@ -172,6 +172,8 @@ function TabIklan({ d, dMati, muatMati, buka, setBuka, sibuk, jalankan, batas })
               {saklar(i, 'ad', 'Iklan')}
               {i.gambar ? <img src={i.gambar} alt="" style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--line)' }} /> : null}
               <b style={{ fontSize: 13 }}>{i.nama}</b><Pil status={i.status} />{!sumber.mati && <K7 k={i.k7} />}
+              <button className="sort-btn" disabled={sibuk || i.nyala} title={i.nyala ? 'Matikan dulu iklannya' : 'Hapus iklan ini'} style={{ padding: '4px 10px', fontSize: 11.5, color: i.nyala ? undefined : 'var(--red)' }}
+                onClick={() => jalankan(`HAPUS iklan "${i.nama}"?\n\nIklan dihapus dari Meta dan tidak bisa dikembalikan dari CRM.`, 'hapus_iklan', { id: i.id }, 'Iklan dihapus ✅')}>Hapus</button>
             </div>))}
             {buka[a.id] && !iklan.length && <div className="hint" style={{ margin: '8px 0 0 14px' }}>Belum ada iklan di ad set ini.</div>}
           </div>); })}
@@ -218,7 +220,23 @@ function TabOrganik({ sibuk, setSibuk, punya }) {
   const [ke, setKe] = useState({ fb: true, ig: true });
   const [caption, setCaption] = useState('');
   const [gambar, setGambar] = useState(null);
+  const [pos, setPos] = useState(null);
   useEffect(() => { api('/api/digital?bagian=halaman').then(r => { setHal(r.halaman); setPage(r.halaman[0]?.id || ''); }).catch(e => { toast(e.message); setHal([]); }); }, []);
+  const muatPos = () => { if (!page) return; setPos(null); api('/api/digital?bagian=organik&page_id=' + page).then(setPos).catch(e => { toast(e.message); setPos({ fb: [], ig: [] }); }); };
+  useEffect(muatPos, [page]); // eslint-disable-line
+  async function hapusPos(p, di) {
+    if (!window.confirm(`HAPUS postingan ${di === 'ig' ? 'Instagram' : 'Facebook'} ini?\n\n"${(p.teks || '(tanpa caption)').slice(0, 120)}"\n\nPostingan hilang dari publik dan tidak bisa dikembalikan.`)) return;
+    setSibuk(true);
+    try { await kirim('hapus_organik', { page_id: page, id: p.id, di, teks: p.teks }); toast('Postingan dihapus ✅'); muatPos(); } catch (e) { toast(e.message); } finally { setSibuk(false); }
+  }
+  const daftarPos = (judul, isi, di, galat) => (<div style={{ flex: '1 1 300px', minWidth: 0 }}>
+    <h3 style={{ margin: '0 0 6px' }}>{judul}</h3>
+    {galat ? <p className="hint">Tidak bisa dimuat: {galat}</p> : !isi.length ? <p className="hint">Belum ada postingan.</p> : isi.map(p => (<div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 0', borderTop: '1px solid var(--line)' }}>
+      {p.gambar ? <img src={p.gambar} alt="" style={{ width: 46, height: 46, objectFit: 'cover', borderRadius: 6, flex: 'none', border: '1px solid var(--line)' }} /> : <span style={{ width: 46, height: 46, flex: 'none' }} />}
+      <div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{p.teks || '(tanpa caption)'}</div>
+        <span className="hint">{new Date(p.tgl).toLocaleDateString('id-ID')}{p.link ? <> · <a href={p.link} target="_blank" rel="noreferrer">lihat</a></> : null}</span></div>
+      <button className="sort-btn" disabled={sibuk} style={{ color: 'var(--red)', padding: '4px 10px', fontSize: 11.5, flex: 'none' }} onClick={() => hapusPos(p, di)}>Hapus</button>
+    </div>))}</div>);
   if (!hal) return <div className="loading">Memuat Halaman…</div>;
   if (!hal.length) return <div className="note"><b>Belum ada Halaman Facebook yang bisa diposting dengan token ini.</b> Tugaskan Halaman Bio District / Permai Indah ke System User di Business Settings, dan pastikan token punya izin <code>pages_manage_posts</code>, <code>pages_read_engagement</code>, dan <code>instagram_content_publish</code>.</div>;
   const h = hal.find(x => x.id === page), tujuan = [ke.fb && 'fb', ke.ig && h?.ig && 'ig'].filter(Boolean);
@@ -231,9 +249,10 @@ function TabOrganik({ sibuk, setSibuk, punya }) {
       const g = Object.entries(r.gagal || {});
       toast(g.length ? 'Sebagian berhasil. Gagal — ' + g.map(([k, v]) => `${k === 'fb' ? 'Facebook' : 'Instagram'}: ${v}`).join(' · ') : 'Postingan terbit ✅');
       if (!g.length) { setCaption(''); setGambar(null); }
+      muatPos();
     } catch (e) { toast(e.message); } finally { setSibuk(false); }
   }
-  return (<div className="card">
+  return (<><div className="card" style={{ marginBottom: 12 }}>
     <h2>Posting organik (langsung terbit)</h2>
     {!punya('pages_manage_posts') && <div className="note">Token belum punya izin <code>pages_manage_posts</code> — posting akan ditolak Meta sampai izinnya ditambahkan.</div>}
     <div className="fu-toolbar">{hal.map(x => <button key={x.id} className={'sort-btn' + (page === x.id ? ' active' : '')} onClick={() => setPage(x.id)}>{x.nama}</button>)}</div>
@@ -244,7 +263,13 @@ function TabOrganik({ sibuk, setSibuk, punya }) {
     <PilihGambar gambar={gambar} setGambar={setGambar} catatan="Satu gambar per postingan. Instagram hanya menerima rasio antara 4:5 (potret) dan 1.91:1 (lanskap). Carousel, Reels & video belum bisa dari sini." />
     <div className="field"><label>Caption</label><textarea rows={7} value={caption} onChange={e => setCaption(e.target.value)} /></div>
     <button className="btn btn-primary" disabled={sibuk || !gambar || !tujuan.length} onClick={posting}>{sibuk ? 'Memposting…' : 'Posting sekarang'}</button>
-  </div>);
+  </div>
+  <div className="card"><h2>Postingan terakhir — {h?.nama}</h2>
+    {!pos ? <div className="loading">Memuat postingan…</div> : <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+      {daftarPos('Facebook', pos.fb || [], 'fb', pos.galatFb)}
+      {h?.ig ? daftarPos('Instagram @' + h.ig.nama, pos.ig || [], 'ig', pos.galatIg) : null}</div>}
+    <p className="hint" style={{ marginTop: 8 }}>Menampilkan 8 postingan terakhir, termasuk yang dibuat di luar CRM. Menghapus postingan Instagram butuh izin <code>instagram_manage_contents</code> di token.</p>
+  </div></>);
 }
 
 // ===================== ARTIKEL WEBSITE =====================
@@ -268,6 +293,11 @@ function TabWeb({ situs, sibuk, setSibuk }) {
     if (!window.confirm(`${terbit ? 'TERBITKAN' : 'Tarik kembali jadi draf'}: "${a.judul}"?`)) return;
     setSibuk(true);
     try { await kirim('wp_status', { project: proj, id: a.id, terbit }); toast(terbit ? 'Artikel terbit ✅' : 'Artikel ditarik jadi draf ✅'); muat(); } catch (e) { toast(e.message); } finally { setSibuk(false); }
+  }
+  async function hapus(a) {
+    if (!window.confirm(`HAPUS artikel "${a.judul}"?\n\n${a.status === 'publish' ? 'Artikel ini sedang TERBIT dan akan langsung hilang dari website. ' : ''}Artikel dipindah ke Trash WordPress (masih bisa dipulihkan dari admin WordPress selama 30 hari).`)) return;
+    setSibuk(true);
+    try { await kirim('wp_hapus', { project: proj, id: a.id }); toast('Artikel dipindah ke Trash ✅'); muat(); } catch (e) { toast(e.message); } finally { setSibuk(false); }
   }
   const siap = f.judul.trim() && f.isi.trim().length >= 50;
   return (<>
@@ -296,6 +326,7 @@ function TabWeb({ situs, sibuk, setSibuk }) {
           <span className="hint">{new Date(a.tgl).toLocaleDateString('id-ID')}</span>
           {a.status === 'draft' && <button className="sort-btn" disabled={sibuk} onClick={() => ubahStatus(a, true)}>Terbitkan</button>}
           {a.status === 'publish' && <button className="sort-btn" disabled={sibuk} onClick={() => ubahStatus(a, false)}>Tarik jadi draf</button>}
+          <button className="sort-btn" disabled={sibuk} style={{ color: 'var(--red)' }} onClick={() => hapus(a)}>Hapus</button>
         </div>))}
     </div>
   </>);
