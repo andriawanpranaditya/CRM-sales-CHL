@@ -1,5 +1,6 @@
 'use client';
 import { bolehPresentasi } from '@/lib/presentasi';
+import { bolehDigital } from '@/lib/digital-akses';
 import Link from 'next/link';
 import ReminderBell from '@/components/ReminderBell';
 import { PopupPengingat } from '@/components/TargetSales';
@@ -29,6 +30,7 @@ const MENUS = [
   { href: '/kpr-proses', ico: '🏦', label: 'Proses KPR', roles: ['manager', 'ceo', 'sales', 'collection'] },
   { href: '/report', ico: '▤', label: 'Report', roles: ['manager', 'ceo', 'markom', 'sales'] }, // Marcom: Leads ke Sales & Data Excel · Sales: Leads ke Sales (lead miliknya)
   { href: '/marcom', ico: '📊', label: 'Analisa Marcom', roles: ['manager', 'ceo', 'markom'] },
+  { href: '/digital', ico: '🚀', label: 'Digital Marketing', roles: ['manager'], khusus: 'digital' }, // sementara khusus akun Andriawan
   { href: '/presentasi', ico: '▶', label: 'Presentasi Project', roles: ['manager'], khusus: 'presentasi' }, // khusus akun Andriawan
   { href: '/kegiatan', ico: '📣', label: 'Kegiatan', roles: ['manager', 'ceo', 'admin', 'markom', 'sales'] },
   { href: '/stock', ico: '🗺', label: 'Master Stock', roles: ['manager', 'ceo', 'admin', 'markom', 'sales', 'collection'] },
@@ -46,7 +48,7 @@ const GRUP = [
   ['Tim Sales', ['/leads', '/distribusi', '/janjian', '/kunjungan-agent', '/other-sales', '/target', '/kepatuhan-fu', '/kegiatan']],
   ['Produk', ['/stock', '/price-list', '/kpr']],
   ['Collection & KPR', ['/collection', '/kpr-proses']],
-  ['Marketing', ['/marcom', '/wa-inbox', '/ai-asisten']],
+  ['Marketing', ['/marcom', '/digital', '/wa-inbox', '/ai-asisten']],
   ['Laporan', ['/report', '/presentasi', '/dashboard']],
   ['Pengaturan', ['/settings', '/users', '/log']],
 ];
@@ -142,7 +144,7 @@ export default function Shell({ user, children }) {
     const muat = () => { if (document.visibilityState === 'visible') fetch('/api/notif-baru').then(r => r.ok ? r.json() : null).then(d => d && setBadge({ '/kunjungan-agent': (d.agent || []).length, '/other-sales': (d.other || []).length + (d.pengirim || []).filter(x => x.tipe === 'other').length })).catch(() => {}); };
     muat(); const t = setInterval(muat, 60000); return () => clearInterval(t);
   }, [user.role]);
-  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
+  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (m.khusus !== 'digital' || bolehDigital(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
 
   // ===== Mode terang / gelap — per user, tersimpan di akun =====
   const [tema, setTema] = useState('light');
@@ -174,6 +176,7 @@ export default function Shell({ user, children }) {
   useEffect(() => {
     if (path.startsWith('/followup')) { router.replace('/leads'); return; }
     if (path.startsWith('/presentasi') && !bolehPresentasi(user)) { router.replace('/beranda'); return; }
+    if (path.startsWith('/digital') && !bolehDigital(user)) { router.replace('/beranda'); return; }
     if (user.role === 'sales' && !path.startsWith('/beranda') && !path.startsWith('/report') && !path.startsWith('/janjian') && !path.startsWith('/form') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/leads') && !path.startsWith('/kegiatan') && !path.startsWith('/distribusi')) router.replace('/beranda');
     if (user.role === 'admin' && !path.startsWith('/dashboard') && !path.startsWith('/booking') && !path.startsWith('/stock') && !path.startsWith('/price-list') && !path.startsWith('/kpr') && !path.startsWith('/kegiatan')) router.replace('/dashboard');
     // Proses KPR hanya untuk sales, manager & CEO Project
