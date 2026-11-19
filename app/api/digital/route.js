@@ -213,13 +213,16 @@ export async function POST(req) {
       const s = situsWp().find(x => x.project === b.project); if (!s) return galat('Website project ini belum disambungkan');
       const judul = String(b.judul || '').trim(), isi = String(b.isi || '').trim(), status = b.terbit ? 'publish' : 'draft';
       if (!judul) return galat('Judul belum diisi'); if (isi.length < 50) return galat('Isi artikel terlalu pendek');
-      let featured;
+      let featured, gambarAtas = '';
       if (b.gambar) {
         const m = await wp(s, 'media', { method: 'POST', body: Buffer.from(String(b.gambar), 'base64'),
           headers: { 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="news-${Date.now()}.jpg"` } });
         featured = m.id;
+        // Tema website tidak menampilkan gambar utama di halaman artikel — jadi gambar juga dipasang di awal isi (pola artikel yang sudah ada)
+        const besar = m.media_details?.sizes?.large?.source_url || m.source_url;
+        if (besar) gambarAtas = `<!-- wp:image {"id":${m.id},"sizeSlug":"large","linkDestination":"none"} -->\n<figure class="wp-block-image size-large"><img src="${besar}" alt="${judul.replace(/"/g, '&quot;')}" class="wp-image-${m.id}"/></figure>\n<!-- /wp:image -->\n\n`;
       }
-      const data = { title: judul, content: teksKeHtml(isi), status, excerpt: String(b.ringkas || '').trim() || undefined, featured_media: featured,
+      const data = { title: judul, content: gambarAtas + teksKeHtml(isi), status, excerpt: String(b.ringkas || '').trim() || undefined, featured_media: featured,
         categories: Number(b.kategori) ? [Number(b.kategori)] : undefined };
       const p = await wp(s, 'posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       await log('Input', `artikel website ${s.project} (${status === 'publish' ? 'TERBIT' : 'draf'}): ${judul}`);
