@@ -131,10 +131,10 @@ function TabIklan({ d, dMati, muatMati, buka, setBuka, sibuk, jalankan, batas })
         <div className="field" style={{ margin: 0, width: 150 }}><label>Gender</label>
           <select value={ubah.gender} onChange={e => setUbah({ ...ubah, gender: e.target.value })}><option value="semua">Semua</option><option value="pria">Pria</option><option value="wanita">Wanita</option></select></div>
         <button className="btn btn-primary" disabled={sibuk}
-          onClick={async () => { const r = await jalankan(`Ubah target "${ubah.nama}" menjadi usia ${ubah.usia_min}–${ubah.usia_maks}, ${ubah.gender}?\n\nPerubahan target membuat Meta mengulang fase belajar ad set ini.`, 'target', { id: ubah.id, usia_min: ubah.usia_min, usia_maks: ubah.usia_maks, gender: ubah.gender }, 'Target diubah ✅'); if (r) setUbah(null); }}>Simpan</button>
+          onClick={async () => { const r = await jalankan(`Ubah target "${ubah.nama}" menjadi usia ${ubah.usia_min}–${ubah.usia_maks}, ${ubah.gender}?\n\nPerubahan target membuat Meta mengulang fase belajar ad set ini.`, 'target', { id: ubah.id, usia_min: ubah.usia_min, usia_maks: ubah.usia_maks, gender: ubah.gender }, r => r.saran ? 'Target disimpan sebagai saran untuk Advantage+ audience ✅' : 'Target diubah ✅'); if (r) setUbah(null); }}>Simpan</button>
         <button className="btn btn-ghost" onClick={() => setUbah(null)}>Batal</button>
       </div>
-      <div className="hint" style={{ marginTop: 6 }}>Lokasi &amp; minat tidak berubah{ubah.lokasi?.length ? ' · lokasi sekarang: ' + ubah.lokasi.join(', ') : ''}.{ubah.otomatis ? ' Ad set ini memakai Advantage+ audience — Meta bisa menolak batas usia tertentu.' : ''}</div></div>}
+      <div className="hint" style={{ marginTop: 6 }}>Lokasi &amp; minat tidak berubah{ubah.lokasi?.length ? ' · lokasi sekarang: ' + ubah.lokasi.join(', ') : ''}.{ubah.otomatis ? ' Ad set ini memakai Advantage+ audience: rentang usia di sini menjadi saran untuk Meta, bukan batas keras — Meta masih boleh menayangkan di luar rentang ini bila dinilai lebih efektif.' : ''}</div></div>}
 
     {jalan.length > 0 && <h3 style={{ margin: '4px 0 8px' }}>Sedang jalan — ada tayangan 7 hari terakhir ({jalan.length})</h3>}
     {jalan.map(c => kartu(c, d))}

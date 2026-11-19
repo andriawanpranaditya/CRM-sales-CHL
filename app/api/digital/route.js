@@ -60,7 +60,7 @@ export async function GET(req) {
         tambah(perAd, r.ad_id, s, i, h); tambah(perSet, r.adset_id, s, i, h); tambah(perCamp, r.campaign_id, s, i, h); }
       const uang = v => v ? Math.round(Number(v) / f) : null;
       const nol = { biaya: 0, tayang: 0, hasil: 0 };
-      const tgt = t => t ? { usia_min: t.age_min || null, usia_maks: t.age_max || null, gender: (t.genders || []).length === 1 ? (t.genders[0] === 1 ? 'pria' : 'wanita') : 'semua',
+      const tgt = t => t ? { usia_min: (Array.isArray(t.age_range) && t.age_range[0]) || t.age_min || null, usia_maks: (Array.isArray(t.age_range) && t.age_range[1]) || t.age_max || null, gender: (t.genders || []).length === 1 ? (t.genders[0] === 1 ? 'pria' : 'wanita') : 'semua',
         lokasi: [...(t.geo_locations?.cities || []).map(c => c.name + (c.radius ? ` +${c.radius}${c.distance_unit === 'mile' ? 'mil' : 'km'}` : '')), ...(t.geo_locations?.regions || []).map(c => c.name),
           ...(t.geo_locations?.custom_locations || []).map(c => (c.name || c.address_string || 'Titik peta') + (c.radius ? ` +${c.radius}km` : '')), ...(t.geo_locations?.countries || [])].slice(0, 12),
         otomatis: t.targeting_automation?.advantage_audience === 1 } : null;
@@ -150,11 +150,15 @@ export async function POST(req) {
       const min = Math.round(Number(b.usia_min)), maks = Math.round(Number(b.usia_maks));
       if (!(min >= 18 && maks <= 65 && min <= maks)) return galat('Rentang usia harus antara 18 dan 65');
       const o = await mGet(id, { fields: 'name,targeting' });
-      const t = { ...(o.targeting || {}), age_min: min, age_max: maks };
+      const t = { ...(o.targeting || {}) };
+      if (t.targeting_automation?.advantage_audience === 1) {
+        // Advantage+ audience: usia pilihan Anda menjadi SARAN (age_range); batas kerasnya hanya usia minimum (maks 25) dan Meta mewajibkan batas atas 65
+        t.age_range = [min, maks]; t.age_min = Math.min(min, 25); t.age_max = 65;
+      } else { t.age_min = min; t.age_max = maks; delete t.age_range; }
       if (b.gender === 'pria') t.genders = [1]; else if (b.gender === 'wanita') t.genders = [2]; else delete t.genders;
       await mPost(id, { targeting: t });
       await log('Update', `target ad set: ${o.name} · usia ${min}–${maks} · ${b.gender || 'semua'}`);
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, saran: t.targeting_automation?.advantage_audience === 1 });
     }
 
     // ---- pasang iklan baru: materi + caption baru, tujuan & formulir disalin dari iklan contoh. Selalu dibuat MATI dulu. ----
