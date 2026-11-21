@@ -70,6 +70,18 @@ export async function GET(req) {
         iklan: ads.map(a => ({ id: a.id, nama: a.name, adset_id: a.adset_id, campaign_id: a.campaign_id, nyala: a.status === 'ACTIVE', status: a.effective_status, gambar: a.creative?.thumbnail_url || '', jenis: a.creative?.object_type || '', k7: perAd[a.id] || nol })) });
     }
 
+    if (bagian === 'penempatan') { // iklan tayang di mana saja (Facebook / Instagram / Audience Network / Messenger) — 30 hari terakhir, per campaign
+      const akun = idAkun(q.get('akun')); if (!akun) return galat('Akun iklan belum dipilih');
+      const f = faktorUang(/^[A-Z]{3}$/.test(q.get('mu') || '') ? q.get('mu') : 'IDR');
+      const rows = await mSemua(`act_${akun}/insights`, { level: 'campaign', date_preset: 'last_30d', breakdowns: 'publisher_platform,platform_position',
+        fields: 'campaign_id,campaign_name,spend,impressions,inline_link_clicks,actions', limit: 300 }, 2);
+      const NAMA = { facebook: 'Facebook', instagram: 'Instagram', audience_network: 'Audience Network (aplikasi & situs pihak ketiga)', messenger: 'Messenger', threads: 'Threads', whatsapp: 'WhatsApp' };
+      const hasil = a => { for (const t of HASIL) { const x = (a || []).find(y => y.action_type === t); if (x) return Number(x.value) || 0; } return 0; };
+      return Response.json({ baris: rows.map(r => ({ campaign_id: r.campaign_id, campaign: r.campaign_name, platform: NAMA[r.publisher_platform] || r.publisher_platform, kode: r.publisher_platform,
+        posisi: String(r.platform_position || '').replace(/_/g, ' '), biaya: Math.round(Number(r.spend) || 0), tayang: Number(r.impressions) || 0, klik: Number(r.inline_link_clicks) || 0, hasil: hasil(r.actions) }))
+        .sort((a, b) => b.biaya - a.biaya) });
+    }
+
     if (bagian === 'halaman') { // Halaman Facebook & akun Instagram yang bisa diposting dengan token ini
       const h = await mSemua('me/accounts', { fields: 'id,name,instagram_business_account{id,username}', limit: 50 }, 2);
       return Response.json({ halaman: h.map(x => ({ id: x.id, nama: x.name, ig: x.instagram_business_account ? { id: x.instagram_business_account.id, nama: x.instagram_business_account.username } : null })) });

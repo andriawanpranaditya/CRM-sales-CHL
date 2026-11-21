@@ -53,7 +53,9 @@ export default function DigitalMarketing() {
   useEffect(() => { if (me && bolehDigital(me)) muatStatus(); }, [me]); // eslint-disable-line
   const alamatIklan = mati => '/api/digital?bagian=iklan&akun=' + akun + '&mu=' + (st?.akun.find(a => a.id === akun)?.mata_uang || 'IDR') + (mati ? '&mati=1' : '');
   const muatMati = () => { setDMati('memuat'); api(alamatIklan(true)).then(setDMati).catch(e => { toast(e.message); setDMati(null); }); };
-  const muatIklan = () => { if (!akun) return; setD(null); setDMati(null); api(alamatIklan(false)).then(setD).catch(e => { toast(e.message); setD({ galat: e.message, campaign: [], adset: [], iklan: [] }); }); };
+  const [tempat, setTempat] = useState(null); // penempatan iklan 30 hari — dimuat hanya bila diminta
+  const muatTempat = () => { setTempat('memuat'); api('/api/digital?bagian=penempatan&akun=' + akun + '&mu=' + (st?.akun.find(a => a.id === akun)?.mata_uang || 'IDR')).then(r => setTempat(r.baris)).catch(e => { toast(e.message); setTempat(null); }); };
+  const muatIklan = () => { if (!akun) return; setD(null); setDMati(null); setTempat(null); api(alamatIklan(false)).then(setD).catch(e => { toast(e.message); setD({ galat: e.message, campaign: [], adset: [], iklan: [] }); }); };
   useEffect(() => { if (akun && (tab === 'iklan' || tab === 'baru')) muatIklan(); }, [akun, tab === 'iklan' || tab === 'baru']); // eslint-disable-line
 
   async function jalankan(pesanYakin, aksi, data, sukses, sesudah = muatIklan) {
@@ -89,7 +91,7 @@ export default function DigitalMarketing() {
       <button className="sort-btn" onClick={muatIklan} disabled={!akun}>Muat ulang</button>
     </div>}
 
-    {tab === 'iklan' && <TabIklan d={d} dMati={dMati} muatMati={muatMati} buka={buka} setBuka={setBuka} sibuk={sibuk} jalankan={jalankan} batas={st.batas} />}
+    {tab === 'iklan' && <TabIklan d={d} dMati={dMati} muatMati={muatMati} tempat={tempat} muatTempat={muatTempat} buka={buka} setBuka={setBuka} sibuk={sibuk} jalankan={jalankan} batas={st.batas} />}
     {tab === 'baru' && <TabBaru d={d} sibuk={sibuk} jalankan={jalankan} keIklan={() => setTab('iklan')} />}
     {tab === 'organik' && <TabOrganik sibuk={sibuk} setSibuk={setSibuk} punya={punya} />}
     {tab === 'web' && <TabWeb situs={st.wp} sibuk={sibuk} setSibuk={setSibuk} />}
@@ -98,7 +100,7 @@ export default function DigitalMarketing() {
 }
 
 // ===================== KELOLA IKLAN =====================
-function TabIklan({ d, dMati, muatMati, buka, setBuka, sibuk, jalankan, batas }) {
+function TabIklan({ d, dMati, muatMati, tempat, muatTempat, buka, setBuka, sibuk, jalankan, batas }) {
   const [ubah, setUbah] = useState(null); // { jenis:'budget'|'target', id, ... }
   if (!d) return <div className="loading">Memuat iklan dari Meta…</div>;
   if (d.galat) return <div className="note" style={{ borderLeft: '4px solid var(--red)' }}>Gagal memuat iklan: {d.galat}</div>;
@@ -142,6 +144,18 @@ function TabIklan({ d, dMati, muatMati, buka, setBuka, sibuk, jalankan, batas })
     {diam.length > 0 && <><h3 style={{ margin: '16px 0 4px' }}>Saklar ON tapi tidak ada aktivitas ({diam.length})</h3>
       <div className="hint" style={{ marginBottom: 8 }}>Campaign ini menyala tetapi tidak tayang 7 hari terakhir — biasanya karena ad set/iklannya mati, jadwalnya sudah lewat, atau baru dibuat dan belum mulai. Tidak ada biaya yang berjalan.</div>
       {diam.map(c => kartu(c, d))}</>}
+    <h3 style={{ margin: '16px 0 4px' }}>Iklan tayang di mana (30 hari terakhir)</h3>
+    <div className="hint" style={{ marginBottom: 8 }}>Untuk melihat berapa biaya dan hasil yang datang dari Facebook, Instagram, atau Audience Network (aplikasi & situs pihak ketiga — tempat klik tidak sengaja paling sering terjadi).</div>
+    {!tempat ? <button className="sort-btn" onClick={muatTempat}>Tampilkan penempatan</button>
+      : tempat === 'memuat' ? <div className="loading">Memuat penempatan…</div>
+      : !tempat.length ? <p className="hint">Belum ada tayangan dalam 30 hari terakhir.</p>
+      : <div className="card" style={{ padding: 12, overflowX: 'auto' }}>{(() => { const total = tempat.reduce((s, r) => s + r.biaya, 0) || 1; const per = {}; for (const r of tempat) { const k = r.platform; const g = per[k] || (per[k] = { biaya: 0, tayang: 0, klik: 0, hasil: 0 }); g.biaya += r.biaya; g.tayang += r.tayang; g.klik += r.klik; g.hasil += r.hasil; }
+          return (<><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ textAlign: 'left' }}><th style={{ padding: '4px 8px 4px 0' }}>Platform</th><th>Biaya</th><th>% biaya</th><th>Tayang</th><th>Klik</th><th>Hasil</th><th>Biaya/hasil</th></tr></thead>
+            <tbody>{Object.entries(per).sort((a, b) => b[1].biaya - a[1].biaya).map(([k, g]) => (<tr key={k} style={{ borderTop: '1px solid var(--line)' }}>
+              <td style={{ padding: '5px 8px 5px 0', fontWeight: 600 }}>{k}</td><td>{rp(g.biaya)}</td><td>{Math.round(g.biaya / total * 100)}%</td><td>{angka(g.tayang)}</td><td>{angka(g.klik)}</td><td>{angka(g.hasil)}</td><td>{g.hasil ? rp(g.biaya / g.hasil) : '—'}</td></tr>))}</tbody></table>
+            <details style={{ marginTop: 8 }}><summary className="hint" style={{ cursor: 'pointer' }}>Rincian per campaign & posisi</summary>
+              {tempat.map((r, i) => (<div key={i} className="hint" style={{ padding: '3px 0', borderTop: '1px solid var(--line)' }}><b>{r.campaign}</b> · {r.platform} · {r.posisi} — {rp(r.biaya)} · {angka(r.tayang)} tayang · {angka(r.klik)} klik · {angka(r.hasil)} hasil</div>))}</details></>); })()}</div>}
     <h3 style={{ margin: '16px 0 8px' }}>Campaign yang mati</h3>
     {!dMati ? <button className="sort-btn" onClick={muatMati}>Tampilkan campaign yang mati</button>
       : dMati === 'memuat' ? <div className="loading">Memuat campaign yang mati…</div>
