@@ -633,7 +633,8 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
               ? <input value={me.name} disabled />
               : <select {...fl('sales')}>{[''].concat((set?.sales || []).filter(n => { const pp = set?.sales_project?.[n]; return !lead.project || !pp || pp.includes(lead.project); })).map(o => <option key={'sales' + o} value={o}>{o || '— pilih —'}</option>)}
                 {/* Lead lama milik agent / nama tanpa akun: tetap tampil agar tidak terhapus saat edit, tapi tidak bisa dipilih untuk lead lain */}
-                {lead.sales && lead.sales !== '__other__' && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales}{/\(Other Sales/.test(lead.sales) ? '' : ' (tanpa akun)'}</option>}
+                {set?.sales_saya && !(set?.sales || []).includes(set.sales_saya) && <option value={set.sales_saya}>{set.sales_saya} (saya)</option>}
+                {lead.sales && lead.sales !== '__other__' && lead.sales !== set?.sales_saya && !(set?.sales || []).includes(lead.sales) && <option value={lead.sales}>{lead.sales}{/\(Other Sales/.test(lead.sales) ? '' : ' (tanpa akun)'}</option>}
                 {['manager', 'ceo'].includes(me?.role) && <option value="__other__">➕ Other Sales (internal employee / external)…</option>}</select>}
           </div>}
           {lead.sales === '__other__' && <IsianOther nilai={lead.other} onUbah={v => setLead({ ...lead, other: v })} />}

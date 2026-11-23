@@ -1,4 +1,5 @@
 import { db, siapkanStatusLog, tandaiOleh } from '@/lib/db';
+import { bolehDigital } from '@/lib/digital-akses';
 import { requireUser, lihatBaris, bolehProyek, pesanProyek } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
 import { sinkronJanjianLead } from '@/lib/janjian';
@@ -69,7 +70,7 @@ async function _POST(req) {
   if (!sales && user.role !== 'markom') return Response.json({ error: 'Sales / PIC wajib dipilih' }, { status: 400 });
   const sql = db();
   // Sales hanya boleh nama akun Sales yang aktif (menu Pengguna)
-  if (sales && user.role !== 'sales') {
+  if (sales && user.role !== 'sales' && !(bolehDigital(user) && sales === user.name)) {
     const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${sales}`;
     if (!ok.length) return Response.json({ error: `"${sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
   }
@@ -162,7 +163,7 @@ async function _PATCH(req) {
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   // Mengganti sales hanya ke akun Sales aktif; nilai lama (agent / tanpa akun) tetap boleh dipertahankan
-  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales' && !/\(Other Sales/i.test(b.sales)) {
+  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales' && !/\(Other Sales/i.test(b.sales) && !(bolehDigital(user) && b.sales === user.name)) {
     const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${b.sales}`;
     if (!ok.length) return Response.json({ error: `"${b.sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
   }

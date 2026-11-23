@@ -1,6 +1,7 @@
 import { db, DEFAULT_SETTINGS, DEFAULT_UNITS } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
 import { denganLog } from '@/lib/log';
+import { bolehDigital } from '@/lib/digital-akses';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,9 @@ export async function GET() {
     sales = sales.filter(s => !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => user.projects.includes(p)));
   }
   out.sales = sales.map(s => s.name);
+  // Head of Sales & Marketing boleh memegang lead atas namanya sendiri — namanya hanya dikirim ke akunnya sendiri,
+  // jadi tidak muncul di pilihan Sales / PIC akun lain
+  if (bolehDigital(user)) out.sales_saya = user.name;
   out.sales_project = Object.fromEntries(sales.map(s => [s.name, Array.isArray(s.projects) && s.projects.length ? s.projects : null]));
   return Response.json(out);
 }
