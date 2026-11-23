@@ -19,6 +19,7 @@ const MENUS = [
   { href: '/leads', ico: '☰', label: 'Database Lead', roles: ['manager', 'ceo', 'markom', 'sales'] },
 
   { href: '/booking', ico: '✓', label: 'Booking', roles: ['manager', 'ceo', 'admin', 'markom'] },
+  { href: '/flashsale-kelola', ico: '⚡', label: 'Flash Sale', roles: ['manager', 'ceo', 'sales', 'markom'], khusus: 'flashsale' }, // link per akun, pendaftar & pesanan halaman publik /flashsale
   { href: '/distribusi', ico: '⚡', label: 'Distribusi Lead', roles: ['manager', 'ceo', 'sales'] },
   { href: '/janjian', ico: '📅', label: 'Janjian & Visitor', roles: ['manager', 'ceo', 'sales', 'markom'] },
   { href: '/kepatuhan-fu', ico: '⏱', label: 'Kepatuhan FU', roles: ['manager', 'ceo'] },
@@ -44,7 +45,7 @@ const MENUS = [
 
 // ===== Kelompok menu (sub menu) =====
 const GRUP = [
-  ['Penjualan', ['/form', '/booking']],
+  ['Penjualan', ['/form', '/booking', '/flashsale-kelola']],
   ['Tim Sales', ['/leads', '/distribusi', '/janjian', '/kunjungan-agent', '/other-sales', '/target', '/kepatuhan-fu', '/kegiatan']],
   ['Produk', ['/stock', '/price-list', '/kpr']],
   ['Collection & KPR', ['/collection', '/kpr-proses']],
@@ -129,7 +130,7 @@ function temaAktif() {
 }
 
 function ArahkanAgent() { // halaman di luar menu lead agent → Form Input
-  useEffect(() => { const p = window.location.pathname; if (!['/form', '/kpr', '/price-list', '/stock'].some(x => p.startsWith(x))) window.location.replace('/form?tab=trx'); }, []);
+  useEffect(() => { const p = window.location.pathname; if (!['/form', '/flashsale-kelola', '/kpr', '/price-list', '/stock'].some(x => p.startsWith(x))) window.location.replace('/form?tab=trx'); }, []);
   return null;
 }
 
@@ -137,14 +138,17 @@ export default function Shell({ user, children }) {
   const path = usePathname();
   const router = useRouter();
   // Lead agent (Esteem, LJH): hanya input Reserved/Booking, Simulasi, Price List & Master Stock — tanpa kewajiban sales
-  const MENU_AGENT = ['/form', '/kpr', '/price-list', '/stock'];
+  const MENU_AGENT = ['/form', '/flashsale-kelola', '/kpr', '/price-list', '/stock'];
   const [badge, setBadge] = useState({});
   useEffect(() => {
     if (user.role !== 'manager') return;
     const muat = () => { if (document.visibilityState === 'visible') fetch('/api/notif-baru').then(r => r.ok ? r.json() : null).then(d => d && setBadge({ '/kunjungan-agent': (d.agent || []).length, '/other-sales': (d.other || []).length + (d.pengirim || []).filter(x => x.tipe === 'other').length })).catch(() => {}); };
     muat(); const t = setInterval(muat, 60000); return () => clearInterval(t);
   }, [user.role]);
-  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (m.khusus !== 'digital' || bolehDigital(user)) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
+  // Menu Flash Sale: sebelum dibuka ke tim hanya untuk Head of Sales & Marketing (dibuka dari Pengaturan di menu itu)
+  const [fsTampil, setFsTampil] = useState(false);
+  useEffect(() => { if (bolehDigital(user)) { setFsTampil(true); return; } fetch('/api/flashsale/kelola?cek=1').then(r => r.ok ? r.json() : null).then(d => setFsTampil(!!d?.tampil)).catch(() => {}); }, [user.username]);
+  const menus = MENUS.filter(m => m.roles.includes(user.role) && (m.khusus !== 'presentasi' || bolehPresentasi(user)) && (m.khusus !== 'digital' || bolehDigital(user)) && (m.khusus !== 'flashsale' || fsTampil) && (!user.leadAgent || MENU_AGENT.includes(m.href)));
 
   // ===== Mode terang / gelap — per user, tersimpan di akun =====
   const [tema, setTema] = useState('light');

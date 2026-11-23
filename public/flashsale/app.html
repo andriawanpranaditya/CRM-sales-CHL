@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flash Sale Bio District · 11–13 Desember 2026</title>
+<meta name="description" content="Flash sale akhir tahun Bio District Serpong: harga khusus, hadiah langsung tanpa diundi, kuota terbatas.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.png">
+<!--OG-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: marketplace satu kolom maks 1120px. Header hijau menempel, band flash sale merah doff,
+     grid kartu produk; halaman produk dua kolom (info kiri, kotak beli menempel di kanan). */
+  --forest:#12382c; --forest-2:#1e5341; --gold:#c9a24b; --gold-soft:#f3e9cf;
+  --sale:#9c2f2a; --sale-soft:#f6e4e1;
+  --paper:#eef2ee; --card:#ffffff; --ink:#17231e; --muted:#5b6962; --line:#d9e1db; --ok:#1f7a55;
+  --display:'Marcellus',Georgia,'Times New Roman',serif;
+  --body:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --r:14px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+.num{font-variant-numeric:tabular-nums}
+
+/* pratinjau */
+.preview{background:#22302a;color:#d6dfd9;font-size:12.5px}
+.preview .wrap{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding-top:8px;padding-bottom:8px}
+.preview b{color:var(--gold)}
+.seg{display:inline-flex;border:1px solid #47564f;border-radius:999px;overflow:hidden}
+.seg button{background:none;border:0;color:#d6dfd9;padding:4px 11px;font-size:12px}
+.seg button[aria-pressed="true"]{background:var(--gold);color:#1b1b12;font-weight:700}
+.preview .link{background:none;border:0;color:#d6dfd9;text-decoration:underline;padding:0;font-size:12px}
+
+/* header */
+header.top{background:var(--forest);color:#fff;position:sticky;top:0;z-index:20}
+header.top .wrap{display:flex;align-items:center;gap:14px;padding-top:11px;padding-bottom:11px}
+.brand{display:flex;flex-direction:column;line-height:1;text-decoration:none;color:#fff;flex:none}
+.brand{flex-direction:row;align-items:center;gap:10px}
+.brand img{height:40px;width:auto;display:block}
+.brand img.chl{height:34px}
+.brand .sep{width:1px;height:28px;background:rgba(255,255,255,.3);margin:0}
+.fbrand{display:flex;align-items:center;gap:10px}
+.fbrand img{height:30px;width:auto}
+.brand span{font-size:10px;letter-spacing:.42em;color:var(--gold);margin-top:3px}
+.search{flex:1;min-width:0;position:relative}
+.search input{width:100%;border:0;border-radius:999px;padding:10px 16px;background:#fff;color:var(--ink);font-size:14px}
+.orders-btn{flex:none;background:none;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600}
+.orders-btn b{background:var(--gold);color:#1b1b12;border-radius:999px;padding:1px 7px;margin-left:5px;font-size:12px}
+
+/* flash band */
+.flash{background:var(--sale);color:#fff}
+.flash .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding-top:20px;padding-bottom:20px}
+.flash .ttl{flex:1 1 300px}
+.flash .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#f1cf86;font-weight:700}
+.flash h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4.4vw,38px);line-height:1.12;margin-top:4px}
+.flash p{margin:8px 0 0;max-width:56ch;color:#f6dedb}
+.flash.hero{background:radial-gradient(900px 320px at 85% 0%,rgba(255,196,92,.38),transparent 60%),linear-gradient(115deg,#6f1815 0%,#a62d24 55%,#c8572f 100%)}
+.flash.hero .wrap{padding-top:18px;padding-bottom:18px;align-items:center}
+.flash.hero .eyebrow{display:inline-block;background:#f1cf86;color:#3b1210;border-radius:999px;padding:4px 12px;font-weight:800;letter-spacing:.1em;font-size:11.5px}
+.flash.hero h1{font-family:var(--body);font-weight:800;font-style:italic;font-size:clamp(22px,3.3vw,34px);line-height:1.12;margin-top:8px;text-shadow:0 2px 0 #4f100e}
+.flash.hero h1 em{font-style:italic;color:#ffd978}
+.flash.hero .camp{font-family:var(--display);color:#f1cf86}
+.boom{display:flex;flex-wrap:wrap;gap:8px;flex:0 1 auto;min-width:0}
+.boom span{background:rgba(255,255,255,.12);border:1.5px solid rgba(255,217,120,.7);border-radius:12px;padding:8px 12px;font-size:12px;color:#ffe9c4;line-height:1.3}
+.boom b{display:block;font-size:16px;font-weight:800;color:#fff}
+.flash.hero .ttl{flex:1 1 100%}
+.flash.hero .wrap{gap:12px 28px}
+.boom > span{display:flex;align-items:center;gap:10px}
+.boom > span > span{background:none;border:0;padding:0;border-radius:0}
+.boom .bi{flex:none;width:40px;height:40px;border-radius:50%;background:#f1cf86;color:#7d1f1b;display:grid;place-items:center}
+.boom .bi svg{width:24px;height:24px}
+.boom .bp{flex:none;width:66px;height:44px;object-fit:cover;border-radius:8px;border:1.5px solid #f1cf86}
+.flash.hero p{margin-top:8px;font-size:14px;color:#ffe3d6;max-width:none}
+.clock{flex:none}
+.clock .lbl{font-size:12.5px;color:#f6dedb;margin-bottom:6px}
+.digits{display:flex;gap:6px;align-items:center;font-weight:800;font-size:22px}
+.digits span{background:#fff;color:var(--sale);border-radius:8px;min-width:46px;padding:6px 4px 4px;text-align:center;line-height:1.1}
+.digits small{display:block;font-size:9.5px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+
+.fsbig{margin-top:14px;border-radius:14px;padding:10px 18px;background:linear-gradient(110deg,#7d1f1b 0%,#b23a2c 55%,#d58a3a 100%);color:#fff;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 20px}
+.fs-t{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fs-word{font-weight:800;font-style:italic;font-size:clamp(22px,3.4vw,30px);line-height:1;color:#fff;text-shadow:0 2px 0 #5e1512}
+.fs-date{display:inline-block;background:#f1cf86;color:#3b1210;font-weight:800;font-size:13.5px;border-radius:999px;padding:3px 12px}
+#bigclock{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fs-lbl{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#ffe3b0}
+.fs-digits{display:flex;align-items:center;gap:4px}
+.fs-digits span{background:#fff;color:var(--sale);border-radius:8px;min-width:46px;padding:5px 4px 4px;text-align:center}
+.fs-digits b{display:block;font-size:20px;font-weight:800;line-height:1}
+.fs-digits small{display:block;margin-top:2px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fs-digits i{font-style:normal;font-weight:800;font-size:18px;color:#ffe3b0}
+@media (max-width:560px){.fsbig{justify-content:center;text-align:center}.fs-t,#bigclock{justify-content:center}}
+.tours{margin-top:26px}
+.tour-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.tour{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tour-box{aspect-ratio:848/478;background:#0e1f18}
+.tour-box video{display:block;width:100%;height:100%;background:#000}
+.tour-play{position:relative;display:block;width:100%;height:100%;padding:0;border:0;background:none;line-height:0}
+.tour-play img{display:block;width:100%;height:100%;object-fit:cover}
+.tour-play .pbtn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:var(--gold);color:#fff;display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.tour-play .pbtn svg{width:32px;height:32px;margin-left:3px}
+.tour-play:hover .pbtn{background:#b88f37}
+.tour-play .dur{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;font-weight:700;line-height:1;border-radius:6px;padding:4px 7px}
+.tour figcaption{padding:10px 14px 12px}
+.tour figcaption b{display:block;font-size:15px}
+.tour figcaption span{font-size:13px;color:var(--muted)}
+/* filter */
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:18px 0 4px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 15px;font-size:13.5px;font-weight:600}
+.chip[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:18px 0 12px}
+.sec-h h2{font-size:18px;font-weight:800}
+.sec-h span{color:var(--muted);font-size:13px}
+
+/* grid produk */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:14px}
+@media (min-width:760px){.grid{grid-template-columns:repeat(3,1fr);gap:18px}.grid .pbody h3{font-size:18px}}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;text-align:left;padding:0;color:inherit;text-decoration:none}
+.pcard:hover{border-color:var(--forest-2);box-shadow:0 6px 18px rgba(18,56,44,.1)}
+.art{position:relative;aspect-ratio:4/3;background:#cfe0d6;display:block}
+.art svg{width:100%;height:100%;display:block}
+.tag{position:absolute;left:10px;top:10px;background:var(--sale);color:#fff;font-size:11px;font-weight:800;letter-spacing:.06em;padding:4px 9px;border-radius:6px;text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
+.tag svg{width:9px;height:12px;color:#f1cf86}
+.tag.st,.off.st{position:static}
+.off{position:absolute;right:10px;top:10px;background:#f1cf86;color:#5a1512;font-size:12.5px;font-weight:800;padding:4px 8px;border-radius:6px}
+.fbar{position:absolute;left:0;right:0;bottom:0;background:rgba(156,47,42,.94);color:#fff;font-size:12.5px;font-weight:700;padding:6px 12px;text-align:center}
+.art .tile{padding-bottom:42px}
+.prow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.prow.big{margin-top:8px;gap:12px;align-items:center}
+.prow.big .d-price{margin-top:0}
+.was{color:var(--muted);font-size:13.5px;font-weight:600}
+.prow.big .was{font-size:17px}
+.wasnote{font-size:11.5px;color:var(--muted)}
+.flashline{display:flex;align-items:center;gap:10px;margin-top:10px;color:var(--sale);font-weight:800;font-size:14px}
+.art .illus-unused{position:absolute;right:8px;bottom:6px;font-size:10px;color:#fff;background:rgba(0,0,0,.35);padding:2px 7px;border-radius:999px}
+.pbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.pbody h3{font-size:15.5px;font-weight:700}
+.spec{color:var(--muted);font-size:12.5px}
+.price{color:var(--sale);font-weight:800;font-size:18px}
+.price small{font-size:11px;font-weight:700;color:var(--muted);margin-left:4px}
+.inst{font-size:12.5px;color:var(--muted)}
+.giftline{font-size:12px;background:var(--gold-soft);color:#5a4514;border-radius:6px;padding:4px 8px;align-self:flex-start;font-weight:600}
+.quota{margin-top:auto;padding-top:6px}
+.bar{height:16px;border-radius:999px;background:var(--sale-soft);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--sale);border-radius:999px}
+.bar em{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;mix-blend-mode:normal;text-shadow:0 0 3px rgba(90,20,16,.7)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted)}
+
+/* strip info */
+.usp{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:22px 0 26px}
+.usp div{--c:#1e5341;--bg:#e3f1ea;display:flex;gap:12px;align-items:flex-start;background:var(--bg);border-radius:var(--r);padding:14px 16px;border-left:5px solid var(--c)}
+.usp i{flex:none;width:42px;height:42px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center}
+.usp i svg{width:24px;height:24px}
+.usp p{margin:0;min-width:0}
+.usp b{display:block;font-size:15px;line-height:1.3;color:var(--c)}
+.usp span{display:block;margin-top:3px;font-size:13px;line-height:1.45;color:#34433c}
+.usp .u1{--c:#9c2f2a;--bg:#f8e6e3}
+.usp .u2{--c:#1f7a55;--bg:#e1f2ea}
+.usp .u3{--c:#1c6f86;--bg:#e0f0f5}
+.usp .u4{--c:#96701a;--bg:#f6ecd0}
+
+/* detail */
+.back{display:inline-block;margin:16px 0 12px;color:var(--forest-2);font-weight:700;text-decoration:none;font-size:14px}
+.detail{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start;padding-bottom:40px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.hero-art{border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+.d-title{font-family:var(--display);font-weight:400;font-size:28px;line-height:1.15}
+.d-price{font-size:28px;font-weight:800;color:var(--sale);margin-top:6px}
+.d-price small{font-size:12px;color:var(--muted);font-weight:700;margin-left:6px}
+.panel h2{font-size:15px;font-weight:800;margin-bottom:10px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.kv div{background:var(--paper);border-radius:10px;padding:10px 12px}
+.kv span{display:block;font-size:11.5px;color:var(--muted)}
+.kv b{font-size:14.5px}
+ul.ticks{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 14px}
+ul.ticks li{padding-left:20px;position:relative;font-size:14px}
+ul.ticks li::before{content:"";position:absolute;left:2px;top:7px;width:9px;height:5px;border-left:2px solid var(--ok);border-bottom:2px solid var(--ok);transform:rotate(-45deg)}
+.dhero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+.jump{display:block;text-align:center;background:var(--forest);color:#f1cf86;font-weight:800;font-size:14.5px;text-decoration:none;border-radius:var(--r);padding:13px 14px}
+.pick{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:18px;align-items:start;margin-top:18px;scroll-margin-top:84px}
+.mapcol{position:sticky;top:84px;border-color:#c9b27a}
+.mapcol h2{font-size:16px}
+.selu{color:var(--sale)}
+.mapcol .mapscroll{max-height:calc(100vh - 290px)}
+.mapcol .mapin:not(.zoomed){max-width:calc((100vh - 292px) * .7778);margin:0 auto}
+.mapcol .note{display:none}
+.dinfo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;margin-top:18px;padding-bottom:40px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12.5px;font-weight:700;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;width:100%}
+.simgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.simgrid[data-m="bertahap"]{grid-template-columns:1fr 1fr}
+.simgrid[hidden],.sublbl[hidden]{display:none}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 18px}
+.mode{border:1.5px solid #d8c79a;background:#fffdf6;border-radius:10px;padding:10px 4px;font-weight:800;font-size:13.5px;color:var(--ink);line-height:1.2}
+.mode[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:#f1cf86}
+.simpanel{padding:0;overflow:hidden;border-color:#c9b27a}
+.simpanel h2{margin:0;padding:14px 18px;background:linear-gradient(100deg,var(--sale),#c2553f 60%,var(--gold));color:#fff;font-size:16px;display:flex;align-items:center;gap:10px}
+.simpanel h2 svg{width:20px;height:20px}
+.simpanel .simgrid,.simpanel > .field,.simpanel > .note,.simpanel > .disc,.simpanel > .gifts,.simpanel > .sublbl,.simpanel > #cta{margin-left:18px;margin-right:18px}
+.simpanel > #cta{margin-bottom:18px}
+.sublbl{margin-top:16px;margin-bottom:8px;font-size:12.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--sale)}
+.result .tot{background:#f6efdc;font-weight:800;color:var(--ink)}
+
+.simpanel > .field{margin-top:16px}
+.simpanel .simgrid{margin-top:0}
+.simpanel > .note{margin-bottom:6px}
+.simpanel .field input,.simpanel .field select{border-color:#d8c79a;background:#fffdf6}
+.result{margin:14px 18px 0;border-radius:14px;overflow:hidden;border:1px solid #c9b27a;background:#fffdf6}
+.simhead{background:linear-gradient(135deg,var(--forest) 0%,var(--forest-2) 70%,#2c7a5c 100%);color:#fff;padding:16px 18px}
+.simlbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#cfe3d8;font-weight:700}
+.result .big{font-size:30px;font-weight:800;color:#f1cf86;line-height:1.15;margin-top:2px}
+.simsub{font-size:12.5px;color:#cfe3d8;margin-top:4px}
+.simest{display:inline-block;margin-top:8px;font-size:11.5px;font-weight:700;color:#12382c;background:#f1cf86;border-radius:999px;padding:2px 10px}
+.disc{font-size:12px;line-height:1.5;color:#5a4514;background:#fbf3dc;border:1px solid #e6d3a0;border-radius:10px;padding:10px 12px;margin-top:12px;margin-bottom:6px}
+.simprice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px 0;font-size:13.5px}
+.simprice s{color:var(--muted)}
+.simprice b{font-size:18px;color:var(--sale)}
+.split{display:flex;height:12px;border-radius:999px;overflow:hidden;margin:12px 18px 0;background:#e6ded0}
+.split i{display:block;height:100%}
+.sdp{background:var(--gold)}.skpr{background:var(--forest-2)}
+.splitlbl{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:6px 18px 0;font-size:12px;color:var(--muted);font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.result dl{display:grid;grid-template-columns:minmax(0,42%) minmax(0,58%);gap:0;margin:10px 0 0;font-size:13px}
+.result dt,.result dd{padding:7px 18px;margin:0;border-top:1px solid #efe7d6}
+.result dt{color:var(--muted)}
+.result dd{text-align:right;font-weight:700;padding-left:0}
+.result .hl{color:var(--sale)}
+.result .okc{color:var(--ok)}
+.tenlbl{padding:12px 18px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:1px solid #efe7d6}
+.tenors{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 18px 16px}
+.ten{border:1.5px solid #d8c79a;background:#fff;border-radius:10px;padding:8px 4px;text-align:center;line-height:1.25}
+.ten b{display:block;font-size:13px}
+.ten span{font-size:12px;color:var(--muted)}
+.ten[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#2b2108}
+.ten[aria-pressed="true"] span{color:#2b2108;font-weight:700}
+.note{font-size:12px;color:var(--muted);margin:8px 0 0}
+.gifts{display:grid;gap:8px}
+.gift{display:flex;gap:12px;align-items:center;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;text-align:left;width:100%}
+.gift .ico{flex:none;width:46px;height:46px;border-radius:10px;background:var(--gold-soft);display:grid;place-items:center;color:#6a5116}
+.gift .ico svg{width:28px;height:28px}
+.gift .gph{flex:none;width:96px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.gift .ico.big{width:96px;height:64px;background:var(--sale-soft);color:var(--sale)}
+.gift .ico.big svg{width:36px;height:36px}
+.gift b{display:block;font-size:14px}
+.gift span{font-size:12.5px;color:var(--muted)}
+.gift .plist{display:block}
+.gift .plist.ok{color:var(--ok);font-weight:700}
+.gift .plist.warn{color:var(--sale);font-weight:600}
+.gift .pick{margin-left:auto;flex:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--line)}
+.gift[aria-checked="true"]{border-color:var(--forest-2);background:#f2f8f4}
+.gift[aria-checked="true"] .pick{border-color:var(--forest-2);background:radial-gradient(var(--forest-2) 45%,#fff 50%)}
+.gift:disabled{opacity:.55;cursor:not-allowed;background:var(--paper)}
+.cta{width:100%;border:0;border-radius:12px;background:var(--sale);color:#fff;font-weight:800;font-size:16px;padding:14px;margin-top:14px}
+.cta:disabled{background:#a9b3ad;cursor:not-allowed}
+.cta.alt{background:var(--forest)}
+.cta .bell{width:20px;height:20px;vertical-align:-4px;margin-right:8px}
+.cta.gold{background:linear-gradient(180deg,#e0bd63,#c9a24b);color:#2b2108;box-shadow:0 3px 0 #a07f33}
+.statusline{font-size:13px;font-weight:700;margin-top:10px}
+.statusline.live{color:var(--sale)} .statusline.wait{color:var(--forest-2)} .statusline.end{color:var(--muted)}
+
+/* dialog */
+dialog{border:0;border-radius:16px;padding:0;width:min(520px,calc(100% - 24px));max-height:calc(100% - 24px);color:var(--ink)}
+dialog::backdrop{background:rgba(12,24,19,.55)}
+.dlg{padding:20px;display:flex;flex-direction:column;gap:12px}
+.dlg h2{font-family:var(--display);font-weight:400;font-size:22px}
+.sum{background:var(--paper);border-radius:12px;padding:12px 14px;font-size:13.5px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}
+.sum dt{color:var(--muted)}.sum dd{margin:0;text-align:right;font-weight:700}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.err{color:var(--sale);font-size:13px;font-weight:600;min-height:1em}
+.ghost{background:none;border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:700;width:100%}
+.code{font-size:22px;font-weight:800;letter-spacing:.08em;color:var(--forest)}
+a.cta{display:block;text-align:center;text-decoration:none}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;color:var(--muted)}
+.mapscroll{overflow:auto;border-radius:12px;border:1px solid var(--line);background:#2c4033}
+.mapin{position:relative;container-type:inline-size}
+.mapin img{display:block;width:100%;height:auto}
+.mk{position:absolute;transform:translate(-50%,-50%);width:16px;width:max(15px,3.1cqw);aspect-ratio:1;border-radius:50%;padding:0;border:2px solid #fff;background:var(--m,var(--ok));box-shadow:0 1px 4px rgba(0,0,0,.55);display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px;font-size:max(10px,2.2cqw);line-height:1}
+.mk.av:hover{filter:brightness(1.18)}
+.mk.dim{width:13px;width:max(12px,2.4cqw);opacity:.85}
+.mk.na{background:#4a4f4c;border-color:#c9cfcb;cursor:not-allowed;box-shadow:none}
+.mk.sel{background:#fff;color:var(--m);border:3px solid var(--m);z-index:2;width:22px;width:max(20px,4.4cqw);box-shadow:0 0 0 4px rgba(201,162,75,.6),0 2px 8px rgba(0,0,0,.6)}
+.legend span.lg-av::before{background:var(--ok);border-color:#fff;border-radius:50%;box-shadow:0 0 0 1px var(--ok)}
+.legend span.lg-t::before{border:0;content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.tile{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:14px;color:#1b2b24}
+.tile b{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.1}
+.tile i{font-style:normal;font-size:12.5px;font-weight:600}
+figure.hero{margin:0;border-radius:var(--r);overflow:hidden;position:relative;border:1px solid var(--line)}
+figure.hero img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+figure.hero.wide{margin-top:18px}
+figure.hero.wide img{aspect-ratio:16/6}
+figure.hero figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 16px 10px;color:#fff;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(10,25,19,.8))}
+.promo{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:18px;align-items:start}
+.promo img{width:100%;height:auto;border-radius:10px;display:block}
+@media (max-width:640px){.promo{grid-template-columns:1fr}.promo img{max-width:300px;margin:0 auto}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin-top:12px}
+.legend [class^="lg-"]::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1.5px solid var(--forest-2);background:#fff}
+.legend span.lg-sel::before{background:#fff;border:3px solid var(--gold);border-radius:50%;box-shadow:0 0 0 2px rgba(201,162,75,.5)}
+.legend span.lg-m::before{background:var(--c);border-color:#fff;border-radius:50%;box-shadow:0 0 0 1px var(--c)}
+.legend span.lg-na::before{background:#4a4f4c;border-color:#c9cfcb;border-radius:50%}
+.gate{max-width:480px;margin:22px auto 36px}
+.terms{font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--paper);border-radius:10px;padding:10px 12px;margin:0}
+.agree{display:flex;gap:10px;align-items:flex-start;font-size:13.5px}
+.agree input{margin-top:3px;width:18px;height:18px;flex:none}
+.paybox{display:grid;grid-template-columns:170px minmax(0,1fr);gap:16px;align-items:center}
+.qr{position:relative;width:170px;height:170px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.qr svg{width:100%;height:100%;opacity:.3;display:block}
+.qr span{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-weight:800;font-size:13px;line-height:1.35;color:var(--sale)}
+.st{font-size:12.5px;font-weight:700}
+.st-dibayar{color:#8a6a22}
+.st-menunggu{color:var(--sale)}.st-lunas{color:var(--ok)}.st-kedaluwarsa,.st-batal{color:var(--muted)}
+@media (max-width:420px){.paybox{grid-template-columns:1fr;justify-items:center}}
+#promo{padding:0;background:transparent;overflow:visible;width:fit-content;max-width:calc(100% - 24px);text-align:center}
+#promo img{display:block;width:auto;height:auto;max-width:100%;max-height:calc(100vh - 130px);margin:0 auto;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#promo .cta{width:auto;padding:12px 28px;margin-top:12px}
+.pclose{position:absolute;right:-10px;top:-14px;width:32px;height:32px;border-radius:50%;border:2px solid #fff;background:var(--gold);color:#fff;display:grid;place-items:center;padding:0;box-shadow:0 3px 10px rgba(0,0,0,.45);z-index:1}
+.pclose svg{width:18px;height:18px;display:block}
+.pclose:hover{background:#b8913c}
+.cimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.cname{position:absolute;left:0;right:0;bottom:30px;padding:26px 12px 8px;color:#fff;font-family:var(--display);font-size:22px;line-height:1.1;background:linear-gradient(transparent,rgba(10,25,19,.82))}
+.facs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.fac{margin:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:#22302a}
+.fac img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover}
+.fac figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 12px 9px;color:#fff;font-size:13.5px;font-weight:700;background:linear-gradient(transparent,rgba(10,25,19,.85))}
+.gal{display:flex;flex-direction:column;gap:8px}
+.galmain{margin:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:#22302a}
+.galmain img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+.galmain figcaption{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;color:#fff;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(10,25,19,.8))}
+.thumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.thumb{padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;background:none;line-height:0}
+.thumb img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover}
+.thumb[aria-pressed="true"]{border-color:var(--gold)}
+.desc{margin:0 0 8px;font-size:14.5px;line-height:1.55}
+.planimg{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--line)}
+ul.ticks.one{grid-template-columns:1fr}
+.slider{position:relative;margin-top:18px;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:#22302a}
+.track{display:flex;transition:transform .6s ease}
+.slide{margin:0;flex:0 0 100%;position:relative}
+.slide img{display:block;width:100%;height:auto;aspect-ratio:16/7;object-fit:cover}
+.slide figcaption{position:absolute;left:0;right:0;bottom:0;padding:30px 18px 34px;color:#fff;font-size:16px;font-weight:700;background:linear-gradient(transparent,rgba(10,25,19,.85))}
+.snav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.9);color:var(--forest);display:grid;place-items:center;padding:0;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.snav svg{width:20px;height:20px}
+.snav.prev{left:12px}.snav.next{right:12px}
+.dots{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:7px}
+.dotb{width:9px;height:9px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.55)}
+.dotb[aria-pressed="true"]{background:var(--gold);width:22px;border-radius:999px}
+.subh{font-size:13.5px;font-weight:800;margin:10px 0 8px}
+@media (max-width:640px){.slide img{aspect-ratio:16/10}.snav{width:34px;height:34px}.slide figcaption{font-size:14px;padding-bottom:30px}}
+@media (prefers-reduced-motion:reduce){.track{transition:none}}
+.rewards{margin:26px 0 6px;border-radius:18px;padding:22px;background:linear-gradient(135deg,#0c3325 0%,#14503c 55%,#1c6a4f 100%);color:#f4efe0;position:relative;overflow:hidden}
+.rw-head{display:flex;justify-content:space-between;gap:18px;align-items:center}
+.rw-eye{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#f1cf86}
+.rewards h2{font-family:var(--display);font-weight:400;font-size:clamp(24px,3.6vw,32px);line-height:1.15;margin-top:4px;color:#fff}
+.rw-head p{margin:8px 0 0;max-width:56ch;color:#d6e3db;font-size:14.5px}
+.rw-flyer{flex:none;position:relative;width:92px;padding:0;border:2px solid #f1cf86;border-radius:10px;overflow:hidden;background:none;line-height:0}
+.rw-flyer img{display:block;width:100%;height:auto}
+.rw-flyer span{position:absolute;left:0;right:0;bottom:0;background:rgba(12,51,37,.88);color:#f1cf86;font-size:11px;font-weight:800;line-height:1;padding:6px 2px;text-align:center}
+.rw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px;margin-top:18px}
+.rw-card{background:#fffdf6;color:var(--ink);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+.rw-card header{background:var(--h);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.rw-card header b{font-family:var(--display);font-weight:400;font-size:20px;line-height:1.15;color:#1b2b24}
+.rw-card header span{font-size:12.5px;font-weight:800;color:#3a2a10}
+.rw-card ol{list-style:none;margin:0;padding:6px 12px 4px;display:flex;flex-direction:column;flex:1}
+.rw-card li{display:grid;grid-template-columns:24px 26px minmax(0,1fr);gap:8px;align-items:center;padding:9px 0;border-bottom:1px dashed #e4d9bd;font-size:13.5px;line-height:1.3}
+.rw-card li:last-child{border-bottom:0}
+.rw-card .n{font-style:normal;width:24px;height:24px;border-radius:50%;background:var(--gold);color:#fff;font-weight:800;font-size:12.5px;display:grid;place-items:center}
+.rw-card .ic{color:var(--forest-2);display:grid;place-items:center}
+.rw-card .ic svg{width:24px;height:24px}
+.rw-card li.free .n{background:var(--ok)}
+.rw-card li.free .tx{color:#14533b;font-weight:600}
+.rw-card li.disc{background:var(--sale-soft);margin:4px -12px 0;padding:9px 12px;border-bottom:0}
+.rw-card li.disc .n{background:var(--sale)}
+.rw-card li.disc .ic{color:var(--sale)}
+.rw-card li.disc .tx{color:var(--sale);font-weight:800}
+.rw-go{display:block;text-align:center;background:var(--forest);color:#f1cf86;font-weight:800;font-size:13.5px;text-decoration:none;padding:11px}
+.rw-note{margin:14px 0 0;font-size:12.5px;color:#cfdcd4}
+@media (max-width:560px){.rewards{padding:16px}.rw-flyer{width:70px}}
+.refbox{background:var(--gold-soft);border:1px solid #e6d3a0;border-radius:12px;padding:10px 14px;font-size:13px;color:#5a4514;display:flex;flex-direction:column;gap:1px}
+.refbox b{font-size:16px;color:var(--ink)}
+.qr.real{padding:6px;background:#fff}
+.qr.real img{display:block;width:100%;height:auto}
+.bank{border:1.5px solid #d8c79a;background:#fffdf6;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--muted)}
+.bank b{font-size:19px;color:var(--ink);letter-spacing:.02em}
+.order{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px}
+
+footer{background:var(--forest);color:#cfdcd4;margin-top:20px;font-size:13px}
+footer .wrap{padding-top:22px;padding-bottom:26px;display:grid;gap:8px}
+footer a{color:#f1cf86}
+footer strong{color:#fff}
+
+@media (max-width:700px){.dhero,.pick{grid-template-columns:1fr}.mapcol{position:static}.mapcol .mapscroll{max-height:none}.mapcol .mapin:not(.zoomed){max-width:none}}
+@media (max-width:820px){
+  .dinfo{grid-template-columns:1fr}
+  .simgrid{grid-template-columns:1fr 1fr}
+  .brand strong{font-size:18px}
+  .orders-btn{padding:8px 10px}
+}
+@media (max-width:420px){.grid{grid-template-columns:1fr 1fr;gap:10px}.pbody{padding:10px}.price{font-size:15.5px}.row2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="preview" id="preview" hidden>
+  <div class="wrap"><span><b>Mode uji coba</b> · pendaftaran dan pesanan di sini hanya untuk percobaan tim, tidak masuk ke data penjualan</span></div>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#beranda" aria-label="Bio District oleh Cipta Harmoni Lestari, ke beranda"><img class="chl" src="/flashsale/assets/logo-chl.png" width="200" height="206" alt="Cipta Harmoni Lestari"><span class="sep" aria-hidden="true"></span><img src="/flashsale/assets/logo-bio-putih.png" width="421" height="252" alt="BIO District"></a>
+    <div class="search"><input id="q" type="search" placeholder="Cari tipe rumah, mis. Tipe B atau corner" aria-label="Cari produk"></div>
+    <button type="button" class="orders-btn" id="ordersBtn">Pesanan &amp; Bayar<b id="ordersN">0</b></button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<footer>
+  <div class="wrap">
+    <span class="fbrand"><img src="/flashsale/assets/logo-chl.png" width="200" height="206" alt=""><strong>Bio District Serpong · PT Cipta Harmoni Lestari</strong></span>
+    <span>WhatsApp resmi: <a href="https://wa.me/6281385237865">+62 813-8523-7865</a> · Website: <a href="https://www.biodistrictofficial.com">www.biodistrictofficial.com</a> · Instagram: @biodistrictofficial</span>
+    <span>Simulasi di halaman ini adalah ilustrasi, bukan penawaran dari bank. Harga, hadiah, dan ketersediaan mengikuti konfirmasi resmi tim Bio District.</span>
+  </div>
+</footer>
+
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<dialog id="promo" aria-label="Banner promo flash sale"><button type="button" class="pclose" aria-label="Tutup banner"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></button><img src="/flashsale/assets/flyer-flash-sale.jpg" width="1080" height="1620" alt="Flyer Resort Living, Grand Rewards: flash sale 11 sampai 13 Desember 2026 dengan empat paket hadiah per tipe rumah"><button type="button" class="cta" data-promo-close autofocus>Lihat produk flash sale</button></dialog>
+
+<script>
+/* =====================================================================
+   KONFIGURASI — semua angka promo diubah di sini
+   ===================================================================== */
+const CONFIG = {
+  preview: false,
+  start: '2026-12-11T00:00:00+07:00',             // flash sale 11-13 Desember 2026; jam buka/tutup masih asumsi
+  end:   '2026-12-13T23:59:59+07:00',
+  wa: '6281385237865',
+  bookingFee: 5000000,
+  payMinutes: 5,                                  // batas waktu bayar QRIS; lewat dari ini unit dibuka kembali
+  tahapRate: 9,                                   // bunga cash bertahap per tahun, tidak ditampilkan ke konsumen
+  rate: 2.75,                                     // bunga ilustrasi price list
+};
+const BIO_NOTE = 'Desain biophilic: cahaya alami, ruang hijau, dan ventilasi silang di dalam rumah.';
+const PROV_A = ['Pondasi bore pile beton, struktur beton bertulang','Lantai homogeneous tile','Saniter Dekson','Kunci pintu utama digital','Plafon gypsum, dinding plester dan cat','Atap metal berinsulasi dengan rangka baja ringan','Kusen aluminium dengan kaca','Carport 2 mobil berkanopi','Listrik 2.200 VA, air PDAM','One gate system, keamanan 24 jam, CCTV'];
+const PROV_BC = ['Pondasi bore pile beton, struktur beton bertulang','Lantai granit NIRO motif kayu','Saniter Kohler, Ateson, dan TOTO','Kusen dan pintu geser aluminium YKK','Pintu utama fiber cement berangka baja, pintu dalam engineered wood','Atap metal Bluescope berinsulasi dengan rangka baja ringan','Titik AC tertanam dan sambungan water heater','Listrik 4.400 VA, air PDAM','Carport 2 mobil dengan canopy Grandroof by YKK','One gate system, keamanan 24 jam, CCTV'];
+const SMART = ['Google Nest','Pengendali remote IR lewat Wi-Fi','Pengendali tirai otomatis','CCTV luar ruangan','CCTV dalam ruangan','Pengendali sakelar pintar','Sistem air minum reverse osmosis'];
+const PRODUCTS = [
+  {id:'tipe-a', name:'Tipe A', sub:'Standar', lb:74, lt:60, fa:91, dim:'6 × 10 m', price:1553778000, list:1902000000, quota:3, hue:'#b98fb0',
+   floors:'2 lantai', status:'Serah terima 12 bulan', rooms:'3 kamar tidur, 2 kamar mandi, 1 dapur, carport 2 mobil', img:'fac-a', plan:'plan-a',
+   gal:[['fac-a','Fasad Tipe A'],['a-1','Ruang keluarga dan ruang makan'],['a-2','Kamar tidur utama'],['a-3','Dapur'],['plan-a','Denah lantai 1 dan lantai 2']],
+   desc:'Rumah dua lantai dengan tiga kamar tidur dan dua kamar mandi. Ruang keluarga menyatu dengan ruang makan dan dapur, carport muat dua mobil dengan kanopi, dan pintu utama memakai kunci digital.', prov:PROV_A},
+  {id:'tipe-b', smart:SMART, name:'Tipe B', sub:'Standar', lb:102, lt:72, fa:141, dim:'6 × 12 m', price:2097000000, list:2840000000, quota:3, hue:'#f4c79b',
+   floors:'2 lantai + rooftop', status:'Siap huni', rooms:'3 kamar tidur, 3 kamar mandi, 1 dapur, area utilitas, area servis, 1 inner court, carport 2 mobil + canopy Grandroof by YKK', img:'fac-b', plan:'plan-b',
+   gal:[['fac-b','Fasad Tipe B dengan carport dua mobil'],['b-1','Ruang keluarga'],['b-2','Kamar tidur utama'],['b-3','Rooftop'],['plan-b','Denah lantai 1, lantai 2, dan rooftop']],
+   desc:'Rumah dua lantai dengan rooftop yang bisa dipakai, lengkap dengan bangku, kanopi, dan lampu. Ruang keluarga terhubung ke area luar lewat pintu geser kaca besar. Ada inner court, tangga baja melayang, plafon tiga meter, dan kamar utama dengan walk-in closet. Fasadnya dilengkapi lampu LED.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan bel pintu digital'])},
+  {id:'tipe-c', smart:SMART, name:'Tipe C', sub:'Standar', lb:130, lt:84, fa:172, dim:'7 × 12 m', price:2595417445, list:3422000000, quota:5, hue:'#7fbdb2',
+   floors:'2 lantai + rooftop', status:'Siap huni', rooms:'4+1 kamar tidur, 3+1 kamar mandi, 1 dapur, area servis, area utilitas, 2 inner court, 1 gudang, carport 2 mobil + canopy Grandroof by YKK', img:'fac-c', plan:'plan-c',
+   gal:[['fac-c','Fasad Tipe C'],['c-1','Ruang keluarga yang terhubung ke area luar'],['c-2','Kamar tidur utama'],['c-3','Rooftop'],['plan-c','Denah lantai 1, lantai 2, dan rooftop']],
+   desc:'Tipe terbesar di Bio District: 4+1 kamar tidur dan 3+1 kamar mandi, dua inner court, gudang, dan rooftop dengan bangku, kanopi, dan lampu. Plafon tiga meter dengan konsep double decker di kamar anak, tangga melayang, dan pintu utama berkunci digital dengan pengenal wajah.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan pengenal wajah'])},
+  {id:'corner-b', smart:SMART, qk:'corner', name:'Tipe B Corner', sub:'Kavling hoek', lb:109, lt:96, fa:146, dim:'Ukuran berbeda tiap unit', price:2870357023, list:3762000000, priceMax:true, quota:5, hue:'#e9b27f',
+   floors:'2 lantai + rooftop', status:'Siap huni', rooms:'3 kamar tidur, 3 kamar mandi, 1 dapur, area utilitas, area servis, 1 inner court, carport 2 mobil + canopy Grandroof by YKK', img:'fac-bk', plan:'plan-bk',
+   gal:[['fac-bk','Fasad Tipe B dengan lampu LED'],['b-1','Ruang keluarga'],['b-2','Kamar tidur utama'],['b-3','Rooftop'],['plan-bk','Denah Tipe B corner: lantai 1, lantai 2, dan rooftop']],
+   desc:'Tipe B di kavling hoek, dengan bangunan dan tanah yang lebih luas daripada unit standar. Tiga kamar tidur, tiga kamar mandi, inner court, tangga baja melayang, plafon tiga meter, dan rooftop dengan bangku, kanopi, dan lampu. Luas tanah dan harga berbeda di tiap unit.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan bel pintu digital'])},
+  {id:'corner-c', smart:SMART, qk:'corner', name:'Tipe C Corner', sub:'Kavling hoek', lb:140, lt:108, fa:185, dim:'Ukuran berbeda tiap unit', price:3280421823, list:4256000000, priceMax:true, quota:5, hue:'#62a79b',
+   floors:'2 lantai + rooftop', status:'Siap huni', rooms:'4+1 kamar tidur, 3+1 kamar mandi, 1 dapur, area servis, area utilitas, 2 inner court, 1 gudang, carport 2 mobil + canopy Grandroof by YKK', img:'fac-ck', plan:'plan-ck',
+   gal:[['fac-ck','Fasad Tipe C dengan lampu LED'],['c-1','Ruang keluarga yang terhubung ke area luar'],['c-2','Kamar tidur utama'],['c-3','Rooftop'],['plan-ck','Denah Tipe C corner: lantai 1, lantai 2, dan rooftop']],
+   desc:'Tipe C di kavling hoek, unit paling luas di Bio District. 4+1 kamar tidur, 3+1 kamar mandi, dua inner court, gudang, dan rooftop dengan bangku, kanopi, dan lampu. Pintu utama berkunci digital dengan pengenal wajah. Luas tanah dan harga berbeda di tiap unit.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan pengenal wajah'])},
+];
+const TOURS = [['tour-1','Virtual tour Tipe A','1:08','Animasi ruang demi ruang Tipe A'],['tour-2','Tour show unit','1:25','Video asli show unit Bio District'],['tour-3','Tour show unit Tipe C','1:36','Video asli show unit Tipe C']];
+const RW_GROUPS = [[['tipe-a'],'Tipe A','#b98fb0'],[['tipe-b'],'Tipe B','#f0b57f'],[['tipe-c'],'Tipe C','#6fbdae'],[['corner-b','corner-c'],'Tipe B Corner & Tipe C Corner','#e3c26a']];
+const qk = p => p.qk || p.id;   // Tipe B Corner dan Tipe C Corner berbagi satu kuota
+const FAC_PHOTOS = [['f-gate','Gerbang utama, one gate system'],['f-clubhouse','The Clubhouse'],['f-pool','Kolam renang Clubhouse'],['f-cowork','Co-Working Space'],['f-gym','Outdoor Gym'],['f-bbq','Riverside Jogging Track & BBQ Area'],['f-river','Sungai alami di tepi kawasan'],['f-landscape','Lanskap hijau di dalam kawasan'],['f-road','Jalan lingkungan yang lebar']];
+/* Paket hadiah per tipe. biaya:true = biaya transaksi (KPR, AJB, balik nama, notaris, BPHTB) ditanggung Bio District.
+   Paket lain menggantikan fasilitas bebas biaya itu, jadi biaya transaksi ditanggung pembeli. */
+const BEBAS = 'Bebas biaya KPR, AJB, balik nama, notaris, BPHTB';
+const PACKS = {
+  'tipe-a': [
+    {id:'a1', name:'Paket 1 · Wuling Aira EV', item:'Wuling Aira EV', ico:'car'},
+    {id:'a2', biaya:true, name:'Paket 2 · Vespa + Bebas Biaya', item:'Vespa Officina 8 + ' + BEBAS, ico:'scooter'},
+    {id:'a3', biaya:true, name:'Paket 3 · AC + Bebas Biaya + Asuransi Jiwa', item: '3 unit AC 1 PK + ' + BEBAS + ' + asuransi jiwa', ico:'ac'},
+    {id:'a4', diskon:150000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp150 juta', ico:'cash'},
+  ],
+  'tipe-b': [
+    {id:'b1', name:'Paket 1 · Jaecoo J5 EV', item:'Jaecoo J5 EV Standard', ico:'car'},
+    {id:'b2', biaya:true, name:'Paket 2 · Wuling Aira EV + Bebas Biaya', item:'Wuling Aira EV + ' + BEBAS, ico:'car'},
+    {id:'b3', biaya:true, name:'Paket 3 · Vespa + Bebas Biaya + Asuransi Jiwa', item: 'Vespa Officina 8 + ' + BEBAS + ' + asuransi jiwa', ico:'scooter'},
+    {id:'b4', diskon:300000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp300 juta', ico:'cash'},
+  ],
+  'tipe-c': [
+    {id:'c1', name:'Paket 1 · Kia Carens EV', item:'Kia Carens EV Air 7-Seater', ico:'car'},
+    {id:'c2', biaya:true, name:'Paket 2 · BYD Atto 1 + Bebas Biaya', item:'BYD Atto 1 Standard Range + ' + BEBAS, ico:'car'},
+    {id:'c3', biaya:true, name:'Paket 3 · Wuling Aira EV + Bebas Biaya + Asuransi Jiwa', item: 'Wuling Aira EV + ' + BEBAS + ' + asuransi jiwa', ico:'car'},
+    {id:'c4', diskon:400000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp400 juta', ico:'cash'},
+  ],
+  'corner-b': [
+    {id:'k1', name:'Paket 1 · Chery J6', item:'Chery J6 (SUV listrik)', ico:'car'},
+    {id:'k2', biaya:true, name:'Paket 2 · Geely EX2 Pro + Bebas Biaya', item:'Geely EX2 Pro + ' + BEBAS, ico:'car'},
+    {id:'k3', biaya:true, name:'Paket 3 · BYD Atto 1 + Bebas Biaya + Asuransi Jiwa', item: 'BYD Atto 1 Standard Range + ' + BEBAS + ' + asuransi jiwa', ico:'car'},
+    {id:'k4', diskon:500000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp500 juta', ico:'cash'},
+  ],
+};
+PACKS['corner-c'] = PACKS['corner-b'];
+const packOf = (p, id) => PACKS[p.id].find(x => x.id === id) || PACKS[p.id][0];
+const FACILITIES = ['The Clubhouse','Riverside BBQ Area','Riverside Jogging Track','Outdoor Gym','Children Playground','Natural Flowing River','Natural Curug','Main Gate, one gate system'];
+const BANKS = 'BCA, BNI, BJB, BSI, Danamon, Mandiri, Permata, UOB, BTN';
+
+/* ===================================================================== */
+const $ = (s, el=document) => el.querySelector(s);
+const rp = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+const rpShort = n => n >= 1e9 ? 'Rp' + (n/1e9).toLocaleString('id-ID',{maximumFractionDigits:2}) + ' M'
+                               : 'Rp' + (n/1e6).toLocaleString('id-ID',{maximumFractionDigits:1}) + ' jt';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const loadedAt = Date.now();
+/* ---------- sambungan ke CRM ---------- */
+const API = '/api/flashsale';
+const srv = {ok:false, off:0, mulai:0, selesai:0, uji:false, qris:false};
+async function call(body){
+  let r;
+  try { r = await fetch(API, {method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}); }
+  catch (e) { throw new Error('Tidak bisa terhubung. Periksa koneksi internet Anda lalu coba lagi.'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok){ const er = new Error(d.error || 'Server sedang sibuk. Coba lagi sebentar.'); er.status = r.status; throw er; }
+  return d;
+}
+function orderFrom(x){   // bentuk pesanan dari server -> bentuk yang dipakai tampilan
+  const u = UNITS.find(v => v.id === x.unit), p = u && PRODUCTS.find(v => v.id === u.type), us = state.user || {};
+  return {code:x.kode, status:x.status, expires:x.expires - srv.off, product:p ? p.name : '', unit:x.unit, price:x.harga, gift:x.paketIsi, sim:x.simulasi, bayar:x.bayar,
+    alasan:x.alasan, nama:us.nama, wa:us.hp, dom:us.dom, email:us.email, kode:us.sales || ''};
+}
+let syncing = false;
+async function sync(){
+  if (syncing) return; syncing = true;
+  try {
+    const q = new URLSearchParams(); if (state.ref.ref) q.set('ref', state.ref.ref); if (state.user && state.user.token) q.set('token', state.user.token);
+    const r = await fetch(API + '?' + q, {cache:'no-store'}); if (!r.ok) throw 0;
+    const d = await r.json(), before = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo]);
+    srv.ok = true; srv.off = d.now - Date.now(); srv.mulai = d.mulai; srv.selesai = d.selesai; srv.uji = !!d.uji;
+    state.closed = new Set(d.tutup || []); state.claimed = d.klaim || {}; state.refInfo = d.ref;
+    PRODUCTS.forEach(p => { const k = d.kuota && d.kuota[qk(p)]; if (k != null) p.quota = k; });
+    PRODUCTS.filter(p => p.priceMax).forEach(p => { const us = UNITS.filter(u => u.type === p.id && unitOpen(u)).sort((x, y) => x.price - y.price); if (us[0]){ p.price = us[0].price; p.list = us[0].list; } });
+    if (d.ref && d.ref.ok === false && !state.user){ state.ref = {ref:'', a:'', k:''}; store.set('bio_fs_ref', state.ref); }
+    if (state.user && d.tokenOk === false){ state.user = null; store.set('bio_fs_user', null); state.orders = []; }
+    else if (d.pesanan) state.orders = d.pesanan.map(orderFrom);
+    const after = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo]);
+    if (before !== after) softRender();
+  } catch (e) {} finally { syncing = false; }
+}
+const state = {
+  pv: 'before', filter: 'semua', q: '', slide: 0,
+  claimed: {},
+  orders: [],
+  user: store.get('bio_fs_user', null),
+  ref: store.get('bio_fs_ref', null) || {ref:'', a:'', k:''},   // dari tautan: ?ref=<username sales>&a=<nama agent>&k=<kantor>
+  refInfo: null, closed: new Set(), buat: false,
+  sel: {},   // per produk: {gift, dp, years, price}
+};
+
+/* ---------- unit & stok dari kode CRM (Master Stock + Price List 13 Mei 2026).
+   POS = titik unit pada siteplan resmi (piksel gambar asli 1590×1125), CROP = potongan yang ditampilkan.
+   TAKEN = unit terjual/reserved menurut data impor CRM s.d. September 2026 (Bio Ave 3 no.12 dibuka kembali).
+   Saat disambungkan, status dibaca langsung dari /api/stock sehingga selalu terbaru. ---------- */
+const POS = {"Bio Ave 1 no.02":[607,783],"Bio Ave 1 no.05":[633,813],"Bio Ave 1 no.03":[667,837],"Bio Ave 1 no.06":[693,870],"Bio Ave 1 no.07":[680,707],"Bio Ave 1 no.08":[717,737],"Bio Ave 2 no.02":[757,703],"Bio Ave 2 no.03":[726,678],"Bio Ave 2 no.05":[707,577],"Bio Ave 2 no.06":[748,582],"Bio Ave 2 no.07":[780,583],"Bio Ave 2 no.08":[810,585],"Bio Ave 2 no.09":[843,587],"Bio Ave 3 no.02":[860,527],"Bio Ave 3 no.03":[815,525],"Bio Ave 3 no.05":[783,523],"Bio Ave 3 no.06":[753,521],"Bio Ave 3 no.07":[722,519],"Bio Ave 3 no.08":[687,517],"Bio Ave 3 no.09":[545,403],"Bio Ave 3 no.10":[577,405],"Bio Ave 3 no.11":[608,407],"Bio Ave 3 no.12":[639,408],"Bio Ave 3 no.15":[672,415],"Bio Ave 3 no.16":[708,418],"Bio Ave 3 no.17":[745,422],"Bio Ave 3 no.18":[782,425],"Bio Ave 3 no.19":[818,428],"Bio Ave 3 no.20":[855,430],"Bio Ave 5 no.02":[853,367],"Bio Ave 5 no.03":[813,364],"Bio Ave 5 no.05":[778,361],"Bio Ave 5 no.06":[742,358],"Bio Ave 5 no.07":[707,355],"Bio Ave 5 no.08":[670,352],"Bio Ave 5 no.09":[633,349],"Bio Ave 5 no.10":[597,346],"Bio Ave 5 no.11":[558,343],"Bio Ave 5 no.12":[845,272],"Bio Ave 5 no.15":[882,270],"Bio Ave 5 no.16":[920,271],"Bio Ave 6 no.02":[927,190],"Bio Ave 6 no.03":[918,158],"Bio Ave 6 no.05":[913,127],"Bio Ave 6 no.06":[908,97],"Bio Ave 6 no.07":[903,63],"Bio Ave 7 no.02":[1097,120],"Bio Ave 7 no.03":[1097,157],"Bio Blv no.02":[800,797],"Bio Blv no.03":[837,773],"Bio Blv no.05":[870,757],"Bio Blv no.06":[907,740],"Bio Blv no.07":[940,670],"Bio Blv no.08":[940,633],"Bio Blv no.09":[970,567],"Bio Blv no.10":[965,529],"Bio Blv no.11":[963,498],"Bio Blv no.12":[960,465],"Bio Blv no.15":[957,437],"Bio Blv no.16":[957,407],"Bio Blv no.17":[957,363],"Bio Blv no.18":[992,70],"Bio Blv no.19":[1027,73]};
+const CROP = {x:480, y:20, w:700, h:900};
+const IRREG = {
+  'Bio Ave 1 no.06':{t:'C',lb:140,lt:108,dim:'9 × 12 m',std:3280421823,list:4256000000},
+  'Bio Ave 1 no.08':{t:'C',lb:140,lt:119,dim:'9,9 × 12 m (irregular)',std:3422708235,list:4429000000},
+  'Bio Ave 2 no.02':{t:'B',lb:109,lt:107,dim:'8,9 × 12 m (irregular)',std:2870357023,list:3762000000},
+  'Bio Ave 2 no.03':{t:'B',lb:109,lt:137,dim:'11,4 × 12 m (irregular)',std:3528323578,list:4566000000},
+  'Bio Blv no.07':{t:'B',lb:109,lt:138,dim:'11,5 × 12 m (irregular)',std:3445808649,list:4464000000},
+  'Bio Blv no.08':{t:'B',lb:109,lt:143,dim:'8,4 × 17 m (irregular)',std:3573474308,list:4621000000},
+  'Bio Blv no.09':{t:'B',lb:109,lt:126,dim:'7,4 × 17 m (irregular)',std:3219159189,list:4188000000},
+  'Bio Blv no.17':{t:'B',lb:109,lt:138,dim:'8,6 × 16 m (irregular)',std:4363629575,list:5586000000},
+  'Bio Ave 3 no.02':{t:'B',lb:109,lt:142,dim:'12 × 12 m (irregular)',std:3515189279,list:4550000000},
+  'Bio Ave 3 no.08':{t:'B',lb:109,lt:105,dim:'8,7 × 12 m (irregular)',std:2946051829,list:3855000000},
+  'Bio Ave 5 no.11':{t:'C',lb:140,lt:105,dim:'8,7 × 12 m (irregular)',std:3126825431,list:4067000000},
+  'Bio Ave 5 no.16':{t:'C',lb:140,lt:107,dim:'8,9 × 12 m (irregular)',std:4096731600,list:5252000000},
+};
+const TAKEN = new Set(('Ave 1:02,03,05,07|Ave 2:02,05,06,07,08,09|Ave 3:03,05,06,07,09,10,11,15,20|Ave 5:02,03,08,09,10,11,12,15,16|Ave 6:02,07|Ave 7:02,03|Blv:03,05,06,10,12,15,16,17,18,19')
+  .split('|').flatMap(g => { const [st, ns] = g.split(':'); return ns.split(',').map(n => 'Bio ' + st + ' no.' + n); }));
+function tipeBio(unit){            // sama dengan lib/pricelist.js di CRM (warna siteplan)
+  const m = unit.match(/^Bio (Ave (\d)|Blv) no\.(\d+)/), ave = m[2] ? +m[2] : null, no = +m[3];
+  if (ave === 1) return 'C';
+  if (ave === 2 || ave === 7) return 'B';
+  if (ave === 6) return 'A';
+  if (ave === 3) return no <= 12 ? 'B' : 'C';
+  if (ave === 5) return no === 12 ? 'A' : no === 15 ? 'B' : 'C';
+  return no >= 18 ? 'A' : no >= 7 ? 'B' : 'C';
+}
+const UNITS = Object.keys(POS).sort().map(id => {
+  const ir = IRREG[id], t = ir ? ir.t : tipeBio(id), std = PRODUCTS.find(p => p.id === 'tipe-' + t.toLowerCase());
+  return {id, t, type: ir ? 'corner-' + t.toLowerCase() : std.id, price: ir ? ir.std : std.price, list: ir ? ir.list : std.list,
+    lb: ir ? ir.lb : std.lb, lt: ir ? ir.lt : std.lt, dim: ir ? ir.dim : std.dim, sold: TAKEN.has(id),
+    x: (POS[id][0] - CROP.x) / CROP.w * 100, y: (POS[id][1] - CROP.y) / CROP.h * 100};
+});
+// produk corner: harga 'mulai' mengikuti unit termurah yang masih tersedia
+PRODUCTS.filter(p => p.priceMax).forEach(p => { const us = UNITS.filter(u => u.type === p.id && !u.sold).sort((x, y) => x.price - y.price); if (us[0]){ p.price = us[0].price; p.list = us[0].list; } });
+const unitOpen = u => srv.ok ? !state.closed.has(u.id) : !u.sold;
+const openUnits = type => UNITS.filter(u => (!type || u.type === type) && unitOpen(u));
+
+const TYPE_COLOR = {'tipe-a':'#8e44ad','tipe-b':'#e8711a','tipe-c':'#0f9d8a','corner-b':'#2d6cdf','corner-c':'#d6336c'};
+function mapHTML(selId, focus){
+  return `<div class="mapbar"><span>Ketuk titik berwarna untuk memilih unit.</span><button type="button" class="chip" data-zoom>${state.zoom ? 'Perkecil peta' : 'Perbesar peta'}</button></div>
+    <div class="mapscroll"><div class="mapin${state.zoom ? ' zoomed' : ''}" style="width:${state.zoom ? 190 : 100}%">
+      <img src="/flashsale/assets/siteplan-bio.jpg" width="700" height="900" alt="Siteplan Bio District">
+      ${UNITS.map(u => {
+        const open = unitOpen(u), pn = PRODUCTS.find(x => x.id === u.type).name;
+        const cls = u.id === selId ? 'sel' : open ? (focus && u.type !== focus ? 'av dim' : 'av') : 'na';
+        const info = `${u.id}, ${pn}, ${open ? rp(u.price) : 'tidak tersedia'}`;
+        return `<button type="button" class="mk ${cls}" style="left:${u.x.toFixed(2)}%;top:${u.y.toFixed(2)}%;--m:${TYPE_COLOR[u.type]}" data-unit="${u.id}" ${open ? '' : 'disabled'} title="${info}" aria-label="${info}"${u.id === selId ? ' aria-pressed="true"' : ''}>${u.id === selId ? '✓' : open ? '' : '×'}</button>`;
+      }).join('')}
+    </div></div>
+    <div class="legend">${PRODUCTS.map(p => `<span class="lg-m" style="--c:${TYPE_COLOR[p.id]}">${p.name}</span>`).join('')}<span class="lg-sel">Pilihan Anda (bertanda ✓)</span><span class="lg-na">Tidak tersedia</span></div>
+    `;
+}
+
+function schedule(){   // jadwal dari server, digeser ke jam perangkat ini
+  if (srv.ok) return {start: srv.mulai - srv.off, end: srv.selesai - srv.off};
+  return {start: Date.parse(CONFIG.start), end: Date.parse(CONFIG.end)};
+}
+function phase(){
+  const s = schedule(), now = Date.now();
+  return now < s.start ? 'before' : now < s.end ? 'live' : 'ended';
+}
+const left = p => Math.max(0, Math.min(p.quota - (state.claimed[qk(p)] || 0), UNITS.filter(u => unitOpen(u) && qk(PRODUCTS.find(x => x.id === u.type)) === qk(p)).length));   // kuota tidak boleh melebihi unit yang masih tersedia
+
+function annuity(plafon, ratePct, years){
+  const r = ratePct/1200, n = years*12;
+  return r ? plafon * r / (1 - Math.pow(1+r, -n)) : plafon / n;
+}
+function selOf(p){
+  let s = state.sel[p.id];
+  if (!s) s = state.sel[p.id] = {gift: (PACKS[p.id].find(g => g.diskon) || PACKS[p.id][0]).id, dp: 0, years: 25, unit: null, price: p.price};
+  const cur = UNITS.find(u => u.id === s.unit);
+  if (!cur || !unitOpen(cur)){ const f = openUnits(p.id)[0]; s.unit = f ? f.id : null; s.price = f ? f.price : p.price; }
+  return s;
+}
+
+const ICON = {
+  ac:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="26" height="11" rx="3"/><path d="M8 14h16M10 23v3M16 22v5M22 23v3"/></svg>`,
+  scooter:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="23" r="4"/><circle cx="25" cy="23" r="4"/><path d="M11 23h10l2-13h-4M8 15h7l2 8M5 15h4"/></svg>`,
+  cash:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="26" height="16" rx="3"/><circle cx="16" cy="16" r="4"/><path d="M7 12v8M25 12v8"/></svg>`,
+  car:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21v-5l4-7h14l6 7h2v5h-3M11 21h10M7 16h18"/><circle cx="8" cy="22" r="3"/><circle cx="24" cy="22" r="3"/></svg>`,
+};
+
+// harga flash sale = harga jual price list dikurangi diskon harga tipe itu (Paket 4)
+const diskonOf = type => (PACKS[type].find(g => g.diskon) || {}).diskon || 0;
+const sale = x => x.price - diskonOf(x.type || x.id);
+const offPct = x => Math.round((1 - sale(x) / x.list) * 100);
+function fclockText(){
+  const ph = phase(), sc = schedule();
+  if (ph === 'ended') return 'Flash sale selesai';
+  const t = Math.max(0, Math.floor(((ph === 'before' ? sc.start : sc.end) - Date.now()) / 1000));
+  const p2 = n => String(n).padStart(2, '0');
+  const dd = Math.floor(t / 86400);
+  return (ph === 'before' ? 'Mulai dalam ' : 'Berakhir dalam ') + (dd ? dd + ' hari ' : '') + p2(Math.floor(t % 86400 / 3600)) + ':' + p2(Math.floor(t % 3600 / 60)) + ':' + p2(t % 60);
+}
+
+const ltRange = p => { const v = UNITS.filter(u => u.type === p.id).map(u => u.lt); return v.length ? Math.min(...v) + '–' + Math.max(...v) : p.lt; };
+
+/* ---------- beranda ---------- */
+function dateRange(){
+  const o = {timeZone:'Asia/Jakarta'}, a = new Date(CONFIG.start), b = new Date(CONFIG.end);
+  const d = x => x.toLocaleDateString('id-ID', {...o, day:'numeric'}), my = x => x.toLocaleDateString('id-ID', {...o, month:'long', year:'numeric'});
+  return my(a) === my(b) ? `${d(a)}–${d(b)} ${my(b)}` : `${d(a)} ${my(a)} – ${d(b)} ${my(b)}`;
+}
+function bigClockHTML(){
+  const ph = phase(), s = schedule();
+  if (ph === 'ended') return `<div class="fs-lbl">Flash sale periode ini sudah ditutup</div>`;
+  const ms = Math.max(0, (ph === 'before' ? s.start : s.end) - Date.now());
+  const d = Math.floor(ms/864e5), h = Math.floor(ms%864e5/36e5), m = Math.floor(ms%36e5/6e4), sec = Math.floor(ms%6e4/1e3);
+  const cell = (v,l) => `<span class="num"><b>${String(v).padStart(2,'0')}</b><small>${l}</small></span>`;
+  return `<div class="fs-lbl">${ph === 'before' ? 'Dimulai dalam' : 'Sedang berlangsung · berakhir dalam'}</div>
+    <div class="fs-digits" role="timer">${cell(d,'hari')}<i>:</i>${cell(h,'jam')}<i>:</i>${cell(m,'menit')}<i>:</i>${cell(sec,'detik')}</div>`;
+}
+function clockHTML(){
+  const ph = phase(), s = schedule();
+  if (ph === 'ended') return `<div class="clock"><div class="lbl">Flash sale periode ini sudah ditutup</div></div>`;
+  const ms = (ph === 'before' ? s.start : s.end) - Date.now();
+  const d = Math.floor(ms/864e5), h = Math.floor(ms%864e5/36e5), m = Math.floor(ms%36e5/6e4), sec = Math.floor(ms%6e4/1e3);
+  const cell = (v,l) => `<span class="num">${String(v).padStart(2,'0')}<small>${l}</small></span>`;
+  return `<div class="clock"><div class="lbl">${ph==='before'?'Dimulai dalam':'Berakhir dalam'}</div>
+    <div class="digits">${d?cell(d,'hari'):''}${cell(h,'jam')}${cell(m,'menit')}${cell(sec,'detik')}</div></div>`;
+}
+function quotaHTML(p){
+  const taken = state.claimed[qk(p)] || 0, cap = taken + left(p), pct = Math.max(8, taken/Math.max(1, cap)*100);   // cap = kuota efektif (dibatasi unit yang tersedia)
+  const label = left(p) === 0 ? 'Kuota penuh' : left(p) === 1 ? 'Slot terakhir' : taken ? `${taken} dari ${cap} slot diambil` : `Kuota promo ${cap} slot`;
+  return `<div class="quota"><div class="bar"><i style="width:${taken?pct:0}%"></i><em style="${taken?'':'color:var(--sale);text-shadow:none'}">${label}</em></div></div>`;
+}
+function cardHTML(p){
+  const inst = annuity(sale(p), CONFIG.rate, 25);
+  return `<a class="pcard" href="#${p.id}">
+    <span class="art"><img class="cimg" src="/flashsale/assets/${p.img}.jpg" width="1280" height="712" alt="Fasad Bio District ${p.name}" loading="lazy"><span class="cname">${p.name}</span><span class="tag"><svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7z" fill="currentColor"/></svg>Flash sale</span><span class="off">-${offPct(p)}%</span><span class="fbar"><span class="fclock num">${fclockText()}</span></span></span>
+    <span class="pbody">
+      <h3>${p.name} <span class="spec">· ${p.sub}</span></h3>
+      <span class="spec">${p.priceMax ? `LB ${p.lb} m² · LT ${ltRange(p)} m²` : `LB ${p.lb} m² · LT ${p.lt} m² · ${p.dim}`}</span>
+      <span class="spec">${p.status}</span>
+      <span class="spec"><b style="color:var(--ok)">${openUnits(p.id).length} unit tersedia</b></span>
+      <span class="prow"><span class="price num">${p.priceMax ? 'Mulai ' : ''}${rpShort(sale(p))}</span><s class="was num">${rpShort(p.list)}</s></span>
+      <span class="wasnote">Dengan paket Diskon Harga · harga coret termasuk PPN</span>
+      <span class="inst num">Angsuran mulai ${rpShort(inst)}/bln</span>
+      <span class="giftline">Pilih 1 dari ${PACKS[p.id].length} paket hadiah</span>
+      ${quotaHTML(p)}
+    </span></a>`;
+}
+function homeHTML(){
+  const ph = phase();
+  const q = state.q.trim().toLowerCase();
+  const list = PRODUCTS.filter(p => (state.filter === 'semua' || p.id === state.filter) &&
+    (!q || (p.name + ' ' + p.sub + ' rumah bio district').toLowerCase().includes(q)));
+  const chips = [['semua','Semua'], ...PRODUCTS.map(p => [p.id, p.name])]
+    .map(([id,l]) => `<button type="button" class="chip" data-filter="${id}" aria-pressed="${state.filter===id}">${l}</button>`).join('');
+  const maxDisk = Math.max(...PRODUCTS.map(p => diskonOf(p.id)));
+  return `<section class="flash hero"><div class="wrap">
+      <div class="ttl"><div class="eyebrow"><span class="bolt">⚡</span> Flash Sale Akhir Tahun · ${dateRange()}</div>
+        <h1>Saat yang Tepat Menentukan <em>Pilihan Anda di Bio District</em></h1>
+        <p><span class="camp">Resort Living, Grand Rewards</span> · ${ph==='before'?'Pelajari produknya sekarang supaya siap saat promo dibuka.':ph==='live'?'Promo sedang berlangsung. Amankan slot Anda sekarang.':'Hubungi tim kami untuk promo yang sedang berjalan.'}</p></div>
+      <div class="boom"><span><img class="bp" src="/flashsale/assets/g-uang.jpg" width="300" height="200" alt="Gepokan uang Rp100 ribuan"><span><b>Diskon s.d. Rp${maxDisk/1e6} juta</b>langsung potong harga</span></span><span><img class="bp" src="/flashsale/assets/g-chery.jpg" width="300" height="200" alt="Chery J6, hadiah mobil dengan nilai tertinggi"><span><b>Hadiah langsung</b>tanpa diundi</span></span><span><i class="bi"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h16M8 28h16M10 4v5c0 3 6 5 6 7s-6 4-6 7v5M22 4v5c0 3-6 5-6 7s6 4 6 7v5"/><path d="M12.5 25.5h7" stroke-width="3"/></svg></i><span><b>Kuota terbatas</b></span></span></div>
+    </div></section>
+    <div class="wrap">
+      <div class="slider" id="slider" aria-roledescription="carousel" aria-label="Foto fasilitas Bio District">
+        <div class="track" id="track" style="transform:translateX(-${state.slide * 100}%)">${FAC_PHOTOS.map(([f, c], i) => `<figure class="slide" aria-label="${i + 1} dari ${FAC_PHOTOS.length}"><img src="/flashsale/assets/${f}.jpg" width="1280" height="712" alt="${c}" ${i ? 'loading="lazy"' : ''}><figcaption>${c}</figcaption></figure>`).join('')}</div>
+        <button type="button" class="snav prev" data-slide="-1" aria-label="Foto sebelumnya"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <button type="button" class="snav next" data-slide="1" aria-label="Foto berikutnya"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        <div class="dots">${FAC_PHOTOS.map((x, i) => `<button type="button" class="dotb" data-dot="${i}" aria-label="Foto ${i + 1}: ${x[1]}" aria-pressed="${i === state.slide}"></button>`).join('')}</div>
+      </div>
+      <section class="fsbig" aria-label="Hitung mundur flash sale">
+        <div class="fs-t"><div class="fs-word">FLASH SALE</div><div class="fs-date">${dateRange()}</div></div>
+        <div id="bigclock">${bigClockHTML()}</div>
+      </section>
+      <div class="chips" role="group" aria-label="Filter tipe">${chips}</div>
+      <div class="sec-h"><h2>Produk Bio District</h2><span>${list.length} produk · private resort living di Serpong</span></div>
+      ${list.length ? `<div class="grid">${list.map(cardHTML).join('')}</div>` : `<div class="empty">Tidak ada produk yang cocok dengan pencarian. Coba kata lain, mis. "Tipe C".</div>`}
+      <section class="tours" aria-label="Video virtual tour">
+        <div class="sec-h"><h2>Virtual tour</h2><span>Lihat rumahnya dari dekat sebelum datang ke lokasi</span></div>
+        <div class="tour-grid">${TOURS.map((t, i) => `<figure class="tour"><div class="tour-box" id="tour-${i}"><button type="button" class="tour-play" data-tour="${i}" aria-label="Putar video ${t[1]}"><img src="/flashsale/assets/${t[0]}.jpg" width="848" height="478" alt="" loading="lazy"><span class="pbtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span><span class="dur num">${t[2]}</span></button></div><figcaption><b>${t[1]}</b><span>${t[3]}</span></figcaption></figure>`).join('')}</div>
+      </section>
+      <section class="rewards">
+        <div class="rw-head">
+          <div><div class="rw-eye">Resort Living, Grand Rewards</div><h2>Hadiah langsung, tanpa diundi</h2>
+            <p>Setiap pembelian mendapat hadiah langsung. Pilih sendiri satu dari empat paket sesuai tipe rumah Anda.</p></div>
+          <button type="button" class="rw-flyer" data-open-promo aria-label="Lihat flyer promo"><img src="/flashsale/assets/flyer-flash-sale.jpg" width="1080" height="1620" alt="" loading="lazy"><span>Lihat flyer</span></button>
+        </div>
+        <div class="rw-grid">${RW_GROUPS.map(([ids, label, hue]) => { const p = PRODUCTS.find(x => x.id === ids[0]); return `<article class="rw-card" style="--h:${hue}">
+            <header><b>${label}</b><span class="num">mulai ${rpShort(sale(p))}</span></header>
+            <ol>${PACKS[p.id].map((g, k) => `<li class="${g.diskon ? 'disc' : g.biaya ? 'free' : ''}"><i class="n">${k + 1}</i><span class="ic">${ICON[g.ico]}</span><span class="tx">${g.item.replace(BEBAS, 'Bebas biaya')}</span></li>`).join('')}</ol>
+            <a class="rw-go" href="#${p.id}">Lihat ${p.name}</a>
+          </article>`; }).join('')}</div>
+        <p class="rw-note">Bebas biaya mencakup biaya KPR, AJB, balik nama sertifikat, notaris, dan BPHTB. Paket 1 dan paket 4 tidak termasuk bebas biaya.</p>
+      </section>
+      <div class="usp">
+        <div class="u1"><i><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="24" height="17" rx="3"/><path d="M4 13h24M9 20h5"/></svg></i><p><b>Booking fee ${rpShort(CONFIG.bookingFee)}</b><span>DP 0% dengan subsidi DP dari developer.</span></p></div>
+        <div class="u2"><i><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15 16 5l12 10"/><path d="M7 13v13h18V13"/><path d="M13 26v-7h6v7"/></svg></i><p><b>Tipe B dan C siap huni</b><span>Tipe A serah terima 12 bulan. Datang dan lihat rumahnya langsung.</span></p></div>
+        <div class="u3"><i><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="4" width="16" height="19" rx="4"/><path d="M8 15h16M12 19h.01M20 19h.01M11 28l2-5M21 28l-2-5"/></svg></i><p><b>3 menit ke Stasiun Rawa Buntu</b><span>Lingkungan tematik resort Bali di Serpong.</span></p></div>
+        <div class="u4"><i><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 16 5l12 7H4zM7 12v11M13 12v11M19 12v11M25 12v11M4 27h24"/></svg></i><p><b>9 bank partner KPR</b><span>${BANKS}.</span></p></div>
+      </div>
+    </div>`;
+}
+
+/* ---------- daftar / masuk ---------- */
+function gateHTML(){
+  return `<section class="flash"><div class="wrap">
+      <div class="ttl"><div class="eyebrow">Flash Sale Akhir Tahun</div>
+        <h1>Resort Living, Grand Rewards</h1>
+        <p>Daftar dulu untuk melihat produk, harga, simulasi cara bayar, dan pilihan paket hadiah.</p></div>
+      <div id="clock">${clockHTML()}</div>
+    </div></section>
+    <div class="wrap"><form class="panel gate stack" id="gateForm" novalidate>
+      <h2 style="font-size:18px;margin:0">Daftar untuk masuk</h2>
+      <div class="field"><label for="gNama">Nama lengkap</label><input id="gNama" autocomplete="name" required></div>
+      <div class="field"><label for="gHp">Nomor HP / WhatsApp</label><input id="gHp" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" required></div>
+      <div class="field"><label for="gEmail">Email</label><input id="gEmail" type="email" autocomplete="email" placeholder="nama@email.com" required></div>
+      <div class="field"><label for="gDom">Alamat domisili</label><input id="gDom" autocomplete="street-address" placeholder="Alamat, kecamatan, kota" required></div>
+      ${state.refInfo && state.refInfo.ok ? `<div class="refbox"><span>Anda didampingi</span><b>${esc(state.ref.a || state.refInfo.nama)}</b>${state.ref.a ? `<span>${esc([state.ref.k, state.refInfo.nama].filter(Boolean).join(' · '))}</span>` : ''}</div>`
+        : `<div class="field"><label for="gKode">Kode sales (opsional)</label><input id="gKode" placeholder="Isi bila Anda mendapat kode dari sales" autocapitalize="none" autocomplete="off"></div>`}
+      <input id="gWeb" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+      <div class="err" id="gErr" role="alert"></div>
+      <button type="submit" class="cta" style="margin-top:0">Masuk ke Flash Sale</button>
+      <p class="note" style="margin:0">Sudah pernah daftar? Isi nomor HP yang sama, data Anda akan dikenali. Data dipakai tim Bio District untuk menghubungi Anda soal promo ini.</p>
+    </form></div>`;
+}
+
+/* ---------- halaman produk ---------- */
+const rateOf = s => (typeof s.rate === 'number' ? s.rate : CONFIG.rate);
+const rateStr = r => String(r).replace('.', ',');
+const MODES = [['keras','Cash keras'],['kpr','KPR'],['bertahap','Cash bertahap']];
+const TAHAP = [12,24,36,48,60];
+const modeOf = s => s.mode || 'kpr';
+const monthsOf = s => s.months || 12;
+const modeName = s => MODES.find(m => m[0] === modeOf(s))[1];
+const tahapPay = (sisa, n) => annuity(sisa, CONFIG.tahapRate, n/12);
+function simCalc(p){
+  const s = selOf(p), g = packOf(p, s.gift), mode = modeOf(s), net = s.price - (g.diskon || 0);
+  const dp = mode === 'keras' ? 0 : net * s.dp/100, sisa = net - dp, n = monthsOf(s);
+  const pay = mode === 'kpr' ? annuity(sisa, rateOf(s), s.years) : mode === 'bertahap' ? tahapPay(sisa, n) : 0;
+  const text = mode === 'kpr' ? `DP ${s.dp}% · ${s.years} th · bunga ${rateStr(rateOf(s))}% · ${rp(pay)}/bln`
+    : mode === 'bertahap' ? `DP ${s.dp}% · cicilan ${n} bulan · ${rp(pay)}/bln`
+    : `Pelunasan ${rp(net - CONFIG.bookingFee)}`;
+  return {s, g, mode, net, dp, sisa, n, pay, text};
+}
+function simCtlHTML(p){
+  const s = selOf(p), mode = modeOf(s);
+  const opt = (arr, cur, suf) => arr.map(v => `<option value="${v}" ${v===cur?'selected':''}>${v}${suf}</option>`).join('');
+  if (mode === 'keras') return '';
+  if (mode === 'bertahap') return `<div class="field"><label for="simDp">DP</label><select id="simDp">${opt([0,10,20,30], s.dp, '%')}</select></div>
+    <div class="field"><label for="simMonths">Lama cicilan</label><select id="simMonths">${opt(TAHAP, monthsOf(s), ' bulan')}</select></div>`;
+  return `<div class="field"><label for="simDp">DP</label><select id="simDp">${opt([0,10,20,30], s.dp, '%')}</select></div>
+    <div class="field"><label for="simYears">Tenor</label><select id="simYears">${opt([5,10,15,20,25], s.years, ' tahun')}</select></div>
+    <div class="field"><label for="simRate">Bunga % per tahun*</label><input id="simRate" inputmode="decimal" autocomplete="off" value="${rateStr(rateOf(s))}" aria-describedby="simDisc"></div>`;
+}
+const SIMLBL = {keras:'', kpr:'Atur DP, tenor, dan bunga', bertahap:'Atur DP dan lama cicilan'};
+function simDiscHTML(p){
+  const mode = modeOf(selOf(p));
+  if (mode === 'kpr') return `<b>*Disclaimer:</b> angsuran dan suku bunga di atas hanya estimasi dan tidak mengikat. Perhitungan dapat berbeda dengan perhitungan bank, dan suku bunga dapat berubah sewaktu-waktu sebelum akad kredit. Persetujuan, plafon, bunga, dan angsuran yang berlaku sepenuhnya mengikuti ketentuan bank pemberi KPR. Bunga awal ${rateStr(CONFIG.rate)}% mengikuti ilustrasi price list dan bisa Anda ubah.`;
+  if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan.`;
+  return `<b>*Disclaimer:</b> nilai pelunasan di atas hanya estimasi dan tidak mengikat. Jadwal pelunasan dan ketentuan cash keras mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan.`;
+}
+function modesHTML(p){
+  const m = modeOf(selOf(p));
+  return MODES.map(([id, nm]) => `<button type="button" class="mode" role="radio" aria-checked="${m === id}" data-mode="${id}">${nm}</button>`).join('');
+}
+function refreshSim(p){
+  const m = modeOf(selOf(p));
+  $('#modes').innerHTML = modesHTML(p);
+  $('#gifts').innerHTML = giftsHTML(p);
+  $('#simLbl').textContent = SIMLBL[m]; $('#simLbl').hidden = m === 'keras';
+  $('#simCtl').innerHTML = simCtlHTML(p); $('#simCtl').hidden = m === 'keras';
+  $('#simCtl').dataset.m = m;
+  $('#simOut').innerHTML = simHTML(p);
+  $('#simDisc').innerHTML = simDiscHTML(p);
+}
+function simHTML(p){
+  const {s, g, mode, net, dp, sisa, n, pay} = simCalc(p);
+  const dpW = Math.min(100, Math.max(0, s.dp));
+  const head = mode === 'kpr' ? `<div class="simlbl">Estimasi angsuran KPR per bulan*</div>
+      <div class="big num">${rp(pay)}</div>
+      <div class="simsub num">Bunga ${rateStr(rateOf(s))}%* · tenor ${s.years} tahun · DP ${s.dp}%</div>`
+    : mode === 'bertahap' ? `<div class="simlbl">Estimasi cicilan per bulan*</div>
+      <div class="big num">${rp(pay)}</div>
+      <div class="simsub num">Cash bertahap ${n} bulan · DP ${s.dp}%</div>`
+    : `<div class="simlbl">Estimasi pelunasan cash keras*</div>
+      <div class="big num">${rp(net - CONFIG.bookingFee)}</div>
+      <div class="simsub num">Harga transaksi dikurangi booking fee</div>`;
+  const bar = mode === 'keras' ? '' : `<div class="split" role="img" aria-label="DP ${s.dp} persen, sisa ${100 - s.dp} persen"><i class="sdp" style="width:${dpW}%"></i><i class="skpr" style="width:${100 - dpW}%"></i></div>
+    <div class="splitlbl num"><span><i class="dot sdp"></i>DP ${rp(dp)}</span><span><i class="dot skpr"></i>${mode === 'kpr' ? 'Plafon KPR' : 'Dicicil'} ${rp(sisa)}</span></div>`;
+  const extra = mode === 'kpr' ? `<dt>Biaya KPR, AJB, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>
+    <dt>Gambaran penghasilan (angsuran 40%)</dt><dd>${rp(pay/0.4)}</dd>`
+    : `<dt>Biaya AJB, balik nama, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>` +
+      (mode === 'bertahap' ? `<dt>DP</dt><dd>${rp(dp)}</dd><dt>Cicilan</dt><dd>${n} × ${rp(pay)}</dd>` : `<dt>Pelunasan</dt><dd>${rp(net - CONFIG.bookingFee)}</dd>`);
+  const cmp = mode === 'kpr' ? `<div class="tenlbl">Bandingkan tenor (estimasi per bulan)</div>
+    <div class="tenors">${[5,10,15,20,25].map(y => `<button type="button" class="ten" data-years="${y}" aria-pressed="${y === s.years}"><b>${y} th</b><span class="num">${rpShort(annuity(sisa, rateOf(s), y))}</span></button>`).join('')}</div>`
+    : mode === 'bertahap' ? `<div class="tenlbl">Bandingkan lama cicilan (estimasi per bulan)</div>
+    <div class="tenors">${TAHAP.map(m => `<button type="button" class="ten" data-months="${m}" aria-pressed="${m === n}"><b>${m} bln</b><span class="num">${rpShort(tahapPay(sisa, m))}</span></button>`).join('')}</div>` : '<div style="height:10px"></div>';
+  return `<div class="simhead">${head}
+      <div class="simest">*Estimasi, tidak mengikat</div>
+    </div>${bar}
+    <dl class="num"><dt>Unit</dt><dd>${s.unit || '-'}</dd>
+    <dt>Cara bayar</dt><dd>${modeName(s)}</dd>
+    <dt>Harga jual</dt><dd>${rp(s.price)}</dd>
+    <dt class="${g.diskon ? 'hl' : ''}">Paket hadiah</dt><dd class="${g.diskon ? 'hl' : ''}">${g.diskon ? 'Diskon harga − ' + rp(g.diskon) : g.name.replace(/^Paket \d+ · /, '')}</dd>
+    <dt class="tot">Harga transaksi</dt><dd class="tot">${rp(net)}</dd>
+    <dt>Booking fee</dt><dd>${rp(CONFIG.bookingFee)}</dd>
+    ${extra}</dl>
+    ${cmp}`;
+}
+const GIFT_IMG = {a1:'aira',a2:'vespa',a3:'ac',b1:'jaecoo',b2:'aira',b3:'vespa',c1:'carens',c2:'byd',c3:'aira',k1:'chery',k2:'geely',k3:'byd'};
+const biayaTx = (t, s) => modeOf(s) === 'kpr' ? t : t.replace(/([Bb])iaya KPR, /g, '$1iaya ');
+function giftsHTML(p){
+  const s = selOf(p);
+  return PACKS[p.id].map(g => `<button type="button" class="gift" role="radio" aria-checked="${s.gift===g.id}" data-gift="${g.id}">
+      ${(GIFT_IMG[g.id] || (g.diskon && 'uang')) ? `<img class="gph" src="/flashsale/assets/g-${GIFT_IMG[g.id] || 'uang'}.jpg" width="300" height="200" alt="" loading="lazy">` : `<span class="ico big">${ICON[g.ico]}</span>`}
+      <span><b>${g.name}</b><span class="plist">${biayaTx(g.item, s)}</span><span class="plist ${g.biaya ? 'ok' : 'warn'}">${g.biaya ? 'Biaya transaksi ditanggung Bio District' : biayaTx('Biaya KPR, AJB, balik nama, notaris, BPHTB ditanggung pembeli', s)}</span></span>
+      <span class="pick" aria-hidden="true"></span></button>`).join('');
+}
+function ctaHTML(p){
+  const ph = phase();
+  if (ph === 'before') return `<div class="statusline wait">Promo belum dibuka. Simpan pilihan Anda dan minta pengingat.</div>
+    <button type="button" class="cta gold" data-act="remind"><svg class="bell" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/><path d="M12 3V2"/></svg>Ingatkan saya saat dibuka</button>`;
+  if (ph === 'ended') return `<div class="statusline end">Flash sale periode ini sudah ditutup.</div>
+    <button type="button" class="cta alt" data-act="ask">Tanya promo yang berjalan</button>`;
+  if (!selOf(p).unit) return `<div class="statusline end">Belum ada unit tersedia untuk tipe ini.</div>
+    <button type="button" class="cta alt" data-act="ask">Masuk daftar tunggu</button>`;
+  if (!left(p)) return `<div class="statusline end">Kuota promo tipe ini sudah penuh.</div>
+    <button type="button" class="cta alt" data-act="ask">Masuk daftar tunggu</button>`;
+  return `<div class="statusline live">Promo sedang berlangsung · ${left(p)===1?'slot terakhir':'kuota terbatas'}</div>
+    <button type="button" class="cta" data-act="buy">Ambil promo sekarang</button>
+    <p class="terms" style="margin-top:10px">Booking fee ${rp(CONFIG.bookingFee)} dibayar dalam ${CONFIG.payMinutes} menit setelah pesanan dikirim. ${TERMS}</p>`;
+}
+function detailHTML(p){
+  const s = selOf(p);
+  const units = openUnits(p.id), su = UNITS.find(x => x.id === s.unit) || p;
+  const priceCtl = `<div class="field" style="margin-bottom:10px"><label for="simUnit">Pilih unit (${units.length} unit tersedia)</label>
+      <select id="simUnit">${units.map(u => `<option value="${u.id}" ${u.id === s.unit ? 'selected' : ''}>${u.id}</option>`).join('') || '<option value="">Belum ada unit tersedia</option>'}</select></div>`;
+  const opt = (arr, cur, suf) => arr.map(v => `<option value="${v}" ${v===cur?'selected':''}>${v}${suf}</option>`).join('');
+  return `<div class="wrap">
+    <a class="back" href="#beranda">← Semua produk</a>
+    <div class="dhero">
+        <div class="gal">
+          <figure class="galmain"><img id="galMain" src="/flashsale/assets/${p.gal[0][0]}.jpg" width="1280" height="712" alt="${p.gal[0][1]}"><figcaption id="galCap">${p.gal[0][1]}</figcaption></figure>
+          <div class="thumbs">${p.gal.map(([g, c], i) => `<button type="button" class="thumb" data-gal="${i}" aria-pressed="${i === 0}" aria-label="${c}"><img src="/flashsale/assets/${g}.jpg" width="1280" height="712" alt="" loading="lazy"></button>`).join('')}</div>
+        </div>
+      <div class="stack">
+        <div class="panel">
+          <h1 class="d-title">Bio District ${p.name}</h1>
+          <div class="spec">${p.sub} · Serpong, Tangerang Selatan</div>
+          <div class="flashline"><span class="tag st"><svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7z" fill="currentColor"/></svg>Flash sale</span><span class="fclock num">${fclockText()}</span></div>
+          <div class="prow big"><span class="d-price num">${rp(sale(su))}</span><s class="was num">${rp(su.list)}</s><span class="off st">-${offPct(su)}%</span></div>
+          <div class="wasnote">Harga flash sale berlaku dengan Paket 4 (Diskon Harga). Dengan paket hadiah lain, harga transaksinya ${rp(su.price)}. Harga coret: harga normal termasuk PPN${s.unit ? ', untuk ' + s.unit : ''}.</div>
+          <div id="quotaD" style="max-width:300px;margin-top:10px">${quotaHTML(p)}</div>
+        </div>
+        <a class="jump" href="#" data-jump="pick">Pilih unit di siteplan dan simulasikan cara bayar ↓</a>
+      </div>
+    </div>
+    <div class="pick" id="pick">
+      <div class="panel mapcol"><h2>Siteplan · unit pilihan Anda: <span class="selu">${s.unit || 'belum ada'}</span></h2>
+        ${mapHTML(s.unit, p.id)}
+      </div>
+      <div class="stack">
+        <div class="panel simpanel"><h2><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 7h8M8 12h2M12 12h4M8 16h2M12 16h4"/></svg>Simulasi cara bayar</h2>
+          ${priceCtl}
+          <div class="sublbl">Pilih cara bayar</div>
+          <div class="modes" role="radiogroup" aria-label="Cara bayar" id="modes">${modesHTML(p)}</div>
+          <div class="sublbl" id="simLbl" ${modeOf(s) === 'keras' ? 'hidden' : ''}>${SIMLBL[modeOf(s)]}</div>
+          <div class="simgrid" id="simCtl" data-m="${modeOf(s)}" ${modeOf(s) === 'keras' ? 'hidden' : ''}>${simCtlHTML(p)}</div>
+          <div class="sublbl">Pilih paket hadiah</div>
+          <div class="gifts" role="radiogroup" aria-label="Paket hadiah" id="gifts">${giftsHTML(p)}</div>
+          <div class="result" id="simOut">${simHTML(p)}</div>
+          <p class="disc" id="simDisc">${simDiscHTML(p)}</p>
+          <div id="cta">${ctaHTML(p)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="dinfo">
+      <div class="stack">
+        <div class="panel"><h2>Deskripsi ${p.name}</h2>
+          <p class="desc">${p.desc}</p>
+          <p class="desc">${p.rooms.charAt(0).toUpperCase() + p.rooms.slice(1)}.</p>
+          ${p.smart ? `<h3 class="subh">Fitur smart home</h3><ul class="ticks">${p.smart.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+          <p class="note">${BIO_NOTE} Luas lantai ${p.fa} m², luas bangunan ${p.lb} m². Denah ada di galeri foto di atas.</p>
+        </div>
+        <div class="panel"><h2>Spesifikasi bangunan</h2>
+          <ul class="ticks one">${p.prov.map(x => `<li>${x}</li>`).join('')}</ul>
+          <p class="note">Sesuai standar di brosur Bio District. Spesifikasi dapat disesuaikan pengembang dengan material setara.</p>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="panel"><h2>Spesifikasi</h2>
+          <div class="kv">
+            <div><span>Unit</span><b>${s.unit || '-'}</b></div>
+            <div><span>Luas bangunan</span><b>${su.lb ? su.lb + ' m²' : 'Sesuai unit'}</b></div>
+            <div><span>Luas tanah</span><b>${su.lt ? su.lt + ' m²' : 'Sesuai unit'}</b></div>
+            <div><span>Ukuran kavling</span><b>${su.dim}</b></div>
+            <div><span>Luas lantai</span><b>${p.fa} m²</b></div>
+            <div><span>Bangunan</span><b>${p.floors}</b></div>
+            <div><span>Status</span><b>${p.status}</b></div>
+            <div><span>Booking fee</span><b class="num">${rp(CONFIG.bookingFee)}</b></div>
+          </div>
+          <p class="note">Harga sudah termasuk IMB serta instalasi listrik dan air. Biaya KPR, AJB, balik nama sertifikat, notaris, dan BPHTB ditanggung Bio District bila Anda memilih paket Bebas Biaya; pada paket hadiah lain biaya tersebut ditanggung pembeli. Belum termasuk PPN, peningkatan sertifikat, PBB, iuran pengelolaan lingkungan, serta aktivasi listrik dan air.</p>
+        </div>
+        <div class="panel"><h2>Fasilitas kawasan</h2>
+          <ul class="ticks">${FACILITIES.map(f => `<li>${f}</li>`).join('')}</ul>
+          <p class="note">Huruf A sampai H pada siteplan menunjukkan lokasi fasilitas. 3 menit dari Stasiun Rawa Buntu. Bank partner KPR: ${BANKS}.</p>
+        </div>
+      </div>
+    </div>
+    </div></div>`;
+}
+
+/* ---------- pesanan ---------- */
+const dlg = $('#dlg'), dlgBody = $('#dlgBody');
+function waLink(text){ return 'https://wa.me/' + CONFIG.wa + '?text=' + encodeURIComponent(text); }
+function openOrder(p){
+  const c = simCalc(p), {s, g, net, pay} = c;
+  dlgBody.innerHTML = `<h2>Ambil promo ${p.name}</h2>
+    <dl class="sum num"><dt>Produk</dt><dd>Bio District ${p.name}</dd>
+      <dt>Unit</dt><dd>${s.unit}</dd>
+      <dt>Harga${g.diskon ? ' setelah diskon' : ''}</dt><dd>${rp(net)}</dd>
+      <dt>Paket hadiah</dt><dd>${biayaTx(g.item, s)}</dd>
+      <dt>Biaya transaksi</dt><dd>${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>
+      <dt>Cara bayar</dt><dd>${modeName(s)}</dd>
+      <dt>Simulasi (estimasi)</dt><dd>${c.text}</dd>
+      <dt>Booking fee</dt><dd>${rp(CONFIG.bookingFee)}</dd></dl>
+    <form id="orderForm" novalidate class="stack" style="gap:10px">
+      <dl class="sum"><dt>Atas nama</dt><dd>${esc(state.user.nama)}</dd><dt>WhatsApp</dt><dd>${esc(state.user.hp)}</dd><dt>Domisili</dt><dd>${esc(state.user.dom)}</dd><dt>Sales</dt><dd>${state.user.sales ? esc(state.user.sales) : 'Tim Bio District'}</dd></dl>
+      <p class="terms">${TERMS}</p>
+      <label class="agree"><input type="checkbox" id="oSetuju"> <span>Saya sudah membaca dan menyetujui ketentuan booking fee.</span></label>
+      <div class="err" id="oErr" role="alert"></div>
+      <button type="submit" class="cta" style="margin-top:0">Lanjut bayar booking fee</button>
+      <button type="button" class="ghost" data-close>Batal</button>
+    </form>`;
+  dlg.showModal();
+  $('#orderForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!$('#oSetuju').checked) return $('#oErr').textContent = 'Centang persetujuan ketentuan booking fee untuk melanjutkan.';
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Mengunci unit…'; $('#oErr').textContent = '';
+    try {
+      const d = await call({aksi:'pesan', token:state.user.token, unit:s.unit, paket:g.id, bayar:modeName(s), simulasi:c.text.replace(/ · /g, ', ')});
+      const order = orderFrom(d.pesanan);
+      state.orders.unshift(order); showPay(order); sync();
+    } catch (x) { $('#oErr').textContent = x.message; btn.disabled = false; btn.textContent = 'Lanjut bayar booking fee'; if (x.status === 409) sync(); }
+  });
+}
+function orderText(o){
+  return `Halo Bio District, saya ambil promo Flash Sale.\n\nKode: ${o.code}\nNama: ${o.nama}\nWhatsApp: ${o.wa}\nEmail: ${o.email||'-'}\nDomisili: ${o.dom}\nSales: ${o.kode || 'Tim Bio District'}\n\nProduk: Bio District ${o.product}\nUnit: ${o.unit||'-'}\nHarga: ${rp(o.price)}\nHadiah pilihan: ${o.gift}\nCara bayar: ${o.bayar}\nSimulasi (estimasi): ${o.sim || `DP ${o.dp}%, tenor ${o.years} tahun, ${rp(o.pay)}/bulan`}\n\nBooking fee ${rp(CONFIG.bookingFee)} sudah saya bayar. Mohon dicek dan info langkah berikutnya.`;
+}
+const TERMS = 'Ketentuan booking fee: booking fee yang sudah diterima dapat dikembalikan bila pembeli ditolak KPR oleh minimal 2 bank dan tidak lolos BI checking.';
+const mmss = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0'); };
+function qrSVG(){   // pola contoh, bukan QRIS yang bisa dibayar
+  let r = '', seed = 7;
+  for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++){
+    seed = (seed * 73 + 41) % 997;
+    const finder = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13);
+    const on = finder ? ((x % 14 === 0 || x % 14 === 6 || y % 14 === 0 || y % 14 === 6) || (x % 14 > 1 && x % 14 < 5 && y % 14 > 1 && y % 14 < 5)) : seed % 2;
+    if (on) r += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  }
+  return `<svg viewBox="-1 -1 23 23" aria-hidden="true" fill="#17231e">${r}</svg>`;
+}
+function payHTML(){
+  return srv.qris ? `<div class="qr real"><img src="/flashsale/assets/qris.png" alt="QRIS pembayaran booking fee Bio District"></div>`
+    : `<div class="bank"><span>Transfer ke rekening</span><b>BCA 205-005-3604</b><span>a.n. PT Serpong Bangun Lestari<br>KCK Menara BCA</span></div>`;
+}
+function showPay(o){
+  dlgBody.innerHTML = `<h2>Bayar booking fee</h2>
+    <div class="paybox">
+      ${payHTML()}
+      <div class="stack" style="gap:10px">
+        <div class="spec">Jumlah<div class="code num">${rp(CONFIG.bookingFee)}</div></div>
+        <div class="spec">Selesaikan dalam<div class="code num" id="payClock" data-code="${o.code}" style="color:var(--sale)">${mmss(o.expires - Date.now())}</div></div>
+      </div>
+    </div>
+    <dl class="sum"><dt>Kode pesanan</dt><dd>${o.code}</dd><dt>Unit</dt><dd>${esc(o.unit)} · Bio District ${esc(o.product)}</dd><dt>Berita transfer</dt><dd>${o.code}</dd></dl>
+    <p style="margin:0;font-size:14px">${srv.qris ? 'Scan QRIS dengan aplikasi bank atau e-wallet Anda' : 'Transfer sesuai jumlah di atas dan tulis kode pesanan di berita transfer'}, lalu tekan tombol di bawah. Bila ${CONFIG.payMinutes} menit habis sebelum Anda menekan tombol, unit yang Anda pesan dibuka kembali.</p>
+    <p class="terms">${TERMS}</p>
+    <div class="err" id="pErr" role="alert"></div>
+    <button type="button" class="cta" style="margin-top:0" data-paid="${o.code}">Saya sudah bayar</button>
+    <button type="button" class="ghost" data-cancel="${o.code}">Batalkan pesanan</button>
+    <button type="button" data-close style="background:none;border:0;padding:4px;color:var(--muted);font-size:13px;text-decoration:underline">Tutup dulu, lanjutkan dari menu Pesanan &amp; Bayar selama waktu masih ada</button>`;
+  if (!dlg.open) dlg.showModal();
+}
+function showExpired(o){
+  dlgBody.innerHTML = `<h2>Waktu pembayaran habis</h2>
+    <p style="margin:0">Booking fee untuk pesanan <b>${o.code}</b> tidak diterima dalam ${CONFIG.payMinutes} menit, jadi ${esc(o.unit)} dibuka kembali. Anda bisa memesan lagi selama unit dan kuota promo masih ada.</p>
+    <button type="button" class="ghost" data-close>Tutup</button>`;
+  if (!dlg.open) dlg.showModal();
+}
+function showDone(o){
+  const lunas = o.status === 'lunas';
+  dlgBody.innerHTML = `<h2>${lunas ? 'Booking fee diterima' : 'Pembayaran sedang dicek'}</h2>
+    <div>Kode pesanan<div class="code">${o.code}</div></div>
+    <dl class="sum num"><dt>Produk</dt><dd>Bio District ${esc(o.product)}</dd>
+      <dt>Unit</dt><dd>${esc(o.unit||'-')}</dd>
+      <dt>Harga</dt><dd>${rp(o.price)}</dd><dt>Paket hadiah</dt><dd>${esc(o.gift)}</dd>
+      <dt>Booking fee</dt><dd>${rp(CONFIG.bookingFee)} · ${lunas ? 'lunas' : 'menunggu pengecekan'}</dd>
+      <dt>Atas nama</dt><dd>${esc(o.nama || '')}</dd></dl>
+    <p style="margin:0;font-size:14px">${lunas ? 'Unit Anda sudah terkunci atas nama Anda.' : 'Unit Anda kami tahan sambil tim mengecek pembayaran.'} Kirim bukti transfer ke WhatsApp resmi Bio District, <b>+62 813-8523-7865</b>, supaya prosesnya lebih cepat.</p>
+    <p class="terms">${TERMS}</p>
+    <a class="cta" style="margin-top:0" href="${waLink(orderText(o))}" target="_blank" rel="noopener">Kirim bukti ke WhatsApp</a>
+    <button type="button" class="ghost" data-close>Tutup</button>`;
+  if (!dlg.open) dlg.showModal();
+}
+const STATUS = {menunggu:'Menunggu pembayaran', dibayar:'Pembayaran sedang dicek', lunas:'Booking fee lunas', kedaluwarsa:'Waktu bayar habis, unit dibuka kembali', batal:'Dibatalkan'};
+function showOrders(){
+  const linkBtn = 'background:none;border:0;padding:0;color:var(--forest-2);font-weight:700;text-decoration:underline';
+  dlgBody.innerHTML = `<h2>Pesanan &amp; bayar booking fee</h2><div class="spec">Masuk sebagai <b>${esc(state.user.nama)}</b> · ${esc(state.user.hp)} · sales ${state.user.sales ? esc(state.user.sales) : 'Tim Bio District'} · <button type="button" data-logout style="${linkBtn}">Keluar</button></div>` + (state.orders.length ? state.orders.map((o,i) => {
+      const st = o.status || 'lunas';
+      const act = st === 'menunggu' ? `<button type="button" class="cta" style="margin-top:8px;padding:10px" data-pay="${i}">Bayar booking fee</button>`
+                : (st === 'lunas' || st === 'dibayar') ? `<button type="button" data-order="${i}" style="${linkBtn}">Lihat &amp; kirim bukti ke WhatsApp</button>` : (st === 'batal' && o.alasan ? `<span class="spec">${esc(o.alasan)}</span>` : '');
+      return `<div class="order"><b>${o.code}</b> · Bio District ${esc(o.product)} · ${esc(o.unit||'')}<br><span class="spec num">${rp(o.price)} · ${esc(o.gift)}</span><br><span class="st st-${st}">${STATUS[st]}</span>${act ? '<br>' + act : ''}</div>`;
+    }).join('')
+    : `<p style="margin:0;color:var(--muted)">Belum ada pesanan. Pilih produk, tentukan unit dan paket hadiahnya, lalu bayar booking fee.</p>`) +
+    `<p class="terms">${TERMS}</p><button type="button" class="ghost" data-close>Tutup</button>`;
+  if (!dlg.open) dlg.showModal();
+}
+dlg.addEventListener('click', e => {
+  if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
+  const ob = e.target.closest('[data-order]'); if (ob) showDone(state.orders[+ob.dataset.order]);
+  const pb = e.target.closest('[data-pay]'); if (pb) showPay(state.orders[+pb.dataset.pay]);
+  const paid = e.target.closest('[data-paid]'), cancel = e.target.closest('[data-cancel]');
+  if (paid || cancel){
+    const o = state.orders.find(x => x.code === (paid || cancel).dataset[paid ? 'paid' : 'cancel']);
+    if (!o || o.status !== 'menunggu') return;
+    const btn = paid || cancel; btn.disabled = true;
+    call({aksi: paid ? 'bayar' : 'batal', token: state.user.token, kode: o.code}).then(d => {
+      Object.assign(o, orderFrom(d.pesanan));
+      if (paid) showDone(o); else dlg.close();
+      sync(); render();
+    }).catch(x => { btn.disabled = false; const pe = $('#pErr'); if (pe) pe.textContent = x.message; if (x.status === 410){ o.status = 'kedaluwarsa'; showExpired(o); sync(); } });
+  }
+  if (e.target.closest('[data-logout]')){ state.user = null; state.orders = []; store.set('bio_fs_user', null); dlg.close(); render(); }
+});
+
+/* ---------- render & event ---------- */
+const app = $('#app');
+function current(){ return PRODUCTS.find(p => '#' + p.id === location.hash); }
+function render(){
+  const p = current();
+  app.innerHTML = state.buat ? agentHTML() : !state.user ? gateHTML() : p ? detailHTML(p) : homeHTML();
+  $('#ordersN').textContent = state.orders.filter(o => ['menunggu','dibayar','lunas'].includes(o.status)).length;
+  $('#preview').hidden = !srv.uji;
+}
+function softRender(){   // data server berubah: jangan mengganggu orang yang sedang mengetik atau menonton video
+  const a = document.activeElement, sibuk = a && app.contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName);
+  const nonton = [...document.querySelectorAll('.tour-box video')].some(v => !v.paused);
+  if (dlg.open || sibuk || nonton || (!state.user && !state.buat && $('#gateForm') && [...$('#gateForm').querySelectorAll('input')].some(i => i.value))) { $('#preview').hidden = !srv.uji; return; }
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}
+/* ---------- agent di bawah lead agent: buat link sendiri ---------- */
+function agentHTML(){
+  const ri = state.refInfo, ok = ri && ri.ok && ri.leadAgent;
+  return `<section class="flash"><div class="wrap"><div class="ttl"><div class="eyebrow">Flash Sale Bio District · untuk agent</div>
+      <h1>Buat link Anda sendiri</h1><p>Isi nama dan kantor Anda, lalu bagikan link yang muncul ke konsumen. Konsumen yang mendaftar lewat link itu tercatat atas nama Anda${ok ? ' di bawah ' + esc(ri.nama) : ''}.</p></div></div></section>
+    <div class="wrap">${ok ? `<form class="panel gate stack" id="agentForm" novalidate>
+      <div class="field"><label for="aNama">Nama agent</label><input id="aNama" autocomplete="name" required></div>
+      <div class="field"><label for="aKantor">Kantor / agency</label><input id="aKantor" autocomplete="organization" required></div>
+      <div class="err" id="aErr" role="alert"></div>
+      <button type="submit" class="cta" style="margin-top:0">Buat link saya</button>
+      <div id="aOut"></div>
+    </form>` : `<div class="panel gate"><p style="margin:0">${srv.ok ? 'Link ini tidak berlaku. Minta link terbaru ke koordinator agent Anda.' : 'Memuat…'}</p></div>`}</div>`;
+}
+function makeAgentLink(){
+  const nama = $('#aNama').value.trim().replace(/\s+/g, ' '), kantor = $('#aKantor').value.trim().replace(/\s+/g, ' ');
+  if (nama.length < 3 || kantor.length < 2){ $('#aErr').textContent = 'Isi nama dan kantor Anda.'; return; }
+  $('#aErr').textContent = '';
+  const url = location.origin + '/flashsale?' + new URLSearchParams({ref: state.ref.ref, a: nama, k: kantor});
+  const teks = `Flash Sale Bio District 11–13 Desember 2026. Diskon s.d. Rp500 juta, hadiah langsung tanpa diundi, kuota terbatas. Daftar di sini: ${url}`;
+  $('#aOut').innerHTML = `<div class="refbox" style="margin-top:6px"><span>Link Anda</span><b style="font-size:13.5px;word-break:break-all;font-weight:700">${esc(url)}</b></div>
+    <button type="button" class="cta alt" style="margin-top:10px" id="aCopy">Salin link</button>
+    <a class="cta" style="margin-top:10px" href="https://wa.me/?text=${encodeURIComponent(teks)}" target="_blank" rel="noopener">Bagikan lewat WhatsApp</a>`;
+  $('#aCopy').addEventListener('click', ev => { const b = ev.currentTarget; (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(() => { b.textContent = 'Link tersalin'; }, () => { b.textContent = 'Salin manual dari kotak di atas'; }); });
+}
+function sweep(){   // waktu bayar habis: tampilkan, lalu samakan dengan server
+  let changed = false;
+  state.orders.forEach(o => {
+    if (o.status === 'menunggu' && Date.now() >= o.expires){
+      o.status = 'kedaluwarsa'; changed = true;
+      const pc = $('#payClock'); if (dlg.open && pc && pc.dataset.code === o.code) showExpired(o);
+    }
+  });
+  if (changed) sync();
+  return changed;
+}
+let lastPhase = phase();
+setInterval(() => {
+  if (sweep()) render();
+  const pc = $('#payClock');
+  if (pc){ const o = state.orders.find(x => x.code === pc.dataset.code); if (o) pc.textContent = mmss(o.expires - Date.now()); }
+  const ph = phase();
+  if (ph !== lastPhase){ lastPhase = ph; render(); return; }
+  const c = $('#clock'); if (c) c.innerHTML = clockHTML();
+  const bc = $('#bigclock'); if (bc) bc.innerHTML = bigClockHTML();
+  const ft = fclockText(); document.querySelectorAll('.fclock').forEach(e => { e.textContent = ft; });
+}, 1000);
+
+app.addEventListener('click', e => {
+  const f = e.target.closest('[data-filter]');
+  if (f){ state.filter = f.dataset.filter; render(); return; }
+  if (e.target.closest('[data-zoom]')){ state.zoom = !state.zoom; render(); return; }
+  const sb = e.target.closest('[data-slide],[data-dot]');
+  if (sb){ goSlide(sb.dataset.dot != null ? +sb.dataset.dot : state.slide + (+sb.dataset.slide)); slidePause = Date.now() + 9000; return; }
+  const gb = e.target.closest('[data-gal]');
+  if (gb){ const pp = current(); if (!pp) return; const it = pp.gal[+gb.dataset.gal]; const im = $('#galMain'); im.src = '/flashsale/assets/' + it[0] + '.jpg'; im.alt = it[1]; $('#galCap').textContent = it[1]; document.querySelectorAll('.thumb').forEach(t => t.setAttribute('aria-pressed', t === gb)); return; }
+  const tb = e.target.closest('[data-years]');
+  if (tb){ const pp = current(); if (!pp) return; selOf(pp).years = +tb.dataset.years; const sy = $('#simYears'); if (sy) sy.value = tb.dataset.years; $('#simOut').innerHTML = simHTML(pp); return; }
+  const jb = e.target.closest('[data-jump]');
+  if (jb){ e.preventDefault(); const t = document.getElementById(jb.dataset.jump); if (t) t.scrollIntoView({behavior:'smooth', block:'start'}); return; }
+  const tp = e.target.closest('[data-tour]');
+  if (tp){   // video baru dimuat setelah diklik, supaya beranda tetap ringan
+    const i = +tp.dataset.tour, t = TOURS[i];
+    document.querySelectorAll('.tour-box video').forEach(v => v.pause());
+    $('#tour-' + i).innerHTML = `<video controls autoplay playsinline preload="metadata" poster="/flashsale/assets/${t[0]}.jpg" src="/flashsale/assets/${t[0]}.mp4" aria-label="${t[1]}"></video>`;
+    return;
+  }
+  const mb = e.target.closest('[data-mode]');
+  if (mb){ const pp = current(); if (!pp) return; selOf(pp).mode = mb.dataset.mode; refreshSim(pp); return; }
+  const mo = e.target.closest('[data-months]');
+  if (mo){ const pp = current(); if (!pp) return; selOf(pp).months = +mo.dataset.months; const sm = $('#simMonths'); if (sm) sm.value = mo.dataset.months; $('#simOut').innerHTML = simHTML(pp); return; }
+  const ub = e.target.closest('[data-unit]');
+  if (ub && !ub.disabled){
+    const u = UNITS.find(x => x.id === ub.dataset.unit), pp = PRODUCTS.find(x => x.id === u.type), su = selOf(pp);
+    su.unit = u.id; su.price = u.price;
+    if (current() === pp) render(); else location.hash = '#' + pp.id;
+    return;
+  }
+  const p = current(); if (!p) return;
+  const g = e.target.closest('[data-gift]');
+  if (g && !g.disabled){ selOf(p).gift = g.dataset.gift; $('#gifts').innerHTML = giftsHTML(p); $('#simOut').innerHTML = simHTML(p); return; }
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  if (a.dataset.act === 'buy') return openOrder(p);
+  const s = selOf(p), gift = packOf(p, s.gift);
+  const msg = a.dataset.act === 'remind'
+    ? `Halo Bio District, tolong ingatkan saya saat Flash Sale dibuka. Saya berminat ${p.name} dengan paket hadiah: ${gift.item}.`
+    : `Halo Bio District, saya berminat ${p.name}. Mohon info promo yang sedang berjalan.`;
+  dlgBody.innerHTML = `<h2>Lanjut lewat WhatsApp</h2><p style="margin:0">Pesan Anda sudah kami siapkan untuk nomor resmi Bio District, <b>+62 813-8523-7865</b>.</p>
+    <a class="cta" style="margin-top:0" href="${waLink(msg)}" target="_blank" rel="noopener">Buka WhatsApp</a><button type="button" class="ghost" data-close>Tutup</button>`;
+  dlg.showModal();
+});
+app.addEventListener('submit', async e => {
+  if (e.target.id === 'agentForm'){ e.preventDefault(); return makeAgentLink(); }
+  if (e.target.id !== 'gateForm') return;
+  e.preventDefault();
+  const nama = $('#gNama').value.trim(), hp = $('#gHp').value.replace(/[^\d+]/g,''), email = $('#gEmail').value.trim(), dom = $('#gDom').value.trim();
+  const kodeEl = $('#gKode'), kode = kodeEl ? kodeEl.value.trim().toLowerCase() : state.ref.ref;
+  const err = t => { $('#gErr').textContent = t; };
+  if (nama.length < 3) return err('Isi nama lengkap Anda.');
+  if (!/^(\+?62|0)8\d{7,12}$/.test(hp)) return err('Nomor HP belum benar. Contoh: 081234567890.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return err('Email belum benar. Contoh: nama@email.com.');
+  if (dom.length < 5) return err('Isi alamat domisili Anda.');
+  const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Mendaftarkan…'; err('');
+  try {
+    const d = await call({aksi:'daftar', nama, hp, email, domisili:dom, ref:kode, agent_nama:state.ref.a, agent_kantor:state.ref.k, website:$('#gWeb').value});
+    if (!d.token) throw new Error('Pendaftaran belum berhasil. Coba lagi.');
+    state.user = {nama, hp, email, dom, token:d.token, sales:d.sales || '', at: Date.now()};
+    store.set('bio_fs_user', state.user);
+    await sync(); render(); window.scrollTo(0,0);
+  } catch (x) { err(x.message); btn.disabled = false; btn.textContent = 'Masuk ke Flash Sale'; }
+});
+app.addEventListener('input', e => {
+  const p = current(); if (!p) return;
+  const s = selOf(p);
+  if (e.target.id === 'simDp') s.dp = +e.target.value;
+  else if (e.target.id === 'simYears') s.years = +e.target.value;
+  else if (e.target.id === 'simMonths') s.months = +e.target.value;
+  else if (e.target.id === 'simRate'){ const r = parseFloat(e.target.value.replace(',', '.')); if (!(r >= 0 && r <= 25)) return; s.rate = r; }
+  else if (e.target.id === 'simUnit'){ const u = UNITS.find(x => x.id === e.target.value); if (!u) return; s.unit = u.id; s.price = u.price; render(); return; }
+  else return;
+  $('#simOut').innerHTML = simHTML(p);
+});
+$('#q').addEventListener('input', e => {
+  state.q = e.target.value;
+  if (current()) location.hash = '#beranda'; else if (state.user) render();
+});
+$('#ordersBtn').addEventListener('click', () => { if (state.user) showOrders(); });
+window.addEventListener('hashchange', () => { render(); window.scrollTo(0,0); });
+(() => {   // tautan berkode: ?ref=<username>&a=<nama agent>&k=<kantor> · ?buat=1 = halaman pembuat link agent
+  const q = new URLSearchParams(location.search), ref = (q.get('ref') || '').trim().toLowerCase();
+  if (/^[a-z0-9._-]{2,40}$/.test(ref)){ state.ref = {ref, a: (q.get('a') || '').trim().slice(0, 80), k: (q.get('k') || '').trim().slice(0, 100)}; if (!q.get('buat')) store.set('bio_fs_ref', state.ref); }
+  state.buat = q.get('buat') === '1' && !!ref;
+})();
+let slidePause = 0;
+function goSlide(i){
+  const n = FAC_PHOTOS.length; state.slide = (i % n + n) % n;
+  const t = $('#track'); if (!t) return;
+  t.style.transform = 'translateX(-' + state.slide * 100 + '%)';
+  document.querySelectorAll('.dotb').forEach((d, k) => d.setAttribute('aria-pressed', k === state.slide));
+}
+const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+setInterval(() => {   // geser otomatis; berhenti sejenak setelah diklik atau saat kursor di atas foto
+  const sl = $('#slider'); if (!sl || calm || Date.now() < slidePause || sl.matches(':hover') || sl.contains(document.activeElement) || $('#promo').open || dlg.open) return;
+  goSlide(state.slide + 1);
+}, 4500);
+render();
+(() => { const im = new Image(); im.onload = () => { srv.qris = true; }; im.src = '/flashsale/assets/qris.png'; })();
+sync().then(() => { render(); });
+setInterval(sync, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+// banner flyer: tampil setiap kali platform dibuka
+const promo = $('#promo');
+document.addEventListener('click', e => { if (e.target.closest('[data-open-promo]')) { try { promo.showModal(); } catch (x) {} } });
+promo.addEventListener('click', e => { if (e.target === promo || e.target.closest('.pclose,[data-promo-close]')) promo.close(); });
+if (!state.buat) { try { promo.showModal(); } catch (e) {} }
+</script>
+</body>
+</html>
