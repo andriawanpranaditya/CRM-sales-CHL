@@ -29,7 +29,7 @@ function PriceListIsi({ plv }) {
   const unit = useMemo(() => {
     if (!stok || !proj) return { list: [], st: {} };
     const list = (set.units && set.units[proj]) || [];
-    const st = {}; (stok.status || []).filter(x => x.project === proj).forEach(x => { st[x.unit] = x.warna === 'merah' ? 'Terjual' : x.warna === 'kuning' ? 'Reserved' : 'Tersedia'; });
+    const st = {}; (stok.status || []).filter(x => x.project === proj).forEach(x => { st[x.unit] = x.warna === 'merah' ? 'Terjual' : x.warna === 'kuning' ? 'Reserved' : x.warna === 'biru' ? 'Hold' : 'Tersedia'; });
     return { list, st };
   }, [stok, proj, set]);
   const statusU = u => unit.st[u] || 'Tersedia';
@@ -55,7 +55,7 @@ function PriceListIsi({ plv }) {
     const posMap = {}; (stok.positions || []).forEach(p => { if (p.project === proj) posMap[p.unit] = p; });
     const R = Math.max(6, Math.round(W * 0.0055));
     Object.entries(unit.st).forEach(([u, st]) => { const p = posMap[u]; if (!p || st === 'Tersedia') return;
-      const cx = p.x / 100 * W, cy = p.y / 100 * H; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = st === 'Terjual' ? '#B3402F' : '#C9922E'; ctx.fill(); ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke(); });
+      const cx = p.x / 100 * W, cy = p.y / 100 * H; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = st === 'Terjual' ? '#B3402F' : st === 'Hold' ? '#1D5FBF' : '#C9922E'; ctx.fill(); ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke(); });
     const data = cv.toDataURL('image/jpeg', 0.85);
     const maksL = PW - 2 * M, maksT = PH - judulY - 22;
     let lb = maksL, tg = lb * H / W; if (tg > maksT) { tg = maksT; lb = tg * W / H; }
@@ -65,6 +65,7 @@ function PriceListIsi({ plv }) {
     doc.setDrawColor(120); doc.circle(M + 1.8, y - 1.2, 1.8, 'S'); doc.text('Tersedia (tanpa tanda)', M + 5, y);
     doc.setFillColor(201, 146, 46); doc.circle(M + 52, y - 1.2, 1.8, 'F'); doc.text('Reserved', M + 55, y);
     doc.setFillColor(179, 64, 47); doc.circle(M + 80, y - 1.2, 1.8, 'F'); doc.text('Terjual', M + 83, y);
+    doc.setFillColor(29, 95, 191); doc.circle(M + 104, y - 1.2, 1.8, 'F'); doc.text('Hold', M + 107, y);
   }
   // Tabel bergaris dengan header 2 tingkat (kelompok kolom), seperti price list resmi
   function tabelPL(doc, { x0, y, cols, groups, rows, fs = 7, hijau = [] }) {

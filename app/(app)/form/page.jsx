@@ -871,9 +871,11 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                       const milikSendiri = st && st.lead_code && st.lead_code === trx.lead_code;
                       // Manager/CEO boleh memilih unit terkunci saat membatalkan (pemilik ditampilkan agar tidak salah lead)
                       const bolehBatal = trx.jenis === 'Batal' && ['manager', 'ceo'].includes(me?.role);
-                      const kunci = !!st && !milikSendiri && !bolehBatal;
+                      if (trx.jenis === 'Batal' && st && st.warna === 'biru') return null; // unit hold tidak punya transaksi untuk dibatalkan
+                      const kunci = !!st && (st.warna === 'biru' || (!milikSendiri && !bolehBatal));
                       const pemilik = st ? (st.nama ? ' · ' + st.nama : '') + (st.lead_code ? ' (' + st.lead_code + ')' : st.manual ? ' (tanda manual)' : '') : '';
                       const label = !st ? u
+                        : st.warna === 'biru' ? '🔵 ' + u + ' — HOLD MANAJEMEN'
                         : (st.warna === 'merah' ? '🔴 ' : '🟡 ') + u +
                           (milikSendiri ? ' — unit lead ini' : (st.warna === 'merah' ? ' — TERJUAL' : ' — RESERVED') + pemilik);
                       return <option key={'u' + u} value={u} disabled={kunci}>{label}</option>;
@@ -881,7 +883,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                   </select>;
                 })()
               : <input {...ft('unit')} placeholder={trx.project ? 'ketik blok/unit' : 'pilih project dulu'} />}
-            <span className="hint">🔴 terjual · 🟡 reserved — terkunci, kecuali unit milik lead yang sedang dipilih{['manager', 'ceo'].includes(me?.role) ? ' (Manager/CEO: bisa dipilih bila Jenis = Batal)' : ''}.</span>
+            <span className="hint">🔴 terjual · 🟡 reserved · 🔵 hold manajemen — terkunci, kecuali unit milik lead yang sedang dipilih{['manager', 'ceo'].includes(me?.role) ? ' (Manager/CEO: bisa dipilih bila Jenis = Batal)' : ''}.</span>
             {(() => { // peringatan bila unit yang dibatalkan tercatat milik lead lain / tanda manual
               if (trx.jenis !== 'Batal' || !trx.unit) return null;
               const st = stok.find(u2 => u2.project === trx.project && u2.unit === trx.unit);

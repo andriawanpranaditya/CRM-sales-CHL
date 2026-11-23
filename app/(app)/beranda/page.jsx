@@ -67,7 +67,7 @@ function KartuStok({ stok }) {
         <div key={x.project} className="bd-stok">
           <div className="bd-head"><b>{x.project}</b><span><b className="bd-gold">{x.tersedia}</b> <span className="hint">tersedia dari {x.total} unit</span></span></div>
           <div className="bd-bar tipis"><div style={{ width: Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100) + '%' }} /></div>
-          <span className="hint">{x.terjual} terjual · {x.reserved} reserved</span>
+          <span className="hint">{x.terjual} terjual · {x.reserved} reserved{x.hold ? ' · ' + x.hold + ' hold manajemen' : ''}</span>
         </div>))}
     </section>
   );
@@ -257,7 +257,7 @@ function DonutStok({ x, garis }) {
       <text x="48" y="64" textAnchor="middle" style={{ fill: 'var(--muted)', fontSize: 9.5, fontWeight: 700 }}>tersedia</text>
     </svg>
     <div><b>{x.project}</b><div className="hint">dari {x.total} unit</div>
-      <div className="rb-mini"><span><i style={{ background: 'var(--red)' }} />{x.terjual} terjual</span><span><i style={{ background: 'var(--gold)' }} />{x.reserved} reserved</span></div>
+      <div className="rb-mini"><span><i style={{ background: 'var(--red)' }} />{x.terjual} terjual</span><span><i style={{ background: 'var(--gold)' }} />{x.reserved} reserved</span>{x.hold ? <span><i style={{ background: '#1D5FBF' }} />{x.hold} hold</span> : null}</div>
       <span className="rb-pct">{Math.round((x.terjual + x.reserved) / Math.max(1, x.total) * 100)}% terserap</span></div>
   </div>);
 }

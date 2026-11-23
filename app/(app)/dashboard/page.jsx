@@ -469,7 +469,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
         const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
         const total = ((set.units || {})[p2] || []).length;
         const row = rs.getRow(R);
-        const isi = [p2, total, mer.length, kun.length, Math.max(0, total - mer.length - kun.length),
+        const isi = [p2, total, mer.length, kun.length, Math.max(0, total - mer.length - kun.length - su.filter(u => u.warna === 'biru').length),
           mer.reduce((a, u) => a + (Number(u.nilai) || 0), 0)];
         isi.forEach((v2, k2) => {
           const c2 = row.getCell(2 + k2);
@@ -530,7 +530,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       { h: 'Sales / Agent', k: 'sa', w: 26 }, { h: 'Nilai (Rp)', k: 'v', w: 17, num: true },
       { h: 'ID Lead', k: 'id', w: 11 },
     ], [...(stock || []).filter(u => !proj || u.project === proj)].sort((a, b) => (a.project + a.unit).localeCompare(b.project + b.unit, 'id', { numeric: true })).map(u => ({
-      p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : 'Reserved',
+      p: u.project, u: u.unit, st: u.warna === 'merah' ? 'Terjual' : u.warna === 'biru' ? 'Hold manajemen' : 'Reserved',
       n: u.nama || (u.info || '').replace(/^(Terjual|Reserved|Booking|Closing)\s*—?\s*/, '').replace(/\(manual\)/i, '').trim() || '-',
       sa: u.sales || '-', v: Number(u.nilai) || 0, id: u.lead_code || '-',
     })), { sub: 'Posisi unit per hari ini — sales/agent otomatis mengikuti pemilik lead untuk unit bertransaksi. · copyright © 2026 by Andriawanp' });
@@ -546,7 +546,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       const mer = su.filter(u => u.warna === 'merah'), kun = su.filter(u => u.warna === 'kuning');
       return {
         p: p2, tot: total, jual: mer.length, res: kun.length,
-        sisa: Math.max(0, total - mer.length - kun.length),
+        sisa: Math.max(0, total - mer.length - kun.length - su.filter(u => u.warna === 'biru').length),
         pct: total ? Math.round(mer.length / total * 100) + '%' : '-',
         nj: mer.reduce((a, u) => a + nilaiUnit(u), 0),
         nr: kun.reduce((a, u) => a + nilaiUnit(u), 0),
@@ -588,7 +588,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     mk.forEach(m => {
       const cx = m.x / 100 * W, cy = m.y / 100 * H;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.fillStyle = m.u.warna === 'merah' ? '#B3402F' : '#C9922E'; ctx.fill();
+      ctx.fillStyle = m.u.warna === 'merah' ? '#B3402F' : m.u.warna === 'biru' ? '#1D5FBF' : '#C9922E'; ctx.fill();
       ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
     });
     return { url: cv.toDataURL('image/jpeg', 0.85), w: W, h: H };
@@ -738,7 +738,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       const nilaiU = u => Number(u.nilai) || lastVal[p2 + '|' + u.unit] || 0;
       const nJual = merahU.reduce((a, u) => a + nilaiU(u), 0);
       const nRes = kuningU.reduce((a, u) => a + nilaiU(u), 0);
-      return { p: p2, total, merah: merahU.length, kuning: kuningU.length, nJual, nRes };
+      return { p: p2, total, merah: merahU.length, kuning: kuningU.length, hold: su.filter(u => u.warna === 'biru').length, nJual, nRes };
     });
 
     // Peta siteplan tiap project (gambar dengan marker)
@@ -747,12 +747,12 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
       try {
         const g = await gambarSiteplan(pj);
         const adaTanda = stock.filter(u => u.project === pj);
-        const nJ = adaTanda.filter(u => u.warna === 'merah').length, nR = adaTanda.length - nJ;
+        const nJ = adaTanda.filter(u => u.warna === 'merah').length, nR = adaTanda.filter(u => u.warna === 'kuning').length, nH = adaTanda.filter(u => u.warna === 'biru').length;
         // Word memakai atribut width/height (px) — dipatok agar utuh dalam satu halaman A4 potret
         const LEBAR = 620, TINGGI_MAKS = 620;
         let wImg = LEBAR, hImg = Math.round(LEBAR * g.h / g.w);
         if (hImg > TINGGI_MAKS) { hImg = TINGGI_MAKS; wImg = Math.round(TINGGI_MAKS * g.w / g.h); }
-        petaHtml += `<h3 style="color:#23694A;margin:10px 0 4px">${esc(pj)} — ${nJ} terjual, ${nR} reserved</h3>
+        petaHtml += `<h3 style="color:#23694A;margin:10px 0 4px">${esc(pj)} — ${nJ} terjual, ${nR} reserved${nH ? ', ' + nH + ' hold manajemen' : ''}</h3>
 <p><img src="${g.url}" width="${wImg}" height="${hImg}" style="width:${wImg}px;height:${hImg}px" /></p>`;
       } catch { petaHtml += `<p class="muted">Siteplan ${esc(pj)} tidak dapat dimuat.</p>`; }
     }
@@ -1020,8 +1020,8 @@ ${galeri ? '<h3 style="color:#23694A;margin-top:14px">Dokumentasi Kegiatan</h3>'
 `;
     })()}<h2>6. STOK &amp; NILAI PENJUALAN PER PROJECT <span style="font-weight:normal;font-size:9pt;color:#6B7A70">(posisi stok per hari ini, termasuk penandaan manual di Master Stock)</span></h2>
 <table><tr><th>Project</th><th>Total Stok (unit)</th><th>Terjual</th><th>Reserved</th><th>Tersedia</th><th>% Terjual</th><th>Nilai Penjualan</th><th>Nilai Reserved</th></tr>
-${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning)}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
-${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
+${stokRows.map(r => `<tr><td><b>${esc(r.p)}</b></td><td>${r.total}</td><td class="hot"><b>${r.merah}</b></td><td class="warm"><b>${r.kuning}</b></td><td>${Math.max(0, r.total - r.merah - r.kuning - (r.hold || 0))}</td><td>${r.total ? Math.round(r.merah / r.total * 100) + '%' : '-'}</td><td>${rp(r.nJual)}</td><td>${rp(r.nRes)}</td></tr>`).join('')}
+${stokRows.length > 1 ? `<tr style="background:#EFEEE8;font-weight:bold"><td>TOTAL</td><td>${stokRows.reduce((a, r) => a + r.total, 0)}</td><td>${stokRows.reduce((a, r) => a + r.merah, 0)}</td><td>${stokRows.reduce((a, r) => a + r.kuning, 0)}</td><td>${stokRows.reduce((a, r) => a + Math.max(0, r.total - r.merah - r.kuning - (r.hold || 0)), 0)}</td><td></td><td>${rp(stokRows.reduce((a, r) => a + r.nJual, 0))}</td><td>${rp(stokRows.reduce((a, r) => a + r.nRes, 0))}</td></tr>` : ''}
 </table>
 <p class="muted">Nilai Penjualan memakai <b>Nilai Transaksi</b> (harga jual unit) dari transaksi terakhir tiap unit; unit hasil penandaan manual memakai nilai kontrak yang tercatat di Master Stock. Unit tanpa nilai tercatat terhitung pada jumlah namun bernilai Rp 0.</p>
 

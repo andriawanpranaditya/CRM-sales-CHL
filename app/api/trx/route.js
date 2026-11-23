@@ -89,6 +89,15 @@ async function _POST(req) {
     }
   }
 
+  // Unit yang di-hold manajemen tidak bisa ditransaksikan sampai hold-nya dibuka di Master Stock
+  if (b.unit && b.project && b.jenis !== 'Batal') {
+    try {
+      const { statusUnit } = await import('@/lib/stok');
+      const kini = (await statusUnit(sql)).find(x => x.project === b.project && x.unit === b.unit);
+      if (kini && kini.warna === 'biru') return Response.json({ error: 'Unit ' + b.unit + ' sedang di-hold manajemen dan belum bisa dijual. Minta Head of Sales & Marketing membuka hold-nya di Master Stock.' }, { status: 400 });
+    } catch (e) { console.error('cek hold', e); }
+  }
+
   // Reserved -> Booking/Closing: baris Reserved dilebur, tanggalnya masuk ke keterangan Booking
   let catatan = b.catatan || '';
   if ((b.jenis === 'Booking' || b.jenis === 'Closing') && b.unit && b.project) {
@@ -185,6 +194,14 @@ async function _PATCH(req) {
   const sql = db();
   const rows = await sql`SELECT lead_code, jenis, tgl::text AS tgl FROM transactions WHERE id = ${b.id}`;
   if (!rows.length) return Response.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+  // Transaksi tidak bisa dipindah ke unit yang di-hold manajemen
+  if (b.unit && b.project && b.jenis !== 'Batal') {
+    try {
+      const { statusUnit } = await import('@/lib/stok');
+      const kini = (await statusUnit(sql)).find(x => x.project === b.project && x.unit === b.unit);
+      if (kini && kini.warna === 'biru') return Response.json({ error: 'Unit ' + b.unit + ' sedang di-hold manajemen — buka hold-nya dulu di Master Stock.' }, { status: 400 });
+    } catch (e) { console.error('cek hold', e); }
+  }
   if (user.projects) {
     const p = await sql`SELECT COALESCE(NULLIF(t.project, ''), l.project, '') AS project, l.sales, l.created_by FROM transactions t LEFT JOIN leads l ON l.lead_code = t.lead_code WHERE t.id = ${b.id}`;
     if (p.length && !lihatBaris(user, p[0])) return Response.json({ error: pesanProyek(user) }, { status: 403 });

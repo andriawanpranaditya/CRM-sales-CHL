@@ -46,7 +46,7 @@ export default function OtherForm({ token }) {
       <div className="field full"><label>Jenis *</label><div className="lp-seg">{['Reserved', 'Booking'].map(j => <button type="button" key={j} className={trx.jenis === j ? 'on' : ''} onClick={() => setTrx({ ...trx, jenis: j })}>{j}</button>)}</div></div>
       <div className="field"><label>Blok / unit *</label><select value={trx.unit} onChange={T('unit')}><option value="">— pilih unit —</option>
         {(info.unit || []).map(x => typeof x === 'string' ? { u: x, st: '' } : x).map(x => <option key={x.u} value={x.u} disabled={!!x.st} style={x.st ? { color: x.st === 'merah' ? '#B4482A' : '#8A5F14' } : undefined}>
-          {x.st === 'merah' ? '🔴 ' + x.u + ' — TERJUAL' : x.st === 'kuning' ? '🟡 ' + x.u + ' — RESERVED' : x.u}</option>)}</select>
+          {x.st === 'merah' ? '🔴 ' + x.u + ' — TERJUAL' : x.st === 'kuning' ? '🟡 ' + x.u + ' — RESERVED' : x.st === 'biru' ? '🔵 ' + x.u + ' — HOLD' : x.u}</option>)}</select>
         <span className="hint" style={{ fontSize: 11.5, color: '#5B6E66' }}>🔴 terjual · 🟡 reserved — tidak bisa dipilih</span></div>
       <div className="field"><label>Tanggal transfer *</label><input type="date" value={trx.tgl} max={hariIni()} onChange={T('tgl')} /></div>
       <div className="field"><label>Nilai dibayar (Rp) *</label><input inputMode="numeric" value={angka(trx.nilai) ? Number(angka(trx.nilai)).toLocaleString('id-ID') : ''} onChange={e => setTrx({ ...trx, nilai: angka(e.target.value) })} placeholder="25.000.000" /></div>

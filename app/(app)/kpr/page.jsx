@@ -354,7 +354,7 @@ function SimulasiIsi() {
                 const terjual = st && st.warna === 'merah';
                 const irr = isBio && BIO_IRREG[u];
                 return <option key={u} value={u} disabled={terjual}>
-                  {terjual ? '🔴 ' : st && st.warna === 'kuning' ? '🟡 ' : ''}{u}{isBio && tipeBio(u) ? ' · Tipe ' + (irr ? irr.tipe : tipeBio(u)) : ''}{irr ? ' · Irreguler' : ''}{terjual ? ' — terjual' : ''}
+                  {terjual ? '🔴 ' : st && st.warna === 'kuning' ? '🟡 ' : st && st.warna === 'biru' ? '🔵 ' : ''}{u}{isBio && tipeBio(u) ? ' · Tipe ' + (irr ? irr.tipe : tipeBio(u)) : ''}{irr ? ' · Irreguler' : ''}{terjual ? ' — terjual' : ''}
                 </option>;
               })}
             </select>

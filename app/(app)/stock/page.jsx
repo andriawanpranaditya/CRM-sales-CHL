@@ -2,15 +2,25 @@
 import { useEffect, useRef, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, catatUnduh } from '@/components/util';
+import { bolehDigital } from '@/lib/digital-akses';
+import { kunciUnit, LABEL_JENIS, POSISI_BAWAAN, KAVLING_DI_GAMBAR } from '@/lib/jenis-unit';
 
 const IMG = p => /BIO/i.test(p) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
-const COLOR = { merah: '#B3402F', kuning: '#C9922E' };
+const COLOR = { merah: '#B3402F', kuning: '#C9922E', biru: '#1D5FBF', kavling: '#FFFFFF', show: '#7B2FBE' };
+const HURUF = { kavling: 'K', show: 'SU' };
+// Show Unit = lencana ungu "SU"; Kavling = warna dasar kavling putih di gambar siteplan (kavling yang ditandai belakangan
+// dan belum diputihkan di gambar memakai kotak putih "K"); Terjual / Reserved tetap lingkaran merah / kuning
+const warnaTanda = m => COLOR[m.warna] || COLOR[m.jenis];
+// Hold manajemen = lingkaran biru (Show Unit yang di-hold: lingkaran biru bertulisan SU)
+const bentuk = m => (m.warna && m.warna !== 'biru') ? 'bulat' : m.jenis === 'show' ? 'su' : m.warna === 'biru' ? 'bulat' : m.jenis === 'kavling' ? 'kotak' : 'bulat';
 
 export default function StockPage() {
   const [me, setMe] = useState(null);
   const [status, setStatus] = useState(null);
   const [pos, setPos] = useState([]);
   const [manual, setManual] = useState([]);
+  const [jenis, setJenis] = useState({});
+  const [hold, setHold] = useState({});
   const [set, setSet] = useState({ project: [], units: {} });
   const [proj, setProj] = useState('');
   const [placing, setPlacing] = useState(null);
@@ -24,12 +34,12 @@ export default function StockPage() {
 
   const loadStock = async () => {
     const st = await api('/api/stock');
-    setStatus(st.status || []); setPos(st.positions || []); setManual(st.manual || []);
+    setStatus(st.status || []); setPos(st.positions || []); setManual(st.manual || []); setJenis(st.jenis || {}); setHold(st.hold || {});
   };
   useEffect(() => {
     Promise.all([api('/api/auth/me'), api('/api/stock'), api('/api/settings')])
       .then(([u, st, s]) => {
-        setMe(u); setStatus(st.status || []); setPos(st.positions || []); setManual(st.manual || []); setSet(s);
+        setMe(u); setStatus(st.status || []); setPos(st.positions || []); setManual(st.manual || []); setJenis(st.jenis || {}); setHold(st.hold || {}); setSet(s);
         setProj(prev => prev || (s.project && s.project[0]) || '');
       }).catch(e => toast(e.message));
   }, []);
@@ -38,6 +48,11 @@ export default function StockPage() {
   const isMgr = me.role === 'manager' || me.role === 'ceo'; // ceo: kelola stok, tanpa hapus titik
 
   const posMap = {}; pos.forEach(p => { posMap[p.project + '|' + p.unit] = p; });
+  // Titik bawaan unit Kavling / Show Unit — berlaku sampai titiknya ditempel / dipindah manual
+  Object.entries(POSISI_BAWAAN).forEach(([p, daftar]) => ((set.units && set.units[p]) || []).forEach(u => {
+    const hit = Object.entries(daftar).find(([n]) => kunciUnit(n) === kunciUnit(u));
+    if (hit && !posMap[p + '|' + u]) posMap[p + '|' + u] = { project: p, unit: u, x: hit[1][0], y: hit[1][1] };
+  }));
   const manMap = {}; manual.forEach(x => { manMap[x.project + '|' + x.unit] = x.status; });
   const unitList = (set.units && set.units[proj]) || [];
   const stMap = {}; status.forEach(u => { stMap[u.project + '|' + u.unit] = u; });
@@ -46,8 +61,19 @@ export default function StockPage() {
   // menghindari tanda "hantu" dari penamaan unit lama yang sudah tidak berlaku
   const asing = status.filter(u => u.project === proj && unitList.length && !unitList.includes(u.unit));
   const active = status.filter(u => u.project === proj && (!unitList.length || unitList.includes(u.unit)));
-  const unmapped = active.filter(u => !posMap[proj + '|' + u.unit]);
-  const markers = active.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
+  // Jenis khusus unit (Show Unit / Kavling): unit yang belum terjual pun tetap diberi tanda di peta
+  const jenisUnit = u => (jenis[proj] || {})[kunciUnit(u)] || '';
+  const khusus = unitList.filter(u => jenisUnit(u));
+  // Hold manajemen datang dari server sebagai status 'biru' (mengurangi stok, tidak bisa dipilih di transaksi)
+  const holdUnit = u => (stMap[proj + '|' + u] || {}).warna === 'biru';
+  const ditahan = unitList.filter(holdUnit);
+  const bolehBukaHold = bolehDigital(me); // hanya Head of Sales & Marketing
+  const diGambar = u => jenisUnit(u) === 'kavling' && (KAVLING_DI_GAMBAR[proj] || []).some(n => kunciUnit(n) === kunciUnit(u));
+  const bertanda = [...active.map(u => ({ ...u, jenis: jenisUnit(u.unit), info: u.info + (u.warna === 'biru' && jenisUnit(u.unit) ? ' · ' + LABEL_JENIS[jenisUnit(u.unit)] : '') })),
+    ...khusus.filter(u => !stMap[proj + '|' + u] && !diGambar(u)).map(u => ({ project: proj, unit: u, jenis: jenisUnit(u), info: LABEL_JENIS[jenisUnit(u)] + ' — tersedia' }))];
+  const unmapped = bertanda.filter(u => !posMap[proj + '|' + u.unit]);
+  const markers = bertanda.filter(u => posMap[proj + '|' + u.unit]).map(u => ({ ...u, ...posMap[proj + '|' + u.unit] }));
+  const jmlJenis = j => khusus.filter(u => jenisUnit(u) === j).length;
   // Titik yang saling menumpuk (jarak < 1,2% lebar peta) — biasanya marker salah tempel di plot yang sama
   const tumpuk = [];
   for (let i = 0; i < markers.length; i++) {
@@ -89,9 +115,12 @@ export default function StockPage() {
       }
       markers.forEach(m => {
         const cx = (m.x / 100) * W, cy = (m.y / 100) * H;
-        ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
-        ctx.fillStyle = COLOR[m.warna]; ctx.fill();
-        ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = '#fff'; ctx.stroke();
+        const bk = bentuk(m), r = bk === 'su' ? R * 1.3 : R;
+        ctx.beginPath();
+        if (bk === 'kotak') ctx.rect(cx - r, cy - r, r * 2, r * 2); else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = warnaTanda(m); ctx.fill();
+        ctx.lineWidth = Math.max(2, R * 0.28); ctx.strokeStyle = bk === 'kotak' ? '#1C2B23' : '#fff'; ctx.stroke();
+        if (bk !== 'bulat') { ctx.fillStyle = bk === 'kotak' ? '#1C2B23' : '#fff'; ctx.font = 'bold ' + Math.round(r * (bk === 'su' ? 0.95 : 1.25)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(HURUF[m.jenis], cx, cy + r * 0.06); }
         if (m.manual) { ctx.beginPath(); ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
       });
       const dataURL = cv.toDataURL('image/jpeg', 0.9);
@@ -103,7 +132,7 @@ export default function StockPage() {
       const total = unitList.length;
       const terjual = active.filter(u => u.warna === 'merah').length;
       const reserved = active.filter(u => u.warna === 'kuning').length;
-      const tersedia = Math.max(0, total - terjual - reserved);
+      const tersedia = Math.max(0, total - terjual - reserved - ditahan.length);
       const kop = (sub) => {
         doc.setFillColor(28, 43, 35); doc.rect(0, 0, PW, 17, 'F');
         doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
@@ -128,8 +157,11 @@ export default function StockPage() {
       };
       chip('Terjual', terjual, [179, 64, 47]);
       chip('Reserved', reserved, [201, 146, 46]);
+      if (ditahan.length) chip('Hold Manajemen', ditahan.length, [29, 95, 191]);
       chip('Tersedia', tersedia, [235, 233, 226]);
       chip('Total Unit', total, [35, 105, 74]);
+      if (jmlJenis('kavling')) chip('Kavling (warna dasar putih)', jmlJenis('kavling'), [252, 252, 250]);
+      if (jmlJenis('show')) chip('Show Unit (SU)', jmlJenis('show'), [123, 47, 190]);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110, 118, 110);
       doc.text('Titik putih di tengah lingkaran = status ditandai manual oleh manager.', M, 28.5);
       doc.setTextColor(28, 43, 35);
@@ -147,7 +179,7 @@ export default function StockPage() {
       }
 
       // Halaman 2+: rekap unit bertanda
-      const bertanda = [...active].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
+      const bertanda = [...active.filter(u => u.warna !== 'biru')].sort((a, b) => (a.warna === b.warna ? String(a.unit).localeCompare(String(b.unit), 'id', { numeric: true }) : a.warna === 'merah' ? -1 : 1));
       doc.addPage(); kop('Rekap Unit');
       let y = 26;
       const headRow = () => {
@@ -224,6 +256,26 @@ export default function StockPage() {
     } catch (err) { toast(err.message); }
   }
 
+  async function setHoldUnit(unit, ya) {
+    if (!unit) return toast('Pilih unit dulu');
+    try {
+      await api('/api/stock', { method: 'PUT', body: JSON.stringify({ project: proj, unit, hold: ya }) });
+      await loadStock();
+      toast(unit + (ya ? ' → Hold manajemen' : ' → hold dilepas'));
+      if (ya && !posMap[proj + '|' + unit]) { setPlacing(unit); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    } catch (err) { toast(err.message); }
+  }
+
+  async function setJenisUnit(unit, j) {
+    if (!unit) return toast('Pilih unit dulu');
+    try {
+      await api('/api/stock', { method: 'PUT', body: JSON.stringify({ project: proj, unit, jenis: j }) });
+      await loadStock();
+      toast(unit + (j ? ' → ' + LABEL_JENIS[j] : ' → unit biasa'));
+      if (j && !posMap[proj + '|' + unit]) { setPlacing(unit); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    } catch (err) { toast(err.message); }
+  }
+
   const jml = w => active.filter(u => u.warna === w).length;
   const zoomTo = z => setZoom(Math.min(4, Math.max(1, Math.round(z * 4) / 4)));
 
@@ -231,8 +283,8 @@ export default function StockPage() {
     <>
       <div className="page-head">
         <div><h1>Master Stock</h1>
-          <div className="sub">🔴 Terjual (Booking/Closing) · 🟡 Reserved · Batal/Kosong = tanpa tanda.{isMgr ? ' Manager bisa buka/tutup stok langsung dari sini.' : ' Tampilan lihat-saja — hubungi manager untuk update stok.'}</div></div>
-        <div className="stamp">🔴 <b>{jml('merah')}</b> terjual &nbsp; 🟡 <b>{jml('kuning')}</b> reserved</div>
+          <div className="sub">🔴 Terjual (Booking/Closing) · 🟡 Reserved · 🔵 Hold manajemen · Batal/Kosong = tanpa tanda · <b>□ putih</b> Kavling · <b style={{ color: COLOR.show }}>SU</b> Show Unit.{isMgr ? ' Manager bisa buka/tutup stok langsung dari sini.' : ' Tampilan lihat-saja — hubungi manager untuk update stok.'}</div></div>
+        <div className="stamp">🔴 <b>{jml('merah')}</b> terjual &nbsp; 🟡 <b>{jml('kuning')}</b> reserved{ditahan.length ? <> &nbsp; 🔵 <b>{ditahan.length}</b> hold</> : null}{jmlJenis('kavling') ? <> &nbsp; □ <b>{jmlJenis('kavling')}</b> kavling</> : null}{jmlJenis('show') ? <> &nbsp; <b style={{ color: COLOR.show }}>SU</b> <b>{jmlJenis('show')}</b> show unit</> : null}</div>
       </div>
 
       {tumpuk.length > 0 && (
@@ -279,7 +331,7 @@ export default function StockPage() {
             <option value="">— pilih Blok/Unit —</option>
             {unitList.map(u => {
               const st = stMap[proj + '|' + u];
-              return <option key={u} value={u}>{u}{st ? (st.warna === 'merah' ? ' 🔴' : ' 🟡') : ''}</option>;
+              return <option key={u} value={u}>{u}{st ? (st.warna === 'merah' ? ' 🔴' : st.warna === 'kuning' ? ' 🟡' : ' 🔵 Hold') : ''}{jenisUnit(u) ? ' · ' + LABEL_JENIS[jenisUnit(u)] : ''}</option>;
             })}
           </select>
           <input value={namaBeli} onChange={e => setNamaBeli(e.target.value)} placeholder="Nama pembeli (opsional)"
@@ -294,6 +346,17 @@ export default function StockPage() {
           {manMap[proj + '|' + selUnit] && (
             <button className="sort-btn" onClick={() => setStatusManual(selUnit, null)}>↩ Kembali Ikut Transaksi</button>
           )}
+          {selUnit && holdUnit(selUnit)
+            ? (bolehBukaHold ? <button className="sort-btn" style={{ borderColor: COLOR.biru, color: COLOR.biru, fontWeight: 700 }} onClick={() => setHoldUnit(selUnit, false)}>🔓 Buka Hold {selUnit}</button>
+              : <span className="hint">🔵 {selUnit} di-hold manajemen — hanya Head of Sales &amp; Marketing yang bisa membuka.</span>)
+            : <button className="sort-btn" style={{ borderColor: COLOR.biru, color: COLOR.biru, fontWeight: 700 }} disabled={!!(selUnit && stMap[proj + '|' + selUnit])}
+                title="Unit ditahan manajemen — belum dilepas untuk dijual" onClick={() => setHoldUnit(selUnit, true)}>🔵 Hold Manajemen</button>}
+          <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', flexBasis: '100%' }}>
+            <span className="hint">Jenis unit{selUnit ? ' ' + selUnit : ''}: <b>{selUnit ? (LABEL_JENIS[jenisUnit(selUnit)] || 'unit biasa') : '—'}</b></span>
+            <button className="sort-btn" style={{ fontWeight: 700 }} onClick={() => setJenisUnit(selUnit, 'kavling')}>□ Kavling</button>
+            <button className="sort-btn" style={{ borderColor: COLOR.show, color: COLOR.show, fontWeight: 700 }} onClick={() => setJenisUnit(selUnit, 'show')}>SU Show Unit</button>
+            {selUnit && jenisUnit(selUnit) ? <button className="sort-btn" onClick={() => setJenisUnit(selUnit, '')}>Jadikan unit biasa</button> : null}
+          </span>
           {(/BIO/i.test(proj) || /PERMAI/i.test(proj)) && (
             <button className="sort-btn" style={{ marginLeft: 'auto' }} disabled={imp} title="Lihat apa yang akan berubah tanpa menulis apa pun"
               onClick={async () => {
@@ -337,7 +400,7 @@ export default function StockPage() {
           )}
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
-          Tanda manual menimpa status dari transaksi (titik putih kecil di tengah lingkaran) — kecuali unit yang sudah Booking lewat transaksi.
+          <b>🔵 Hold Manajemen</b> = unit ditahan: mengurangi stok tersedia dan tidak bisa dipilih di Form Input sampai hold-nya dibuka (hanya Head of Sales &amp; Marketing). Tanda manual menimpa status dari transaksi (titik putih kecil di tengah lingkaran) — kecuali unit yang sudah Booking lewat transaksi.
           Gunakan <b>⚪ Buka Stok</b> bila unit benar-benar kembali tersedia: tandanya terkunci sebagai tersedia dan <b>tidak akan dihidupkan lagi oleh impor</b>.
           {selUnit && manMap[proj + '|' + selUnit] ? <b> {selUnit}: manual ({manMap[proj + '|' + selUnit]}).</b> : ''}
         </div>
@@ -353,16 +416,17 @@ export default function StockPage() {
           style={{ position: 'relative', width: (zoom * 100) + '%', lineHeight: 0, cursor: (isMgr && placing) ? 'crosshair' : 'default' }}>
           <img src={IMG(proj)} alt={proj} style={{ width: '100%', height: 'auto', display: 'block' }} />
           {markers.map(m => (
-            <div key={m.unit} title={m.unit + ' — ' + m.info}
+            <div key={m.unit} title={m.unit + ' — ' + m.info + (m.jenis && m.warna ? ' · ' + LABEL_JENIS[m.jenis] : '')}
               onClick={e => { if (isMgr && !placing) { e.stopPropagation(); setSelUnit(m.unit); toast(m.unit + ' dipilih — atur lewat panel di atas'); } }}
               style={{
-                position: 'absolute', left: m.x + '%', top: m.y + '%', transform: 'translate(-50%,-50%)',
-                width: 18, height: 18, borderRadius: '50%', background: COLOR[m.warna],
-                border: (isMgr && selUnit === m.unit ? '3px solid #2D5D8E' : '2.5px solid #fff'),
+                position: 'absolute', left: m.x + '%', top: m.y + '%',
+                width: bentuk(m) === 'su' ? 24 : 18, height: bentuk(m) === 'su' ? 24 : 18, borderRadius: bentuk(m) === 'kotak' ? 3 : '50%', background: warnaTanda(m),
+                transform: 'translate(-50%,-50%)', color: bentuk(m) === 'kotak' ? '#1C2B23' : '#fff', fontSize: bentuk(m) === 'su' ? 9.5 : 10.5, fontWeight: 800, lineHeight: 1, letterSpacing: '.02em',
+                border: (isMgr && selUnit === m.unit ? '3px solid #2D5D8E' : bentuk(m) === 'kotak' ? '2px solid #1C2B23' : '2.5px solid #fff'),
                 boxShadow: '0 1px 6px rgba(0,0,0,.5)', cursor: isMgr ? 'pointer' : 'help',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-              {m.manual ? <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} /> : null}
+              {m.manual ? <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} /> : bentuk(m) !== 'bulat' ? <span>{HURUF[m.jenis]}</span> : null}
             </div>
           ))}
         </div>
@@ -375,15 +439,26 @@ export default function StockPage() {
         )}
       </div>
 
+      {isMgr && ditahan.length > 0 && <div className="card" style={{ marginTop: 14 }}>
+        <h2>🔵 Hold Manajemen ({ditahan.length})</h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {ditahan.map(u => (<span key={u} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', border: '1px solid var(--line)', borderRadius: 20, padding: '4px 6px 4px 12px', fontSize: 13 }}>
+            <b>{u}</b>{jenisUnit(u) ? <span className="hint">{LABEL_JENIS[jenisUnit(u)]}</span> : null}
+            {bolehBukaHold && <button className="sort-btn" style={{ padding: '2px 10px' }} onClick={() => { if (window.confirm('Buka hold ' + u + '? Unit kembali tersedia dan bisa dipilih sales.')) setHoldUnit(u, false); }}>🔓 Buka</button>}
+          </span>))}
+        </div>
+        <div className="hint" style={{ marginTop: 8 }}>{bolehBukaHold ? 'Buka hold per unit dari sini. Untuk menahan unit lain: pilih unitnya di panel Update Stok Manual lalu klik 🔵 Hold Manajemen.' : 'Hold hanya bisa dibuka oleh Head of Sales & Marketing.'}</div>
+      </div>}
+
       {isMgr && <div className="card" style={{ marginTop: 14 }}>
         <h2>Unit Bertanda — Belum Ditandai di Peta ({unmapped.length})</h2>
         {unmapped.length ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {unmapped.map(u => (
               <button key={u.unit} className="sort-btn"
-                style={{ borderColor: u.warna === 'merah' ? 'var(--red)' : 'var(--brass)', color: u.warna === 'merah' ? 'var(--red)' : 'var(--brass)', fontWeight: 700 }}
+                style={{ borderColor: u.jenis === 'kavling' && !u.warna ? 'var(--line)' : warnaTanda(u), color: u.jenis === 'kavling' && !u.warna ? 'inherit' : warnaTanda(u), fontWeight: 700 }}
                 onClick={() => { setPlacing(u.unit); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                {u.warna === 'merah' ? '🔴' : '🟡'} {u.unit} — Tandai
+                {u.warna === 'merah' ? '🔴' : u.warna === 'kuning' ? '🟡' : u.warna === 'biru' ? '🔵' : u.jenis === 'kavling' ? '□' : 'SU'} {u.unit}{u.jenis ? ' (' + LABEL_JENIS[u.jenis] + ')' : ''} — Tandai
               </button>
             ))}
           </div>
