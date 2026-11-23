@@ -163,7 +163,7 @@ async function _PATCH(req) {
   if (!rows.length) return Response.json({ error: 'Lead tidak ditemukan' }, { status: 404 });
   const cur = rows[0];
   // Mengganti sales hanya ke akun Sales aktif; nilai lama (agent / tanpa akun) tetap boleh dipertahankan
-  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales' && !/\(Other Sales/i.test(b.sales) && !(bolehDigital(user) && b.sales === user.name)) {
+  if (typeof b.sales === 'string' && b.sales && b.sales !== cur.sales && user.role !== 'sales' && !/\(Other Sales/i.test(b.sales) && !(bolehDigital(user) && (b.sales === user.name || b.sales_bebas === true))) {
     const ok = await sql`SELECT 1 FROM users WHERE role = 'sales' AND active = true AND name = ${b.sales}`;
     if (!ok.length) return Response.json({ error: `"${b.sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
   }
@@ -192,8 +192,11 @@ async function _PATCH(req) {
     b.sales = otherBaru.nama;
   }
   if (['manager', 'ceo', 'markom'].includes(user.role) && 'sales' in b && b.sales) {
-    if ((cur.sales || '') !== b.sales) operKe = b.sales;
-    m.sales = b.sales;
+    // sales_bebas (khusus Head of Sales & Marketing): koreksi nama sales / agent tanpa akun pada data penjualan lama —
+    // hanya mengganti nama, bukan oper lead (tanpa jadwal FU, notifikasi, atau catatan distribusi)
+    const koreksiNama = b.sales_bebas === true && bolehDigital(user);
+    if ((cur.sales || '') !== b.sales && !koreksiNama) operKe = b.sales;
+    m.sales = String(b.sales).trim().slice(0, 120);
   }
   if (!m.nama) return Response.json({ error: 'Nama tidak boleh kosong' }, { status: 400 });
   // Sales mengubah data KRUSIAL lead (nama, WA & kontak tambahan, tanggal, sumber, project) → perlu persetujuan Manager. Field profil lain, status, jadwal FU & catatan langsung tersimpan.
