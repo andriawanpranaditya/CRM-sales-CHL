@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 // L0 lead masuk · L1 tersentuh FU orang · L2 pernah Warm/Hot/Appointment/Site Visit/Booking, Walk In, atau bertransaksi
 // CPL/CPQL = spend ÷ lead ber-campaign (sama dengan Analisa Marcom). Data analisa mulai 1 Sep 2026.
 const MULAI = process.env.MI_ANALISA_MULAI || '2026-09-01';
-const AKTIF = ['Closing', 'Drop', 'Lost'];
+const AKTIF = ['Closing', 'Drop', 'Lost', 'Batal'];
 const tglWIB = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
 
 // Biaya berulang (amortisasi) disebar rata per bulan, pro-rata hari untuk bulan berjalan — sama dengan Analisa Marcom
@@ -72,7 +72,7 @@ async function berandaMarcom(sql, user, hariIni) {
     // Follow up jatuh tempo (hari ini & terlambat) seluruh lead tim Marcom
     sql`SELECT l.lead_code, l.nama, l.status, l.next_fu::text AS next_fu, COALESCE(u.name, l.created_by) AS penginput, l.created_by
       FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
-      WHERE l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+      WHERE l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       ORDER BY l.next_fu, l.id`,
     sql`SELECT count(DISTINCT f.lead_code)::int AS n FROM followups f
       JOIN leads l ON l.lead_code = f.lead_code JOIN users u ON u.username = l.created_by AND u.role = 'markom'
@@ -111,7 +111,7 @@ async function raporSales(sql, { nama, pp, hariIni, awalBulan, user, jj, due, ju
           AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => []),
     // Lead aktif (bukan Booking/Drop) yang di-follow up dalam 7 hari terakhir
     sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM followups f WHERE f.lead_code = l.lead_code AND f.created_at > now() - interval '7 days'))::int AS fu7
-        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Booking')
+        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal', 'Booking')
           AND l.created_at < now() - interval '3 days' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`,
     // Hari aktif follow up bulan ini
     sql`SELECT count(DISTINCT (f.created_at AT TIME ZONE 'Asia/Jakarta')::date)::int AS n FROM followups f JOIN leads l ON l.lead_code = f.lead_code
@@ -128,7 +128,7 @@ async function raporSales(sql, { nama, pp, hariIni, awalBulan, user, jj, due, ju
         FROM janjian j WHERE j.status = 'Datang' AND j.tgl >= (${hariIni}::date - 90) AND (${nama}::text IS NULL OR j.sales = ${nama}) AND (${pp}::text[] IS NULL OR j.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, book: 0 }]),
     // Kelengkapan data kualifikasi lead aktif (≥3 dari domisili, budget, cara bayar, usia, tujuan)
     sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE ((COALESCE(domisili, '') <> '')::int + (COALESCE(budget, 0) > 0)::int + (COALESCE(bayar, '') <> '')::int + (COALESCE(usia, '') <> '')::int + (COALESCE(tujuan, '') <> '')::int) >= 3)::int AS ok
-        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ok: 0 }]),
+        FROM leads l WHERE COALESCE(l.sales, '') <> '' AND (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ok: 0 }]),
     // Drop bulan ini & alasannya
     sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE COALESCE(alasan, '') <> '')::int AS ok FROM lead_status_log s JOIN leads l ON l.lead_code = s.lead_code
         WHERE s.ke = 'Drop' AND s.tgl >= ${awalBulan}::date AND (${nama}::text IS NULL OR s.sales_saat = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))`.catch(() => [{ n: 0, ok: 0 }]),
@@ -243,7 +243,7 @@ async function berandaSales(sql, user, hariIni, semua, opsi = {}) {
       FROM leads l
       JOIN LATERAL (SELECT created_at, oleh FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
       LEFT JOIN users u ON u.username = a.oleh
-      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+      WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal')
         AND a.created_at > now() - interval '14 days' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
         AND NOT EXISTS (SELECT 1 FROM followups f JOIN users s ON s.username = f.created_by AND s.name = l.sales
@@ -251,13 +251,13 @@ async function berandaSales(sql, user, hariIni, semua, opsi = {}) {
       ORDER BY a.created_at DESC LIMIT 5`.catch(() => []),
     sql`SELECT l.lead_code, l.nama, l.wa, l.status, l.project, l.next_fu::text AS next_fu
       FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama})
-        AND l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+        AND l.next_fu IS NOT NULL AND l.next_fu <= ${hariIni}::date AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       ORDER BY l.next_fu, CASE l.status WHEN 'Hot' THEN 0 WHEN 'Site Visit' THEN 1 WHEN 'Appointment' THEN 2 WHEN 'Warm' THEN 3 ELSE 4 END`,
     sql`SELECT count(DISTINCT f.lead_code)::int AS n FROM followups f JOIN leads l ON l.lead_code = f.lead_code
       WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (f.created_at AT TIME ZONE 'Asia/Jakarta')::date = ${hariIni}::date
         AND COALESCE(f.created_by, '') <> 'auto-wa' AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND (${nama}::text IS NULL OR f.created_by IN (SELECT username FROM users WHERE name = ${nama}))`,
-    sql`SELECT status, count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Booking') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY l.status`,
+    sql`SELECT status, count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal', 'Booking') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY l.status`,
     // Reserved aktif: transaksi terakhir lead adalah Reserved
     sql`SELECT count(*)::int AS n FROM leads l WHERE (${nama}::text IS NULL OR l.sales = ${nama}) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
       AND (SELECT t.jenis FROM transactions t WHERE t.lead_code = l.lead_code ORDER BY t.id DESC LIMIT 1) = 'Reserved'`,
@@ -411,7 +411,7 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
       FROM leads l
       JOIN LATERAL (SELECT created_at, oleh FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
       LEFT JOIN users uo ON uo.username = a.oleh
-      WHERE COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+      WHERE COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost', 'Batal') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
         AND EXISTS (SELECT 1 FROM users su WHERE su.name = l.sales AND su.role = 'sales' AND su.active = true)
         AND a.created_at < now() - interval '24 hours' AND a.created_at > now() - interval '14 days'
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
@@ -471,8 +471,8 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
   let perf = [];
   if (salesPilih.length) {
     const [akt, resp, bks] = await Promise.all([
-      sql`SELECT l.sales, count(*) FILTER (WHERE l.status NOT IN ('Closing','Drop','Lost','Booking'))::int AS aktif,
-          count(*) FILTER (WHERE l.next_fu IS NOT NULL AND l.next_fu < ${hariIni}::date AND l.status NOT IN ('Closing','Drop','Lost'))::int AS telat
+      sql`SELECT l.sales, count(*) FILTER (WHERE l.status NOT IN ('Closing','Drop','Lost','Batal','Booking'))::int AS aktif,
+          count(*) FILTER (WHERE l.next_fu IS NOT NULL AND l.next_fu < ${hariIni}::date AND l.status NOT IN ('Closing','Drop','Lost','Batal'))::int AS telat
         FROM leads l WHERE l.sales = ANY(${salesPilih}::text[]) AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[])) GROUP BY 1`,
       // Per oper: kapan dioper, oleh siapa, kapan FU pertama oleh sales itu (null = belum di-FU)
       sql`SELECT a.ke AS sales, a.lead_code, l.nama, a.created_at AS dioper, COALESCE(uo.name, a.oleh) AS oleh, f1.waktu AS fu_pertama,

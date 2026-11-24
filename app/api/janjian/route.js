@@ -62,7 +62,7 @@ export async function GET(req) {
     const spark = [];
     for (let i = 6; i >= 0; i--) { const t = geser(tgl, -i); spark.push({ tgl: t, hari: namaHari(t), n: seminggu.filter(v => v.tgl === t && v.hitung).length }); }
     let leadsPilih = [];
-    if (user.role === 'sales') leadsPilih = await sql`SELECT lead_code, nama, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST LIMIT 500`;
+    if (user.role === 'sales') leadsPilih = await sql`SELECT lead_code, nama, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') ORDER BY updated_at DESC NULLS LAST LIMIT 500`;
     return Response.json({ tgl, hari: namaHari(tgl), now, rows, ringkas: ringkasVisitor(rows), spark, leads: leadsPilih });
   }
 
@@ -157,11 +157,11 @@ export async function GET(req) {
   // Lead yang bisa dibuatkan janjian (sales: lead miliknya yang masih aktif)
   let leads = [];
   if (user.role === 'sales') {
-    leads = await sql`SELECT lead_code, nama, project, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 500`;
+    leads = await sql`SELECT lead_code, nama, project, status FROM leads WHERE sales = ${user.name} AND status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 500`;
     leads = leads.filter(l => lihatBaris(user, { ...l, sales: user.name }));
   } else {
     // Marcom / Manager / CEO: semua lead aktif (sesuai akses project) — janji temu tercatat atas nama sales pemilik lead
-    leads = await sql`SELECT lead_code, nama, project, status, sales, created_by FROM leads WHERE status NOT IN ('Closing', 'Drop', 'Lost') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 800`;
+    leads = await sql`SELECT lead_code, nama, project, status, sales, created_by FROM leads WHERE status NOT IN ('Closing', 'Drop', 'Lost', 'Batal') ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT 800`;
     leads = leads.filter(l => lihatBaris(user, l));
   }
   return Response.json({ rows: out, now, leads, lokasi: await lokasiJanjian(sql), JENIS: JENIS_JANJIAN, HASIL: HASIL_VISIT });

@@ -558,7 +558,7 @@ function htmlPenjualan({ rows, periode, proj, fSales, ringkas, perBayar, perProj
 
 // ===== Leads ke Sales: lead yang dipegang sales + ringkasan hasil follow up terakhir (Marcom, Sales, Manager, CEO) =====
 const WARNA_LS = { kuning: '#FFF5B5', merah: '#F9DCDC' };
-const CHIP_LS = { Cold: ['#E8EEF0', '#41606B'], Warm: ['#FCEFD9', '#8A5F14'], Hot: ['#FDE3D0', '#B4482A'], Appointment: ['#DDEFE4', '#1E6A4C'], 'Site Visit': ['#DDEFE4', '#1E6A4C'], Drop: ['#F3DADA', '#9B2C2C'], New: ['#EEF2F6', '#3D5568'] };
+const CHIP_LS = { Batal: ['#ECEAE4', '#5B6E66'], Cold: ['#E8EEF0', '#41606B'], Warm: ['#FCEFD9', '#8A5F14'], Hot: ['#FDE3D0', '#B4482A'], Appointment: ['#DDEFE4', '#1E6A4C'], 'Site Visit': ['#DDEFE4', '#1E6A4C'], Drop: ['#F3DADA', '#9B2C2C'], New: ['#EEF2F6', '#3D5568'] };
 function TabLeads({ proj, d1, d2, fSales, me }) {
   const [d, setD] = useState(null);
   const [fSumber, setFSumber] = useState('');

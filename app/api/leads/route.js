@@ -50,6 +50,7 @@ async function _POST(req) {
   const b = await req.json();
   if (b.project && !bolehProyek(user, b.project)) return Response.json({ error: pesanProyek(user) }, { status: 403 });
   if (!b.nama) return Response.json({ error: 'Nama konsumen wajib diisi' }, { status: 400 });
+  if (b.status === 'Batal') return Response.json({ error: 'Status Batal hanya terisi otomatis dari transaksi Batal' }, { status: 400 });
   if (b.status === 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   let sales = user.role === 'sales' ? user.name : (b.sales || '');
   // Other Sales (internal employee / external tanpa akun) — diinput Manager / CEO sebagai cadangan link
@@ -128,7 +129,7 @@ async function _POST(req) {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${code}, ${''}, ${sales}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
     // Standar FU wajib: lead yang langsung punya sales mulai dijadwalkan hari ini (Hari 1)
-    if (!['Booking', 'Closing', 'Drop'].includes(b.status || 'New')) { try { await mulaiJadwalBaru(sql, code); } catch (e) { console.error('jadwal fu', e); } }
+    if (!['Booking', 'Closing', 'Drop', 'Batal'].includes(b.status || 'New')) { try { await mulaiJadwalBaru(sql, code); } catch (e) { console.error('jadwal fu', e); } }
   }
   // Web Push: lead baru dari Marcom / Manager langsung ke HP sales pemegangnya
   if (sales && user.role !== 'sales') {
@@ -142,7 +143,7 @@ async function _POST(req) {
     const d = await import('@/lib/distribusi-lead');
     await d.siapkanDistribusi(sql);
     if (b.rencana_beli) await sql`UPDATE leads SET rencana_beli = ${String(b.rencana_beli).slice(0, 30)} WHERE id = ${id}`;
-    if (!otherInfo && !['Drop', 'Booking', 'Closing', 'Reserved'].includes(b.status || 'New')) {
+    if (!otherInfo && !['Drop', 'Batal', 'Booking', 'Closing', 'Reserved'].includes(b.status || 'New')) {
       if (!sales) { const r = await d.cekAntrian(sql, code); dibagi = r?.sales || null; }
       else if (user.role !== 'sales') await d.catatOperManual(sql, code, sales);
     }
@@ -168,6 +169,7 @@ async function _PATCH(req) {
     if (!ok.length) return Response.json({ error: `"${b.sales}" bukan akun Sales aktif — pilih sales yang terdaftar di menu Pengguna` }, { status: 400 });
   }
   // Alasan drop wajib diisi saat status diubah ke Drop (tercatat di riwayat status & report)
+  if (b.status === 'Batal' && cur.status !== 'Batal') return Response.json({ error: 'Status Batal hanya terisi otomatis dari transaksi Batal — input lewat Form Input → Transaksi' }, { status: 400 });
   if (b.status === 'Drop' && cur.status !== 'Drop' && !String(b.alasan || '').trim()) return Response.json({ error: 'Alasan drop wajib diisi' }, { status: 400 });
   if (user.role === 'sales' && cur.sales !== user.name) {
     return Response.json({ error: 'Lead ini bukan milik Anda' }, { status: 403 });
@@ -254,7 +256,7 @@ async function _PATCH(req) {
       await sql`INSERT INTO lead_assign (lead_code, dari, ke, oleh) VALUES (${cur.lead_code}, ${cur.sales || ''}, ${operKe}, ${user.username})`;
     } catch (e) { /* tabel riwayat belum ada — lewati */ }
     // Standar FU wajib: lead dioper ke sales → jadwal wajib dimulai hari ini (Hari 1, maks. 1 jam)
-    if (!otherBaru && !['Booking', 'Closing', 'Drop'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
+    if (!otherBaru && !['Booking', 'Closing', 'Drop', 'Batal'].includes(m.status || 'New')) { try { await mulaiJadwalBaru(sql, cur.lead_code); } catch (e) { console.error('jadwal fu', e); } }
     // Distribusi lead: oper manual tetap diukur waktu respon sales penerimanya
     if (!otherBaru && user.role !== 'sales') { try { const { catatOperManual } = await import('@/lib/distribusi-lead'); await catatOperManual(sql, cur.lead_code, operKe); } catch {} }
   }

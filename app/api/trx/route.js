@@ -158,9 +158,9 @@ async function _POST(req) {
   if (b.jenis === 'Batal' && b.unit && b.project && ['manager', 'ceo'].includes(user.role)) {
     await sql`DELETE FROM unit_manual WHERE project = ${b.project} AND unit = ${b.unit}`;
   }
-  // Reserved tidak mengubah status pipeline; Batal -> Drop; Booking/Closing sesuai jenisnya
+  // Reserved tidak mengubah status pipeline; Batal -> status 'Batal' (bukan Drop: lead masih bisa di-follow up / beli lagi); Booking/Closing sesuai jenisnya
   if (b.jenis !== 'Reserved') {
-    const newStatus = b.jenis === 'Batal' ? 'Drop' : b.jenis;
+    const newStatus = b.jenis === 'Batal' ? 'Batal' : b.jenis;
     await siapkanStatusLog(sql);
     await sql`UPDATE leads SET status = ${newStatus}, updated_at = now() WHERE lead_code = ${b.lead_code}`;
     await tandaiOleh(sql, b.lead_code, user.username, 'Transaksi ' + (b.jenis || ''));
@@ -177,7 +177,7 @@ async function sinkronStatus(sql, lead_code, oleh, alasan) {
   const rows = await sql`SELECT jenis FROM transactions WHERE lead_code = ${lead_code} ORDER BY id DESC`;
   const t = rows.find(r => r.jenis !== 'Reserved');
   if (t) {
-    const st = t.jenis === 'Batal' ? 'Drop' : t.jenis;
+    const st = t.jenis === 'Batal' ? 'Batal' : t.jenis;
     await siapkanStatusLog(sql);
     await sql`UPDATE leads SET status = ${st}, updated_at = now() WHERE lead_code = ${lead_code}`;
     await tandaiOleh(sql, lead_code, oleh || null, alasan || '');

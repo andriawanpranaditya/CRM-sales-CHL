@@ -69,7 +69,10 @@ export async function GET(req) {
 
   // ===== Per sales = COHORT lead yang DIOPER pada periode, diikuti perkembangannya sampai sekarang =====
   const perSales = {};
-  const ps = n => { if (!n) return null; perSales[n] = perSales[n] || { sales: n, oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 }; return perSales[n]; };
+  // Hanya sales ber-akun yang tampil per nama; agent / Other Sales tanpa akun digabung satu baris supaya total tetap cocok
+  const akunSales = new Set((await sql`SELECT name FROM users WHERE role = 'sales'`.catch(() => [])).map(u => u.name));
+  const TANPA_AKUN = 'Agent / Other Sales (tanpa akun)';
+  const ps = n0 => { if (!n0) return null; const n = !akunSales.size || akunSales.has(n0) ? n0 : TANPA_AKUN; perSales[n] = perSales[n] || { sales: n, oper: 0, kualitas: 0, visit: 0, booking: 0, drop: 0, masih: 0, dropLama: 0 }; return perSales[n]; };
   const cohort = new Map(); // lead_code → { sales, sejak }  (oper terakhir pada periode)
   op.forEach(r => { if (r.ke) cohort.set(r.lead_code, { sales: r.ke, sejak: r.created_at }); });
   const kodes = [...cohort.keys()];

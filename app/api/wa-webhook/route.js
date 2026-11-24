@@ -113,7 +113,7 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
         VALUES (${l.lead_code}, ${hari}, ${'💬 Lead membalas via WA: ' + isi.slice(0, 300)}, '', '', null, '', 'auto-wa', true)`;
     }
     await sql`UPDATE leads SET next_fu = ${hari}, updated_at = now()
-      WHERE lead_code = ${l.lead_code} AND status NOT IN ('Drop', 'Closing') AND (next_fu IS NULL OR next_fu > ${hari})`;
+      WHERE lead_code = ${l.lead_code} AND status NOT IN ('Drop', 'Closing', 'Batal') AND (next_fu IS NULL OR next_fu > ${hari})`;
     await sql`UPDATE wa_inbox SET lead_code = ${l.lead_code} WHERE msg_id = ${m.id}`;
     if (!nfm) await catatPercakapan(sql, wa, project, l.lead_code, 'user', isi);
     await balasAI(sql, { wa, project, lead_code: l.lead_code, phoneId, msgId: m.id });
@@ -188,7 +188,7 @@ async function balasAI(sql, { wa, project, lead_code, phoneId, msgId }) {
     const cfg = await konfigAI(sql, project);
     if (!cfg.aktif) return;
     const ld = (await sql`SELECT * FROM leads WHERE lead_code = ${lead_code}`)[0];
-    if (!ld || ld.sales || ['diambil_tim', 'eskalasi', 'nonaktif'].includes(ld.ai_status || '') || ['Drop', 'Booking', 'Closing', 'Reserved'].includes(ld.status)) return;
+    if (!ld || ld.sales || ['diambil_tim', 'eskalasi', 'nonaktif'].includes(ld.ai_status || '') || ['Drop', 'Batal', 'Booking', 'Closing', 'Reserved'].includes(ld.status)) return;
     // Calon pembeli sering mengirim beberapa pesan beruntun: tunggu sebentar, lalu hanya pesan TERAKHIR yang dibalas
     await new Promise(r => setTimeout(r, 4000));
     const terbaru = await sql`SELECT msg_id FROM wa_inbox WHERE wa = ${wa} ORDER BY created_at DESC LIMIT 1`;

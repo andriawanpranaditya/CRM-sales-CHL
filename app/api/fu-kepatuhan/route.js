@@ -13,7 +13,7 @@ export async function GET() {
   await siapkanFuWajib(sql);
   const today = hariIniWIB(), dari = tambahHari(today, -30);
   let leads = await sql`SELECT lead_code, nama, wa, project, sales, status, created_by, created_at, fu_mulai::text AS fu_mulai, fu_jalur, next_fu::text AS next_fu
-    FROM leads WHERE COALESCE(sales, '') <> '' AND status NOT IN ('Booking', 'Closing', 'Drop', 'Lost')`;
+    FROM leads WHERE COALESCE(sales, '') <> '' AND status NOT IN ('Booking', 'Closing', 'Drop', 'Lost', 'Batal')`;
   leads = leads.filter(l => lihatBaris(user, l));
   const riw = await riwayatFU(sql, leads.map(l => l.lead_code));
   const per = {}, terlambat = [];

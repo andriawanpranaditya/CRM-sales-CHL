@@ -309,7 +309,7 @@ function TabVisitor({ me, fSales }) {
   const maks = Math.max(1, ...(v?.spark || []).map(x => x.n));
   const bukaCatat = async () => {
     setCatat({ lead_code: '', jam_datang: v?.now?.jam || '', unit_dilihat: '', catatan: '' });
-    if (me?.role !== 'sales' && !leadsAll) api('/api/leads').then(ls => setLeadsAll(ls.filter(l => !['Closing', 'Drop', 'Lost'].includes(l.status)))).catch(() => setLeadsAll([]));
+    if (me?.role !== 'sales' && !leadsAll) api('/api/leads').then(ls => setLeadsAll(ls.filter(l => !['Closing', 'Drop', 'Lost', 'Batal'].includes(l.status)))).catch(() => setLeadsAll([]));
   };
   const pilihan = me?.role === 'sales' ? (v?.leads || []) : (leadsAll || []);
   const hariIni = v && tgl === v.now?.tgl;

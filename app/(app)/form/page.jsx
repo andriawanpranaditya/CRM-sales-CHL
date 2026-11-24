@@ -638,7 +638,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
                 {['manager', 'ceo'].includes(me?.role) && <option value="__other__">➕ Other Sales (internal employee / external)…</option>}</select>}
           </div>}
           {lead.sales === '__other__' && <IsianOther nilai={lead.other} onUbah={v => setLead({ ...lead, other: v })} />}
-          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing').map(o => <option key={o}>{o}</option>)}</select>
+          <div className="field"><label>Status Awal</label><select {...fl('status')}>{(set.status || []).filter(o => o !== 'Booking' && o !== 'Closing' && (o !== 'Batal' || lead.status === 'Batal')).map(o => <option key={o}>{o}</option>)}</select>
             {isMarkom && <span className="hint">Pilih sesuai kondisi lead saat ini (New, Cold, Warm, Hot, dst.) — tidak harus New</span>}</div>
           {lead.status === 'Drop' && <div className="field full"><label>Alasan Drop <span className="req">*</span></label>
             <input value={lead.alasan || ''} onChange={e => setLead({ ...lead, alasan: e.target.value })} list="dl-alasan-drop-lead" placeholder="mis. tidak ada respon sampai Day-60 / sudah beli di tempat lain" />
@@ -736,7 +736,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
           {!isMarkom && <div className="field"><label>Status Lead Sekarang <span className="req">*</span></label>
             <select value={fu.status} onChange={e => setFu({ ...fu, status: e.target.value })}>
               <option value="">— pilih —</option>
-              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop'].includes(o)).filter(o => !(fu.balas === true && o === 'New')).map(o => <option key={o}>{o}</option>)}
+              {(set.status || []).filter(o => !['Booking', 'Closing', 'Drop', 'Batal'].includes(o)).filter(o => !(fu.balas === true && o === 'New')).map(o => <option key={o}>{o}</option>)}
             </select>
             <span className="hint">{(() => {
               const j = fu.lead_code ? jadwalSesudah(fu, leads.find(x => x.lead_code === fu.lead_code)) : null;
@@ -995,7 +995,7 @@ Lead sudah dikabari bahwa ${salesName || 'Anda'} akan menghubungi dari nomor ini
         </div>
         <div className="form-foot">
           <button className="btn btn-primary" onClick={simpanTrx} disabled={busy}>Simpan Transaksi</button>
-          <span className="hint">Booking/Batal meng-update status pipeline otomatis (Batal → Drop). Reserved tidak mengubah status.</span>
+          <span className="hint">Booking/Batal meng-update status pipeline otomatis (Batal → status Batal, bukan Drop — lead masih bisa di-follow up lagi dengan mengganti statusnya). Reserved tidak mengubah status.</span>
         </div>
       </div>}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>

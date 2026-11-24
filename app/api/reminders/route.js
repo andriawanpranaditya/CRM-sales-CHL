@@ -51,20 +51,20 @@ export async function GET() {
           CASE WHEN l.created_by <> ${user.username} THEN u.name ELSE NULL END AS markom
         FROM leads l JOIN users u ON u.username = l.created_by AND u.role = 'markom'
         WHERE l.next_fu IS NOT NULL AND l.next_fu::date <= ${today}
-          AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+          AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal')
         ORDER BY l.next_fu`
     : user.role !== 'sales'
     ? await sql`SELECT l.lead_code, l.nama, l.wa, l.project, l.sales, l.next_fu::text AS next_fu,
           CASE WHEN u.role = 'markom' THEN u.name ELSE NULL END AS markom
         FROM leads l LEFT JOIN users u ON u.username = l.created_by
         WHERE l.next_fu IS NOT NULL AND l.next_fu::date <= ${today}
-          AND l.status NOT IN ('Closing', 'Drop', 'Lost')
+          AND l.status NOT IN ('Closing', 'Drop', 'Lost', 'Batal')
         ORDER BY l.next_fu`
     : await sql`SELECT lead_code, nama, wa, project, sales, next_fu::text AS next_fu
         FROM leads
         WHERE sales = ${user.name}
           AND next_fu IS NOT NULL AND next_fu::date <= ${today}
-          AND status NOT IN ('Closing', 'Drop', 'Lost')
+          AND status NOT IN ('Closing', 'Drop', 'Lost', 'Batal')
         ORDER BY next_fu`;
 
   if (user.projects) rows = rows.filter(r => lihatBaris(user, r));
@@ -87,7 +87,7 @@ export async function GET() {
           floor(extract(epoch FROM now() - a.created_at) / 3600)::int AS jam
         FROM leads l
         JOIN LATERAL (SELECT created_at FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
-        WHERE l.fu_jalur = 'baru' AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost')
+        WHERE l.fu_jalur = 'baru' AND COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost', 'Batal')
           AND a.created_at < now() - interval '1 hour' AND a.created_at > now() - interval '14 days'
           AND (${pemilik}::text IS NULL OR l.sales = ${pemilik})
           AND NOT EXISTS (SELECT 1 FROM followups f LEFT JOIN users u ON u.username = f.created_by
@@ -179,7 +179,7 @@ export async function GET() {
   if (user.role !== 'sales') {
     try {
       aiSiap = await sql`SELECT lead_code, nama, wa, project, ai_status, ai_ringkasan FROM leads
-        WHERE ai_status IN ('siap_oper', 'eskalasi') AND COALESCE(sales, '') = '' AND status NOT IN ('Drop', 'Closing')
+        WHERE ai_status IN ('siap_oper', 'eskalasi') AND COALESCE(sales, '') = '' AND status NOT IN ('Drop', 'Closing', 'Batal')
         ORDER BY (ai_status = 'eskalasi') DESC, updated_at DESC LIMIT 20`;
     } catch {}
   }

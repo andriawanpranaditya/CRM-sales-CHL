@@ -22,6 +22,8 @@ export async function GET() {
     out.units = Object.fromEntries(Object.entries(out.units || {}).filter(([p]) => user.projects.includes(p)));
     sales = sales.filter(s => !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => user.projects.includes(p)));
   }
+  // Status 'Batal' (penjualan dibatalkan) selalu tersedia walau daftar status tersimpan dibuat sebelum status ini ada
+  if (Array.isArray(out.status) && !out.status.includes('Batal')) out.status = [...out.status, 'Batal'];
   out.sales = sales.map(s => s.name);
   // Head of Sales & Marketing boleh memegang lead atas namanya sendiri — namanya hanya dikirim ke akunnya sendiri,
   // jadi tidak muncul di pilihan Sales / PIC akun lain

@@ -87,7 +87,7 @@ export async function GET(req) {
   const setSentuh = new Set(sentuhLain.map(x => x.lead_code));
   const setTrx = new Set(trxLead.filter(t => ['Reserved', 'Booking', 'Closing'].includes(t.jenis)).map(t => t.lead_code));
   const set7 = new Set(fu7.map(x => x.lead_code)), setFu = new Set(fuAda.map(x => x.lead_code)), setBook = new Set(bookAktif.map(x => x.lead_code));
-  const SELESAI = ['Drop', 'Lost', 'Booking', 'Closing'];
+  const SELESAI = ['Drop', 'Lost', 'Batal', 'Booking', 'Closing'];
   const umurHari = l => (Date.parse(today) - Date.parse(tglLead(l))) / 86400000;
   // Belum di-follow up = lead aktif (bukan Drop/Reserved/Booking), sudah ≥ 2 hari di tangan sales, tanpa catatan FU sales, janji temu, maupun transaksi
   const belumFuList = periode.filter(l => l.sales && !SELESAI.includes(l.status) && l.status !== 'Reserved' && umurHari(l) >= 2
@@ -169,7 +169,7 @@ export async function GET(req) {
     const visB = (await hitungVisitor(sql, { dari: awalBulan, sampai: today, pp: [pj] })).filter(v => v.hitung && v.kategori !== 'trx');
     const kodeVisit = [...new Set(visB.map(v => v.lead_code).filter(Boolean))];
     const ld = await sql`SELECT lead_code, nama, sales, COALESCE(tipe, '') AS tipe, status, COALESCE(sumber, '') AS sumber FROM leads
-      WHERE project = ${pj} AND COALESCE(sumber, '') NOT ILIKE 'import%' AND status NOT IN ('Drop', 'Lost', 'Booking', 'Closing', 'Reserved')
+      WHERE project = ${pj} AND COALESCE(sumber, '') NOT ILIKE 'import%' AND status NOT IN ('Drop', 'Lost', 'Batal', 'Booking', 'Closing', 'Reserved')
         AND (status IN ('Hot', 'Site Visit', 'Appointment', 'Warm') OR lead_code = ANY(${kodeVisit}::text[]))`;
     const kode = ld.map(l => l.lead_code);
     if (kode.length) {

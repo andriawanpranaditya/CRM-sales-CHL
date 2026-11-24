@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
-const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
+const SEL = { Batal: ['var(--gray-soft)', 'var(--ink)'],  New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
 // Perubahan data lead dari sales — menunggu persetujuan Manager
 function PersetujuanUbah({ onSelesai }) {
@@ -294,7 +294,7 @@ export default function LeadsPage() {
                 <select className="status-sel" style={{ background: c[0], color: c[1] }} value={l.status}
                   onClick={e => e.stopPropagation()}
                   onChange={e => ubahStatus(l.id, e.target.value)}>
-                  {(set.status || []).map(s => <option key={s}>{s}</option>)}
+                  {(set.status || []).filter(s => s !== 'Batal' || l.status === 'Batal').map(s => <option key={s}>{s}</option>)}
                 </select>
               </td>
               <td data-label="Catatan FU terakhir">{fuRec[l.lead_code] ? (<>

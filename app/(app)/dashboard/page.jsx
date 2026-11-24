@@ -130,7 +130,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const byStatus = st => mLeads.filter(l => l.status === st).length;
   // Reminder dari POSISI TERKINI tiap lead (leads.next_fu) — FU yang sudah di-update otomatis hilang dari overdue
   const rem = { OVERDUE: 0, 'HARI INI': 0, UPCOMING: 0 };
-  fLeads.filter(l => !['Closing', 'Drop', 'Lost'].includes(l.status)).forEach(l => {
+  fLeads.filter(l => !['Closing', 'Drop', 'Lost', 'Batal'].includes(l.status)).forEach(l => {
     const r = reminder(l.next_fu); if (r) rem[r[0]]++;
   });
   // Nilai: pipeline aktif = budget lead WARM & HOT bulan berjalan
@@ -147,7 +147,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
   const svNDash = mLeads.filter(l => l.status === 'Site Visit' || /walk/i.test(l.sumber || '')).length;
   const pipeRows = [];
   (set.status || []).forEach(st => {
-    if (st === 'Booking' || st === 'Closing') return;
+    if (st === 'Booking' || st === 'Closing' || st === 'Batal') return; // Batal cukup di Report, tidak di Dashboard
     if (st === 'Site Visit') pipeRows.push({ label: 'Site Visit', val: svNDash, cls: '', hint: '+ Walk In' });
     else pipeRows.push({ label: st, val: byStatus(st), cls: st === 'Hot' ? ' hot' : (st === 'Lost' || st === 'Drop') ? ' lost' : '' });
   });
@@ -209,7 +209,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const INK = 'FF1C2B23', GREEN = 'FF23694A', BRASS = 'FFC9922E', LINE = 'FFD8D6CC',
       ZEBRA = 'FFF5F4EF', WHITE = 'FFFFFFFF',
       AMBER_BG = 'FFFBF1DC', GREEN_BG = 'FFE4EFE8', RED_BG = 'FFF9E7E3';
-    const STATUS_BG = { New: 'FFE5EEF6', Cold: 'FFE8EAEE', Warm: AMBER_BG, Hot: 'FFF6E3C0', Appointment: 'FFE5EEF6', 'Site Visit': 'FFE5EEF6', Booking: GREEN_BG, Closing: GREEN, Lost: RED_BG, Drop: RED_BG };
+    const STATUS_BG = { New: 'FFE5EEF6', Cold: 'FFE8EAEE', Warm: AMBER_BG, Hot: 'FFF6E3C0', Appointment: 'FFE5EEF6', 'Site Visit': 'FFE5EEF6', Booking: GREEN_BG, Closing: GREEN, Lost: RED_BG, Drop: RED_BG, Batal: 'FFE8EAEE' };
     const JENIS_BG = { Reserved: AMBER_BG, Booking: GREEN_BG, Closing: GREEN_BG, Batal: RED_BG };
 
     const wb = new ExcelJS.Workbook();
@@ -664,7 +664,7 @@ export default function Dashboard({ hanyaReport = false, filterLuar = null }) {
     const pf = fFus.filter(f => inPeriod(f.tgl) && f.created_by !== 'auto-wa');
     const pt = statusAkhir(fTrx.filter(t => inPeriod(t.tgl)));
     const projLabel = proj || 'Semua Project';
-    const ST = set.status || [];
+    const ST = (set.status || []).filter(s => s !== 'Batal');
     const cnt = st => pl.filter(l => l.status === st).length;
     // Booking & Closing dihitung dari TRANSAKSI yang benar-benar diinput (lead unik), bukan dari status pipeline
     const salesOf = {}; leads.forEach(l => { salesOf[l.lead_code] = l.sales; });
