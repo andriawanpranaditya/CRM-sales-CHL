@@ -404,13 +404,15 @@ async function berandaPimpinan(sql, user, hariIni, pilihProj) {
     sql`SELECT l.campaign AS c, count(DISTINCT t.lead_code || '|' || COALESCE(t.unit, ''))::int AS n FROM transactions t JOIN leads l ON l.lead_code = t.lead_code
       WHERE COALESCE(l.campaign, '') <> '' AND t.jenis = 'Booking' AND NOT EXISTS (SELECT 1 FROM transactions bx WHERE bx.lead_code = t.lead_code AND COALESCE(bx.unit, '') = COALESCE(t.unit, '') AND bx.jenis = 'Batal' AND bx.tgl > t.tgl) AND t.tgl >= ${awalBulan}::date AND t.tgl <= ${hariIni}::date GROUP BY 1`,
     sql`SELECT campaign AS c, COALESCE(sum(spend), 0)::numeric AS s FROM mi_ads WHERE tgl >= ${d1}::date AND tgl <= ${hariIni}::date GROUP BY 1`.catch(() => []),
-    // Lead yang dioper ke sales > 24 jam tetapi belum dihubungi sales itu
+    // Lead yang dioper ke sales > 24 jam tetapi belum dihubungi sales itu — hanya sales ber-akun aktif (Other Sales / agent tanpa akun
+    // tidak bisa mengisi FU dari akunnya sendiri) dan lead yang belum Booking
     sql`SELECT l.lead_code, l.nama, l.sales, l.project, a.created_at AS dioper, COALESCE(uo.name, a.oleh) AS oleh,
         (SELECT max(f.created_at) FROM followups f WHERE f.lead_code = l.lead_code AND COALESCE(f.created_by, '') <> 'auto-wa') AS fu_terakhir_semua
       FROM leads l
       JOIN LATERAL (SELECT created_at, oleh FROM lead_assign WHERE lead_code = l.lead_code AND ke = l.sales ORDER BY created_at DESC LIMIT 1) a ON true
       LEFT JOIN users uo ON uo.username = a.oleh
-      WHERE COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+      WHERE COALESCE(l.sales, '') <> '' AND l.status NOT IN ('Booking', 'Closing', 'Drop', 'Lost') AND (${pp}::text[] IS NULL OR l.project = ANY(${pp}::text[]))
+        AND EXISTS (SELECT 1 FROM users su WHERE su.name = l.sales AND su.role = 'sales' AND su.active = true)
         AND a.created_at < now() - interval '24 hours' AND a.created_at > now() - interval '14 days'
         AND a.oleh NOT IN (SELECT username FROM users WHERE name = l.sales)
         AND NOT EXISTS (SELECT 1 FROM followups f JOIN users s ON s.username = f.created_by AND s.name = l.sales WHERE f.lead_code = l.lead_code AND f.created_at > a.created_at)
