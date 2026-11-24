@@ -70,10 +70,12 @@ header.top .wrap{display:flex;align-items:center;gap:14px;padding-top:11px;paddi
 .flash.hero .eyebrow{display:inline-block;background:#f1cf86;color:#3b1210;border-radius:999px;padding:4px 12px;font-weight:800;letter-spacing:.1em;font-size:11.5px}
 .flash.hero h1{font-family:var(--body);font-weight:800;font-style:italic;font-size:clamp(22px,3.3vw,34px);line-height:1.12;margin-top:8px;text-shadow:0 2px 0 #4f100e}
 .flash.hero h1 em{font-style:italic;color:#ffd978}
+.flash.hero .hsub{margin:6px 0 0;font-size:clamp(17px,2.5vw,26px);font-weight:700;line-height:1.2;color:#ffe9c4;letter-spacing:.01em}
 .flash.hero .camp{font-family:var(--display);color:#f1cf86}
 .boom{display:flex;flex-wrap:wrap;gap:8px;flex:0 1 auto;min-width:0}
 .boom span{background:rgba(255,255,255,.12);border:1.5px solid rgba(255,217,120,.7);border-radius:12px;padding:8px 12px;font-size:12px;color:#ffe9c4;line-height:1.3}
 .boom b{display:block;font-size:16px;font-weight:800;color:#fff}
+.boom b.big{font-size:clamp(19px,2.1vw,23px);line-height:1.15}
 .flash.hero .ttl{flex:1 1 100%}
 .flash.hero .wrap{gap:12px 28px}
 .boom > span{display:flex;align-items:center;gap:10px}
@@ -414,6 +416,7 @@ footer strong{color:#fff}
   .orders-btn{padding:8px 10px}
 }
 @media (max-width:420px){.grid{grid-template-columns:1fr 1fr;gap:10px}.pbody{padding:10px}.price{font-size:15.5px}.row2{grid-template-columns:1fr}}
+@media (max-width:640px){header.top .wrap{flex-wrap:wrap;gap:9px 12px;justify-content:space-between}.search{order:3;flex:1 1 100%}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -740,8 +743,9 @@ function homeHTML(){
   return `<section class="flash hero"><div class="wrap">
       <div class="ttl"><div class="eyebrow"><span class="bolt">⚡</span> Flash Sale Akhir Tahun · ${dateRange()}</div>
         <h1>Saat yang Tepat Menentukan <em>Pilihan Anda di Bio District</em></h1>
+        <p class="hsub">Pilih sendiri rumahnya, pilih sendiri hadiahnya</p>
         <p><span class="camp">Resort Living, Grand Rewards</span> · ${ph==='before'?'Pelajari produknya sekarang supaya siap saat promo dibuka.':ph==='live'?'Promo sedang berlangsung. Amankan slot Anda sekarang.':'Hubungi tim kami untuk promo yang sedang berjalan.'}</p></div>
-      <div class="boom"><span><img class="bp" src="/flashsale/assets/g-uang.jpg" width="300" height="200" alt="Gepokan uang Rp100 ribuan"><span><b>Diskon s.d. Rp${maxDisk/1e6} juta</b>langsung potong harga</span></span><span><img class="bp" src="/flashsale/assets/g-chery.jpg" width="300" height="200" alt="Chery J6, hadiah mobil dengan nilai tertinggi"><span><b>Hadiah langsung</b>tanpa diundi</span></span><span><i class="bi"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h16M8 28h16M10 4v5c0 3 6 5 6 7s-6 4-6 7v5M22 4v5c0 3-6 5-6 7s6 4 6 7v5"/><path d="M12.5 25.5h7" stroke-width="3"/></svg></i><span><b>Kuota terbatas</b></span></span></div>
+      <div class="boom"><span><img class="bp" src="/flashsale/assets/g-uang.jpg" width="300" height="200" alt="Gepokan uang Rp100 ribuan"><span><b class="big">Diskon s.d. Rp${maxDisk/1e6} juta</b></span></span><span><img class="bp" src="/flashsale/assets/g-chery.jpg" width="300" height="200" alt="Chery J6, hadiah mobil dengan nilai tertinggi"><span><b>Hadiah langsung</b>tanpa diundi</span></span><span><i class="bi"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h16M8 28h16M10 4v5c0 3 6 5 6 7s-6 4-6 7v5M22 4v5c0 3-6 5-6 7s6 4 6 7v5"/><path d="M12.5 25.5h7" stroke-width="3"/></svg></i><span><b>Kuota terbatas</b></span></span></div>
     </div></section>
     <div class="wrap">
       <div class="slider" id="slider" aria-roledescription="carousel" aria-label="Foto fasilitas Bio District">
