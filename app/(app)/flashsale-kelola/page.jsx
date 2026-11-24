@@ -14,7 +14,7 @@ const dariWIB = v => v ? v + ':00+07:00' : '';
 
 export default function FlashSaleKelola() {
   const [d, setD] = useState(null), [busy, setBusy] = useState(false), [qr, setQr] = useState(null), [st, setSt] = useState(null), [tutup, setTutup] = useState(false);
-  const muat = () => api('/api/flashsale/kelola').then(x => { setD(x); setSt(s => s || { mulai: keWIB(x.setting.mulai), selesai: keWIB(x.setting.selesai), uji: x.setting.uji, menu: x.setting.menu, kuota: { ...x.setting.kuota } }); }).catch(e => { if (e.status === 403) setTutup(true); else toast(e.message); });
+  const muat = () => api('/api/flashsale/kelola').then(x => { setD(x); setSt(s => s || { mulai: keWIB(x.setting.mulai), selesai: keWIB(x.setting.selesai), uji: x.setting.uji, menu: x.setting.menu, verifWA: x.setting.verifWA, kuota: { ...x.setting.kuota } }); }).catch(e => { if (e.status === 403) setTutup(true); else toast(e.message); });
   useEffect(() => { muat(); const t = setInterval(() => { if (document.visibilityState === 'visible') api('/api/flashsale/kelola', { silent: true }).then(setD).catch(() => {}); }, 30000); return () => clearInterval(t); }, []);
   const aksi = async (body, pesan) => { setBusy(true); try { const r = await api('/api/flashsale/kelola', { method: 'POST', body: JSON.stringify(body) }); toast(typeof pesan === 'function' ? pesan(r) : pesan); await muat(); } catch (e) { toast(e.message); } finally { setBusy(false); } };
   if (tutup) return <div className="card"><b>⚡ Flash Sale</b><p className="hint" style={{ marginTop: 6 }}>Menu ini belum dibuka. Link flash sale akan tersedia di sini setelah programnya diumumkan.</p></div>;
@@ -74,7 +74,9 @@ export default function FlashSaleKelola() {
         <tbody>{d.daftar.map(x => <tr key={x.id}>
           <td style={{ whiteSpace: 'nowrap' }}>{waktu(x.created_at)}</td>
           <td><b>{x.nama}</b>{x.uji ? <span className="tg-sub">uji coba</span> : null}</td>
-          <td>{x.wa}<span className="tg-sub">{x.email}</span></td>
+          <td>{x.wa}<span className="tg-sub">{x.email}</span>
+            {x.verified_at ? <span className="tg-sub" style={{ color: '#1f7a45' }}>✓ WA terverifikasi{x.verif_oleh && !['wa', 'aturan-mati'].includes(x.verif_oleh) ? ' (manual)' : ''}</span>
+              : x.belumSah ? <span className="tg-sub" style={{ color: '#b3261e' }}>Belum verifikasi WA · kode {x.verif_kode}{d.kelola ? <> · <button className="sort-btn" style={{ padding: '2px 8px', fontSize: 11 }} disabled={busy} onClick={() => { if (confirm(`Tandai nomor ${x.wa} (${x.nama}) sudah terverifikasi? Pastikan dulu nomornya benar, misalnya dengan menelepon.`)) aksi({ aksi: 'sahkan', id: x.id }, 'Nomor ditandai terverifikasi'); }}>Tandai terverifikasi</button></> : null}</span> : null}</td>
           <td>{x.domisili}</td>
           <td>{x.pemilik || '—'}<span className="tg-sub">{x.agent_nama ? `Agent ${x.agent_nama}${x.agent_kantor ? ' · ' + x.agent_kantor : ''}` : x.ref_username ? 'lewat link' : 'tanpa kode'}</span></td>
           <td>{x.lead_code ? <a href={'/leads?lead=' + encodeURIComponent(x.lead_code)}>{x.lead_code}</a> : '—'}<span className="tg-sub">{x.lead_code ? (x.lead_baru ? 'lead baru' : 'sudah ada di CRM') : ''}</span></td>
@@ -87,10 +89,12 @@ export default function FlashSaleKelola() {
         <div className="field"><label>Selesai (WIB)</label><input type="datetime-local" value={st.selesai} onChange={e => setSt({ ...st, selesai: e.target.value })} /></div>
         {d.ringkas.map(r => <div className="field" key={r.grup}><label>Kuota {r.nama}</label><input type="number" min="0" max="99" value={st.kuota[r.grup] ?? ''} onChange={e => setSt({ ...st, kuota: { ...st.kuota, [r.grup]: e.target.value } })} /></div>)}
         {d.pemilik && <div className="field full"><label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" style={{ width: 'auto' }} checked={!!st.menu} onChange={e => setSt({ ...st, menu: e.target.checked })} /> Tampilkan menu Flash Sale ke semua akun (sales, lead agent, Marcom, CEO) supaya mereka bisa menyalin &amp; mengirim link-nya</label></div>}
+        <div className="field full"><label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" style={{ width: 'auto' }} checked={!!st.verifWA} onChange={e => setSt({ ...st, verifWA: e.target.checked })} /> Wajib verifikasi nomor WhatsApp: pendaftar mengirim kode dari WA-nya ke nomor resmi Bio District sebelum bisa masuk. Lead baru tercatat setelah nomornya terverifikasi</label>
+          <span className="hint">Chat terakhir yang diterima CRM di nomor resmi Bio District: {d.waTerakhir ? waktu(d.waTerakhir) : 'belum ada'}. Bila waktunya tidak bergerak saat ada chat masuk, sambungan WA sedang tidak menerima pesan, jadi jangan nyalakan aturan ini dulu.</span></div>
         <div className="field full"><label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="checkbox" style={{ width: 'auto' }} checked={!!st.uji} onChange={e => setSt({ ...st, uji: e.target.checked })} /> Mode uji coba: halaman publik langsung "berlangsung", pendaftar & pesanan TIDAK masuk Database Lead maupun Master Stock</label></div></div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, flexWrap: 'wrap' }}>
         <button className="sort-btn" disabled={busy} onClick={() => { if (confirm('Hapus semua pendaftar & pesanan uji coba?')) aksi({ aksi: 'hapus-uji' }, r => `Data uji dihapus: ${r.daftar} pendaftar, ${r.pesanan} pesanan`); }}>🗑 Hapus data uji</button>
-        <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={() => aksi({ aksi: 'setting', mulai: dariWIB(st.mulai), selesai: dariWIB(st.selesai), uji: st.uji, menu: st.menu, kuota: st.kuota }, 'Pengaturan disimpan')}>Simpan pengaturan</button></div>
+        <button className="btn btn-primary" style={{ width: 'auto' }} disabled={busy} onClick={() => aksi({ aksi: 'setting', mulai: dariWIB(st.mulai), selesai: dariWIB(st.selesai), uji: st.uji, menu: st.menu, verifWA: st.verifWA, kuota: st.kuota }, 'Pengaturan disimpan')}>Simpan pengaturan</button></div>
     </div>}
     {qr && <KartuQR {...qr} ket="Scan untuk ikut Flash Sale" onTutup={() => setQr(null)} />}
   </>);

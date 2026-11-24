@@ -386,6 +386,13 @@ ul.ticks.one{grid-template-columns:1fr}
 .rw-go{display:block;text-align:center;background:var(--forest);color:#f1cf86;font-weight:800;font-size:13.5px;text-decoration:none;padding:11px}
 .rw-note{margin:14px 0 0;font-size:12.5px;color:#cfdcd4}
 @media (max-width:560px){.rewards{padding:16px}.rw-flyer{width:70px}}
+.vsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14.5px}
+.cta.wa{background:#1fa855;border-color:#1fa855;color:#fff}
+.vwait{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.vwait i{width:14px;height:14px;border-radius:50%;border:2px solid #d8c79a;border-top-color:var(--sale);animation:vspin 1s linear infinite}
+@keyframes vspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.vwait i{animation:none}}
+.vganti summary{cursor:pointer;font-size:13.5px;color:var(--muted);text-decoration:underline}
 .refbox{background:var(--gold-soft);border:1px solid #e6d3a0;border-radius:12px;padding:10px 14px;font-size:13px;color:#5a4514;display:flex;flex-direction:column;gap:1px}
 .refbox b{font-size:16px;color:var(--ink)}
 .qr.real{padding:6px;background:#fff}
@@ -549,7 +556,8 @@ async function sync(){
   try {
     const q = new URLSearchParams(); if (state.ref.ref) q.set('ref', state.ref.ref); if (state.user && state.user.token) q.set('token', state.user.token);
     const r = await fetch(API + '?' + q, {cache:'no-store'}); if (!r.ok) throw 0;
-    const d = await r.json(), before = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo]);
+    const hadVerif = !!state.verif;
+    const d = await r.json(), before = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo, state.verif && state.verif.kode]);
     srv.ok = true; srv.off = d.now - Date.now(); srv.mulai = d.mulai; srv.selesai = d.selesai; srv.uji = !!d.uji;
     state.closed = new Set(d.tutup || []); state.claimed = d.klaim || {}; state.refInfo = d.ref;
     PRODUCTS.forEach(p => { const k = d.kuota && d.kuota[qk(p)]; if (k != null) p.quota = k; });
@@ -557,8 +565,11 @@ async function sync(){
     if (d.ref && d.ref.ok === false && !state.user){ state.ref = {ref:'', a:'', k:''}; store.set('bio_fs_ref', state.ref); }
     if (state.user && d.tokenOk === false){ state.user = null; store.set('bio_fs_user', null); state.orders = []; }
     else if (d.pesanan) state.orders = d.pesanan.map(orderFrom);
-    const after = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo]);
-    if (before !== after) softRender();
+    if (state.user && d.saya){ state.verif = d.saya.verif || null; if (d.saya.sales && d.saya.sales !== state.user.sales){ state.user.sales = d.saya.sales; store.set('bio_fs_user', state.user); } }
+    else if (!state.user) state.verif = null;
+    const after = JSON.stringify([[...state.closed].sort(), state.claimed, state.orders.map(o => o.code + o.status), srv.ok, srv.uji, state.refInfo, state.verif && state.verif.kode]);
+    if (hadVerif && !state.verif){ render(); window.scrollTo(0,0); }
+    else if (before !== after) softRender();
   } catch (e) {} finally { syncing = false; }
 }
 const state = {
@@ -567,7 +578,7 @@ const state = {
   orders: [],
   user: store.get('bio_fs_user', null),
   ref: store.get('bio_fs_ref', null) || {ref:'', a:'', k:''},   // dari tautan: ?ref=<username sales>&a=<nama agent>&k=<kantor>
-  refInfo: null, closed: new Set(), buat: false,
+  refInfo: null, closed: new Set(), buat: false, verif: null,
   sel: {},   // per produk: {gift, dp, years, price}
 };
 
@@ -1101,7 +1112,7 @@ dlg.addEventListener('click', e => {
       sync(); render();
     }).catch(x => { btn.disabled = false; const pe = $('#pErr'); if (pe) pe.textContent = x.message; if (x.status === 410){ o.status = 'kedaluwarsa'; showExpired(o); sync(); } });
   }
-  if (e.target.closest('[data-logout]')){ state.user = null; state.orders = []; store.set('bio_fs_user', null); dlg.close(); render(); }
+  if (e.target.closest('[data-logout]')){ state.user = null; state.verif = null; state.orders = []; store.set('bio_fs_user', null); dlg.close(); render(); }
 });
 
 /* ---------- render & event ---------- */
@@ -1109,7 +1120,7 @@ const app = $('#app');
 function current(){ return PRODUCTS.find(p => '#' + p.id === location.hash); }
 function render(){
   const p = current();
-  app.innerHTML = state.buat ? agentHTML() : !state.user ? gateHTML() : p ? detailHTML(p) : homeHTML();
+  app.innerHTML = state.buat ? agentHTML() : !state.user ? gateHTML() : state.verif ? verifHTML() : p ? detailHTML(p) : homeHTML();
   $('#ordersN').textContent = state.orders.filter(o => ['menunggu','dibayar','lunas'].includes(o.status)).length;
   $('#preview').hidden = !srv.uji;
 }
@@ -1118,6 +1129,29 @@ function softRender(){   // data server berubah: jangan mengganggu orang yang se
   const nonton = [...document.querySelectorAll('.tour-box video')].some(v => !v.paused);
   if (dlg.open || sibuk || nonton || (!state.user && !state.buat && $('#gateForm') && [...$('#gateForm').querySelectorAll('input')].some(i => i.value))) { $('#preview').hidden = !srv.uji; return; }
   const y = window.scrollY; render(); window.scrollTo(0, y);
+}
+/* ---------- verifikasi nomor WhatsApp: pendaftar mengirim kode ke nomor resmi ---------- */
+const hpTampil = n => '+' + String(n).replace(/^(\d{2})(\d{3})(\d{4})(\d+)$/, '$1 $2-$3-$4');
+function verifHTML(){
+  const v = state.verif, link = 'https://wa.me/' + v.nomor + '?text=' + encodeURIComponent(v.teks);
+  return `<section class="flash"><div class="wrap"><div class="ttl"><div class="eyebrow">Satu langkah lagi</div>
+      <h1>Verifikasi nomor WhatsApp Anda</h1><p>Supaya tim kami bisa menghubungi Anda di nomor yang benar.</p></div></div></section>
+    <div class="wrap"><div class="panel gate stack">
+      <ol class="vsteps"><li>Tekan tombol di bawah. WhatsApp terbuka dengan pesan yang sudah terisi.</li>
+        <li>Kirim pesan itu <b>tanpa diubah</b>, dari nomor <b>${esc(v.hp || state.user.hp)}</b>.</li>
+        <li>Kembali ke halaman ini. Halaman terbuka sendiri dalam beberapa detik.</li></ol>
+      <a class="cta wa" style="margin-top:0" href="${link}" target="_blank" rel="noopener">Verifikasi lewat WhatsApp</a>
+      <div class="refbox"><span>Atau kirim sendiri ke ${hpTampil(v.nomor)}</span><b>${esc(v.kode)}</b></div>
+      <div class="vwait" id="vWait"><i></i>Menunggu pesan Anda…</div>
+      <details class="vganti"><summary>Nomor di atas salah? Ganti nomor</summary>
+        <form id="verifGanti" class="stack" style="gap:8px;margin-top:10px" novalidate>
+          <div class="field"><label for="vHp">Nomor WhatsApp yang benar</label><input id="vHp" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx"></div>
+          <div class="err" id="vErr" role="alert"></div>
+          <button type="submit" class="ghost">Simpan nomor baru</button>
+        </form></details>
+      <p class="note" style="margin:0">Pesan harus dikirim dari nomor yang Anda daftarkan. Sudah kirim tetapi halaman belum terbuka setelah 1 menit? Hubungi sales Anda atau WhatsApp resmi Bio District.</p>
+      <button type="button" data-logout style="background:none;border:0;padding:4px;color:var(--muted);font-size:13px;text-decoration:underline">Daftar ulang dengan data lain</button>
+    </div></div>`;
 }
 /* ---------- agent di bawah lead agent: buat link sendiri ---------- */
 function agentHTML(){
@@ -1211,6 +1245,15 @@ app.addEventListener('click', e => {
 });
 app.addEventListener('submit', async e => {
   if (e.target.id === 'agentForm'){ e.preventDefault(); return makeAgentLink(); }
+  if (e.target.id === 'verifGanti'){
+    e.preventDefault();
+    const hp = $('#vHp').value.replace(/[^\d+]/g,''), er = $('#vErr');
+    if (!/^(\+?62|0)8\d{7,12}$/.test(hp)){ er.textContent = 'Nomor HP belum benar. Contoh: 081234567890.'; return; }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; er.textContent = '';
+    try { const d = await call({aksi:'ganti-nomor', token:state.user.token, hp}); state.user.hp = hp; store.set('bio_fs_user', state.user); state.verif = d.verif || null; render(); }
+    catch (x) { er.textContent = x.message; btn.disabled = false; }
+    return;
+  }
   if (e.target.id !== 'gateForm') return;
   e.preventDefault();
   const nama = $('#gNama').value.trim(), hp = $('#gHp').value.replace(/[^\d+]/g,''), email = $('#gEmail').value.trim(), dom = $('#gDom').value.trim();
@@ -1225,7 +1268,7 @@ app.addEventListener('submit', async e => {
     const d = await call({aksi:'daftar', nama, hp, email, domisili:dom, ref:kode, agent_nama:state.ref.a, agent_kantor:state.ref.k, website:$('#gWeb').value});
     if (!d.token) throw new Error('Pendaftaran belum berhasil. Coba lagi.');
     state.user = {nama, hp, email, dom, token:d.token, sales:d.sales || '', at: Date.now()};
-    store.set('bio_fs_user', state.user);
+    store.set('bio_fs_user', state.user); state.verif = d.verif || null;
     await sync(); render(); window.scrollTo(0,0);
   } catch (x) { err(x.message); btn.disabled = false; btn.textContent = 'Masuk ke Flash Sale'; }
 });
@@ -1267,6 +1310,8 @@ render();
 (() => { const im = new Image(); im.onload = () => { srv.qris = true; }; im.src = '/flashsale/assets/qris.png'; })();
 sync().then(() => { render(); });
 setInterval(sync, 20000);
+setInterval(() => { if (state.verif && !document.hidden) sync(); }, 4000);
+app.addEventListener('click', e => { if (e.target.closest('[data-logout]')){ state.user = null; state.verif = null; state.orders = []; store.set('bio_fs_user', null); render(); window.scrollTo(0,0); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 // banner flyer: tampil setiap kali platform dibuka
 const promo = $('#promo');

@@ -72,6 +72,15 @@ async function prosesPesan(sql, m, namaProfil, project, phoneId) {
   if (!baru.length) return;
   const hari = hariIniWIB();
 
+  // 0) Verifikasi nomor pendaftar Flash Sale: kode dikirim dari nomor yang didaftarkan → sah, tidak diproses sebagai chat biasa
+  if (m.type === 'text' && project === 'BIO DISTRICT') {
+    try {
+      const { verifikasiDariWA } = await import('@/lib/flashsale');
+      const v = await verifikasiDariWA(sql, wa, isi);
+      if (v) { if (v.lead_code) await sql`UPDATE wa_inbox SET lead_code = ${v.lead_code} WHERE msg_id = ${m.id}`; return; }
+    } catch (e) { console.error('verif flashsale', e); }
+  }
+
   // 1) Nomor sudah terdaftar -> catat sebagai "lead membalas" (sekali per hari) & munculkan di lonceng pemegangnya
   await siapkanKontak(sql);
   const ada = await sql`SELECT lead_code, status, nama, wa AS wa_lead, project AS l_project, sumber, tipe, sales, updated_at FROM leads
