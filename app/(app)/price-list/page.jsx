@@ -90,7 +90,7 @@ function PriceListIsi({ plv }) {
     const kop = (judul) => {
       doc.addImage(chl.data, 'PNG', M, 7, 16 * chl.w / chl.h, 16);
       doc.addImage(bio.data, 'PNG', PW - M - 13 * bio.w / bio.h, 9, 13 * bio.w / bio.h, 13);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(20); doc.text(judul, M, 30); doc.text(BIO_PL.tanggal, PW - M, 30, { align: 'right' });
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(20); doc.text(judul, M, 30); doc.text(judul === 'STANDART' ? (BIO_PL.tanggalStandar || BIO_PL.tanggal) : BIO_PL.tanggal, PW - M, 30, { align: 'right' });
     };
     const ketentuan = (y) => {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text('Terms & Conditions', M, y); y += 4;
@@ -215,7 +215,7 @@ function PriceListIsi({ plv }) {
       </div>
 
       {isBio ? (<>
-        <div className="card pl-kop"><img src="/logo.png" alt="Cipta Harmoni Lestari" /><div className="pl-kop-t"><b>STANDART</b><span>{BIO_PL.tanggal}</span></div><img src="/logo-bio-hitam.png" alt="Bio District" className="pl-logo-bio" /></div>
+        <div className="card pl-kop"><img src="/logo.png" alt="Cipta Harmoni Lestari" /><div className="pl-kop-t"><b>STANDART</b><span>{BIO_PL.tanggalStandar || BIO_PL.tanggal}</span></div><img src="/logo-bio-hitam.png" alt="Bio District" className="pl-logo-bio" /></div>
         <div className="card"><div className="tbl-wrap tbl-compact pl-tbl"><table>
           <thead><tr><th rowSpan={2}>Type</th><th rowSpan={2}>Keterangan</th><th rowSpan={2}>Build (m²)</th><th colSpan={2}>Land</th><th rowSpan={2}>View</th><th rowSpan={2} className="num">Harga Jual All In (Include PPN)</th><th colSpan={2} className="pl-hijau">Harga Setelah Diskon</th><th colSpan={3} className="pl-hijau">Cicilan KPR {BIO_PL.bunga} — Harga Jual</th><th colSpan={3} className="pl-hijau">Cicilan KPR {BIO_PL.bunga} — All In</th><th rowSpan={2}>Tersedia</th></tr>
             <tr><th>m²</th><th>Dimensi</th><th className="num pl-hijau">Harga Jual</th><th className="num pl-hijau">Harga Jual All In</th>{[...BIO_PL.tenor, ...BIO_PL.tenor].map((t, i) => <th key={i} className="num pl-hijau">{t} th</th>)}</tr></thead>

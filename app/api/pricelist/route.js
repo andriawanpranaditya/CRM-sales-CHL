@@ -30,7 +30,7 @@ const K_TIPE = [['tipe', 'Tipe'], ['ket', 'Keterangan PPN'], ['sub', 'Sub'], ['l
   ['cicilAllin.0', 'Cicilan All In tenor 1'], ['cicilAllin.1', 'Cicilan All In tenor 2'], ['cicilAllin.2', 'Cicilan All In tenor 3']];
 const K_IRREG = [['unit', 'Unit (mis. Bio Ave 1 no.06)'], ['blok', 'Blok'], ['kav', 'Kavling'], ...K_TIPE.filter(([k]) => k !== 'ket')];
 const ANGKA = new Set(['lb', 'lt', 'kav', 'inclPpn', 'standar', 'allin', 'cicil.0', 'cicil.1', 'cicil.2', 'cicilAllin.0', 'cicilAllin.1', 'cicilAllin.2']);
-const BIO_UMUM = [['pl.tanggal', 'Tanggal price list'], ['pl.developer', 'Developer'], ['pl.bunga', 'Bunga KPR (mis. 2,75%)'], ['pl.tenor', 'Tenor tahun (mis. 25,20,15)'],
+const BIO_UMUM = [['pl.tanggal', 'Tanggal price list (irreguler)'], ['pl.tanggalStandar', 'Tanggal price list unit standar'], ['pl.developer', 'Developer'], ['pl.bunga', 'Bunga KPR (mis. 2,75%)'], ['pl.tenor', 'Tenor tahun (mis. 25,20,15)'],
   ['promo.judul', 'Judul promo'], ['promo.periode', 'Periode & ketentuan promo'], ['promo.hadiah.A', 'Hadiah Tipe A'], ['promo.hadiah.B', 'Hadiah Tipe B'],
   ['promo.hadiah.C', 'Hadiah Tipe C'], ['promo.hadiah.corner', 'Hadiah unit corner'], ['pl.rekening.judul', 'Keterangan rekening'], ['pl.rekening.bank', 'Bank rekening'],
   ['pl.rekening.no', 'No. rekening'], ['pl.rekening.cabang', 'Cabang'], ['pl.bankRekanan', 'Bank rekanan KPR (pisahkan koma)']];
