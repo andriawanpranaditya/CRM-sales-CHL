@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { db, DEFAULT_SETTINGS } from '@/lib/db';
 import { getUser } from '@/lib/auth';
 import { tentukanProject } from '@/lib/proyek';
+import { siapkanSeo, jalur } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -80,37 +81,121 @@ async function tarikGA4(sql) {
       SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[], ${b.map(x => x[4])}::int[])
       ON CONFLICT (tgl, source_medium) DO UPDATE SET sessions = EXCLUDED.sessions, users = EXCLUDED.users, key_events = EXCLUDED.key_events`;
   }
-  return { sumber: 'GA4', status: 'sukses', baris: all.length, pesan: `${d1} s.d. ${d2}` };
+  // Halaman pendaratan dari pencarian organik (untuk tabel SEO per halaman) — sejak awal analisa
+  let catLanding = '';
+  try {
+    await siapkanSeo(sql);
+    const mulai = process.env.MI_ANALISA_MULAI || '2026-09-01';
+    const bodyL = (metrik) => JSON.stringify({
+      dateRanges: [{ startDate: mulai, endDate: d2 }],
+      dimensions: [{ name: 'date' }, { name: 'landingPage' }],
+      metrics: [{ name: 'sessions' }, { name: metrik }],
+      dimensionFilter: { filter: { fieldName: 'sessionDefaultChannelGroup', stringFilter: { matchType: 'EXACT', value: 'Organic Search' } } },
+      limit: 25000,
+    });
+    const panggilL = async (metrik) => fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${prop}:runReport`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: bodyL(metrik),
+    }).then(r => r.json());
+    let jl = await panggilL('keyEvents');
+    if (jl.error) jl = await panggilL('conversions');
+    if (jl.error) throw new Error(jl.error.message || 'error');
+    const ml = new Map();
+    for (const r of jl.rows || []) {
+      const t = r.dimensionValues[0].value, tglIso = t.slice(0, 4) + '-' + t.slice(4, 6) + '-' + t.slice(6, 8);
+      const pg = jalur(r.dimensionValues[1].value || '/').slice(0, 300);
+      const [ses, kev] = r.metricValues.map(v => Number(v.value) || 0);
+      const k = tglIso + '|' + pg, lama = ml.get(k);
+      ml.set(k, lama ? [tglIso, pg, lama[2] + ses, lama[3] + kev] : [tglIso, pg, ses, kev]);
+    }
+    const al = [...ml.values()];
+    await sql`DELETE FROM mi_ga4_landing WHERE tgl BETWEEN ${mulai}::date AND ${d2}::date`;
+    for (let i = 0; i < al.length; i += 1000) {
+      const b = al.slice(i, i + 1000);
+      await sql`INSERT INTO mi_ga4_landing (tgl, page, sessions, key_events)
+        SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[])
+        ON CONFLICT (tgl, page) DO UPDATE SET sessions = EXCLUDED.sessions, key_events = EXCLUDED.key_events`;
+    }
+    catLanding = ` · halaman organik ${al.length} baris`;
+  } catch (e) { catLanding = ' · halaman organik gagal: ' + String(e.message || e).slice(0, 120); }
+  return { sumber: 'GA4', status: 'sukses', baris: all.length, pesan: `${d1} s.d. ${d2}${catLanding}` };
+}
+
+// Search Console: satu permintaan bisa sampai 25.000 baris — dipaging bila lebih
+async function gscQuery(token, site, dims, start, end) {
+  const out = [];
+  for (let startRow = 0; startRow < 200000; startRow += 25000) {
+    const r = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: start, endDate: end, dimensions: dims, rowLimit: 25000, startRow, dataState: 'final' }),
+    });
+    const j = await r.json();
+    if (j.error) throw new Error('GSC: ' + (j.error.message || 'error'));
+    const rows = j.rows || [];
+    out.push(...rows);
+    if (rows.length < 25000) break;
+  }
+  return out;
 }
 
 async function tarikGSC(sql) {
   const site = process.env.GSC_SITE_URL;
   if (!site) return { sumber: 'Search Console', status: 'dilewati', baris: 0, pesan: 'GSC_SITE_URL belum diisi' };
+  await siapkanSeo(sql);
   const token = await googleToken(['https://www.googleapis.com/auth/webmasters.readonly']);
-  const [d1raw, d2raw] = rentang(32);
+  const mulai = process.env.MI_ANALISA_MULAI || '2026-09-01';
   const d2 = d10(new Date(Date.now() - 2 * 86400000)); // data GSC terlambat ±2 hari
-  const r = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
-    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ startDate: d1raw, endDate: d2, dimensions: ['date', 'query'], rowLimit: 5000 }),
-  });
-  const j = await r.json();
-  if (j.error) throw new Error('GSC: ' + (j.error.message || 'error'));
-  const rows = j.rows || [];
+  const [d1biasa] = rentang(32);
+  // Kata kunci: biasanya 32 hari terakhir; bila data lama belum lengkap sejak awal analisa → tarik ulang sejak awal
+  let d1q = d1biasa;
+  try {
+    const mn = (await sql`SELECT min(tgl)::text AS t FROM mi_gsc_daily`)[0]?.t;
+    if (!mn || mn > d10(new Date(Date.parse(mulai) + 3 * 86400000))) d1q = mulai;
+  } catch {}
+  const [rq, rt, rp] = await Promise.all([
+    gscQuery(token, site, ['date', 'query'], d1q, d2),
+    gscQuery(token, site, ['date'], mulai, d2),
+    gscQuery(token, site, ['date', 'page'], mulai, d2),
+  ]);
+  // 1) per kata kunci
   const m = new Map();
-  for (const x of rows) {
+  for (const x of rq) {
     const [tgl, q] = x.keys;
     const qq = String(q).slice(0, 250);
     m.set(tgl + '|' + qq, [tgl, qq, Number(x.clicks) || 0, Number(x.impressions) || 0, Number(x.position) || 0]);
   }
   const all = [...m.values()];
-  if (all.length) await sql`DELETE FROM mi_gsc_daily WHERE tgl BETWEEN ${d1raw}::date AND ${d2}::date`;
+  if (all.length) await sql`DELETE FROM mi_gsc_daily WHERE tgl BETWEEN ${d1q}::date AND ${d2}::date`;
   for (let i = 0; i < all.length; i += 1000) {
     const b = all.slice(i, i + 1000);
     await sql`INSERT INTO mi_gsc_daily (tgl, query, clicks, impressions, position)
       SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[], ${b.map(x => x[4])}::numeric[])
       ON CONFLICT (tgl, query) DO UPDATE SET clicks = EXCLUDED.clicks, impressions = EXCLUDED.impressions, position = EXCLUDED.position`;
   }
-  return { sumber: 'Search Console', status: 'sukses', baris: all.length, pesan: `${d1raw} s.d. ${d2}` };
+  // 2) total harian seluruh situs
+  const tot = rt.map(x => [x.keys[0], Number(x.clicks) || 0, Number(x.impressions) || 0, Number(x.position) || 0]);
+  if (tot.length) {
+    await sql`DELETE FROM mi_gsc_total WHERE tgl BETWEEN ${mulai}::date AND ${d2}::date`;
+    await sql`INSERT INTO mi_gsc_total (tgl, clicks, impressions, position)
+      SELECT * FROM unnest(${tot.map(x => x[0])}::date[], ${tot.map(x => x[1])}::int[], ${tot.map(x => x[2])}::int[], ${tot.map(x => x[3])}::numeric[])
+      ON CONFLICT (tgl) DO UPDATE SET clicks = EXCLUDED.clicks, impressions = EXCLUDED.impressions, position = EXCLUDED.position`;
+  }
+  // 3) per halaman (URL dengan ?parameter digabung ke halamannya)
+  const mp = new Map();
+  for (const x of rp) {
+    const [tgl, u] = x.keys, pg = jalur(u).slice(0, 300), k = tgl + '|' + pg, c = Number(x.clicks) || 0, im = Number(x.impressions) || 0, po = Number(x.position) || 0;
+    const l = mp.get(k);
+    mp.set(k, l ? [tgl, pg, l[2] + c, l[3] + im, (l[4] * l[3] + po * im) / Math.max(1, l[3] + im)] : [tgl, pg, c, im, po]);
+  }
+  const pages = [...mp.values()];
+  if (pages.length) await sql`DELETE FROM mi_gsc_page WHERE tgl BETWEEN ${mulai}::date AND ${d2}::date`;
+  for (let i = 0; i < pages.length; i += 1000) {
+    const b = pages.slice(i, i + 1000);
+    await sql`INSERT INTO mi_gsc_page (tgl, page, clicks, impressions, position)
+      SELECT * FROM unnest(${b.map(x => x[0])}::date[], ${b.map(x => x[1])}::text[], ${b.map(x => x[2])}::int[], ${b.map(x => x[3])}::int[], ${b.map(x => x[4])}::numeric[])
+      ON CONFLICT (tgl, page) DO UPDATE SET clicks = EXCLUDED.clicks, impressions = EXCLUDED.impressions, position = EXCLUDED.position`;
+  }
+  return { sumber: 'Search Console', status: 'sukses', baris: all.length + tot.length + pages.length,
+    pesan: `kata kunci ${d1q} s.d. ${d2} · total & halaman ${mulai} s.d. ${d2}` };
 }
 
 // ===== Instagram (Graph API via token System User Meta) =====

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtRp, fmtDate, todayISO } from '@/components/util';
 import InputRupiah from '@/components/InputRupiah';
+import SeoPanel from '@/components/SeoPanel';
 
 const PLATFORM = ['Instagram', 'Facebook', 'Tiktok', 'Google', 'Youtube', 'Website', 'Lainnya'];
 const FORMAT = ['Reels / Short Video', 'Carousel', 'Single Post', 'Story', 'Video Panjang', 'Live', 'Search Ads', 'Display / Banner', 'Lainnya'];
@@ -1366,6 +1367,7 @@ export default function MarcomPage() {
             <p className="hint" style={{ marginBottom: 0 }}>Belum ada data. Pastikan environment variable Google (GOOGLE_SA_EMAIL, GOOGLE_SA_KEY, GA4_PROPERTY_ID, GSC_SITE_URL) sudah diisi di Vercel & /api/setup sudah dijalankan, lalu klik Tarik Data Sekarang.</p>
           )}
         </div>
+        <SeoPanel key={'seo' + (narik ? 1 : 0)} d1={rentang[0]} d2={rentang[1]} />
         <div className="two-col">
           <div className="card" style={{ marginBottom: 12 }}>
             <h3 style={{ marginTop: 0 }}>Trafik Website per Sumber (GA4) <span className="hint">(website biodistrictofficial.com — tidak mengikuti filter project)</span></h3>
