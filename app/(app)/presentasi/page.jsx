@@ -662,7 +662,7 @@ function slideProyek(P, dari) {
       const bungaStay = pmt(P, s15.bunga, s15.tahun * 12) * s15.tahun * 12 - P, danaStay = P * PG.biayaDana * s15.tahun / 2;
       const jembatan = (cicil, n) => { const masuk = dp + cicil * n, sisa = t.harga - masuk;
         return { cicil, n, masuk, pct: masuk / t.harga, sisa, bulanKpr: PG.dpKali + n + 1, kpr: pmt(sisa, PG.kprFloating, PG.tenorKpr * 12), kprPromo: pmt(sisa, PG.kprPromo, PG.tenorKpr * 12), dana: (P + sisa) / 2 * PG.biayaDana * n / 12 }; };
-      return { ...t, dp, dp3: dp / PG.dpKali, P, stay, bungaStay, danaStay, kprBank: pmt(P, PG.kprFloating, PG.tenorKpr * 12), smart: jembatan(t.smart, PG.smartKali), easy: jembatan(t.easy, PG.easyKali) };
+      return { ...t, dp, dp3: dp / PG.dpKali, P, stay, bungaStay, danaStay, kprBank: pmt(t.harga, PG.kprFloating, PG.tenorKpr * 12) /* KPR bank: plafon = harga pengikatan penuh (DP 0%) */, smart: jembatan(t.smart, PG.smartKali), easy: jembatan(t.easy, PG.easyKali) };
     };
     const SIM = PG.tipe.map(hitung), A = SIM[0];
     const prog = (no, isi) => <Slide bab={`7 · ${PG.nama}`} logo={logo} proj={nama} no={no}>{isi}</Slide>;
@@ -686,9 +686,9 @@ function slideProyek(P, dari) {
           <ol className="pz-ol" style={{ fontSize: 13.5 }}>{['Booking — konsumen langsung terikat, tanpa menunggu persetujuan bank.', 'DP 20% dicicil 3× (bulan 1–3), lalu langsung huni lewat serah terima pinjam pakai.', `Sisa 80% dicicil ke developer dengan bunga tetap: ${PG.stay.map(o => `${o.tahun} tahun ${pr1(o.bunga)}`).join(' · ')}.`, 'Asuransi jiwa kredit — sisa cicilan lunas bila konsumen meninggal.', 'Sertifikat ditahan developer sampai lunas; boleh pindah ke KPR bank kapan saja tanpa penalti.'].map((x, i) => <li key={i}><T k={KT('prog.stay.alur' + i)}>{x}</T></li>)}</ol>
           <div className="pz-ins" style={{ fontSize: 13 }}><T k={KT('prog.stay.beda')}>Pembeda dari KPR bank: tidak bergantung BI checking dan bunga tidak naik seperti floating bank.</T></div></div>
         <div className="pz-col" style={{ flex: 1.15 }}>
-          <table className="pz-tb s"><thead><tr><th>Tipe</th><th>DP 20%</th>{PG.stay.map(o => <th key={o.tahun}>{o.tahun} thn · {pr1(o.bunga)}</th>)}<th>KPR bank {pr1(PG.kprFloating)} · {PG.tenorKpr} thn</th></tr></thead>
+          <table className="pz-tb s"><thead><tr><th>Tipe</th><th>DP 20%</th>{PG.stay.map(o => <th key={o.tahun}>{o.tahun} thn · {pr1(o.bunga)}</th>)}<th>KPR bank {pr1(PG.kprFloating)} · {PG.tenorKpr} thn<span className="pz-th2">plafon 100% harga</span></th></tr></thead>
             <tbody>{SIM.map(t => <tr key={t.tipe}><td className="kiri"><b>{t.tipe}</b><span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{M2(t.harga)}</span></td><td>{jt(t.dp3)} ×{PG.dpKali}</td>{t.stay.map((o, i) => <td key={i}>{i === t.stay.length - 1 ? <b>{jt(o.cicil)}</b> : jt(o.cicil)}</td>)}<td style={{ color: '#8A3B26' }}>{jt(t.kprBank)}</td></tr>)}</tbody></table>
-          <div className="pz-sub" style={{ fontSize: 11.5 }}>Cicilan per bulan termasuk asuransi jiwa kredit ({pr1(PG.asuransi)}/tahun, estimasi). Harga setelah diskon sesuai Price List.</div>
+          <div className="pz-sub" style={{ fontSize: 11.5 }}>Bio Easy: cicilan dari sisa 80% setelah DP 20%, termasuk asuransi jiwa kredit ({pr1(PG.asuransi)}/tahun, estimasi). KPR bank: plafon = harga pengikatan penuh (DP 0%), bunga floating {pr1(PG.kprFloating)}. Harga setelah diskon sesuai Price List.</div>
           <div className="pz-k3"><Kartu cls="emas" l={`${A.tipe} · ${PG.stay[PG.stay.length - 1].tahun} tahun`} v={jt(A.stay[A.stay.length - 1].cicil)} vs={{ fontSize: 26 }} s={`per bulan · penghasilan min ±${jt(A.stay[A.stay.length - 1].cicil / PG.batasCicilan)}`} />
             <Kartu l={`DP ${A.tipe}`} v={`${jt(A.dp3)} ×${PG.dpKali}`} vs={{ fontSize: 22 }} s="lalu langsung huni (pinjam pakai)" />
             <Kartu l={`Bunga ${PG.stay[PG.stay.length - 1].tahun} tahun`} v={pr1(PG.stay[PG.stay.length - 1].bunga)} vs={{ fontSize: 26 }} s="tetap · setara floating bank, tanpa risiko naik" /></div></div></div></>) });
