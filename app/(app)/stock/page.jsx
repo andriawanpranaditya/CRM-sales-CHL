@@ -138,7 +138,7 @@ export default function StockPage() {
         doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
         doc.text('MASTER STOCK — ' + (proj || '-'), M, 11);
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-        doc.text(sub + ' · ' + tglStr, PW - M, 11, { align: 'right' });
+        doc.text(sub + ' · Update stok per ' + tglStr, PW - M, 11, { align: 'right' });
         doc.setTextColor(28, 43, 35);
       };
       const footer = () => {

@@ -86,10 +86,11 @@ function PriceListIsi({ plv }) {
   async function pdfBio(doc) {
     const PW = 297, PH = 210, M = 10;
     const chl = await muatGambar('/logo.png'), bio = await muatGambar('/logo-bio-hitam.png');
-    const kop = (judul) => {
+    // kanan: tanggal price list; halaman siteplan memakai tanggal unduh (update stok), bukan tanggal price list
+    const kop = (judul, kanan) => {
       doc.addImage(chl.data, 'PNG', M, 7, 16 * chl.w / chl.h, 16);
       doc.addImage(bio.data, 'PNG', PW - M - 13 * bio.w / bio.h, 9, 13 * bio.w / bio.h, 13);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(20); doc.text(judul, M, 30); doc.text(judul === 'STANDART' ? (BIO_PL.tanggalStandar || BIO_PL.tanggal) : BIO_PL.tanggal, PW - M, 30, { align: 'right' });
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(20); doc.text(judul, M, 30); doc.text(kanan != null ? kanan : judul === 'STANDART' ? (BIO_PL.tanggalStandar || BIO_PL.tanggal) : BIO_PL.tanggal, PW - M, 30, { align: 'right' });
     };
     const ketentuan = (y) => {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.text('Terms & Conditions', M, y); y += 4;
@@ -140,7 +141,7 @@ function PriceListIsi({ plv }) {
     }
     if (isiPdf.siteplan) {
       if (hal++) doc.addPage();
-      kop('KETERSEDIAAN UNIT · per ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
+      kop('KETERSEDIAAN UNIT', 'Update stok per ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }));
       await siteplanHal(doc, PW, PH, M, 34);
     }
     return hal;
@@ -148,7 +149,7 @@ function PriceListIsi({ plv }) {
   async function pdfPermai(doc) {
     const PW = 210, PH = 297, M = 14;
     const logo = await muatGambar('/logo-permai.png');
-    const kop = () => { doc.addImage(logo.data, 'PNG', M, 8, 26 * logo.w / logo.h, 26); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20); doc.text(PERMAI_PL.tanggal, PW - M, 30, { align: 'right' }); };
+    const kop = (kanan) => { doc.addImage(logo.data, 'PNG', M, 8, 26 * logo.w / logo.h, 26); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20); doc.text(kanan != null ? kanan : PERMAI_PL.tanggal, PW - M, 30, { align: 'right' }); };
     let hal = 0;
     if (isiPdf.harga) {
       kop(); hal++;
@@ -165,7 +166,7 @@ function PriceListIsi({ plv }) {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('Pembayaran Melalui:', M, y); y += 5; doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
       doc.text(PERMAI_PL.rekening.bank, M, y); y += 4.5; doc.setFont('helvetica', 'bold'); doc.text(`${PERMAI_PL.rekening.no}  A/N ${PERMAI_PL.rekening.an}`, M, y);
     }
-    if (isiPdf.siteplan) { if (hal++) doc.addPage(); kop(); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('Siteplan', M, 42); await siteplanHal(doc, PW, PH, M, 46); }
+    if (isiPdf.siteplan) { if (hal++) doc.addPage(); kop('Update stok per ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('Ketersediaan Unit', M, 42); await siteplanHal(doc, PW, PH, M, 46); }
     return hal;
   }
   async function buatPdf(bagikan) {
