@@ -506,8 +506,8 @@ const CONFIG = {
   // 60 bulan–15 tahun (Bio Easy): DP 10% dicicil 3× di dalam tenor, sisanya dicicil rata + asuransi jiwa kredit.
   tahap: {12:0, 24:10, 36:10, 60:10, 120:11, 180:12},
   tahapDp: 10, tahapDpKali: 3, tahapDpMulai: 60, asuransi: 0.4,
-  // Bio Smart: DP 10% dicicil 3×, cicilan tanpa bunga ke developer 12× (±1,29% harga per bulan), sisa dilunasi KPR bank
-  smartDp: 10, smartKali: 12, smartPersen: 1.2876,
+  // Bio Smart: DP 10% dicicil 3×, cicilan tetap ke developer 12× (±1,29% harga per bulan), sisa dilunasi KPR bank
+  smartDp: 10, smartKali: 12, smartPersen: 1.2876, smartBunga: 10,   // bunga tersembunyi Bio Smart (% per tahun), ditambahkan ke sisa yang dilunasi KPR
   // Hadiah barang (mobil, motor, AC) diserahkan setelah uang masuk mencapai persentase ini dari harga transaksi — semua cara bayar
   hadiahPersen: 25,
   rate: 2.75,                                     // bunga ilustrasi price list
@@ -942,10 +942,11 @@ function tahapHitung(net, n){
   const dp = net * CONFIG.tahapDp/100, sisa = net - dp, nCicil = n - CONFIG.tahapDpKali;
   return {dp, dp1: dp / CONFIG.tahapDpKali, sisa, nCicil, pay: annuity(sisa, r, nCicil/12) + sisa * CONFIG.asuransi/1200};
 }
-// Bio Smart: DP 10% dicicil 3× (bulan 1–3), cicilan tanpa bunga 12× (bulan 4–15), sisa dilunasi KPR bank (bulan ke-16)
+// Bio Smart: DP 10% dicicil 3× (bulan 1–3), cicilan tetap 12× (bulan 4–15), sisa + bunga tersembunyi dilunasi KPR bank (bulan ke-16)
 function smartHitung(net){
-  const dp = net * CONFIG.smartDp/100, dp1 = dp / 3, cicil = net * CONFIG.smartPersen/100, masuk = dp + cicil * CONFIG.smartKali;
-  return {dp, dp1, cicil, masuk, sisa: net - masuk, bulanKpr: 3 + CONFIG.smartKali + 1};
+  const dp = net * CONFIG.smartDp/100, dp1 = dp / 3, cicil = net * CONFIG.smartPersen/100, masuk = dp + cicil * CONFIG.smartKali, r = CONFIG.smartBunga / 1200;
+  let bal = net; [dp1, dp1, dp1, ...Array(CONFIG.smartKali).fill(cicil)].forEach(x => { bal = bal * (1 + r) - x; });
+  return {dp, dp1, cicil, masuk, sisa: bal, bulanKpr: 3 + CONFIG.smartKali + 1};   // sisa sudah termasuk biaya pembiayaan selama masa cicilan
 }
 // Bulan ke berapa uang masuk mencapai CONFIG.hadiahPersen dari harga transaksi (dihitung sejak booking)
 function bulanHadiah(c){
@@ -963,9 +964,9 @@ const adaBarang = g => !g.diskon;   // paket diskon harga tidak punya hadiah bar
 function simCalc(p){
   const s = selOf(p), g = packOf(p, s.gift), mode = modeOf(s), net = s.price - (g.diskon || 0), n = monthsOf(s, p);
   const t = mode === 'bertahap' ? tahapHitung(net, n) : null, sm = mode === 'smart' ? smartHitung(net) : null;
-  const dp = mode === 'keras' ? 0 : t ? t.dp : sm ? sm.masuk : net * s.dp/100, sisa = net - dp;
+  const dp = mode === 'keras' ? 0 : t ? t.dp : sm ? sm.masuk : net * s.dp/100, sisa = sm ? sm.sisa : net - dp;
   const pay = mode === 'kpr' || sm ? annuity(sisa, rateOf(s), s.years) : t ? t.pay : 0;
-  const dpPct = net ? Math.round(dp / net * 100) : 0;
+  const dpPct = net ? Math.round(dp / (sm ? dp + sm.sisa : net) * 100) : 0;
   const c = {s, g, mode, net, dp, dpPct, sisa, n, pay, t, sm};
   c.hadiah = adaBarang(g) ? bulanHadiah(c) : null;
   const hd = c.hadiah ? ` · hadiah ${c.hadiah.bulan ? '±bln ' + c.hadiah.bulan : 'stl ' + CONFIG.hadiahPersen + '%'}` : '';
@@ -991,7 +992,7 @@ const HADIAH_TX = () => `Hadiah barang (mobil, motor, AC) diserahkan setelah pem
 function simDiscHTML(p){
   const mode = modeOf(selOf(p));
   if (mode === 'kpr') return `<b>*Disclaimer:</b> angsuran dan suku bunga di atas hanya estimasi dan tidak mengikat. Perhitungan dapat berbeda dengan perhitungan bank, dan suku bunga dapat berubah sewaktu-waktu sebelum akad kredit. Persetujuan, plafon, bunga, dan angsuran yang berlaku sepenuhnya mengikuti ketentuan bank pemberi KPR. Bunga awal ${rateStr(CONFIG.rate)}% mengikuti ilustrasi price list dan bisa Anda ubah. ${HADIAH_TX()}`;
-  if (mode === 'smart') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Bio Smart: DP ${CONFIG.smartDp}% dicicil 3×, lalu cicilan ke Bio District ${CONFIG.smartKali}× tanpa bunga; sisa harga dilunasi lewat KPR bank pada bulan ke-${3 + CONFIG.smartKali + 1}, dengan persetujuan, plafon, dan bunga mengikuti ketentuan bank. Booking fee dihitung sebagai bagian dari pembayaran pertama. ${HADIAH_TX()}`;
+  if (mode === 'smart') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Bio Smart: DP ${CONFIG.smartDp}% dicicil 3×, lalu cicilan tetap ke Bio District ${CONFIG.smartKali}×; sisa harga, yang sudah termasuk biaya pembiayaan selama masa cicilan, dilunasi lewat KPR bank pada bulan ke-${3 + CONFIG.smartKali + 1}, dengan persetujuan, plafon, dan bunga mengikuti ketentuan bank. Booking fee dihitung sebagai bagian dari pembayaran pertama. ${HADIAH_TX()}`;
   if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Cicilan 12–36 bulan dibayar rata tanpa DP; cicilan 12 bulan tanpa tambahan biaya hanya berlaku untuk paket hadiah selain Diskon Harga. Cicilan 60 bulan–15 tahun (Bio Easy) diawali DP ${CONFIG.tahapDp}% yang dicicil ${CONFIG.tahapDpKali}× dan sudah termasuk dalam lama cicilan, serta sudah termasuk asuransi jiwa kredit. Booking fee dihitung sebagai bagian dari pembayaran pertama. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
   return `<b>*Disclaimer:</b> nilai pelunasan di atas hanya estimasi dan tidak mengikat. Jadwal pelunasan dan ketentuan cash keras mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
 }
@@ -1030,7 +1031,7 @@ function simHTML(p){
   const extra = mode === 'kpr' ? `<dt>Biaya KPR, AJB, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>
     <dt>Gambaran penghasilan (angsuran 40%)</dt><dd>${rp(pay/0.4)}</dd>`
     : `<dt>Biaya ${sm ? 'KPR, ' : ''}AJB, balik nama, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>` +
-      (sm ? `<dt>DP ${CONFIG.smartDp}% (bulan 1–3)</dt><dd>3 × ${rp(sm.dp1)}</dd><dt>Cicilan tanpa bunga (bulan 4–${3 + CONFIG.smartKali})</dt><dd>${CONFIG.smartKali} × ${rp(sm.cicil)}</dd><dt>Sisa dilunasi KPR bank (bulan ke-${sm.bulanKpr})</dt><dd>${rp(sm.sisa)}</dd><dt>Estimasi angsuran KPR (${s.years} th, bunga ${rateStr(rateOf(s))}%)</dt><dd>${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(sm.dp1 - CONFIG.bookingFee)}</dd>`
+      (sm ? `<dt>DP ${CONFIG.smartDp}% (bulan 1–3)</dt><dd>3 × ${rp(sm.dp1)}</dd><dt>Cicilan ke Bio District (bulan 4–${3 + CONFIG.smartKali})</dt><dd>${CONFIG.smartKali} × ${rp(sm.cicil)}</dd><dt>Sisa dilunasi KPR bank (bulan ke-${sm.bulanKpr}), termasuk biaya pembiayaan</dt><dd>${rp(sm.sisa)}</dd><dt>Estimasi angsuran KPR (${s.years} th, bunga ${rateStr(rateOf(s))}%)</dt><dd>${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(sm.dp1 - CONFIG.bookingFee)}</dd>`
       : mode === 'bertahap' ? (t.dp
         ? `<dt>DP ${CONFIG.tahapDp}% (bulan 1–${CONFIG.tahapDpKali})</dt><dd>${CONFIG.tahapDpKali} × ${rp(t.dp1)}</dd><dt>Cicilan (bulan ${CONFIG.tahapDpKali + 1}–${n})</dt><dd>${t.nCicil} × ${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(t.dp1 - CONFIG.bookingFee)}</dd>`
         : `<dt>DP</dt><dd>Tanpa DP</dd><dt>Cicilan</dt><dd>${n} × ${rp(pay)}</dd><dt>Cicilan pertama (dipotong booking fee)</dt><dd>${rp(pay - CONFIG.bookingFee)}</dd>`)
