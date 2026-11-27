@@ -202,9 +202,11 @@ ul.ticks li::before{content:"";position:absolute;left:2px;top:7px;width:9px;heig
 .field label{font-size:12.5px;font-weight:700;color:var(--muted)}
 .field input,.field select{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;width:100%}
 .simgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.simgrid[data-m="bertahap"]{grid-template-columns:1fr 1fr}
+.simgrid[data-m="bertahap"]{grid-template-columns:1fr}
+.simgrid[data-m="smart"]{grid-template-columns:1fr 1fr}
 .simgrid[hidden],.sublbl[hidden]{display:none}
-.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 18px}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 18px}
+@media (max-width:480px){.modes{grid-template-columns:repeat(2,1fr)}}
 .mode{border:1.5px solid #d8c79a;background:#fffdf6;border-radius:10px;padding:10px 4px;font-weight:800;font-size:13.5px;color:var(--ink);line-height:1.2}
 .mode[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:#f1cf86}
 .simpanel{padding:0;overflow:hidden;border-color:#c9b27a}
@@ -242,6 +244,8 @@ ul.ticks li::before{content:"";position:absolute;left:2px;top:7px;width:9px;heig
 .result .okc{color:var(--ok)}
 .tenlbl{padding:12px 18px 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-top:1px solid #efe7d6}
 .tenors{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 18px 16px}
+.tenors.t6{grid-template-columns:repeat(6,1fr)}
+@media (max-width:560px){.tenors.t6{grid-template-columns:repeat(3,1fr)}}
 .ten{border:1.5px solid #d8c79a;background:#fff;border-radius:10px;padding:8px 4px;text-align:center;line-height:1.25}
 .ten b{display:block;font-size:13px}
 .ten span{font-size:12px;color:var(--muted)}
@@ -330,6 +334,38 @@ figure.hero figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 16
 .pclose svg{width:18px;height:18px;display:block}
 .pclose:hover{background:#b8913c}
 .cimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+/* foto produk bisa digeser (kartu & galeri detail) */
+.cslides{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.cslides::-webkit-scrollbar{display:none}
+.cslides img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;display:block;scroll-snap-align:start;scroll-snap-stop:always}
+.sarr{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:34px;height:34px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.92);color:var(--ink);display:grid;place-items:center;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;opacity:0;transition:opacity .15s}
+.sarr svg{width:16px;height:16px}
+.sarr.prev{left:8px}.sarr.next{right:8px}
+.pcard:hover .sarr,.galmain:hover .sarr,.sarr:focus-visible{opacity:1}
+@media (hover:none){.sarr{opacity:.9;width:30px;height:30px}}
+.art .sarr{top:42%}
+.cdots{position:absolute;left:50%;transform:translateX(-50%);top:14px;z-index:3;display:flex;gap:5px;pointer-events:none}
+.cdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.cdots i.on{background:#fff;width:16px;border-radius:3px}
+.galmain .cdots{top:auto;bottom:40px}
+.galmain .cslides img{cursor:zoom-in}
+.zoombtn{position:absolute;top:10px;right:10px;z-index:3;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 12px;background:rgba(20,10,12,.62);color:#fff;font-size:12.5px;font-weight:700;cursor:pointer}
+.zoombtn svg{width:14px;height:14px}
+/* tampilan foto diperbesar */
+.lbox{width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#140a0c;color:#fff;overflow:hidden}
+.lbox::backdrop{background:rgba(0,0,0,.85)}
+.lb-wrap{position:absolute;left:0;right:0;top:56px;bottom:64px}
+.lbox .cslides img{object-fit:contain;background:transparent;cursor:default}
+.lbox .sarr{opacity:1;width:44px;height:44px;background:rgba(255,255,255,.16);color:#fff;box-shadow:none}
+.lbox .sarr:hover{background:rgba(255,255,255,.3)}
+.lbox .sarr.prev{left:14px}.lbox .sarr.next{right:14px}
+.lbox .sarr svg{width:20px;height:20px}
+.lbox .cdots{display:none}
+.lb-x{position:absolute;top:10px;right:12px;z-index:4;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.14);color:#fff;display:grid;place-items:center;cursor:pointer}
+.lb-x svg{width:20px;height:20px}
+.lb-cap{position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;justify-content:center;gap:14px;padding:0 16px;font-size:14px;font-weight:600;text-align:center}
+.lb-no{color:#f1cf86;font-weight:800;flex:none}
+@media (max-width:640px){.lbox .sarr{width:38px;height:38px}.lbox .sarr.prev{left:6px}.lbox .sarr.next{right:6px}}
 .cname{position:absolute;left:0;right:0;bottom:30px;padding:26px 12px 8px;color:#fff;font-family:var(--display);font-size:22px;line-height:1.1;background:linear-gradient(transparent,rgba(10,25,19,.82))}
 .facs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .fac{margin:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:#22302a}
@@ -337,8 +373,10 @@ figure.hero figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 16
 .fac figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 12px 9px;color:#fff;font-size:13.5px;font-weight:700;background:linear-gradient(transparent,rgba(10,25,19,.85))}
 .gal{display:flex;flex-direction:column;gap:8px}
 .galmain{margin:0;position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:#22302a}
-.galmain img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
-.galmain figcaption{position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;color:#fff;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(10,25,19,.8))}
+.galmain{aspect-ratio:16/9}
+.galmain .cslides{z-index:1}
+.galmain figcaption{z-index:2}
+.galmain figcaption{pointer-events:none;position:absolute;left:0;right:0;bottom:0;padding:24px 14px 10px;color:#fff;font-size:13px;font-weight:600;background:linear-gradient(transparent,rgba(10,25,19,.8))}
 .thumbs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .thumb{padding:0;border:2px solid transparent;border-radius:10px;overflow:hidden;background:none;line-height:0}
 .thumb img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover}
@@ -371,8 +409,8 @@ ul.ticks.one{grid-template-columns:1fr}
 .rw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px;margin-top:18px}
 .rw-card{background:#fffdf6;color:var(--ink);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(80,40,20,.12)}
 .rw-card header{background:var(--h);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
-.rw-card header b{font-family:var(--display);font-weight:400;font-size:20px;line-height:1.15;color:#2a171b}
-.rw-card header span{font-size:12.5px;font-weight:800;color:#3a2a10}
+.rw-card header b{font-family:var(--display);font-weight:400;font-size:20px;line-height:1.15;color:#fff}
+.rw-card header span{font-size:12.5px;font-weight:800;color:#f1cf86}
 .rw-card ol{list-style:none;margin:0;padding:6px 12px 4px;display:flex;flex-direction:column;flex:1}
 .rw-card li{display:grid;grid-template-columns:24px 26px minmax(0,1fr);gap:8px;align-items:center;padding:9px 0;border-bottom:1px dashed #e4d9bd;font-size:13.5px;line-height:1.3}
 .rw-card li:last-child{border-bottom:0}
@@ -445,6 +483,11 @@ footer strong{color:var(--ink)}
 </footer>
 
 <dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<dialog id="lbox" class="lbox" aria-label="Foto produk diperbesar">
+  <button type="button" class="lb-x" data-lb-close aria-label="Tutup foto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <div class="lb-wrap" id="lbWrap"></div>
+  <div class="lb-cap"><span id="lbCap"></span><span class="lb-no num" id="lbNo"></span></div>
+</dialog>
 <dialog id="promo" aria-label="Banner promo flash sale"><button type="button" class="pclose" aria-label="Tutup banner"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></button><img src="/flashsale/assets/flyer-flash-sale.jpg" width="1080" height="1620" alt="Flyer Resort Living, Grand Rewards: flash sale 11 sampai 13 Desember 2026 dengan empat paket hadiah per tipe rumah"><button type="button" class="cta" data-promo-close autofocus>Lihat produk flash sale</button></dialog>
 
 <script>
@@ -458,7 +501,15 @@ const CONFIG = {
   wa: '6281385237865',
   bookingFee: 5000000,
   payMinutes: 5,                                  // batas waktu bayar QRIS; lewat dari ini unit dibuka kembali
-  tahapRate: 9,                                   // bunga cash bertahap per tahun, tidak ditampilkan ke konsumen
+  // Cash bertahap (27 Nov 2026). Bunga efektif (anuitas) per tahun, hanya untuk hitungan internal; konsumen hanya melihat cicilan.
+  // 12–36 bulan: bagi rata tanpa DP (12 bulan tanpa bunga, hanya paket non-diskon).
+  // 60 bulan–15 tahun (Bio Easy): DP 10% dicicil 3× di dalam tenor, sisanya dicicil rata + asuransi jiwa kredit.
+  tahap: {12:0, 24:10, 36:10, 60:10, 120:11, 180:12},
+  tahapDp: 10, tahapDpKali: 3, tahapDpMulai: 60, asuransi: 0.4,
+  // Bio Smart: DP 10% dicicil 3×, cicilan tanpa bunga ke developer 12× (±1,29% harga per bulan), sisa dilunasi KPR bank
+  smartDp: 10, smartKali: 12, smartPersen: 1.2876,
+  // Hadiah barang (mobil, motor, AC) diserahkan setelah uang masuk mencapai persentase ini dari harga transaksi — semua cara bayar
+  hadiahPersen: 25,
   rate: 2.75,                                     // bunga ilustrasi price list
 };
 const BIO_NOTE = 'Desain biophilic: cahaya alami, ruang hijau, dan ventilasi silang di dalam rumah.';
@@ -488,7 +539,7 @@ const PRODUCTS = [
    desc:'Tipe C di kavling hoek, unit paling luas di Bio District. 4+1 kamar tidur, 3+1 kamar mandi, dua inner court, gudang, dan rooftop dengan bangku, kanopi, dan lampu. Pintu utama berkunci digital dengan pengenal wajah. Luas tanah dan harga berbeda di tiap unit.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan pengenal wajah'])},
 ];
 const TOURS = [['tour-1','Virtual tour Tipe A','1:08','Animasi ruang demi ruang Tipe A'],['tour-2','Tour show unit','1:25','Video asli show unit Bio District'],['tour-3','Tour show unit Tipe C','1:36','Video asli show unit Tipe C']];
-const RW_GROUPS = [[['tipe-a'],'Tipe A','#b98fb0'],[['tipe-b'],'Tipe B','#f0b57f'],[['tipe-c'],'Tipe C','#6fbdae'],[['corner-b','corner-c'],'Tipe B Corner & Tipe C Corner','#e3c26a']];
+const RW_GROUPS = [[['tipe-a'],'Tipe A','#800020'],[['tipe-b'],'Tipe B','#800020'],[['tipe-c'],'Tipe C','#800020'],[['corner-b','corner-c'],'Tipe B Corner & Tipe C Corner','#800020']];
 const qk = p => p.qk || p.id;   // Tipe B Corner dan Tipe C Corner berbagi satu kuota
 const FAC_PHOTOS = [['f-gate','Gerbang utama, one gate system'],['f-clubhouse','The Clubhouse'],['f-pool','Kolam renang Clubhouse'],['f-cowork','Co-Working Space'],['f-gym','Outdoor Gym'],['f-bbq','Riverside Jogging Track & BBQ Area'],['f-river','Sungai alami di tepi kawasan'],['f-landscape','Lanskap hijau di dalam kawasan'],['f-road','Jalan lingkungan yang lebar']];
 /* Paket hadiah per tipe. biaya:true = biaya transaksi (KPR, AJB, balik nama, notaris, BPHTB) ditanggung Bio District.
@@ -514,9 +565,10 @@ const PACKS = {
     {id:'c4', diskon:400000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp400 juta', ico:'cash'},
   ],
   'corner-b': [
-    {id:'k1', name:'Paket 1 · Chery J6', item:'Chery J6 (SUV listrik)', ico:'car'},
+    {id:'k1', name:'Paket 1 · Lepas E6 EV', item:'Lepas E6 EV (SUV listrik)', ico:'car'},
     {id:'k2', biaya:true, name:'Paket 2 · Geely EX2 Pro + Bebas Biaya', item:'Geely EX2 Pro + ' + BEBAS, ico:'car'},
     {id:'k3', biaya:true, name:'Paket 3 · BYD Atto 1 + Bebas Biaya + Asuransi Jiwa', item: 'BYD Atto 1 Standard Range + ' + BEBAS + ' + asuransi jiwa', ico:'car'},
+    {id:'k3b', biaya:true, name:'Paket 3 · Bio Premiere Corner + Bebas Biaya + Asuransi Jiwa', item:'Bio Premiere Corner + ' + BEBAS + ' + asuransi jiwa', ico:'home'},
     {id:'k4', diskon:500000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp500 juta', ico:'cash'},
   ],
 };
@@ -667,6 +719,7 @@ function selOf(p){
 }
 
 const ICON = {
+  home:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15 16 5l12 10"/><path d="M7 13v14h18V13"/><path d="M13 27v-8h6v8"/><path d="M22 8V5h3v5.5"/></svg>`,
   ac:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="26" height="11" rx="3"/><path d="M8 14h16M10 23v3M16 22v5M22 23v3"/></svg>`,
   scooter:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="23" r="4"/><circle cx="25" cy="23" r="4"/><path d="M11 23h10l2-13h-4M8 15h7l2 8M5 15h4"/></svg>`,
   cash:`<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="26" height="16" rx="3"/><circle cx="16" cy="16" r="4"/><path d="M7 12v8M25 12v8"/></svg>`,
@@ -717,10 +770,69 @@ function quotaHTML(p){
   const label = left(p) === 0 ? 'Kuota penuh' : left(p) === 1 ? 'Slot terakhir' : taken ? `${taken} dari ${cap} slot diambil` : `Kuota promo ${cap} slot`;
   return `<div class="quota"><div class="bar"><i style="width:${taken?pct:0}%"></i><em style="${taken?'':'color:var(--sale);text-shadow:none'}">${label}</em></div></div>`;
 }
+// Foto yang bisa digeser: kartu produk memakai fasad + interior (tanpa denah)
+const fotoKartu = p => p.gal.filter(([g]) => !/^plan/.test(g));
+const panah = d => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d < 0 ? 'M10 3 5 8l5 5' : 'M6 3l5 5-5 5'}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function stripHTML(foto, judul, id){
+  return `<span class="cslides"${id ? ` id="${id}"` : ''} data-n="${foto.length}">${foto.map(([g, c], i) => `<img src="/flashsale/assets/${g}.jpg" width="1280" height="712" alt="${c}" ${i ? 'loading="lazy"' : ''} draggable="false">`).join('')}</span>`
+    + (foto.length > 1 ? `<span class="sarr prev" role="button" tabindex="0" data-sarr="-1" aria-label="Foto sebelumnya ${judul}">${panah(-1)}</span><span class="sarr next" role="button" tabindex="0" data-sarr="1" aria-label="Foto berikutnya ${judul}">${panah(1)}</span>`
+    + `<span class="cdots" aria-hidden="true">${foto.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</span>` : '');
+}
+function geserStrip(strip, ke){
+  const n = +strip.dataset.n || strip.children.length, w = strip.clientWidth || 1;
+  const i = ((ke % n) + n) % n;
+  strip.scrollTo({ left: i * w, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+function sinkronStrip(strip){
+  const i = Math.round(strip.scrollLeft / (strip.clientWidth || 1));
+  const box = strip.parentElement;
+  box.querySelectorAll('.cdots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  if (strip.id === 'lbStrip'){
+    const pp = current(); if (!pp || !pp.gal[i]) return;
+    lbIdx = i; $('#lbCap').textContent = pp.gal[i][1]; $('#lbNo').textContent = (i + 1) + ' / ' + pp.gal.length;
+    return;
+  }
+  if (strip.id === 'galStrip'){
+    const pp = current(); if (!pp || !pp.gal[i]) return;
+    const cap = $('#galCap'); if (cap) cap.textContent = pp.gal[i][1];
+    document.querySelectorAll('.thumb').forEach(t => t.setAttribute('aria-pressed', String(+t.dataset.gal === i)));
+  }
+}
+document.addEventListener('scroll', e => { const t = e.target; if (t && t.classList && t.classList.contains('cslides')){ cancelAnimationFrame(t._raf); t._raf = requestAnimationFrame(() => sinkronStrip(t)); } }, true);
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-sarr]'); if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  const strip = a.parentElement.querySelector('.cslides');
+  geserStrip(strip, Math.round(strip.scrollLeft / (strip.clientWidth || 1)) + (+a.dataset.sarr));
+}, true);
+// Perbesar foto galeri lalu geser di layar penuh
+let lbIdx = 0;
+function bukaLbox(i){
+  lbIdx = i;
+  const pp = current(), dl = $('#lbox'); if (!pp || !dl) return;
+  $('#lbWrap').innerHTML = stripHTML(pp.gal, pp.name, 'lbStrip').replace(/ loading="lazy"/g, '');
+  try { dl.showModal(); } catch (x) { return; }
+  const st = $('#lbStrip'); st.style.scrollBehavior = 'auto';
+  requestAnimationFrame(() => { st.scrollLeft = i * st.clientWidth; st.style.scrollBehavior = ''; sinkronStrip(st); });
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-lb-open]') || e.target.closest('#galStrip img')){
+    const g = $('#galStrip'); bukaLbox(g ? Math.round(g.scrollLeft / (g.clientWidth || 1)) : 0); return;
+  }
+  if (e.target.closest('[data-lb-close]')) { $('#lbox').close(); return; }
+  if (e.target.id === 'lbox' || e.target.classList.contains('lb-wrap')) $('#lbox').close();
+});
+document.addEventListener('keydown', e => {
+  const dl = $('#lbox'); if (!dl || !dl.open) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft'){ const st = $('#lbStrip'); geserStrip(st, Math.round(st.scrollLeft / (st.clientWidth || 1)) + (e.key === 'ArrowRight' ? 1 : -1)); e.preventDefault(); }
+});
+document.addEventListener('close', e => { if (e.target.id !== 'lbox') return;
+  const g = $('#galStrip'); if (g) geserStrip(g, lbIdx); $('#lbWrap').innerHTML = ''; }, true);
+document.addEventListener('keydown', e => { const a = e.target.closest && e.target.closest('[data-sarr]'); if (a && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); a.click(); } });
 function cardHTML(p){
   const inst = annuity(sale(p), CONFIG.rate, 25);
   return `<a class="pcard" href="#${p.id}">
-    <span class="art"><img class="cimg" src="/flashsale/assets/${p.img}.jpg" width="1280" height="712" alt="Fasad Bio District ${p.name}" loading="lazy"><span class="cname">${p.name}</span><span class="tag"><svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7z" fill="currentColor"/></svg>Flash sale</span><span class="off">-${offPct(p)}%</span><span class="fbar"><span class="fclock num">${fclockText()}</span></span></span>
+    <span class="art">${stripHTML(fotoKartu(p), 'Bio District ' + p.name)}<span class="cname">${p.name}</span><span class="tag"><svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7z" fill="currentColor"/></svg>Flash sale</span><span class="off">-${offPct(p)}%</span><span class="fbar"><span class="fclock num">${fclockText()}</span></span></span>
     <span class="pbody">
       <h3>${p.name} <span class="spec">· ${p.sub}</span></h3>
       <span class="spec">${p.priceMax ? `LB ${p.lb} m² · LT ${ltRange(p)} m²` : `LB ${p.lb} m² · LT ${p.lt} m² · ${p.dim}`}</span>
@@ -729,7 +841,7 @@ function cardHTML(p){
       <span class="prow"><span class="price num">${p.priceMax ? 'Mulai ' : ''}${rpShort(sale(p))}</span><s class="was num">${rpShort(p.list)}</s></span>
       <span class="wasnote">Dengan paket Diskon Harga · harga coret termasuk PPN</span>
       <span class="inst num">Angsuran mulai ${rpShort(inst)}/bln</span>
-      <span class="giftline">Pilih 1 dari ${PACKS[p.id].length} paket hadiah</span>
+      <span class="giftline">Pilih 1 dari ${new Set(PACKS[p.id].map(g => g.name.split(' · ')[0])).size} paket hadiah</span>
       ${quotaHTML(p)}
     </span></a>`;
 }
@@ -746,7 +858,7 @@ function homeHTML(){
         <h1>Saat yang Tepat Menentukan <em>Pilihan Anda di Bio District</em></h1>
         <p class="hsub">Pilih sendiri rumahnya, pilih sendiri hadiahnya</p>
         <p><span class="camp">Resort Living, Grand Rewards</span> · ${ph==='before'?'Pelajari produknya sekarang supaya siap saat promo dibuka.':ph==='live'?'Promo sedang berlangsung. Amankan slot Anda sekarang.':'Hubungi tim kami untuk promo yang sedang berjalan.'}</p></div>
-      <div class="boom"><span><img class="bp" src="/flashsale/assets/g-uang.jpg" width="300" height="200" alt="Gepokan uang Rp100 ribuan"><span><b class="big">Diskon s.d. Rp${maxDisk/1e6} juta</b></span></span><span><img class="bp" src="/flashsale/assets/g-chery.jpg" width="300" height="200" alt="Chery J6, hadiah mobil dengan nilai tertinggi"><span><b>Hadiah langsung</b>tanpa diundi</span></span><span><i class="bi"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h16M8 28h16M10 4v5c0 3 6 5 6 7s-6 4-6 7v5M22 4v5c0 3-6 5-6 7s6 4 6 7v5"/><path d="M12.5 25.5h7" stroke-width="3"/></svg></i><span><b>Kuota terbatas</b></span></span></div>
+      <div class="boom"><span><img class="bp" src="/flashsale/assets/g-uang.jpg" width="300" height="200" alt="Gepokan uang Rp100 ribuan"><span><b class="big">Diskon s.d. Rp${maxDisk/1e6} juta</b></span></span><span><img class="bp" src="/flashsale/assets/g-lepas.jpg" width="300" height="200" alt="Lepas E6 EV, hadiah mobil dengan nilai tertinggi"><span><b>Hadiah langsung</b>tanpa diundi</span></span><span><i class="bi"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h16M8 28h16M10 4v5c0 3 6 5 6 7s-6 4-6 7v5M22 4v5c0 3-6 5-6 7s6 4 6 7v5"/><path d="M12.5 25.5h7" stroke-width="3"/></svg></i><span><b>Kuota terbatas</b></span></span></div>
     </div></section>
     <div class="wrap">
       <div class="slider" id="slider" aria-roledescription="carousel" aria-label="Foto fasilitas Bio District">
@@ -814,37 +926,74 @@ function gateHTML(){
 /* ---------- halaman produk ---------- */
 const rateOf = s => (typeof s.rate === 'number' ? s.rate : CONFIG.rate);
 const rateStr = r => String(r).replace('.', ',');
-const MODES = [['keras','Cash keras'],['kpr','KPR'],['bertahap','Cash bertahap']];
-const TAHAP = [12,24,36,48,60];
+const MODES = [['keras','Cash keras'],['kpr','KPR'],['smart','Bio Smart'],['bertahap','Cash bertahap']];
+const TAHAP = [12,24,36,60,120,180];
+const tahapLbl = m => m < 60 || m % 12 ? m + ' bulan' : m === 60 ? '60 bulan' : m/12 + ' tahun';
+const tahapPendek = m => m < 60 || m % 12 ? m + ' bln' : m === 60 ? '60 bln' : m/12 + ' th';
 const modeOf = s => s.mode || 'kpr';
-const monthsOf = s => s.months || 12;
+// 12 bulan tanpa bunga hanya untuk paket hadiah non-diskon (Paket 1–3)
+const tahapList = p => packOf(p, selOf(p).gift).diskon ? TAHAP.filter(m => m !== 12) : TAHAP;
+const monthsOf = (s, p) => { const l = tahapList(p); return l.includes(s.months) ? s.months : (l.includes(12) ? 12 : l[0]); };
 const modeName = s => MODES.find(m => m[0] === modeOf(s))[1];
-const tahapPay = (sisa, n) => annuity(sisa, CONFIG.tahapRate, n/12);
+// net = harga transaksi; booking fee dihitung sebagai bagian dari pembayaran pertama
+function tahapHitung(net, n){
+  const r = CONFIG.tahap[n] || 0;
+  if (n < CONFIG.tahapDpMulai) return {dp: 0, dp1: 0, sisa: net, nCicil: n, pay: annuity(net, r, n/12)};
+  const dp = net * CONFIG.tahapDp/100, sisa = net - dp, nCicil = n - CONFIG.tahapDpKali;
+  return {dp, dp1: dp / CONFIG.tahapDpKali, sisa, nCicil, pay: annuity(sisa, r, nCicil/12) + sisa * CONFIG.asuransi/1200};
+}
+// Bio Smart: DP 10% dicicil 3× (bulan 1–3), cicilan tanpa bunga 12× (bulan 4–15), sisa dilunasi KPR bank (bulan ke-16)
+function smartHitung(net){
+  const dp = net * CONFIG.smartDp/100, dp1 = dp / 3, cicil = net * CONFIG.smartPersen/100, masuk = dp + cicil * CONFIG.smartKali;
+  return {dp, dp1, cicil, masuk, sisa: net - masuk, bulanKpr: 3 + CONFIG.smartKali + 1};
+}
+// Bulan ke berapa uang masuk mencapai CONFIG.hadiahPersen dari harga transaksi (dihitung sejak booking)
+function bulanHadiah(c){
+  const {mode, net, s, t, sm} = c, batas = net * CONFIG.hadiahPersen/100, BF = CONFIG.bookingFee;
+  let arus;
+  if (mode === 'keras') return {bulan: 1, teks: `setelah uang masuk ${CONFIG.hadiahPersen}%, tercapai saat pelunasan (± bulan ke-1)`};
+  if (mode === 'kpr') return s.dp >= CONFIG.hadiahPersen ? {bulan: 1, teks: `setelah uang masuk ${CONFIG.hadiahPersen}%, tercapai saat DP ${s.dp}% lunas (± bulan ke-1)`} : {bulan: 2, teks: `setelah uang masuk ${CONFIG.hadiahPersen}%, tercapai saat akad & dana KPR cair (± bulan ke-1–3)`};
+  if (mode === 'smart') arus = [[0, BF], [1, sm.dp1 - BF], [2, sm.dp1], [3, sm.dp1], ...Array.from({length: CONFIG.smartKali}, (_, i) => [4 + i, sm.cicil])];
+  else if (t.dp) arus = [[0, BF], [1, t.dp1 - BF], [2, t.dp1], [3, t.dp1], ...Array.from({length: t.nCicil}, (_, i) => [4 + i, t.pay])];
+  else arus = [[0, BF], ...Array.from({length: c.n}, (_, i) => [1 + i, i ? t.pay : t.pay - BF])];
+  let cum = 0; for (const [b, x] of arus){ cum += x; if (cum >= batas - 1) return {bulan: b, teks: `setelah uang masuk ${CONFIG.hadiahPersen}% (± bulan ke-${b})`}; }
+  return {bulan: null, teks: `setelah uang masuk ${CONFIG.hadiahPersen}%`};
+}
+const adaBarang = g => !g.diskon;   // paket diskon harga tidak punya hadiah barang
 function simCalc(p){
-  const s = selOf(p), g = packOf(p, s.gift), mode = modeOf(s), net = s.price - (g.diskon || 0);
-  const dp = mode === 'keras' ? 0 : net * s.dp/100, sisa = net - dp, n = monthsOf(s);
-  const pay = mode === 'kpr' ? annuity(sisa, rateOf(s), s.years) : mode === 'bertahap' ? tahapPay(sisa, n) : 0;
-  const text = mode === 'kpr' ? `DP ${s.dp}% · ${s.years} th · bunga ${rateStr(rateOf(s))}% · ${rp(pay)}/bln`
-    : mode === 'bertahap' ? `DP ${s.dp}% · cicilan ${n} bulan · ${rp(pay)}/bln`
-    : `Pelunasan ${rp(net - CONFIG.bookingFee)}`;
-  return {s, g, mode, net, dp, sisa, n, pay, text};
+  const s = selOf(p), g = packOf(p, s.gift), mode = modeOf(s), net = s.price - (g.diskon || 0), n = monthsOf(s, p);
+  const t = mode === 'bertahap' ? tahapHitung(net, n) : null, sm = mode === 'smart' ? smartHitung(net) : null;
+  const dp = mode === 'keras' ? 0 : t ? t.dp : sm ? sm.masuk : net * s.dp/100, sisa = net - dp;
+  const pay = mode === 'kpr' || sm ? annuity(sisa, rateOf(s), s.years) : t ? t.pay : 0;
+  const dpPct = net ? Math.round(dp / net * 100) : 0;
+  const c = {s, g, mode, net, dp, dpPct, sisa, n, pay, t, sm};
+  c.hadiah = adaBarang(g) ? bulanHadiah(c) : null;
+  const hd = c.hadiah ? ` · hadiah ${c.hadiah.bulan ? '±bln ' + c.hadiah.bulan : 'stl ' + CONFIG.hadiahPersen + '%'}` : '';
+  c.text = (mode === 'kpr' ? `DP ${s.dp}% · ${s.years} th · bunga ${rateStr(rateOf(s))}% · ${rp(pay)}/bln`
+    : sm ? `Bio Smart · DP ${CONFIG.smartDp}% 3 × ${rp(sm.dp1)}, cicilan 12 × ${rp(sm.cicil)}, sisa ${rp(sm.sisa)} KPR bln ke-${sm.bulanKpr}`
+    : t ? (t.dp ? `Bio Easy ${n}× · DP ${CONFIG.tahapDp}% ${CONFIG.tahapDpKali} × ${rp(t.dp1)}, lalu ${t.nCicil} × ${rp(pay)}/bln` : `Cash bertahap ${n}× tanpa DP · ${rp(pay)}/bln`)
+    : `Pelunasan ${rp(net - CONFIG.bookingFee)}`) + hd;
+  return c;
 }
 function simCtlHTML(p){
   const s = selOf(p), mode = modeOf(s);
   const opt = (arr, cur, suf) => arr.map(v => `<option value="${v}" ${v===cur?'selected':''}>${v}${suf}</option>`).join('');
   if (mode === 'keras') return '';
-  if (mode === 'bertahap') return `<div class="field"><label for="simDp">DP</label><select id="simDp">${opt([0,10,20,30], s.dp, '%')}</select></div>
-    <div class="field"><label for="simMonths">Lama cicilan</label><select id="simMonths">${opt(TAHAP, monthsOf(s), ' bulan')}</select></div>`;
+  if (mode === 'smart') return `<div class="field"><label for="simYears">Tenor KPR (bulan ke-${3 + CONFIG.smartKali + 1})</label><select id="simYears">${opt([5,10,15,20,25], s.years, ' tahun')}</select></div>
+    <div class="field"><label for="simRate">Bunga KPR % per tahun*</label><input id="simRate" inputmode="decimal" autocomplete="off" value="${rateStr(rateOf(s))}" aria-describedby="simDisc"></div>`;
+  if (mode === 'bertahap') return `<div class="field"><label for="simMonths">Lama cicilan</label><select id="simMonths">${tahapList(p).map(v => `<option value="${v}" ${v===monthsOf(s, p)?'selected':''}>${tahapLbl(v)}${v < CONFIG.tahapDpMulai ? ' · tanpa DP' : ' · DP ' + CONFIG.tahapDp + '% dicicil ' + CONFIG.tahapDpKali + '×'}</option>`).join('')}</select></div>`;
   return `<div class="field"><label for="simDp">DP</label><select id="simDp">${opt([0,10,20,30], s.dp, '%')}</select></div>
     <div class="field"><label for="simYears">Tenor</label><select id="simYears">${opt([5,10,15,20,25], s.years, ' tahun')}</select></div>
     <div class="field"><label for="simRate">Bunga % per tahun*</label><input id="simRate" inputmode="decimal" autocomplete="off" value="${rateStr(rateOf(s))}" aria-describedby="simDisc"></div>`;
 }
-const SIMLBL = {keras:'', kpr:'Atur DP, tenor, dan bunga', bertahap:'Atur DP dan lama cicilan'};
+const SIMLBL = {keras:'', kpr:'Atur DP, tenor, dan bunga', smart:'Atur tenor dan bunga KPR untuk sisa harga', bertahap:'Pilih lama cicilan'};
+const HADIAH_TX = () => `Hadiah barang (mobil, motor, AC) diserahkan setelah pembayaran mencapai ${CONFIG.hadiahPersen}% dari harga transaksi, untuk semua cara bayar.`;
 function simDiscHTML(p){
   const mode = modeOf(selOf(p));
-  if (mode === 'kpr') return `<b>*Disclaimer:</b> angsuran dan suku bunga di atas hanya estimasi dan tidak mengikat. Perhitungan dapat berbeda dengan perhitungan bank, dan suku bunga dapat berubah sewaktu-waktu sebelum akad kredit. Persetujuan, plafon, bunga, dan angsuran yang berlaku sepenuhnya mengikuti ketentuan bank pemberi KPR. Bunga awal ${rateStr(CONFIG.rate)}% mengikuti ilustrasi price list dan bisa Anda ubah.`;
-  if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan.`;
-  return `<b>*Disclaimer:</b> nilai pelunasan di atas hanya estimasi dan tidak mengikat. Jadwal pelunasan dan ketentuan cash keras mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan.`;
+  if (mode === 'kpr') return `<b>*Disclaimer:</b> angsuran dan suku bunga di atas hanya estimasi dan tidak mengikat. Perhitungan dapat berbeda dengan perhitungan bank, dan suku bunga dapat berubah sewaktu-waktu sebelum akad kredit. Persetujuan, plafon, bunga, dan angsuran yang berlaku sepenuhnya mengikuti ketentuan bank pemberi KPR. Bunga awal ${rateStr(CONFIG.rate)}% mengikuti ilustrasi price list dan bisa Anda ubah. ${HADIAH_TX()}`;
+  if (mode === 'smart') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Bio Smart: DP ${CONFIG.smartDp}% dicicil 3×, lalu cicilan ke Bio District ${CONFIG.smartKali}× tanpa bunga; sisa harga dilunasi lewat KPR bank pada bulan ke-${3 + CONFIG.smartKali + 1}, dengan persetujuan, plafon, dan bunga mengikuti ketentuan bank. Booking fee dihitung sebagai bagian dari pembayaran pertama. ${HADIAH_TX()}`;
+  if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Cicilan 12–36 bulan dibayar rata tanpa DP; cicilan 12 bulan tanpa tambahan biaya hanya berlaku untuk paket hadiah selain Diskon Harga. Cicilan 60 bulan–15 tahun (Bio Easy) diawali DP ${CONFIG.tahapDp}% yang dicicil ${CONFIG.tahapDpKali}× dan sudah termasuk dalam lama cicilan, serta sudah termasuk asuransi jiwa kredit. Booking fee dihitung sebagai bagian dari pembayaran pertama. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
+  return `<b>*Disclaimer:</b> nilai pelunasan di atas hanya estimasi dan tidak mengikat. Jadwal pelunasan dan ketentuan cash keras mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
 }
 function modesHTML(p){
   const m = modeOf(selOf(p));
@@ -859,29 +1008,38 @@ function refreshSim(p){
   $('#simCtl').dataset.m = m;
   $('#simOut').innerHTML = simHTML(p);
   $('#simDisc').innerHTML = simDiscHTML(p);
+  const dp = $('#dPrice'); if (dp) dp.innerHTML = hargaPaketHTML(p);
 }
 function simHTML(p){
-  const {s, g, mode, net, dp, sisa, n, pay} = simCalc(p);
-  const dpW = Math.min(100, Math.max(0, s.dp));
+  const {s, g, mode, net, dp, dpPct, sisa, n, pay, t, sm, hadiah} = simCalc(p);
+  const dpW = Math.min(100, Math.max(0, dpPct));
   const head = mode === 'kpr' ? `<div class="simlbl">Estimasi angsuran KPR per bulan*</div>
       <div class="big num">${rp(pay)}</div>
       <div class="simsub num">Bunga ${rateStr(rateOf(s))}%* · tenor ${s.years} tahun · DP ${s.dp}%</div>`
+    : sm ? `<div class="simlbl">Estimasi cicilan ke Bio District per bulan*</div>
+      <div class="big num">${rp(sm.cicil)}</div>
+      <div class="simsub num">Bio Smart · bulan 4–${3 + CONFIG.smartKali}, setelah DP ${CONFIG.smartDp}% dicicil 3×; sisa lewat KPR bulan ke-${sm.bulanKpr}</div>`
     : mode === 'bertahap' ? `<div class="simlbl">Estimasi cicilan per bulan*</div>
       <div class="big num">${rp(pay)}</div>
-      <div class="simsub num">Cash bertahap ${n} bulan · DP ${s.dp}%</div>`
+      <div class="simsub num">${t.dp ? `Bio Easy ${tahapLbl(n)} · mulai bulan ke-${CONFIG.tahapDpKali + 1}, setelah DP ${CONFIG.tahapDp}% dicicil ${CONFIG.tahapDpKali}×` : `Cash bertahap ${tahapLbl(n)} · tanpa DP, cicilan rata`}</div>`
     : `<div class="simlbl">Estimasi pelunasan cash keras*</div>
       <div class="big num">${rp(net - CONFIG.bookingFee)}</div>
       <div class="simsub num">Harga transaksi dikurangi booking fee</div>`;
-  const bar = mode === 'keras' ? '' : `<div class="split" role="img" aria-label="DP ${s.dp} persen, sisa ${100 - s.dp} persen"><i class="sdp" style="width:${dpW}%"></i><i class="skpr" style="width:${100 - dpW}%"></i></div>
-    <div class="splitlbl num"><span><i class="dot sdp"></i>DP ${rp(dp)}</span><span><i class="dot skpr"></i>${mode === 'kpr' ? 'Plafon KPR' : 'Dicicil'} ${rp(sisa)}</span></div>`;
+  const bar = mode === 'keras' || (t && !t.dp) ? '' : `<div class="split" role="img" aria-label="${sm ? 'Dibayar ke Bio District' : 'DP'} ${dpPct} persen, sisa ${100 - dpPct} persen"><i class="sdp" style="width:${dpW}%"></i><i class="skpr" style="width:${100 - dpW}%"></i></div>
+    <div class="splitlbl num"><span><i class="dot sdp"></i>${sm ? 'DP + cicilan ke Bio District' : 'DP'} ${rp(dp)}</span><span><i class="dot skpr"></i>${mode === 'kpr' || sm ? 'Plafon KPR' : 'Dicicil'} ${rp(sisa)}</span></div>`;
   const extra = mode === 'kpr' ? `<dt>Biaya KPR, AJB, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>
     <dt>Gambaran penghasilan (angsuran 40%)</dt><dd>${rp(pay/0.4)}</dd>`
-    : `<dt>Biaya AJB, balik nama, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>` +
-      (mode === 'bertahap' ? `<dt>DP</dt><dd>${rp(dp)}</dd><dt>Cicilan</dt><dd>${n} × ${rp(pay)}</dd>` : `<dt>Pelunasan</dt><dd>${rp(net - CONFIG.bookingFee)}</dd>`);
-  const cmp = mode === 'kpr' ? `<div class="tenlbl">Bandingkan tenor (estimasi per bulan)</div>
+    : `<dt>Biaya ${sm ? 'KPR, ' : ''}AJB, balik nama, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>` +
+      (sm ? `<dt>DP ${CONFIG.smartDp}% (bulan 1–3)</dt><dd>3 × ${rp(sm.dp1)}</dd><dt>Cicilan tanpa bunga (bulan 4–${3 + CONFIG.smartKali})</dt><dd>${CONFIG.smartKali} × ${rp(sm.cicil)}</dd><dt>Sisa dilunasi KPR bank (bulan ke-${sm.bulanKpr})</dt><dd>${rp(sm.sisa)}</dd><dt>Estimasi angsuran KPR (${s.years} th, bunga ${rateStr(rateOf(s))}%)</dt><dd>${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(sm.dp1 - CONFIG.bookingFee)}</dd>`
+      : mode === 'bertahap' ? (t.dp
+        ? `<dt>DP ${CONFIG.tahapDp}% (bulan 1–${CONFIG.tahapDpKali})</dt><dd>${CONFIG.tahapDpKali} × ${rp(t.dp1)}</dd><dt>Cicilan (bulan ${CONFIG.tahapDpKali + 1}–${n})</dt><dd>${t.nCicil} × ${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(t.dp1 - CONFIG.bookingFee)}</dd>`
+        : `<dt>DP</dt><dd>Tanpa DP</dd><dt>Cicilan</dt><dd>${n} × ${rp(pay)}</dd><dt>Cicilan pertama (dipotong booking fee)</dt><dd>${rp(pay - CONFIG.bookingFee)}</dd>`)
+      : `<dt>Pelunasan</dt><dd>${rp(net - CONFIG.bookingFee)}</dd>`);
+  const hadiahRow = hadiah ? `<dt class="hl">Hadiah ${esc(g.item.split(' + ')[0])} diserahkan</dt><dd class="hl">${hadiah.teks}</dd>` : '';
+  const cmp = mode === 'kpr' || sm ? `<div class="tenlbl">${sm ? 'Bandingkan tenor KPR untuk sisa harga' : 'Bandingkan tenor'} (estimasi per bulan)</div>
     <div class="tenors">${[5,10,15,20,25].map(y => `<button type="button" class="ten" data-years="${y}" aria-pressed="${y === s.years}"><b>${y} th</b><span class="num">${rpShort(annuity(sisa, rateOf(s), y))}</span></button>`).join('')}</div>`
     : mode === 'bertahap' ? `<div class="tenlbl">Bandingkan lama cicilan (estimasi per bulan)</div>
-    <div class="tenors">${TAHAP.map(m => `<button type="button" class="ten" data-months="${m}" aria-pressed="${m === n}"><b>${m} bln</b><span class="num">${rpShort(tahapPay(sisa, m))}</span></button>`).join('')}</div>` : '<div style="height:10px"></div>';
+    <div class="tenors${tahapList(p).length > 5 ? ' t6' : ''}">${tahapList(p).map(m => `<button type="button" class="ten" data-months="${m}" aria-pressed="${m === n}"><b>${tahapPendek(m)}</b><span class="num">${rpShort(tahapHitung(net, m).pay)}</span></button>`).join('')}</div>` : '<div style="height:10px"></div>';
   return `<div class="simhead">${head}
       <div class="simest">*Estimasi, tidak mengikat</div>
     </div>${bar}
@@ -891,11 +1049,11 @@ function simHTML(p){
     <dt class="${g.diskon ? 'hl' : ''}">Paket hadiah</dt><dd class="${g.diskon ? 'hl' : ''}">${g.diskon ? 'Diskon harga − ' + rp(g.diskon) : g.name.replace(/^Paket \d+ · /, '')}</dd>
     <dt class="tot">Harga transaksi</dt><dd class="tot">${rp(net)}</dd>
     <dt>Booking fee</dt><dd>${rp(CONFIG.bookingFee)}</dd>
-    ${extra}</dl>
+    ${extra}${hadiahRow}</dl>
     ${cmp}`;
 }
-const GIFT_IMG = {a1:'aira',a2:'vespa',a3:'ac',b1:'jaecoo',b2:'aira',b3:'vespa',c1:'carens',c2:'byd',c3:'aira',k1:'chery',k2:'geely',k3:'byd'};
-const biayaTx = (t, s) => modeOf(s) === 'kpr' ? t : t.replace(/([Bb])iaya KPR, /g, '$1iaya ');
+const GIFT_IMG = {a1:'aira',a2:'vespa',a3:'ac',b1:'jaecoo',b2:'aira',b3:'vespa',c1:'carens',c2:'byd',c3:'aira',k1:'lepas',k2:'geely',k3:'byd'};
+const biayaTx = (t, s) => ['kpr', 'smart'].includes(modeOf(s)) ? t : t.replace(/([Bb])iaya KPR, /g, '$1iaya ');
 function giftsHTML(p){
   const s = selOf(p);
   return PACKS[p.id].map(g => `<button type="button" class="gift" role="radio" aria-checked="${s.gift===g.id}" data-gift="${g.id}">
@@ -917,6 +1075,17 @@ function ctaHTML(p){
     <button type="button" class="cta" data-act="buy">Ambil promo sekarang</button>
     <p class="terms" style="margin-top:10px">Booking fee ${rp(CONFIG.bookingFee)} dibayar dalam ${CONFIG.payMinutes} menit setelah pesanan dikirim. ${TERMS}</p>`;
 }
+// Harga flash sale di halaman tipe mengikuti paket hadiah yang dipilih = harga transaksi
+function hargaPaketHTML(p){
+  const s = selOf(p), su = UNITS.find(x => x.id === s.unit) || p, g = packOf(p, s.gift);
+  const harga = su.price - (g.diskon || 0), coret = su.list, off = coret > harga ? Math.round((coret - harga) / coret * 100) : 0;
+  const nama = g.name.replace(/^Paket (\d) · /, 'Paket $1 (') + ')';
+  const ket = g.diskon
+    ? `Harga dengan ${nama}: harga langsung dipotong ${rp(g.diskon)}.`
+    : `Harga dengan ${nama}: tanpa potongan harga, hadiah diberikan langsung.`;
+  return `<div class="prow big"><span class="d-price num">${rp(harga)}</span>${off ? `<s class="was num">${rp(coret)}</s><span class="off st">-${off}%</span>` : ''}</div>
+    <div class="wasnote">${ket} Harga ini sama dengan harga transaksi Anda dan berubah sesuai paket hadiah yang dipilih di bawah. Harga coret: harga normal termasuk PPN${s.unit ? ', untuk ' + s.unit : ''}.</div>`;
+}
 function detailHTML(p){
   const s = selOf(p);
   const units = openUnits(p.id), su = UNITS.find(x => x.id === s.unit) || p;
@@ -927,7 +1096,7 @@ function detailHTML(p){
     <a class="back" href="#beranda">← Semua produk</a>
     <div class="dhero">
         <div class="gal">
-          <figure class="galmain"><img id="galMain" src="/flashsale/assets/${p.gal[0][0]}.jpg" width="1280" height="712" alt="${p.gal[0][1]}"><figcaption id="galCap">${p.gal[0][1]}</figcaption></figure>
+          <figure class="galmain">${stripHTML(p.gal, p.name, 'galStrip')}<button type="button" class="zoombtn" data-lb-open aria-label="Perbesar foto"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 2h4v4M6 14H2v-4M14 2 9.5 6.5M2 14l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Perbesar</button><figcaption id="galCap">${p.gal[0][1]}</figcaption></figure>
           <div class="thumbs">${p.gal.map(([g, c], i) => `<button type="button" class="thumb" data-gal="${i}" aria-pressed="${i === 0}" aria-label="${c}"><img src="/flashsale/assets/${g}.jpg" width="1280" height="712" alt="" loading="lazy"></button>`).join('')}</div>
         </div>
       <div class="stack">
@@ -935,8 +1104,7 @@ function detailHTML(p){
           <h1 class="d-title">Bio District ${p.name}</h1>
           <div class="spec">${p.sub} · Serpong, Tangerang Selatan</div>
           <div class="flashline"><span class="tag st"><svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7 0 0 9h5l-1 7 8-10H7z" fill="currentColor"/></svg>Flash sale</span><span class="fclock num">${fclockText()}</span></div>
-          <div class="prow big"><span class="d-price num">${rp(sale(su))}</span><s class="was num">${rp(su.list)}</s><span class="off st">-${offPct(su)}%</span></div>
-          <div class="wasnote">Harga flash sale berlaku dengan Paket 4 (Diskon Harga). Dengan paket hadiah lain, harga transaksinya ${rp(su.price)}. Harga coret: harga normal termasuk PPN${s.unit ? ', untuk ' + s.unit : ''}.</div>
+          <div id="dPrice">${hargaPaketHTML(p)}</div>
           <div id="quotaD" style="max-width:300px;margin-top:10px">${quotaHTML(p)}</div>
         </div>
         <a class="jump" href="#" data-jump="pick">Pilih unit di siteplan dan simulasikan cara bayar ↓</a>
@@ -955,6 +1123,7 @@ function detailHTML(p){
           <div class="simgrid" id="simCtl" data-m="${modeOf(s)}" ${modeOf(s) === 'keras' ? 'hidden' : ''}>${simCtlHTML(p)}</div>
           <div class="sublbl">Pilih paket hadiah</div>
           <div class="gifts" role="radiogroup" aria-label="Paket hadiah" id="gifts">${giftsHTML(p)}</div>
+          <p class="note" style="margin:8px 18px 0">${HADIAH_TX()}</p>
           <div class="result" id="simOut">${simHTML(p)}</div>
           <p class="disc" id="simDisc">${simDiscHTML(p)}</p>
           <div id="cta">${ctaHTML(p)}</div>
@@ -1032,9 +1201,9 @@ function openOrder(p){
   });
 }
 function orderText(o){
-  return `Halo Bio District, saya ambil promo Flash Sale.\n\nKode: ${o.code}\nNama: ${o.nama}\nWhatsApp: ${o.wa}\nEmail: ${o.email||'-'}\nDomisili: ${o.dom}\nSales: ${o.kode || 'Tim Bio District'}\n\nProduk: Bio District ${o.product}\nUnit: ${o.unit||'-'}\nHarga: ${rp(o.price)}\nHadiah pilihan: ${o.gift}\nCara bayar: ${o.bayar}\nSimulasi (estimasi): ${o.sim || `DP ${o.dp}%, tenor ${o.years} tahun, ${rp(o.pay)}/bulan`}\n\nBooking fee ${rp(CONFIG.bookingFee)} sudah saya bayar. Mohon dicek dan info langkah berikutnya.`;
+  return `Halo Bio District, saya ambil promo Flash Sale.\n\nKode: ${o.code}\nNama: ${o.nama}\nWhatsApp: ${o.wa}\nEmail: ${o.email||'-'}\nDomisili: ${o.dom}\nSales: ${o.kode || 'Tim Bio District'}\n\nProduk: Bio District ${o.product}\nUnit: ${o.unit||'-'}\nHarga: ${rp(o.price)}\nHadiah pilihan: ${o.gift}\n${o.hadiah ? 'Penyerahan hadiah: ' + o.hadiah + '\n' : ''}Cara bayar: ${o.bayar}\nSimulasi (estimasi): ${o.sim || `DP ${o.dp}%, tenor ${o.years} tahun, ${rp(o.pay)}/bulan`}\n\nBooking fee ${rp(CONFIG.bookingFee)} sudah saya bayar. Mohon dicek dan info langkah berikutnya.`;
 }
-const TERMS = 'Ketentuan booking fee: booking fee yang sudah diterima dapat dikembalikan bila pembeli ditolak KPR oleh minimal 2 bank dan tidak lolos BI checking.';
+const TERMS = 'Ketentuan booking fee: booking fee yang sudah diterima dapat dikembalikan bila pembeli ditolak KPR oleh minimal 2 bank dan tidak lolos BI checking. Ketentuan hadiah: hadiah barang (mobil, motor, AC) diserahkan setelah pembayaran mencapai ' + CONFIG.hadiahPersen + '% dari harga transaksi; bila pemesanan batal setelah hadiah diterima, nilai hadiah diperhitungkan dari dana yang dikembalikan.';
 const mmss = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0'); };
 function qrSVG(){   // pola contoh, bukan QRIS yang bisa dibayar
   let r = '', seed = 7;
@@ -1212,7 +1381,7 @@ app.addEventListener('click', e => {
   const sb = e.target.closest('[data-slide],[data-dot]');
   if (sb){ goSlide(sb.dataset.dot != null ? +sb.dataset.dot : state.slide + (+sb.dataset.slide)); slidePause = Date.now() + 9000; return; }
   const gb = e.target.closest('[data-gal]');
-  if (gb){ const pp = current(); if (!pp) return; const it = pp.gal[+gb.dataset.gal]; const im = $('#galMain'); im.src = '/flashsale/assets/' + it[0] + '.jpg'; im.alt = it[1]; $('#galCap').textContent = it[1]; document.querySelectorAll('.thumb').forEach(t => t.setAttribute('aria-pressed', t === gb)); return; }
+  if (gb){ const st = $('#galStrip'); if (st) geserStrip(st, +gb.dataset.gal); return; }
   const tb = e.target.closest('[data-years]');
   if (tb){ const pp = current(); if (!pp) return; selOf(pp).years = +tb.dataset.years; const sy = $('#simYears'); if (sy) sy.value = tb.dataset.years; $('#simOut').innerHTML = simHTML(pp); return; }
   const jb = e.target.closest('[data-jump]');
@@ -1237,7 +1406,7 @@ app.addEventListener('click', e => {
   }
   const p = current(); if (!p) return;
   const g = e.target.closest('[data-gift]');
-  if (g && !g.disabled){ selOf(p).gift = g.dataset.gift; $('#gifts').innerHTML = giftsHTML(p); $('#simOut').innerHTML = simHTML(p); return; }
+  if (g && !g.disabled){ selOf(p).gift = g.dataset.gift; $('#gifts').innerHTML = giftsHTML(p); if (modeOf(selOf(p)) === 'bertahap') $('#simCtl').innerHTML = simCtlHTML(p); $('#simOut').innerHTML = simHTML(p); const dp = $('#dPrice'); if (dp) dp.innerHTML = hargaPaketHTML(p); return; }
   const a = e.target.closest('[data-act]'); if (!a) return;
   if (a.dataset.act === 'buy') return openOrder(p);
   const s = selOf(p), gift = packOf(p, s.gift);

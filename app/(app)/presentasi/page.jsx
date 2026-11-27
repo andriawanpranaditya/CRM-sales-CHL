@@ -846,30 +846,77 @@ function slideProyek(P, dari) {
       const STD = PG.tipe.map(t => { const h = t.tipe.slice(-1); const [nm, by] = NT.hadiah[h] || ['—', 0]; return { label: `${t.tipe} ${h === 'A' ? '' : 'Standar'}`.trim(), hadiahNama: nm, ...nettOf(t.allIn, by, t.smart, t.easy) }; });
       const terjualSet = new Set(rows.filter(r => r.status !== 'Batal').map(r => r.unit));
       const [byNm, byBiaya] = NT.hadiah.corner;
-      const COR = Object.entries(BIO_IRREG).filter(([, v]) => /hoek/i.test(v.sub || '') && v.allin).map(([unit, v]) => {
-        const t = PG.tipe.find(x => x.tipe.endsWith(v.tipe)) || PG.tipe[1];
-        return { unit, tipe: v.tipe, lt: v.lt, terjual: terjualSet.has(unit), ...nettOf(v.allin, byBiaya, t.smart, t.easy) }; });
-      const avail = COR.filter(x => !x.terjual);
       const sub = x => <span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{x}</span>;
+      // 8.6 — hitungan memakai paket hadiah program flash sale (dasar harga standar price list)
+      const FS = PG.flash, n15 = s15.tahun * 12 - PG.dpKali;
+      const FSR = PG.tipe.flatMap(t => { const h = t.tipe.slice(-1), biayaAll = t.allIn - t.harga;
+        return (FS.paket[h] || []).map(([nm, nilai, bb, as, disk], i) => {
+          const tx = t.harga - disk, biayaDev = bb ? biayaAll : 0, asur = as ? FS.asuransi * t.harga : 0;
+          const dasar = tx - nilai - biayaDev - asur; // nett cash keras / KPR
+          const P = tx * (1 - PG.dp), bunga = pmt(P, s15.bunga, n15) * n15 - P, easy = dasar + bunga - PG.biayaDana * P / 2 * n15 / 12;
+          const cash = PG.cash.map(o => (o.bunga === 0 && disk) ? null : dasar + (pmt(tx, o.bunga, o.kali) * o.kali - tx) - tx / 2 * PG.biayaDana * o.kali / 12);
+          const sS = P - tx * FS.smartPersen * PG.smartKali, smart = dasar - PG.biayaDana * (P + sS) / 2 * PG.smartKali / 12; // Bio Smart tanpa bunga: biaya dana selama 12 bulan
+          return { key: h + i, smart, tipe: t.tipe, harga: t.harga, paket: i + 1, nm, tx, budget: nilai + biayaDev + asur + disk, biayaDev, asur, dasar, easy, bunga, cash, awal: i === 0 }; }); });
+      const pc0 = x => (x * 100).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%';
+      const terbaik = PG.tipe.map(t => { const r = FSR.filter(x => x.tipe === t.tipe); const hi = r.reduce((a, b) => b.dasar > a.dasar ? b : a), lo = r.reduce((a, b) => b.dasar < a.dasar ? b : a); return `${t.tipe.replace('Tipe ', '')}: P${hi.paket} ${M2(hi.dasar)} / P${lo.paket} ${M2(lo.dasar)}`; }).join(' · ');
+      const tabelFS = rows => <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '8%' }} /><col style={{ width: '22%' }} /><col style={{ width: '8%' }} /><col style={{ width: '11%' }} /><col style={{ width: '9%' }} /><col style={{ width: '9%' }} /><col style={{ width: '10%' }} /><col /></colgroup>
+          <thead><tr><th>Tipe</th><th>Paket hadiah flash sale</th><th>Harga transaksi</th><th>Budget paket</th><th>Nett cash keras / KPR</th><th>Nett Bio Smart<span className="pz-th2">stl biaya dana 12 bln</span></th><th>Nett Bio Easy {s15.tahun} thn<span className="pz-th2">+ bunga, stl biaya dana</span></th><th>Nett cash {PG.cash.map(o => o.kali + '×').join(' / ')}<span className="pz-th2">stl biaya dana; 24× / 36× + bunga</span></th></tr></thead>
+          <tbody>{rows.map(x => <tr key={x.key} style={x.awal ? { borderTop: '2px solid #CDBF9F' } : undefined}>
+            {x.awal ? <td rowSpan={4} className="kiri" style={{ verticalAlign: 'top' }}><b style={{ color: G }}>{x.tipe}</b><span style={{ display: 'block', fontSize: 10, color: '#7a7466' }}>harga {M2(x.harga)}</span></td> : null}
+            <td className="kiri">P{x.paket} · {x.nm}</td><td>{M2(x.tx)}</td><td>{jt(x.budget)} <span style={{ fontSize: 9.5, color: '#7a7466' }}>· {pc0(x.budget / x.harga)}</span></td>
+            <td><b>{M2(x.dasar)}</b></td><td>{M2(x.smart)}</td><td className="sorot"><b>{M2(x.easy)}</b></td>
+            <td>{x.cash.map((v, i) => <span key={i}>{i ? ' / ' : ''}{v == null ? '—' : <b>{M2(v)}</b>}</span>)}</td></tr>)}</tbody></table>;
+      const notaFS = <div className="pz-sub" style={{ fontSize: 9.5 }}>Nett = harga transaksi − hadiah − biaya yang ditanggung Bio (bebas biaya = harga all in − harga standar: AJB, BPHTB, balik nama, biaya KPR) − asuransi jiwa paket 3 ({pc0(FS.asuransi)} harga). Hadiah memakai harga OTR Jakarta Nov 2026. Bio Easy: DP {DPp} dicicil {PG.dpKali}× di dalam tenor, bunga {pr1(s15.bunga)}, asuransi dibayar konsumen lewat cicilan. Bio Smart: DP {DPp} 3× + cicilan {PG.smartKali}× tanpa bunga ({pc0(FS.smartPersen)} harga/bln), sisa lewat KPR. Biaya dana {pr1(PG.biayaDana)}/thn. Cash 12× tanpa bunga tidak berlaku untuk Paket 4. Unit corner: slide berikutnya.</div>;
+      const tipeFS = [...new Set(FSR.map(x => x.tipe))], bagi1 = tipeFS.slice(0, 2), bagi2 = tipeFS.slice(2);
       out.push({ judul: 'Harga nett per tipe', isi: prog('8.6', <>
-        <h2><T k={KT('prog.nett.judul')}>Harga nett yang diterima developer — unit standar per tipe, setelah hadiah, AJB + BPHTB dan asuransi; Bio Easy ditambah pendapatan bunga</T></h2>
-        <table className="pz-tb s cmp"><colgroup><col style={{ width: '17%' }} /><col style={{ width: '11%' }} /><col style={{ width: '10%' }} /><col style={{ width: '18%' }} /><col style={{ width: '22%' }} /><col /></colgroup>
-          <thead><tr><th>Tipe standar · hadiah</th><th>Harga all in</th><th>AJB + BPHTB</th><th>Nett Bio Smart</th><th>Nett Bio Easy ({s15.tahun} thn)</th><th>Nett cash {PG.cash.map(o => o.kali + '×').join(' / ')}</th></tr></thead>
-          <tbody>{STD.map(x => <tr key={x.label}><td>{x.label}{sub(`${x.hadiahNama} ${jt(x.biayaHadiah)}`)}</td><td>{M2(x.harga)}</td><td>{jt(x.ajbBphtb)}</td>
-            <td><b>{M2(x.smart)}</b>{sub(`stl biaya dana ${M2(x.smartDana)}`)}</td>
-            <td className="sorot"><b>{M2(x.stay)}</b>{sub(`+ bunga ${M2(x.bunga)} · stl biaya dana ${M2(x.stayDana)}`)}</td>
-            <td>{PG.cash.map((o, i) => <span key={o.kali}>{i ? ' / ' : ''}<b>{M2(x['cash' + o.kali])}</b></span>)}{sub('setelah biaya dana; 24× / 36× + bunga')}</td></tr>)}</tbody></table>
-        <div className="pz-row"><div className="pz-ins" style={{ flex: 1, fontSize: 12.8 }}><T k={KT('prog.nett.c1')}>Bio Smart: developer menerima harga penuh saat KPR mengambil alih; biaya tambahannya hanya asuransi selama masa cicilan, plus biaya dana 1 tahun bila piutang ditalangi pinjaman.</T></div>
-          <div className="pz-ins" style={{ flex: 1, fontSize: 12.8 }}><T k={KT('prog.nett.c2')}>{`Bio Easy: pendapatan bunga ${s15.tahun} tahun (nominal) ${M2(Math.min(...STD.map(x => x.bunga)))}–${M2(Math.max(...STD.map(x => x.bunga)))} per unit standar. Setelah biaya dana pun nett-nya di atas harga all in (${STD[0].label} ${M2(STD[0].stayDana)} vs ${M2(STD[0].harga)}) — diterima bertahap selama ${s15.tahun} tahun.`}</T></div></div>
-        {avail.length > 0 && <div className="pz-ins" style={{ fontSize: 12.8 }}><T k={KT('prog.nett.c3')}>{`Unit corner (${avail.length} unit tersedia, hadiah ${byNm}) dihitung per unit dengan harga Price List masing-masing — nett Bio Smart ${M2(Math.min(...avail.map(x => x.smart)))}–${M2(Math.max(...avail.map(x => x.smart)))}; rincian di slide berikutnya.`}</T></div>}
-        <div className="pz-sub" style={{ fontSize: 10.5 }}>BPHTB {pr1(NT.bphtb)} × (harga − {jt(NT.npoptkp)}) · AJB ±{pr1(NT.ajb)} · asuransi {pr1(PG.asuransi)}/thn · biaya dana {pr1(PG.biayaDana)}/thn · bunga Bio Easy {pr1(s15.bunga)} · PPN tidak dikurangkan</div></>) });
+        <h2><T k={KT('prog.nettfs.judul')}>Harga nett yang diterima developer dengan paket hadiah flash sale — unit standar, dasar harga standar price list</T></h2>
+        {tabelFS(FSR.filter(x => bagi1.includes(x.tipe)))}
+        {notaFS}</>) });
+      if (bagi2.length) out.push({ judul: 'Harga nett per tipe (lanjutan)', isi: prog('8.6.1', <>
+        <h2><T k={KT('prog.nettfs.judul2')}>{`Harga nett dengan paket hadiah flash sale — ${bagi2.join(', ')} dan ringkasan`}</T></h2>
+        {tabelFS(FSR.filter(x => bagi2.includes(x.tipe)))}
+        <div className="pz-row"><div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.nettfs.c1')}>{`Nett cash keras / KPR tertinggi vs terendah per tipe — ${terbaik}. Budget paket ${pc0(Math.min(...FSR.map(x => x.budget / x.harga)))}–${pc0(Math.max(...FSR.map(x => x.budget / x.harga)))} dari harga standar.`}</T></div>
+          <div className="pz-ins" style={{ flex: 1, fontSize: 12.5 }}><T k={KT('prog.nettfs.c2')}>{`Bio Easy ${s15.tahun} tahun: pendapatan bunga ${M2(Math.min(...FSR.map(x => x.bunga)))}–${M2(Math.max(...FSR.map(x => x.bunga)))} per unit menutup hadiah — nett setelah biaya dana di atas harga standar, tetapi diterima bertahap selama ${s15.tahun} tahun.`}</T></div></div>
+        {notaFS}</>) });
+      // 8.6.2 — unit corner dengan paket hadiah flash sale corner (dasar harga standar per unit)
+      const paketFS = (harga, allIn, paket) => paket.map(([nm, nilai, bb, as, disk, lbl], i) => {
+        const tx = harga - disk, dasar = tx - nilai - (bb ? allIn - harga : 0) - (as ? FS.asuransi * harga : 0);
+        const P = tx * (1 - PG.dp), bunga = pmt(P, s15.bunga, n15) * n15 - P;
+        return { paket: i + 1, lbl: lbl || 'P' + (i + 1), nm, nilai, tx, dasar, easy: dasar + bunga - PG.biayaDana * P / 2 * n15 / 12 }; });
+      const PK = FS.paket.corner || [];
+      const COR = Object.entries(BIO_IRREG).filter(([, v]) => /hoek/i.test(v.sub || '') && v.allin && v.standar).map(([unit, v]) => ({ unit, tipe: v.tipe, lt: v.lt, harga: v.standar, terjual: terjualSet.has(unit), pk: paketFS(v.standar, v.allin, PK) }));
+      const avail = COR.filter(x => !x.terjual);
       if (COR.length) out.push({ judul: 'Harga nett corner per unit', isi: prog('8.6.2', <>
-        <h2><T k={KT('prog.nettc.judul')}>{`Harga nett unit corner per unit — harga Price List masing-masing, hadiah ${byNm} (${jt(byBiaya)})`}</T></h2>
-        <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '16%' }} /><col style={{ width: '10%' }} /><col style={{ width: '9%' }} /><col style={{ width: '12%' }} /><col style={{ width: '11%' }} /><col style={{ width: '13%' }} /><col style={{ width: '15%' }} /><col /></colgroup>
-          <thead><tr><th>Unit corner</th><th>Tipe · LT</th><th>Status</th><th>Harga all in</th><th>AJB + BPHTB</th><th>Nett Bio Smart</th><th>Nett Bio Easy (+bunga)</th><th>Bio Easy stl biaya dana</th></tr></thead>
-          <tbody>{COR.map(x => <tr key={x.unit} style={x.terjual ? { opacity: .55 } : undefined}><td>{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.terjual ? R : G, fontWeight: 700 }}>{x.terjual ? 'Terjual' : 'Tersedia'}</td>
-            <td>{M2(x.harga)}</td><td>{jt(x.ajbBphtb)}</td><td><b>{M2(x.smart)}</b></td><td className="sorot"><b>{M2(x.stay)}</b></td><td className="sorot">{M2(x.stayDana)}</td></tr>)}</tbody></table>
-        <div className="pz-sub" style={{ fontSize: 10.5 }}>Nett = harga all in − hadiah {byNm} − AJB + BPHTB − asuransi jiwa kredit. Bio Easy ditambah pendapatan bunga {pr1(s15.bunga)} selama {s15.tahun} tahun (nominal). Status unit dari transaksi CRM; cicilan Bio Smart corner memakai cicilan per tipe.</div></>) });
+        <h2><T k={KT('prog.nettcfs.judul')}>{`Harga nett unit corner dengan paket hadiah flash sale — harga standar masing-masing unit`}</T></h2>
+        <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '13%' }} /><col style={{ width: '8%' }} /><col style={{ width: '7%' }} /><col style={{ width: '9%' }} />{PK.map((_, i) => <col key={i} style={{ width: (45 / PK.length) + '%' }} />)}<col /></colgroup>
+          <thead><tr><th>Unit corner</th><th>Tipe · LT</th><th>Status</th><th>Harga standar</th>{PK.map(([nm, nilai, , , disk, lbl], i) => <th key={i}>Nett {(lbl || 'P' + (i + 1)).replace(' alt', '')}<span className="pz-th2">{disk ? `diskon ${jt(disk)}` : nm.split(' + ')[0]}</span></th>)}<th>Nett Bio Easy {s15.tahun} thn<span className="pz-th2">P4 – P1, stl biaya dana</span></th></tr></thead>
+          <tbody>{COR.map(x => { const lo = Math.min(...x.pk.map(p => p.dasar)); return <tr key={x.unit} style={x.terjual ? { opacity: .5 } : undefined}><td className="kiri">{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.terjual ? R : G, fontWeight: 700 }}>{x.terjual ? 'Terjual' : 'Tersedia'}</td>
+            <td>{M2(x.harga)}</td>{x.pk.map(p => <td key={p.paket} style={p.dasar === lo ? { color: R } : undefined}><b>{M2(p.dasar)}</b></td>)}<td className="sorot">{M2(Math.min(...x.pk.map(p => p.easy)))} – {M2(Math.max(...x.pk.map(p => p.easy)))}</td></tr>; })}</tbody></table>
+        <div className="pz-sub" style={{ fontSize: 10 }}>Nett cash/KPR = harga transaksi − hadiah − bebas biaya (all in − standar) − asuransi P3 ({pc0(FS.asuransi)}). Merah = nett terendah. Hadiah: {PK.map(([nm, nilai, , , , lbl], i) => nilai ? `${(lbl || 'P' + (i + 1)).replace(' alt', '')} ${nm.split(' + ')[0]} ${jt(nilai)}` : `${lbl || 'P' + (i + 1)} diskon`).join(' · ')} (OTR Jakarta Nov 2026). Paket 3: BYD Atto 1 atau Bio Premiere Corner (nilai sementara = BYD Atto 1). Bio Easy: DP {DPp} 3× dalam tenor, bunga {pr1(s15.bunga)}.</div></>) });
+      // 8.6.3 — kapan hadiah kendaraan (mobil / motor) diserahkan
+      {
+        const BT = FS.serahKendaraan, H0 = (SIM[1] || A).harga, BF = 5000000, dp = H0 * PG.dp;
+        const bulanCapai = arus => { let c = 0; for (const [t, x] of arus) { c += x; if (c >= BT * H0 - 1) return t; } return null; };
+        const rataB = (c, n, mulai = 1) => Array.from({ length: n }, (_, i) => [mulai + i, c]);
+        const SK = [
+          ['Cash keras', `Uang masuk ${pc0(BT)}, tercapai saat pelunasan`, 'bulan ke-1–2', 'pelunasan 1 bulan setelah DP'],
+          ['KPR bank', `Uang masuk ${pc0(BT)}, tercapai saat akad & dana KPR cair`, 'bulan ke-1–3', 'DP 0%; mengikuti proses bank'],
+          (() => { const c = H0 * FS.smartPersen; return ['Bio Smart', `Setelah uang masuk ${pc0(BT)}`, `bulan ke-${bulanCapai([[1, dp / 3], [2, dp / 3], [3, dp / 3], ...rataB(c, PG.smartKali, PG.dpKali + 1)])}`, `DP ${DPp} 3× + cicilan ${PG.smartKali}× tanpa bunga, KPR bulan ke-${PG.dpKali + PG.smartKali + 1}`]; })(),
+          ...PG.cash.map(o => { const c = pmt(H0, o.bunga, o.kali); return [`Cash bertahap ${o.kali}×`, `Setelah uang masuk ${pc0(BT)}`, `bulan ke-${bulanCapai(rataB(c, o.kali))}`, o.bunga ? 'cicilan rata tanpa DP' : 'tanpa DP, tanpa bunga']; }),
+          ...PG.stay.map(o => { const n = o.tahun * 12 - PG.dpKali, P = H0 - dp, c = pmt(P, o.bunga, n); return [`Bio Easy ${o.tahun * 12}×`, `Setelah uang masuk ${pc0(BT)}`, `bulan ke-${bulanCapai([[1, dp / 3], [2, dp / 3], [3, dp / 3], ...rataB(c, n, PG.dpKali + 1)])}`, `DP ${DPp} lunas bulan ke-${PG.dpKali}`]; })];
+        const maks = Math.max(...PG.tipe.flatMap(t => (FS.paket[t.tipe.slice(-1)] || []).map(p => p[1] / t.harga)), ...COR.flatMap(x => PK.map(p => p[1] / x.harga)));
+        out.push({ judul: 'Jadwal penyerahan hadiah', isi: prog('8.6.3', <>
+          <h2><T k={KT('prog.serah.judul2')}>{`Hadiah barang (mobil, motor, AC) diserahkan setelah uang masuk ${pc0(BT)} — berlaku untuk semua cara bayar, tidak saat DP ${DPp}`}</T></h2>
+          <div className="pz-row" style={{ flex: 1 }}>
+            <div style={{ flex: 1.15, minWidth: 0 }}><table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '27%' }} /><col style={{ width: '33%' }} /><col style={{ width: '16%' }} /><col /></colgroup>
+              <thead><tr><th>Cara bayar</th><th>Hadiah barang diserahkan</th><th>Perkiraan</th><th>Catatan</th></tr></thead>
+              <tbody>{SK.map(([a, b, c, d], i) => <tr key={i}><td className="kiri"><b>{a}</b></td><td className="kiri" style={{ whiteSpace: 'normal' }}>{b}</td><td><b>{c}</b></td><td className="kiri" style={{ fontSize: 10.5, color: '#7a7466', whiteSpace: 'normal' }}>{d}</td></tr>)}</tbody></table>
+              <div className="pz-sub" style={{ fontSize: 10 }}>Bulan dihitung sejak booking; sama untuk semua tipe karena cicilan sebanding dengan harga. Setelah syarat terpenuhi, pemesanan kendaraan ke dealer ±2–4 minggu.</div></div>
+            <div className="pz-col" style={{ flex: .85, gap: 8 }}>
+              <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k1')}>{`Kenapa ${pc0(BT)}`}</T></b><br /><T k={KT('prog.serah.t1')}>{`Hadiah kendaraan terbesar ±${pc0(maks)} dari harga (Lepas E6 EV di unit corner termurah). Bila konsumen batal / berhenti bayar setelah menerima kendaraan, uang yang hangus sesuai PPJB minimal ${pc0(BT)} harga — cukup menutup nilai kendaraan plus komisi dan biaya. Saat DP ${DPp}, uang masuk belum menutup nilai mobil.`}</T></div>
+              <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k2')}>Hadiah lain</T></b><br /><T k={KT('prog.serah.t2b')}>Diskon harga langsung memotong harga transaksi. Bebas biaya dan asuransi jiwa berlaku saat akad / AJB. Paket diskon tidak punya hadiah barang.</T></div>
+              <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k3')}>Wajib tertulis di surat pesanan & platform</T></b><br /><T k={KT('prog.serah.t3')}>Jadwal penyerahan hadiah per cara bayar; bila batal setelah hadiah diterima, nilai hadiah dipotong dari dana yang dikembalikan atau kendaraan dikembalikan.</T></div></div></div></>) });
+      }
     }
     // --- 8.6 KPI
     const bulanBerjalan = Math.max(1, Number(hariIni().slice(5, 7)));
