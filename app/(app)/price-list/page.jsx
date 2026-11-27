@@ -8,7 +8,6 @@ import { usePriceList } from '@/components/usePriceList';
 
 // ===== Price List: harga resmi per project + ketersediaan unit, siap dibagikan sebagai PDF =====
 const IMG = p => /BIO/i.test(p) ? '/siteplan-bio.jpg' : '/siteplan-permai.jpg';
-const namaRapi = p => String(p || '').replace(/\b\w+/g, w => w[0] + w.slice(1).toLowerCase());
 
 function PriceListIsi({ plv }) {
   const [me, setMe] = useState(null);
@@ -176,11 +175,19 @@ function PriceListIsi({ plv }) {
       const doc = new jsPDF({ orientation: isBio ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
       const n = isBio ? await pdfBio(doc) : await pdfPermai(doc);
       if (!n) return toast('Pilih minimal satu isi PDF');
-      const nama = `PriceList_${namaRapi(proj).replace(/\s+/g, '')}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      catatUnduh('Price List', `PDF price list ${proj}${bagikan ? ' (bagikan)' : ''}`);
+      // Judul mengikuti isi: price list + stok → "Price List dan Master Stok", price list saja → "Price List", stok saja → "Update Stok"
+      const irrAda = Object.keys(BIO_IRREG).some(u => !isiPdf.sembunyiTerjual || statusU(u) === 'Tersedia');
+      const adaHarga = isBio ? !!(isiPdf.standar || (isiPdf.irreg && irrAda) || isiPdf.promo) : !!isiPdf.harga;
+      const adaStok = !!isiPdf.siteplan;
+      const singkat = isBio ? 'Bio District' : 'Permai';
+      const judul = `${adaHarga && adaStok ? 'Price List dan Master Stok' : adaHarga ? 'Price List' : 'Update Stok'} ${singkat}`;
+      const tglNama = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/\./g, '');
+      const nama = `${judul} - ${tglNama}.pdf`;
+      doc.setProperties({ title: judul, subject: `${judul} · ${tglNama}`, author: 'PT Cipta Harmoni Lestari', creator: 'CRM Sales CHL' });
+      catatUnduh('Price List', `PDF ${judul}${bagikan ? ' (bagikan)' : ''}`);
       if (bagikan && navigator.canShare) {
         const file = new File([doc.output('blob')], nama, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: `Price List ${namaRapi(proj)}` }); return; }
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: judul }); return; }
       }
       doc.save(nama);
       if (bagikan) toast('Perangkat ini belum mendukung bagikan langsung — PDF diunduh, kirim lewat WhatsApp dari folder unduhan');
