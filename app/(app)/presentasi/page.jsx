@@ -676,7 +676,7 @@ function slideProyek(P, dari) {
         <Kartu l="Batal saat Reserved" v={batalRv.length} vs={{ color: R }} s={rvTop ? `terbanyak "${rvTop[0].toLowerCase()}" (${rvTop[1]})` : 'batal sebelum Booking'} />
         <Kartu cls="emas" l={`Nilai transaksi batal ${tahunIni}`} v={rpM(nilaiBatalThn)} s={`penjualan berjalan ${tahunIni}: ${rpM(nilaiThn)}`} /></div>
       <div className="pz-row" style={{ flex: 1 }}>
-        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k1')}>Kondisi pasar yang menekan</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t1')}>BI Rate naik ke 5,75% sejak pertengahan 2026; bunga floating KPR bank 11–13,5%. Kendala utama konsumen Bio adalah BI checking dan kemampuan keuangan untuk lolos KPR. Tipe A harga baru menarik peminat baru, tetapi banyak yang batal. Bio bersaing dengan developer besar dengan harga setara — perlu pembeda yang nyata.</T></div></div>
+        <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k1')}>Kondisi pasar yang menekan</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t1')}>BI Rate naik lagi ke 6% pada November 2026 (total naik 1,25% sepanjang 2026); bunga floating KPR bank 11–13,5%. Kendala utama konsumen Bio adalah BI checking dan kemampuan keuangan untuk lolos KPR. Tipe A harga baru menarik peminat baru, tetapi banyak yang batal. Bio bersaing dengan developer besar dengan harga setara — perlu pembeda yang nyata.</T></div></div>
         <div className="pz-box" style={{ flex: 1 }}><b><T k={KT('prog.kenapa.k2b')}>Yang diselesaikan Bio Smart, Bio Easy &amp; Bio Stay</T></b><div className="pz-isi"><T k={KT('prog.kenapa.t2')}>Konsumen tetap terikat (Reserved/Booking) walau belum lolos KPR. Yang ditolak bank dialihkan ke Bio Smart, Easy atau Stay — bukan dibatalkan. Pembeda dari developer besar: DP 20% dicicil 3×, langsung huni, cicilan ke developer dengan proteksi asuransi.</T>{tersedia != null ? <> Stok <b>{tersedia} unit</b> tersedia bisa bergerak lebih cepat tanpa menurunkan harga.</> : null}</div></div></div></>) });
     // --- 8.1 Bio Stay
     out.push({ judul: 'Bio Stay', isi: prog('8.1', <>
@@ -695,7 +695,7 @@ function slideProyek(P, dari) {
     // --- 8.2 Bunga & pendanaan
     const contohB = SIM[1] || A;
     out.push({ judul: 'Bunga & pendanaan', isi: prog('8.2', <>
-      <h2><T k={KT('prog.dana.judul')}>Bunga tetap Bio Stay: di atas biaya dana developer, di bawah floating bank — dengan kebutuhan pendanaan piutang</T></h2>
+      <h2><T k={KT('prog.dana.judul')}>Bunga tetap Bio Stay: di atas biaya dana developer, setara floating bank tanpa risiko naik — dengan kebutuhan pendanaan piutang</T></h2>
       <div className="pz-k4"><Kartu l="BI Rate" v={PG.acuan.biRate} s={PG.acuan.biRateKet} /><Kartu l="Bunga kredit baru (rata-rata)" v={PG.acuan.kreditBaru} s={PG.acuan.kreditBaruKet} />
         <Kartu l="KPR bank floating" v={PG.acuan.floating} s={PG.acuan.floatingKet} /><Kartu cls="emas" l="Usulan bunga Bio Stay" v={`${pr1(PG.stay[0].bunga)}–${pr1(PG.stay[PG.stay.length - 1].bunga)}`} s="tetap sepanjang tenor" /></div>
       <div className="pz-row" style={{ flex: 1 }}>
