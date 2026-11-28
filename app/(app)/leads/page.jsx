@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Toast, { toast } from '@/components/Toast';
 import { api, fmtDate, fmtRp, reminder } from '@/components/util';
 
-const SEL = { Batal: ['var(--gray-soft)', 'var(--ink)'],  New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
+const SEL = { New: ['var(--blue-soft)', 'var(--blue)'], Cold: ['var(--cold-bg)', 'var(--cold-fg)'], Warm: ['var(--brass-soft)', 'var(--brass-deep)'], Hot: ['var(--hot-bg)', 'var(--hot-fg)'], Appointment: ['var(--blue-soft)', 'var(--blue)'], 'Site Visit': ['var(--blue-soft)', 'var(--blue)'], Booking: ['var(--green-soft)', 'var(--green)'], Closing: ['var(--green)', 'var(--on-green)'], Lost: ['var(--red-soft)', 'var(--red)'], Drop: ['var(--red-soft)', 'var(--red)'] };
 
 // Perubahan data lead dari sales — menunggu persetujuan Manager
 function PersetujuanUbah({ onSelesai }) {
@@ -47,6 +47,69 @@ function GabungLead({ onSelesai }) {
     {hasil && <div className="tbl-wrap" style={{ marginTop: 10 }}><table><thead><tr><th>Disimpan</th><th>Digabung</th><th>Data dipindah</th><th>Status</th><th>Keterangan</th></tr></thead>
       <tbody>{hasil.hasil.map((x, i) => <tr key={i}><td><b>{x.simpan}</b> {x.namaUtama || ''}</td><td>{(x.namaLain || x.gabung).join(', ')}</td>
         <td>{Object.entries(x.pindah || {}).map(([t, n]) => `${t} ${n}`).join(' · ') || '—'}</td><td>{x.status}</td><td className="hint">{[x.ket, ...(x.pesan || [])].filter(Boolean).join(' · ')}</td></tr>)}</tbody></table></div>}
+  </div>);
+}
+
+// Alihkan lead massal (Manager) — mis. sales resign: lead dibagi rata ke sales aktif yang dipilih
+const STATUS_TUTUP = ['Booking', 'Closing', 'Drop'];
+function AlihkanLead({ dari, proj, leads, set, salesList, nonaktif, onTutup, onSelesai }) {
+  const milik = (leads || []).filter(l => l.sales === dari && (!proj || l.project === proj));
+  const perStatus = {}; milik.forEach(l => { const s = l.status || 'New'; perStatus[s] = (perStatus[s] || 0) + 1; });
+  const daftarStatus = [...(set.status || []).filter(s => perStatus[s]), ...Object.keys(perStatus).filter(s => !(set.status || []).includes(s))];
+  const projLead = [...new Set(milik.map(l => l.project).filter(Boolean))];
+  const pegang = s => { const p = set.sales_project?.[s]; return !p || projLead.some(x => p.includes(x)); };
+  const kandidat = salesList.filter(s => s !== dari && pegang(s));
+  const [ke, setKe] = useState([]);
+  const [st, setSt] = useState(() => daftarStatus.filter(s => !STATUS_TUTUP.includes(s)));
+  const [jadwal, setJadwal] = useState(true);
+  const [pra, setPra] = useState(null), [busy, setBusy] = useState(false);
+  const togel = (arr, set_, v) => { set_(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]); setPra(null); };
+  const body = cek => JSON.stringify({ dari, ke, status: st, project: proj || '', jadwal_baru: jadwal, cek });
+  async function cek() {
+    setBusy(true);
+    try { setPra(await api('/api/leads/alihkan', { method: 'POST', body: body(true) })); } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+  async function jalan() {
+    if (!pra || !pra.total) return;
+    if (!confirm(`Alihkan ${pra.total} lead ${dari} ke ${Object.entries(pra.per_sales).filter(([, n]) => n).map(([s, n]) => s + ' (' + n + ')').join(', ')}?`)) return;
+    setBusy(true);
+    try {
+      const r = await api('/api/leads/alihkan', { method: 'POST', body: body(false) });
+      toast(`${r.total} lead dialihkan${r.janjian ? ' · ' + r.janjian + ' janjian ikut pindah' : ''}`);
+      onSelesai?.();
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  }
+  const jml = milik.filter(l => st.includes(l.status || 'New')).length;
+  return (<div className="card" style={{ marginBottom: 12, borderColor: 'var(--brass)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <b>↪️ Alihkan lead {dari}{nonaktif ? ' (akun nonaktif)' : ''}{proj ? ' · ' + proj : ''}</b>
+      <button className="sort-btn" onClick={onTutup}>Tutup</button>
+    </div>
+    <div className="hint" style={{ margin: '4px 0 10px' }}>Lead dibagi rata ke sales yang dipilih (hanya ke sales yang memegang project lead tsb). Riwayat oper tercatat, janjian yang akan datang ikut pindah, dan sales penerima dapat notifikasi. Transaksi Reserved/Booking/Closing tetap tercatat atas nama {dari}.</div>
+    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>1 · Status lead yang dialihkan</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+      {daftarStatus.map(s => <label key={s} className="sort-btn" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'pointer', background: st.includes(s) ? 'var(--green-soft)' : undefined }}>
+        <input type="checkbox" checked={st.includes(s)} onChange={() => togel(st, setSt, s)} />{s} ({perStatus[s]})</label>)}
+    </div>
+    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>2 · Bagi ke sales</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+      {kandidat.length ? kandidat.map(s => <label key={s} className="sort-btn" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'pointer', background: ke.includes(s) ? 'var(--green-soft)' : undefined }}>
+        <input type="checkbox" checked={ke.includes(s)} onChange={() => togel(ke, setKe, s)} />{s}{set.sales_project?.[s] ? <span className="hint">· {set.sales_project[s].join(', ')}</span> : null}</label>)
+        : <span className="hint">Tidak ada sales aktif yang memegang project lead ini.</span>}
+      {kandidat.length > 1 && <button className="sort-btn" onClick={() => { setKe(ke.length === kandidat.length ? [] : kandidat); setPra(null); }}>{ke.length === kandidat.length ? 'Batal pilih semua' : 'Pilih semua'}</button>}
+    </div>
+    <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, margin: '6px 0 10px' }}>
+      <input type="checkbox" checked={jadwal} onChange={e => { setJadwal(e.target.checked); setPra(null); }} />
+      Mulai jadwal FU wajib dari Hari 1 (sales baru memperkenalkan diri ke konsumen hari ini) — tidak berlaku untuk Booking/Closing/Drop
+    </label>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <button className="sort-btn" disabled={busy || !ke.length || !st.length || !jml} onClick={cek}>Pratinjau pembagian ({jml} lead)</button>
+      {pra && <button className="btn btn-primary" style={{ width: 'auto', padding: '8px 16px' }} disabled={busy || !pra.total} onClick={jalan}>Alihkan {pra.total} lead</button>}
+    </div>
+    {pra && <div style={{ marginTop: 10, fontSize: 13.5 }}>
+      {Object.entries(pra.per_sales).map(([s, n]) => <div key={s}>→ <b>{s}</b>: {n} lead</div>)}
+      {pra.dilewati?.length > 0 && <div className="hint" style={{ marginTop: 4 }}>{pra.dilewati.length} lead dilewati: {pra.dilewati.slice(0, 5).map(x => x.lead_code + ' (' + (x.project || '-') + ')').join(', ')}{pra.dilewati.length > 5 ? '…' : ''} — tidak ada sales tujuan yang memegang project-nya.</div>}
+    </div>}
   </div>);
 }
 
@@ -120,6 +183,15 @@ export default function LeadsPage() {
 
   // Pilihan sales hanya nama akun Sales aktif (menu Pengguna); nama agent / data lama tidak bisa dipilih
   const salesList = useMemo(() => [...new Set([...(set?.sales || []), ...(set?.sales_saya ? [set.sales_saya] : [])])].sort(), [set]);
+  // Filter sales: akun aktif + akun nonaktif (mis. sales resign) + nama lain yang masih tercatat di data lead (agent / data lama)
+  const filterSales = useMemo(() => {
+    const n = {}; (leads || []).forEach(l => { if (l.sales) n[l.sales] = (n[l.sales] || 0) + 1; });
+    const aktif = new Set(salesList), non = new Set(set?.sales_nonaktif || []);
+    const nonaktif = [...non].filter(s => n[s] && !aktif.has(s)).sort();
+    const lain = Object.keys(n).filter(s => !aktif.has(s) && !non.has(s)).sort();
+    return { n, aktif: salesList, nonaktif, lain, isNon: s => non.has(s) && !aktif.has(s) };
+  }, [leads, salesList, set]);
+  const [alih, setAlih] = useState(null); // panel alihkan lead massal
 
   // Waktu follow up terakhir per lead (pesan otomatis WA tidak dihitung)
   const [fuTerakhir, fuRec] = useMemo(() => {
@@ -239,8 +311,15 @@ export default function LeadsPage() {
         {fDate && <button className="sort-btn" onClick={() => setFDate('')}>✕ Tanggal</button>}
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fSales} onChange={e => setFSales(e.target.value)}>
           <option value="">Semua Sales</option>
-          {salesList.map(s => <option key={s}>{s}</option>)}
+          {filterSales.aktif.map(s => <option key={s} value={s}>{s}{filterSales.n[s] ? ` (${filterSales.n[s]})` : ''}</option>)}
+          {filterSales.nonaktif.length > 0 && <optgroup label="Sales nonaktif">
+            {filterSales.nonaktif.map(s => <option key={s} value={s}>{s} · nonaktif ({filterSales.n[s]})</option>)}</optgroup>}
+          {filterSales.lain.length > 0 && <optgroup label="Agent / nama lain di data lead">
+            {filterSales.lain.map(s => <option key={s} value={s}>{s} ({filterSales.n[s]})</option>)}</optgroup>}
         </select>
+        {fSales && <button className="sort-btn" onClick={() => setFSales('')}>✕ Sales</button>}
+        {me?.role === 'manager' && fSales && filterSales.n[fSales] > 0 && <button className="sort-btn" style={{ borderColor: 'var(--brass)', fontWeight: 700 }}
+          onClick={() => setAlih({ dari: fSales })}>↪️ Alihkan lead {fSales}</button>}
         <select className="sort-filter" style={{ marginLeft: 0 }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
           <option value="">Semua Status</option>
           {(set.status || []).map(s => <option key={s}>{s}</option>)}
@@ -272,6 +351,9 @@ export default function LeadsPage() {
           <option value="fu">Urut: Follow up terbaru</option>
         </select>
       </div>
+      {alih && <AlihkanLead key={alih.dari} dari={alih.dari} proj={proj} leads={leads} set={set} salesList={set?.sales || []}
+        nonaktif={filterSales.isNon(alih.dari)} onTutup={() => setAlih(null)}
+        onSelesai={async () => { setAlih(null); setLeads(await api('/api/leads')); }} />}
       {fKode && <div className="lead-fokus">Menampilkan {fKode} dari Beranda — riwayat oper &amp; follow up terbuka di bawah.
         <button className="sort-btn" onClick={() => { setFKode(''); window.history.replaceState(null, '', '/leads'); }}>Tampilkan semua lead</button></div>}
       <div className="tbl-wrap tbl-compact tbl-leads"><table>
@@ -294,7 +376,7 @@ export default function LeadsPage() {
                 <select className="status-sel" style={{ background: c[0], color: c[1] }} value={l.status}
                   onClick={e => e.stopPropagation()}
                   onChange={e => ubahStatus(l.id, e.target.value)}>
-                  {(set.status || []).filter(s => s !== 'Batal' || l.status === 'Batal').map(s => <option key={s}>{s}</option>)}
+                  {(set.status || []).map(s => <option key={s}>{s}</option>)}
                 </select>
               </td>
               <td data-label="Catatan FU terakhir">{fuRec[l.lead_code] ? (<>

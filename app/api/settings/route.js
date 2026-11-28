@@ -22,13 +22,15 @@ export async function GET() {
     out.units = Object.fromEntries(Object.entries(out.units || {}).filter(([p]) => user.projects.includes(p)));
     sales = sales.filter(s => !Array.isArray(s.projects) || !s.projects.length || s.projects.some(p => user.projects.includes(p)));
   }
-  // Status 'Batal' (penjualan dibatalkan) selalu tersedia walau daftar status tersimpan dibuat sebelum status ini ada
-  if (Array.isArray(out.status) && !out.status.includes('Batal')) out.status = [...out.status, 'Batal'];
   out.sales = sales.map(s => s.name);
   // Head of Sales & Marketing boleh memegang lead atas namanya sendiri — namanya hanya dikirim ke akunnya sendiri,
   // jadi tidak muncul di pilihan Sales / PIC akun lain
   if (bolehDigital(user)) out.sales_saya = user.name;
   out.sales_project = Object.fromEntries(sales.map(s => [s.name, Array.isArray(s.projects) && s.projects.length ? s.projects : null]));
+  // Akun sales yang sudah dinonaktifkan — hanya untuk filter & alihkan lead (tidak muncul di pilihan PIC)
+  if (user.role !== 'sales') {
+    try { out.sales_nonaktif = (await sql`SELECT name FROM users WHERE role = 'sales' AND active = false ORDER BY name`).map(s => s.name); } catch { out.sales_nonaktif = []; }
+  }
   return Response.json(out);
 }
 
