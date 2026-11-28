@@ -864,12 +864,16 @@ function slideProyek(P, dari) {
       const sub = x => <span className="pz-sub" style={{ display: 'block', fontSize: 10.5 }}>{x}</span>;
       // 8.6 — hitungan memakai paket hadiah program flash sale (dasar harga standar price list)
       const FS = PG.flash, n15 = s15.tahun * 12 - PG.dpKali;
+      // Asuransi jiwa Paket 3: premi rata-rata × plafon (DP 0% = harga transaksi), dibatasi subsidi maksimal bila sudah ditetapkan
+      const maksAsur = k => (FS.asuransiMaks || {})[k] || Infinity;
+      const asurP3 = (harga, k) => Math.min(FS.asuransi * harga, maksAsur(k));
+      const ketAsur = `asuransi jiwa P3 (${(FS.asuransi * 100).toLocaleString('id-ID')}% plafon, maks. ${['A', 'B', 'C', 'corner'].map(k => maksAsur(k) < Infinity ? Math.round(maksAsur(k) / 1e6) : '–').join('/')} jt)`;
       const FSR = PG.tipe.flatMap(t => { const h = t.tipe.slice(-1), biayaAll = t.allIn - t.harga;
         return (FS.paket[h] || []).map(([nm, nilai, bb, as, disk], i) => {
-          const tx = t.harga - disk, biayaDev = bb ? biayaAll : 0, asur = as ? FS.asuransi * t.harga : 0;
+          const tx = t.harga - disk, biayaDev = bb ? biayaAll : 0, asur = as ? asurP3(t.harga, h) : 0;
           const dasar = tx - nilai - biayaDev - asur; // nett cash keras / KPR
           const P = tx * (1 - PG.dp), bunga = pmt(P, s15.bunga, n15) * n15 - P, easy = dasar + bunga - PG.biayaDana * P / 2 * n15 / 12;
-          const cash = PG.cash.map(o => (o.bunga === 0 && disk) ? null : dasar + (pmt(tx, o.bunga, o.kali) * o.kali - tx) - tx / 2 * PG.biayaDana * o.kali / 12);
+          const cash = PG.cash.map(o => (o.bunga === 0 && disk) ? null : dasar + asur + (pmt(tx, o.bunga, o.kali) * o.kali - tx) - tx / 2 * PG.biayaDana * o.kali / 12); // cash bertahap tanpa kredit → tanpa asuransi jiwa
           const sa = smartArus(tx, tx * FS.smartPersen), smart = dasar + sa.bunga, smartDana = smart - sa.dana; // Bio Smart: bunga internal masuk ke sisa KPR; biaya dana 15 bulan
           const easyDiterima = dasar + bunga;
           return { key: h + i, smart, smartDana, smartBunga: sa.bunga, easyDiterima, tipe: t.tipe, harga: t.harga, paket: i + 1, nm, tx, budget: nilai + biayaDev + asur + disk, biayaDev, asur, dasar, easy, bunga, cash, awal: i === 0 }; }); });
@@ -882,7 +886,7 @@ function slideProyek(P, dari) {
             <td className="kiri">P{x.paket} · {x.nm}</td><td>{M2(x.tx)}</td><td>{jt(x.budget)} <span style={{ fontSize: 9.5, color: '#7a7466' }}>· {pc0(x.budget / x.harga)}</span></td>
             <td><b>{M2(x.dasar)}</b></td><td><b>{M2(x.smart)}</b><span style={{ display: 'block', fontSize: 9, color: '#7a7466' }}>{M2(x.smartDana)}</span></td><td className="sorot"><b>{M2(x.easyDiterima)}</b><span style={{ display: 'block', fontSize: 9, color: '#7a7466' }}>{M2(x.easy)}</span></td>
             <td>{x.cash.map((v, i) => <span key={i}>{i ? ' / ' : ''}{v == null ? '—' : <b>{M2(v)}</b>}</span>)}</td></tr>)}</tbody></table>;
-      const notaFS = <div className="pz-sub" style={{ fontSize: 9.5 }}>Nett = harga transaksi − hadiah − biaya yang ditanggung Bio (bebas biaya = harga all in − harga standar: AJB, BPHTB, balik nama, biaya KPR) − asuransi jiwa paket 3 ({pc0(FS.asuransi)} harga). Hadiah memakai harga OTR Jakarta Nov 2026. Bio Easy: DP {DPp} dicicil {PG.dpKali}× di dalam tenor, bunga {pr1(s15.bunga)}, asuransi dibayar konsumen lewat cicilan. Diterima = uang bersih yang masuk ke Bio termasuk bunga internal; angka kecil = setelah biaya dana. Bio Smart: DP {DPp} 3× + cicilan {PG.smartKali}× ({pc0(FS.smartPersen)} harga/bln), bunga internal {pr1(PG.smartBunga)} masuk ke sisa yang dilunasi KPR bulan ke-{PG.dpKali + PG.smartKali + 1}. Biaya dana {pr1(PG.biayaDana)}/thn. Cash 12× tanpa bunga tidak berlaku untuk Paket 4. Unit corner: slide berikutnya.</div>;
+      const notaFS = <div className="pz-sub" style={{ fontSize: 9.5 }}>Nett = harga transaksi − hadiah − biaya yang ditanggung Bio (bebas biaya = harga all in − harga standar: AJB, BPHTB, balik nama, biaya KPR) − {ketAsur}; cash keras & cash bertahap tanpa asuransi (nett P3 lebih tinggi sebesar subsidi). Hadiah memakai harga OTR Jakarta Nov 2026. Bio Easy: DP {DPp} dicicil {PG.dpKali}× di dalam tenor, bunga {pr1(s15.bunga)}, asuransi dibayar konsumen lewat cicilan. Diterima = uang bersih yang masuk ke Bio termasuk bunga internal; angka kecil = setelah biaya dana. Bio Smart: DP {DPp} 3× + cicilan {PG.smartKali}× ({pc0(FS.smartPersen)} harga/bln), bunga internal {pr1(PG.smartBunga)} masuk ke sisa yang dilunasi KPR bulan ke-{PG.dpKali + PG.smartKali + 1}. Biaya dana {pr1(PG.biayaDana)}/thn. Cash 12× tanpa bunga tidak berlaku untuk Paket 4. Unit corner: slide berikutnya.</div>;
       const tipeFS = [...new Set(FSR.map(x => x.tipe))], bagi1 = tipeFS.slice(0, 2), bagi2 = tipeFS.slice(2);
       out.push({ judul: 'Harga nett per tipe', isi: prog('8.6', <>
         <h2><T k={KT('prog.nettfs.judul')}>Harga nett yang diterima developer dengan paket hadiah flash sale — unit standar, dasar harga standar price list</T></h2>
@@ -896,7 +900,7 @@ function slideProyek(P, dari) {
         {notaFS}</>) });
       // 8.6.2 — unit corner dengan paket hadiah flash sale corner (dasar harga standar per unit)
       const paketFS = (harga, allIn, paket) => paket.map(([nm, nilai, bb, as, disk, lbl], i) => {
-        const tx = harga - disk, dasar = tx - nilai - (bb ? allIn - harga : 0) - (as ? FS.asuransi * harga : 0);
+        const tx = harga - disk, dasar = tx - nilai - (bb ? allIn - harga : 0) - (as ? asurP3(harga, 'corner') : 0);
         const P = tx * (1 - PG.dp), bunga = pmt(P, s15.bunga, n15) * n15 - P;
         return { paket: i + 1, lbl: lbl || 'P' + (i + 1), nm, nilai, tx, dasar, easy: dasar + bunga - PG.biayaDana * P / 2 * n15 / 12 }; });
       const PK = FS.paket.corner || [];
@@ -909,7 +913,7 @@ function slideProyek(P, dari) {
           <thead><tr><th>Unit corner</th><th>Tipe · LT</th><th>Status</th><th>Harga standar</th>{PK.map(([nm, nilai, , , disk, lbl], i) => <th key={i}>Nett {(lbl || 'P' + (i + 1)).replace(' alt', '')}<span className="pz-th2">{disk ? `diskon ${jt(disk)}` : nm.split(' + ')[0]}</span></th>)}<th>Nett Bio Easy {s15.tahun} thn<span className="pz-th2">P4 – P1, stl biaya dana</span></th></tr></thead>
           <tbody>{COR.map(x => { const lo = Math.min(...x.pk.map(p => p.dasar)); return <tr key={x.unit} style={x.terjual ? { opacity: .5 } : undefined}><td className="kiri">{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.status === 'Hold' ? '#3B6FB6' : x.terjual ? R : G, fontWeight: 700 }}>{x.status}</td>
             <td>{M2(x.harga)}</td>{x.pk.map(p => <td key={p.paket} style={p.dasar === lo ? { color: R } : undefined}><b>{M2(p.dasar)}</b></td>)}<td className="sorot">{M2(Math.min(...x.pk.map(p => p.easy)))} – {M2(Math.max(...x.pk.map(p => p.easy)))}</td></tr>; })}</tbody></table>
-        <div className="pz-sub" style={{ fontSize: 10 }}>Nett cash/KPR = harga transaksi − hadiah − bebas biaya (all in − standar) − asuransi P3 ({pc0(FS.asuransi)}). Merah = nett terendah. Hadiah: {PK.map(([nm, nilai, , , , lbl], i) => nilai ? `${(lbl || 'P' + (i + 1)).replace(' alt', '')} ${nm.split(' + ')[0]} ${jt(nilai)}` : `${lbl || 'P' + (i + 1)} diskon`).join(' · ')} (OTR Jakarta Nov 2026). Paket 3: BYD Atto 1 atau Bio Premiere Corner (nilai sementara = BYD Atto 1). Bio Easy: DP {DPp} 3× dalam tenor, bunga {pr1(s15.bunga)}. Status dari Master Stock (hold manajemen tidak dihitung tersedia).</div></>) });
+        <div className="pz-sub" style={{ fontSize: 10 }}>Nett cash/KPR = harga transaksi − hadiah − bebas biaya (all in − standar) − {ketAsur}. Merah = nett terendah. Hadiah: {PK.map(([nm, nilai, , , , lbl], i) => nilai ? `${(lbl || 'P' + (i + 1)).replace(' alt', '')} ${nm.split(' + ')[0]} ${jt(nilai)}` : `${lbl || 'P' + (i + 1)} diskon`).join(' · ')} (OTR Jakarta Nov 2026). Paket 3: BYD Atto 1 atau Bio Premier Corner (nilai sementara = BYD Atto 1). Bio Easy: DP {DPp} 3× dalam tenor, bunga {pr1(s15.bunga)}. Status dari Master Stock (hold manajemen tidak dihitung tersedia).</div></>) });
       // 8.6.3 — kapan hadiah kendaraan (mobil / motor) diserahkan
       {
         const BT = FS.serahKendaraan, H0 = (SIM[1] || A).harga, BF = 5000000, dp = H0 * PG.dp;
@@ -933,6 +937,33 @@ function slideProyek(P, dari) {
               <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k1')}>{`Kenapa ${pc0(BT)}`}</T></b><br /><T k={KT('prog.serah.t1')}>{`Hadiah kendaraan terbesar ±${pc0(maks)} dari harga (Lepas E6 EV di unit corner termurah). Bila konsumen batal / berhenti bayar setelah menerima kendaraan, uang yang hangus sesuai PPJB minimal ${pc0(BT)} harga — cukup menutup nilai kendaraan plus komisi dan biaya. Saat DP ${DPp}, uang masuk belum menutup nilai mobil.`}</T></div>
               <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k2')}>Hadiah lain</T></b><br /><T k={KT('prog.serah.t2b')}>Diskon harga langsung memotong harga transaksi. Bebas biaya dan asuransi jiwa berlaku saat akad / AJB. Paket diskon tidak punya hadiah barang.</T></div>
               <div className="pz-ins" style={{ fontSize: 12.5 }}><b><T k={KT('prog.serah.k3')}>Wajib tertulis di surat pesanan & platform</T></b><br /><T k={KT('prog.serah.t3')}>Jadwal penyerahan hadiah per cara bayar; bila batal setelah hadiah diterima, nilai hadiah dipotong dari dana yang dikembalikan atau kendaraan dikembalikan.</T></div></div></div></>) });
+      // 8.6.4 — asuransi jiwa Paket 3: estimasi premi per tipe & simulasi batas subsidi
+      {
+        const corAvg = tp => { const r = COR.filter(x => String(x.tipe).toUpperCase().includes(tp)); return r.length ? r.reduce((a, b) => a + b.harga, 0) / r.length : null; };
+        const ASR = [...PG.tipe.map(t => ({ tipe: t.tipe, harga: t.harga, k: t.tipe.slice(-1) })),
+          ...[['B', 'Tipe B Corner'], ['C', 'Tipe C Corner']].map(([k, nm]) => ({ tipe: nm, harga: corAvg(k), rata: true, k: 'corner' })).filter(x => x.harga)];
+        const SKN = FS.asuransiSkenario || [0.01, 0.02, 0.03];
+        const rata = ASR.reduce((a, b) => a + FS.asuransi * b.harga, 0) / ASR.length;
+        const corU = COR.filter(x => !x.terjual).map(x => ({ ...x, premi: FS.asuransi * x.harga, sub: asurP3(x.harga, 'corner') }));
+        out.push({ judul: 'Asuransi jiwa Paket 3', isi: prog('8.6.4', <>
+          <h2><T k={KT('prog.asj.judul2')}>{`Asuransi jiwa Paket 3: premi rata-rata ±${jt(rata)} per unit (${(FS.asuransi * 100).toLocaleString('id-ID')}% plafon) — subsidi Bio dibatasi per tipe`}</T></h2>
+          <div className="pz-row" style={{ flex: 1 }}>
+            <div style={{ flex: 1.25, minWidth: 0 }}>
+              <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '20%' }} /><col style={{ width: '13%' }} />{SKN.map((_, i) => <col key={i} style={{ width: '11%' }} />)}<col /><col /></colgroup>
+                <thead><tr><th>Tipe</th><th>Plafon KPR<span className="pz-th2">DP 0% = harga</span></th>{SKN.map((r, i) => <th key={i} className={r === FS.asuransi ? 'sorot' : undefined}>Premi {(r * 100).toLocaleString('id-ID')}%<span className="pz-th2">{['rendah', 'rata-rata', 'tinggi'][i] || ''}</span></th>)}<th>Batas subsidi Bio</th><th>Konsumen tambah<span className="pz-th2">premi rata-rata · tinggi</span></th></tr></thead>
+                <tbody>{ASR.map(x => { const m = maksAsur(x.k); return <tr key={x.tipe}><td className="kiri"><b>{x.tipe}</b>{x.rata ? <span style={{ display: 'block', fontSize: 9.5, color: '#7a7466' }}>rata-rata unit corner</span> : null}</td><td>{M2(x.harga)}</td>
+                  {SKN.map((r, i) => <td key={i} className={r === FS.asuransi ? 'sorot' : undefined}>{r === FS.asuransi ? <b>{jt(r * x.harga)}</b> : jt(r * x.harga)}</td>)}
+                  <td><b style={{ color: G }}>{m < Infinity ? jt(m) : '—'}</b></td>
+                  <td>{[FS.asuransi, SKN[SKN.length - 1]].map((r, i) => { const t = Math.max(0, r * x.harga - m); return <span key={i}>{i ? ' · ' : ''}{t ? <b style={{ color: R }}>{jt(t)}</b> : <span style={{ color: G }}>0</span>}</span>; })}</td></tr>; })}</tbody></table>
+              {corU.length > 0 && <div className="pz-sub" style={{ fontSize: 10, marginTop: 6 }}>Unit corner tersedia (premi {(FS.asuransi * 100).toLocaleString('id-ID')}% → subsidi): {corU.map(x => `${x.unit.replace('Bio ', '')} ${jt(x.premi)}→${jt(x.sub)}`).join(' · ')}</div>}
+              <div className="pz-sub" style={{ fontSize: 10 }}>Premi tunggal asuransi jiwa kredit dibayar sekali saat akad, dihitung dari plafon × tarif (usia debitur & tenor). Biaya Bio = premi rata-rata {(FS.asuransi * 100).toLocaleString('id-ID')}% atau batas tipe, mana yang lebih kecil; dipakai di semua slide harga nett. Angka final mengikuti tabel premi asuransi rekanan bank.</div></div>
+            <div className="pz-col" style={{ flex: .75, gap: 8 }}>
+              <div className="pz-ins" style={{ fontSize: 11.5 }}><b><T k={KT('prog.asj.k1')}>Acuan premi pasar</T></b>
+                <table className="pz-tb s" style={{ marginTop: 4 }}><tbody>{(FS.asuransiAcuan || []).map(([a, b, c], i) => <tr key={i}><td className="kiri" style={{ whiteSpace: 'normal' }}>{a}</td><td className="kiri" style={{ whiteSpace: 'normal' }}><b>{b}</b><span style={{ display: 'block', fontSize: 9, color: '#7a7466' }}>{c}</span></td></tr>)}</tbody></table></div>
+              <div className="pz-ins" style={{ fontSize: 12 }}><b><T k={KT('prog.asj.k2')}>Kenapa dibatasi</T></b><br /><T k={KT('prog.asj.t2b')}>Premi naik tajam dengan usia & tenor: debitur di atas 40 tahun bisa 3% lebih. Dengan batas per tipe, biaya Bio pasti per unit; konsumen dengan premi rata-rata hampir tertutup penuh, selisih di atas batas dibayar konsumen.</T></div>
+              <Kartu cls="emas" l="Batas subsidi per unit" v={['A', 'B', 'C'].map(k => Math.round(maksAsur(k) / 1e6)).join(' / ') + ' / ' + Math.round(maksAsur('corner') / 1e6) + ' jt'} s="Tipe A / B / C / Corner · ditetapkan 28 Nov 2026" />
+            </div></div></>) });
+      }
       }
     }
     // --- 8.6 KPI

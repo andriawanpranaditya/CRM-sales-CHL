@@ -264,6 +264,12 @@ ul.ticks li::before{content:"";position:absolute;left:2px;top:7px;width:9px;heig
 .gift .plist{display:block}
 .gift .plist.ok{color:var(--ok);font-weight:700}
 .gift .plist.warn{color:var(--sale);font-weight:600}
+.gift .gvid{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:4px 10px;border-radius:999px;background:#1a1a1a;color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.gift .gvid svg{width:12px;height:12px}
+.gift .gvid:hover,.gift .gvid:focus-visible{background:var(--gold);outline:none}
+#vdlg{padding:0;background:transparent;overflow:visible;width:min(960px,calc(100% - 24px))}
+#vdlg video{display:block;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#vdlg .vcap{color:#fff;font-size:13px;margin-top:8px;text-align:center}
 .gift .pick{margin-left:auto;flex:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--line)}
 .gift[aria-checked="true"]{border-color:var(--forest-2);background:#fdf1f3}
 .gift[aria-checked="true"] .pick{border-color:var(--forest-2);background:radial-gradient(var(--forest-2) 45%,#fff 50%)}
@@ -497,6 +503,7 @@ body::after{content:'';display:block;height:72px}
   <div class="lb-wrap" id="lbWrap"></div>
   <div class="lb-cap"><span id="lbCap"></span><span class="lb-no num" id="lbNo"></span></div>
 </dialog>
+<dialog id="vdlg" aria-label="Video"><button type="button" class="pclose" data-vclose aria-label="Tutup video"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></button><div id="vdlgBody"></div></dialog>
 <dialog id="promo" aria-label="Banner promo flash sale"><button type="button" class="pclose" aria-label="Tutup banner"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"><path d="M5 5l14 14M19 5 5 19"/></svg></button><img src="/flashsale/assets/flyer-flash-sale.jpg" width="1080" height="1620" alt="Flyer Resort Living, Grand Rewards: flash sale 11 sampai 13 Desember 2026 dengan empat paket hadiah per tipe rumah"><button type="button" class="cta" data-promo-close autofocus>Lihat produk flash sale</button></dialog>
 
 <script>
@@ -519,6 +526,9 @@ const CONFIG = {
   smartDp: 10, smartKali: 12, smartPersen: 1.2876, smartBunga: 10,   // bunga tersembunyi Bio Smart (% per tahun), ditambahkan ke sisa yang dilunasi KPR
   // Hadiah barang (mobil, motor, AC) diserahkan setelah uang masuk mencapai persentase ini dari harga transaksi — semua cara bayar
   hadiahPersen: 25,
+  // Paket 3: subsidi premi asuransi jiwa kredit maksimal per unit (Rp), per tipe — ditetapkan 28 Nov 2026.
+  // Premi rata-rata pasar ±2% plafon; selisih di atas batas ditanggung pembeli.
+  asuransiMaks: {'tipe-a': 30000000, 'tipe-b': 40000000, 'tipe-c': 50000000, 'corner-b': 60000000, 'corner-c': 60000000},
   rate: 2.75,                                     // bunga ilustrasi price list
 };
 const BIO_NOTE = 'Desain biophilic: cahaya alami, ruang hijau, dan ventilasi silang di dalam rumah.';
@@ -547,37 +557,39 @@ const PRODUCTS = [
    gal:[['fac-ck','Fasad Tipe C dengan lampu LED'],['c-1','Ruang keluarga yang terhubung ke area luar'],['c-2','Kamar tidur utama'],['c-3','Rooftop'],['plan-ck','Denah Tipe C corner: lantai 1, lantai 2, dan rooftop']],
    desc:'Tipe C di kavling hoek, unit paling luas di Bio District. 4+1 kamar tidur, 3+1 kamar mandi, dua inner court, gudang, dan rooftop dengan bangku, kanopi, dan lampu. Pintu utama berkunci digital dengan pengenal wajah. Luas tanah dan harga berbeda di tiap unit.', prov:PROV_BC.concat(['Kunci pintu utama digital Paloma dengan pengenal wajah'])},
 ];
-const TOURS = [['tour-1','Virtual tour Tipe A','1:08','Animasi ruang demi ruang Tipe A'],['tour-2','Tour show unit','1:25','Video asli show unit Bio District'],['tour-3','Tour show unit Tipe C','1:36','Video asli show unit Tipe C']];
+const TOURS = [['tour-1','Virtual tour Tipe A','1:08','Animasi ruang demi ruang Tipe A'],['tour-2','Tour show unit','1:25','Video asli show unit Bio District'],['tour-3','Tour show unit Tipe C','1:36','Video asli show unit Tipe C'],['bio-premiere','Bio Premier Corner','1:22','Pilihan hadiah Paket 3 Tipe Corner']];
 const RW_GROUPS = [[['tipe-a'],'Tipe A','#800020'],[['tipe-b'],'Tipe B','#800020'],[['tipe-c'],'Tipe C','#800020'],[['corner-b','corner-c'],'Tipe B Corner & Tipe C Corner','#800020']];
 const qk = p => p.qk || p.id;   // Tipe B Corner dan Tipe C Corner berbagi satu kuota
 const FAC_PHOTOS = [['f-gate','Gerbang utama, one gate system'],['f-clubhouse','The Clubhouse'],['f-pool','Kolam renang Clubhouse'],['f-cowork','Co-Working Space'],['f-gym','Outdoor Gym'],['f-bbq','Riverside Jogging Track & BBQ Area'],['f-river','Sungai alami di tepi kawasan'],['f-landscape','Lanskap hijau di dalam kawasan'],['f-road','Jalan lingkungan yang lebar']];
 /* Paket hadiah per tipe. biaya:true = biaya transaksi (KPR, AJB, balik nama, notaris, BPHTB) ditanggung Bio District.
    Paket lain menggantikan fasilitas bebas biaya itu, jadi biaya transaksi ditanggung pembeli. */
 const BEBAS = 'Bebas biaya KPR, AJB, balik nama, notaris, BPHTB';
+const jtASJ = n => 'Rp' + Math.round(n / 1e6) + ' juta';
+const ASJ = id => 'subsidi asuransi jiwa kredit ' + (CONFIG.asuransiMaks[id] ? 's.d. ' + jtASJ(CONFIG.asuransiMaks[id]) : 'terbatas');
 const PACKS = {
   'tipe-a': [
     {id:'a1', name:'Paket 1 · Wuling Aira EV', item:'Wuling Aira EV', ico:'car'},
     {id:'a2', biaya:true, name:'Paket 2 · Vespa + Bebas Biaya', item:'Vespa Officina 8 + ' + BEBAS, ico:'scooter'},
-    {id:'a3', biaya:true, name:'Paket 3 · AC + Bebas Biaya + Asuransi Jiwa', item: '3 unit AC 1 PK + ' + BEBAS + ' + asuransi jiwa', ico:'ac'},
+    {id:'a3', biaya:true, name:'Paket 3 · AC + Bebas Biaya + Asuransi Jiwa', item: '3 unit AC 1 PK + ' + BEBAS + ' + ' + ASJ('tipe-a'), ico:'ac'},
     {id:'a4', diskon:150000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp150 juta', ico:'cash'},
   ],
   'tipe-b': [
     {id:'b1', name:'Paket 1 · Jaecoo J5 EV', item:'Jaecoo J5 EV Standard', ico:'car'},
     {id:'b2', biaya:true, name:'Paket 2 · Wuling Aira EV + Bebas Biaya', item:'Wuling Aira EV + ' + BEBAS, ico:'car'},
-    {id:'b3', biaya:true, name:'Paket 3 · Vespa + Bebas Biaya + Asuransi Jiwa', item: 'Vespa Officina 8 + ' + BEBAS + ' + asuransi jiwa', ico:'scooter'},
+    {id:'b3', biaya:true, name:'Paket 3 · Vespa + Bebas Biaya + Asuransi Jiwa', item: 'Vespa Officina 8 + ' + BEBAS + ' + ' + ASJ('tipe-b'), ico:'scooter'},
     {id:'b4', diskon:300000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp300 juta', ico:'cash'},
   ],
   'tipe-c': [
     {id:'c1', name:'Paket 1 · Kia Carens EV', item:'Kia Carens EV Air 7-Seater', ico:'car'},
     {id:'c2', biaya:true, name:'Paket 2 · BYD Atto 1 + Bebas Biaya', item:'BYD Atto 1 Standard Range + ' + BEBAS, ico:'car'},
-    {id:'c3', biaya:true, name:'Paket 3 · Wuling Aira EV + Bebas Biaya + Asuransi Jiwa', item: 'Wuling Aira EV + ' + BEBAS + ' + asuransi jiwa', ico:'car'},
+    {id:'c3', biaya:true, name:'Paket 3 · Wuling Aira EV + Bebas Biaya + Asuransi Jiwa', item: 'Wuling Aira EV + ' + BEBAS + ' + ' + ASJ('tipe-c'), ico:'car'},
     {id:'c4', diskon:400000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp400 juta', ico:'cash'},
   ],
   'corner-b': [
     {id:'k1', name:'Paket 1 · Lepas E6 EV', item:'Lepas E6 EV (SUV listrik)', ico:'car'},
     {id:'k2', biaya:true, name:'Paket 2 · Geely EX2 Pro + Bebas Biaya', item:'Geely EX2 Pro + ' + BEBAS, ico:'car'},
-    {id:'k3', biaya:true, name:'Paket 3 · BYD Atto 1 + Bebas Biaya + Asuransi Jiwa', item: 'BYD Atto 1 Standard Range + ' + BEBAS + ' + asuransi jiwa', ico:'car'},
-    {id:'k3b', biaya:true, name:'Paket 3 · Bio Premiere Corner + Bebas Biaya + Asuransi Jiwa', item:'Bio Premiere Corner + ' + BEBAS + ' + asuransi jiwa', ico:'home'},
+    {id:'k3', biaya:true, name:'Paket 3 · BYD Atto 1 + Bebas Biaya + Asuransi Jiwa', item: 'BYD Atto 1 Standard Range + ' + BEBAS + ' + ' + ASJ('corner-b'), ico:'car'},
+    {id:'k3b', biaya:true, name:'Paket 3 · Bio Premier Corner + Bebas Biaya + Asuransi Jiwa', item:'Bio Premier Corner + ' + BEBAS + ' + ' + ASJ('corner-b'), ico:'home'},
     {id:'k4', diskon:500000000, name:'Paket 4 · Diskon Harga', item:'Diskon harga Rp500 juta', ico:'cash'},
   ],
 };
@@ -1061,19 +1073,25 @@ function simHTML(p){
     <dl class="num"><dt>Unit</dt><dd>${s.unit || '-'}</dd>
     <dt>Cara bayar</dt><dd>${modeName(s)}</dd>
     <dt>Harga jual</dt><dd>${rp(s.price)}</dd>
-    <dt class="${g.diskon ? 'hl' : ''}">Paket hadiah</dt><dd class="${g.diskon ? 'hl' : ''}">${g.diskon ? 'Diskon harga − ' + rp(g.diskon) : g.name.replace(/^Paket \d+ · /, '')}</dd>
+    <dt class="${g.diskon ? 'hl' : ''}">Paket hadiah</dt><dd class="${g.diskon ? 'hl' : ''}">${g.diskon ? 'Diskon harga − ' + rp(g.diskon) : namaTx(g.name, s).replace(/^Paket \d+ · /, '')}</dd>
     <dt class="tot">Harga transaksi</dt><dd class="tot">${rp(net)}</dd>
     <dt>Booking fee</dt><dd>${rp(CONFIG.bookingFee)}</dd>
     ${extra}${hadiahRow}</dl>
     ${cmp}`;
 }
-const GIFT_IMG = {a1:'aira',a2:'vespa',a3:'ac',b1:'jaecoo',b2:'aira',b3:'vespa',c1:'carens',c2:'byd',c3:'aira',k1:'lepas',k2:'geely',k3:'byd'};
-const biayaTx = (t, s) => ['kpr', 'smart'].includes(modeOf(s)) ? t : t.replace(/([Bb])iaya KPR, /g, '$1iaya ');
+const GIFT_IMG = {a1:'aira',a2:'vespa',a3:'ac',b1:'jaecoo',b2:'aira',b3:'vespa',c1:'carens',c2:'byd',c3:'aira',k1:'lepas',k2:'geely',k3:'byd',k3b:'premiere'};
+// Video pada kartu hadiah (dibuka di popup tanpa memilih paket)
+const GIFT_VID = {k3b:['bio-premiere','Bio Premier Corner']};
+// Cash keras & cash bertahap tidak memakai kredit → biaya KPR dan asuransi jiwa kredit tidak ditampilkan
+const tanpaKredit = s => ['keras', 'bertahap'].includes(modeOf(s));
+const biayaTx = (t, s) => { if (!['kpr', 'smart'].includes(modeOf(s))) t = t.replace(/([Bb])iaya KPR, /g, '$1iaya ');
+  return tanpaKredit(s) ? t.replace(/ \+ subsidi asuransi jiwa kredit[^+]*$/, '') : t; };
+const namaTx = (t, s) => tanpaKredit(s) ? t.replace(/ \+ Asuransi Jiwa$/, '') : t;
 function giftsHTML(p){
   const s = selOf(p);
   return PACKS[p.id].map(g => `<button type="button" class="gift" role="radio" aria-checked="${s.gift===g.id}" data-gift="${g.id}">
       ${(GIFT_IMG[g.id] || (g.diskon && 'uang')) ? `<img class="gph" src="/flashsale/assets/g-${GIFT_IMG[g.id] || 'uang'}.jpg" width="300" height="200" alt="" loading="lazy">` : `<span class="ico big">${ICON[g.ico]}</span>`}
-      <span><b>${g.name}</b><span class="plist">${biayaTx(g.item, s)}</span><span class="plist ${g.biaya ? 'ok' : 'warn'}">${g.biaya ? 'Biaya transaksi ditanggung Bio District' : biayaTx('Biaya KPR, AJB, balik nama, notaris, BPHTB ditanggung pembeli', s)}</span></span>
+      <span><b>${namaTx(g.name, s)}</b><span class="plist">${biayaTx(g.item, s)}</span><span class="plist ${g.biaya ? 'ok' : 'warn'}">${g.biaya ? 'Biaya transaksi ditanggung Bio District' : biayaTx('Biaya KPR, AJB, balik nama, notaris, BPHTB ditanggung pembeli', s)}</span>${GIFT_VID[g.id] ? `<span class="gvid" role="link" tabindex="0" data-gvid="${g.id}" aria-label="Tonton video ${GIFT_VID[g.id][1]}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>Tonton video</span>` : ''}</span>
       <span class="pick" aria-hidden="true"></span></button>`).join('');
 }
 function ctaHTML(p){
@@ -1094,7 +1112,7 @@ function ctaHTML(p){
 function hargaPaketHTML(p){
   const s = selOf(p), su = UNITS.find(x => x.id === s.unit) || p, g = packOf(p, s.gift);
   const harga = su.price - (g.diskon || 0), coret = su.list, off = coret > harga ? Math.round((coret - harga) / coret * 100) : 0;
-  const nama = g.name.replace(/^Paket (\d) · /, 'Paket $1 (') + ')';
+  const nama = namaTx(g.name, s).replace(/^Paket (\d) · /, 'Paket $1 (') + ')';
   const ket = g.diskon
     ? `Harga dengan ${nama}: harga langsung dipotong ${rp(g.diskon)}.`
     : `Harga dengan ${nama}: tanpa potongan harga, hadiah diberikan langsung.`;
@@ -1191,7 +1209,7 @@ function chatKonteks(){
   const k = kontakChat(), u = state.user, p = current();
   let msg = `Halo ${k.nama === 'Bio District' ? 'Bio District' : k.nama}, saya${u && u.nama ? ' ' + u.nama : ''} ingin bertanya tentang Flash Sale Bio District.`;
   if (p){ const s = selOf(p), g = packOf(p, s.gift);
-    msg += `\n\nYang sedang saya lihat:\n${p.name}${s.unit ? ', unit ' + s.unit : ''}\nPaket hadiah: ${g.item}\nCara bayar: ${modeName(s)}`; }
+    msg += `\n\nYang sedang saya lihat:\n${p.name}${s.unit ? ', unit ' + s.unit : ''}\nPaket hadiah: ${biayaTx(g.item, s)}\nCara bayar: ${modeName(s)}`; }
   return msg;
 }
 function chatLink(msg){ return 'https://wa.me/' + kontakChat().wa + '?text=' + encodeURIComponent(msg); }
@@ -1231,7 +1249,7 @@ function openOrder(p){
 function orderText(o){
   return `Halo Bio District, saya ambil promo Flash Sale.\n\nKode: ${o.code}\nNama: ${o.nama}\nWhatsApp: ${o.wa}\nEmail: ${o.email||'-'}\nDomisili: ${o.dom}\nSales: ${o.kode || 'Tim Bio District'}\n\nProduk: Bio District ${o.product}\nUnit: ${o.unit||'-'}\nHarga: ${rp(o.price)}\nHadiah pilihan: ${o.gift}\n${o.hadiah ? 'Penyerahan hadiah: ' + o.hadiah + '\n' : ''}Cara bayar: ${o.bayar}\nSimulasi (estimasi): ${o.sim || `DP ${o.dp}%, tenor ${o.years} tahun, ${rp(o.pay)}/bulan`}\n\nBooking fee ${rp(CONFIG.bookingFee)} sudah saya bayar. Mohon dicek dan info langkah berikutnya.`;
 }
-const TERMS = 'Ketentuan booking fee: booking fee yang sudah diterima dapat dikembalikan bila pembeli ditolak KPR oleh minimal 2 bank dan tidak lolos BI checking. Ketentuan hadiah: hadiah barang (mobil, motor, AC) diserahkan setelah pembayaran mencapai ' + CONFIG.hadiahPersen + '% dari harga transaksi; bila pemesanan batal setelah hadiah diterima, nilai hadiah diperhitungkan dari dana yang dikembalikan.';
+const TERMS = 'Ketentuan booking fee: booking fee yang sudah diterima dapat dikembalikan bila pembeli ditolak KPR oleh minimal 2 bank dan tidak lolos BI checking. Ketentuan hadiah: hadiah barang (mobil, motor, AC) diserahkan setelah pembayaran mencapai ' + CONFIG.hadiahPersen + '% dari harga transaksi; bila pemesanan batal setelah hadiah diterima, nilai hadiah diperhitungkan dari dana yang dikembalikan. Asuransi jiwa kredit pada Paket 3: premi disubsidi maksimal ' + jtASJ(CONFIG.asuransiMaks['tipe-a']) + ' (Tipe A), ' + jtASJ(CONFIG.asuransiMaks['tipe-b']) + ' (Tipe B), ' + jtASJ(CONFIG.asuransiMaks['tipe-c']) + ' (Tipe C), dan ' + jtASJ(CONFIG.asuransiMaks['corner-b']) + ' (Corner) per unit, berlaku untuk KPR, Bio Smart, dan Bio Easy; selisih premi di atas batas ditanggung pembeli.';
 const mmss = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return String(Math.floor(t/60)).padStart(2,'0') + ':' + String(t%60).padStart(2,'0'); };
 function qrSVG(){   // pola contoh, bukan QRIS yang bisa dibayar
   let r = '', seed = 7;
@@ -1422,6 +1440,8 @@ app.addEventListener('click', e => {
   if (tb){ const pp = current(); if (!pp) return; selOf(pp).years = +tb.dataset.years; const sy = $('#simYears'); if (sy) sy.value = tb.dataset.years; $('#simOut').innerHTML = simHTML(pp); return; }
   const jb = e.target.closest('[data-jump]');
   if (jb){ e.preventDefault(); const t = document.getElementById(jb.dataset.jump); if (t) t.scrollIntoView({behavior:'smooth', block:'start'}); return; }
+  const gv = e.target.closest('[data-gvid]');
+  if (gv){ e.preventDefault(); bukaVideo(...GIFT_VID[gv.dataset.gvid]); return; }   // jangan ikut memilih paket
   const tp = e.target.closest('[data-tour]');
   if (tp){   // video baru dimuat setelah diklik, supaya beranda tetap ringan
     const i = +tp.dataset.tour, t = TOURS[i];
@@ -1530,6 +1550,14 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) sync
 // banner flyer: tampil setiap kali platform dibuka
 const promo = $('#promo');
 document.addEventListener('click', e => { if (e.target.closest('[data-open-promo]')) { try { promo.showModal(); } catch (x) {} } });
+function bukaVideo(file, judul){
+  document.querySelectorAll('video').forEach(v => v.pause());
+  $('#vdlgBody').innerHTML = `<video controls autoplay playsinline preload="metadata" poster="/flashsale/assets/${file}.jpg" src="/flashsale/assets/${file}.mp4" aria-label="${judul}"></video><div class="vcap">${judul}</div>`;
+  try { vdlg.showModal(); } catch (x) {}
+}
+vdlg.addEventListener('click', e => { if (e.target === vdlg || e.target.closest('[data-vclose]')) vdlg.close(); });
+vdlg.addEventListener('close', () => { $('#vdlgBody').innerHTML = ''; });
+document.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('[data-gvid]'); if (g && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.stopPropagation(); g.click(); } }, true);
 promo.addEventListener('click', e => { if (e.target === promo || e.target.closest('.pclose,[data-promo-close]')) promo.close(); });
 if (!state.buat) { try { promo.showModal(); } catch (e) {} }
 </script>
