@@ -46,11 +46,17 @@ export default function FlashSaleKelola() {
       <div className="lk-list">
         {d.links.map(l => <div key={l.username}>
           <Baris judul={l.nama} ket={l.leadAgent ? 'Lead agent · link langsung ke konsumen' : l.manager ? 'Link atas nama Anda' : 'Sales · lead & penjualan tercatat atas namanya'} url={`${asal}/flashsale?ref=${encodeURIComponent(l.username)}`} />
-          {l.leadAgent && <Baris judul={l.nama + ' · untuk agent'} ket="Bagikan ke agent: mereka mengisi nama & kantor, lalu mendapat link sendiri" url={`${asal}/flashsale?ref=${encodeURIComponent(l.username)}&buat=1`} />}
+          {l.leadAgent && <Baris judul={l.nama + ' · untuk agent'} ket="Bagikan ke agent: mereka mengisi nama, kantor & nomor WhatsApp, lalu mendapat link sendiri — tombol Tanya konsumennya tersambung ke WA agent itu" url={`${asal}/flashsale?ref=${encodeURIComponent(l.username)}&buat=1`} />}
         </div>)}
         {d.kelola && <Baris judul="Link umum" ket="Tanpa kode · iklan, Instagram, website, banner — lead masuk atas nama Head of Sales & Marketing" url={`${asal}/flashsale`} />}
       </div>
       <p className="hint" style={{ marginTop: 10 }}>Nomor HP yang sudah ada di Database Lead tetap milik sales yang lebih dulu mencatatnya, walaupun mendaftar lewat link lain.</p></div>
+
+    {(d.agents || []).length > 0 && <div className="card" style={{ marginTop: 14 }}><b>🧑‍💼 Agent</b> <span className="hint">{d.agents.length} agent membuat link sendiri</span>
+      <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Agent</th><th>Kantor</th><th>WhatsApp</th><th>Di bawah</th><th>Pendaftar</th><th>Kode link</th><th>Dibuat</th></tr></thead>
+        <tbody>{d.agents.map(a => <tr key={a.kode}><td><b>{a.nama}</b></td><td>{a.kantor}</td>
+          <td><a href={'https://wa.me/' + String(a.wa || '').replace(/\D/g, '').replace(/^0/, '62')} target="_blank" rel="noopener noreferrer">{a.wa}</a></td>
+          <td>{a.lead_agent || a.ref_username}</td><td>{a.pendaftar}</td><td style={{ fontFamily: 'monospace' }}>{a.kode}</td><td style={{ whiteSpace: 'nowrap' }}>{waktu(a.created_at)}</td></tr>)}</tbody></table></div></div>}
 
     <div className="card" style={{ marginTop: 14 }}><b>🧾 Pesanan</b>
       {d.pesanan.length ? <div><table className="tg-tb lk-tabel" style={{ marginTop: 8 }}><thead><tr><th>Waktu</th><th>Kode</th><th>Konsumen</th><th>Unit</th><th>Paket &amp; cara bayar</th><th>Harga</th><th>Sales</th><th>Status</th><th></th></tr></thead>
@@ -78,7 +84,8 @@ export default function FlashSaleKelola() {
             {x.verified_at ? <span className="tg-sub" style={{ color: '#1f7a45' }}>✓ WA terverifikasi{x.verif_oleh && !['wa', 'aturan-mati'].includes(x.verif_oleh) ? ' (manual)' : ''}</span>
               : x.belumSah ? <span className="tg-sub" style={{ color: '#b3261e' }}>Belum verifikasi WA · kode {x.verif_kode}{d.kelola ? <> · <button className="sort-btn" style={{ padding: '2px 8px', fontSize: 11 }} disabled={busy} onClick={() => { if (confirm(`Tandai nomor ${x.wa} (${x.nama}) sudah terverifikasi? Pastikan dulu nomornya benar, misalnya dengan menelepon.`)) aksi({ aksi: 'sahkan', id: x.id }, 'Nomor ditandai terverifikasi'); }}>Tandai terverifikasi</button></> : null}</span> : null}</td>
           <td>{x.domisili}</td>
-          <td>{x.pemilik || '—'}<span className="tg-sub">{x.agent_nama ? `Agent ${x.agent_nama}${x.agent_kantor ? ' · ' + x.agent_kantor : ''}` : x.ref_username ? 'lewat link' : 'tanpa kode'}</span></td>
+          <td>{x.pemilik || '—'}<span className="tg-sub">{x.agent_nama ? `Agent ${x.agent_nama}${x.agent_kantor ? ' · ' + x.agent_kantor : ''}${x.agent_wa ? ' · +' + x.agent_wa : ''}` : x.ref_username ? 'lewat link' : 'tanpa kode'}</span>
+            {x.tanya_n ? <span className="tg-sub" style={{ color: '#1f7a45' }}>💬 {x.tanya_n}× buka chat WhatsApp{x.tanya_at ? ' · terakhir ' + waktu(x.tanya_at) : ''}</span> : null}</td>
           <td>{x.lead_code ? <a href={'/leads?lead=' + encodeURIComponent(x.lead_code)}>{x.lead_code}</a> : '—'}<span className="tg-sub">{x.lead_code ? (x.lead_baru ? 'lead baru' : 'sudah ada di CRM') : ''}</span></td>
         </tr>)}</tbody></table></div>
         : <p className="hint" style={{ marginTop: 6 }}>Belum ada pendaftar.</p>}</div>

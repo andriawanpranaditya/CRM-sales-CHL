@@ -26,7 +26,7 @@ export async function GET(req) {
   if (!semua) akun = akun.filter(a => a.username === user.username);
   const links = akun.map(a => ({ username: a.username, nama: a.name, leadAgent: !!a.lead_agent, manager: a.role === 'manager' }));
   const milik = r => semua || r.pemilik === user.name || r.ref_username === user.username;
-  const daftar = (await sql`SELECT d.id, d.nama, d.wa, d.email, d.domisili, d.ref_username, d.agent_nama, d.agent_kantor, d.lead_code, d.pemilik, d.lead_baru, d.uji, d.created_at, d.verif_kode, d.verified_at, d.verif_oleh
+  const daftar = (await sql`SELECT d.id, d.nama, d.wa, d.email, d.domisili, d.ref_username, d.agent_nama, d.agent_kantor, d.agent_wa, d.tanya_n, d.tanya_at, d.lead_code, d.pemilik, d.lead_baru, d.uji, d.created_at, d.verif_kode, d.verified_at, d.verif_oleh
     FROM flash_daftar d ORDER BY d.id DESC LIMIT 500`).filter(milik).map(x => ({ ...x, belumSah: perluVerif(setting, x) }));
   // Kapan terakhir webhook menerima chat di nomor resmi Bio District (penanda sambungan WA hidup)
   let waTerakhir = null;
@@ -34,7 +34,15 @@ export async function GET(req) {
   const pesanan = (await sql`SELECT p.*, d.nama, d.wa, d.pemilik, d.ref_username, d.agent_nama, d.agent_kantor FROM flash_pesan p JOIN flash_daftar d ON d.id = p.daftar_id ORDER BY p.id DESC LIMIT 500`).filter(milik);
   const { tutup, klaim } = await posisi(sql, setting.uji);
   const ringkas = Object.entries(setting.kuota).map(([g, kuota]) => ({ grup: g, nama: NAMA_GRUP[g], kuota, terpakai: klaim[g] || 0 }));
-  return Response.json({ kelola, pemilik, setting, fase: j.fase, links, daftar, pesanan, ringkas, waTerakhir, tutup: tutup.size, bookingFee: BOOKING_FEE, bawaan: BAWAAN });
+  // Agent yang membuat link sendiri dari link lead agent (semua untuk pengelola; lead agent hanya agent-nya)
+  let agents = [];
+  try {
+    agents = await sql`SELECT a.kode, a.ref_username, a.nama, a.kantor, a.wa, a.created_at, u.name AS lead_agent,
+        (SELECT count(*)::int FROM flash_daftar d WHERE d.agent_kode = a.kode AND COALESCE(d.uji, false) = false) AS pendaftar
+      FROM flash_agent a LEFT JOIN users u ON u.username = a.ref_username ORDER BY a.created_at DESC LIMIT 500`;
+    if (!semua) agents = agents.filter(a => a.ref_username === user.username);
+  } catch (e) { console.error('agents', e); }
+  return Response.json({ kelola, pemilik, setting, fase: j.fase, links, daftar, pesanan, ringkas, waTerakhir, agents, tutup: tutup.size, bookingFee: BOOKING_FEE, bawaan: BAWAAN });
 }
 
 async function _POST(req) {

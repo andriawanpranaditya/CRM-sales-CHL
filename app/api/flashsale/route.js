@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { normWA } from '@/lib/kontak';
-import { siapkanFlash, bacaSetting, jadwal, posisi, pemilikLink, pemilikBawaan, infoUnit, daftarUnit, tokenBaru, kodePesan, hariIni, bersih, buatLeadFlash, sahkanDaftar, kodeVerif, teksVerif, perluVerif, WA_RESMI,
+import { agentDariKode, kodeAgent, kontakChat, waAkun, siapkanFlash, bacaSetting, jadwal, posisi, pemilikLink, pemilikBawaan, infoUnit, daftarUnit, tokenBaru, kodePesan, hariIni, bersih, buatLeadFlash, sahkanDaftar, kodeVerif, teksVerif, perluVerif, WA_RESMI,
   PROJECT, BOOKING_FEE, MENIT_BAYAR, PAKET, CARA_BAYAR, NAMA_GRUP } from '@/lib/flashsale';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,7 @@ export async function GET(req) {
   const setting = await bacaSetting(sql), j = jadwal(setting);
   const { tutup, klaim } = await posisi(sql, setting.uji);
   const ref = q.get('ref') ? await pemilikLink(sql, q.get('ref')) : null;
+  const agent = ref?.leadAgent && q.get('ag') ? await agentDariKode(sql, ref.username, q.get('ag')) : null;
   let pesanan = null, saya = null;
   let d = q.get('token') ? await ambilDaftar(sql, q.get('token')) : null;
   // Aturan verifikasi dimatikan saat ada pendaftar yang belum terverifikasi → lead-nya tetap dibuat
@@ -35,7 +36,8 @@ export async function GET(req) {
     saya = { nama: d.nama, sales: d.pemilik || '', agent: d.agent_nama || '', verif: verifInfo(setting, d) };
   }
   return Response.json({ ok: true, now: Date.now(), mulai: j.mulai, selesai: j.selesai, uji: setting.uji, kuota: setting.kuota, klaim,
-    tutup: [...tutup], ref: q.get('ref') ? (ref ? { ok: true, nama: ref.nama, leadAgent: ref.leadAgent } : { ok: false }) : null,
+    tutup: [...tutup], ref: q.get('ref') ? (ref ? { ok: true, nama: ref.nama, leadAgent: ref.leadAgent, agent: agent ? { nama: agent.nama, kantor: agent.kantor } : null } : { ok: false }) : null,
+    kontak: await kontakChat(sql, { ref, agent, daftar: d }).then(k => ({ wa: k.wa, nama: k.nama })).catch(() => null),
     tokenOk: q.get('token') ? !!d : null, saya, pesanan, bookingFee: BOOKING_FEE, menitBayar: MENIT_BAYAR });
 }
 
@@ -44,6 +46,30 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   if (b.website) return Response.json({ ok: true }); // jebakan bot
   const setting = await bacaSetting(sql), j = jadwal(setting);
+
+  // ---- Agent di bawah lead agent membuat link pribadinya (tanpa persetujuan) ----
+  if (b.aksi === 'agent-daftar') {
+    const ref = await pemilikLink(sql, b.ref);
+    if (!ref || !ref.leadAgent) return tolak('Link ini tidak berlaku. Minta link terbaru ke koordinator agent Anda.', 404);
+    const nama = bersih(b.nama, 80), kantor = bersih(b.kantor, 100), wa = bersih(b.wa, 30), waN = normWA(wa);
+    if (nama.length < 3) return tolak('Isi nama Anda.');
+    if (kantor.length < 2) return tolak('Isi nama kantor / agency Anda.');
+    if (!hpSah(waN)) return tolak('Nomor WhatsApp belum benar. Contoh: 081234567890.');
+    const lama = (await sql`SELECT * FROM flash_agent WHERE ref_username = ${ref.username} AND wa_norm = ${waN} LIMIT 1`)[0];
+    if (lama) {
+      const u = (await sql`UPDATE flash_agent SET nama = ${nama}, kantor = ${kantor}, wa = ${wa}, updated_at = now() WHERE id = ${lama.id} RETURNING kode`)[0];
+      return Response.json({ ok: true, kode: u.kode, lama: true });
+    }
+    const sehari = (await sql`SELECT count(*)::int AS n FROM flash_agent WHERE created_at > now() - interval '1 day'`)[0]?.n || 0;
+    if (sehari >= 500) return tolak('Pendaftaran agent sedang ramai. Coba lagi beberapa saat.', 429);
+    for (let i = 0; i < 5; i++) {
+      const kode = kodeAgent();
+      const ins = await sql`INSERT INTO flash_agent (kode, ref_username, nama, kantor, wa, wa_norm) VALUES (${kode}, ${ref.username}, ${nama}, ${kantor}, ${wa}, ${waN})
+        ON CONFLICT (kode) DO NOTHING RETURNING kode`;
+      if (ins[0]) return Response.json({ ok: true, kode: ins[0].kode });
+    }
+    return tolak('Gagal membuat link. Coba lagi.', 500);
+  }
 
   // ---- Daftar: konsumen masuk platform → lead CRM ----
   if (b.aksi === 'daftar') {
@@ -65,17 +91,19 @@ export async function POST(req) {
     if (sehari >= 3000) return tolak('Pendaftaran sedang sangat ramai. Coba lagi beberapa saat.', 429);
     let ref = null;
     if (b.ref) { ref = await pemilikLink(sql, b.ref); if (!ref) return tolak('Kode sales tidak dikenal. Periksa lagi atau kosongkan.'); }
-    const agentNama = ref?.leadAgent ? bersih(b.agent_nama, 80) : '', agentKantor = ref?.leadAgent ? bersih(b.agent_kantor, 100) : '';
+    // Agent: dari kode link (?ag=) yang tersimpan di CRM; link lama (?a=&k=) tetap diterima tanpa nomor WA
+    const ag = ref?.leadAgent && b.ag ? await agentDariKode(sql, ref.username, b.ag) : null;
+    const agentNama = ag ? ag.nama : ref?.leadAgent ? bersih(b.agent_nama, 80) : '', agentKantor = ag ? ag.kantor : ref?.leadAgent ? bersih(b.agent_kantor, 100) : '';
     const bawaan = ref ? null : await pemilikBawaan(sql);
     let pemilik = ref ? ref.nama : bawaan.nama, leadCode = null, leadBaru = false;
-    const data = { nama, wa, wa_norm: waN, email, domisili, ref_username: ref?.username || '', agent_nama: agentNama, agent_kantor: agentKantor, pemilik };
+    const data = { nama, wa, wa_norm: waN, email, domisili, ref_username: ref?.username || '', agent_nama: agentNama, agent_kantor: agentKantor, agent_wa: ag?.wa_norm || '', pemilik };
     // Verifikasi WA menyala → lead CRM baru dibuat setelah nomornya terbukti benar
     if (!setting.uji && !setting.verifWA) { const r = await buatLeadFlash(sql, data); leadCode = r.leadCode; pemilik = r.pemilik; leadBaru = r.leadBaru; }
     const token = tokenBaru(), kode = setting.verifWA ? kodeVerif() : null;
     // Nomor yang sama pernah didaftarkan orang lain tetapi tidak pernah terverifikasi → digantikan pendaftaran ini
     if (lamaBelumSah) await sql`DELETE FROM flash_daftar WHERE id = ${lama.id} AND verified_at IS NULL AND NOT EXISTS (SELECT 1 FROM flash_pesan WHERE daftar_id = ${lama.id})`;
-    const baru = (await sql`INSERT INTO flash_daftar (token, nama, wa, wa_norm, email, domisili, ref_username, agent_nama, agent_kantor, lead_code, pemilik, lead_baru, uji, verif_kode)
-      VALUES (${token}, ${nama}, ${wa}, ${waN}, ${email}, ${domisili}, ${ref?.username || ''}, ${agentNama}, ${agentKantor}, ${leadCode}, ${pemilik}, ${leadBaru}, ${setting.uji}, ${kode}) RETURNING *`)[0];
+    const baru = (await sql`INSERT INTO flash_daftar (token, nama, wa, wa_norm, email, domisili, ref_username, agent_nama, agent_kantor, agent_kode, agent_wa, lead_code, pemilik, lead_baru, uji, verif_kode)
+      VALUES (${token}, ${nama}, ${wa}, ${waN}, ${email}, ${domisili}, ${ref?.username || ''}, ${agentNama}, ${agentKantor}, ${ag?.kode || null}, ${ag?.wa_norm || null}, ${leadCode}, ${pemilik}, ${leadBaru}, ${setting.uji}, ${kode}) RETURNING *`)[0];
     return Response.json({ ok: true, token, sales: pemilik, verif: verifInfo(setting, baru) });
   }
 
@@ -91,6 +119,22 @@ export async function POST(req) {
     if (pakai) return tolak('Nomor ini sudah terdaftar. Masuk dengan nomor dan email yang sama seperti saat mendaftar.', 409);
     const u = (await sql`UPDATE flash_daftar SET wa = ${wa}, wa_norm = ${waN}, verif_kode = ${kodeVerif()} WHERE id = ${d.id} RETURNING *`)[0];
     return Response.json({ ok: true, verif: verifInfo(setting, u) });
+  }
+  // ---- Konsumen menekan tombol Tanya → dicatat & pemilik lead diberi tahu (paling sering sekali per jam) ----
+  if (b.aksi === 'tanya') {
+    const baruSaja = d.tanya_at && Date.now() - new Date(d.tanya_at).getTime() < 3600000;
+    await sql`UPDATE flash_daftar SET tanya_n = COALESCE(tanya_n, 0) + 1, tanya_at = now() WHERE id = ${d.id}`;
+    if (!baruSaja && !d.uji) {
+      try {
+        const k = await kontakChat(sql, { daftar: d }), { kirimPush } = await import('@/lib/push');
+        const hari = hariIni().split('-').reverse().join('/');
+        if (d.lead_code) await sql`UPDATE leads SET catatan = TRIM(BOTH ' ·' FROM COALESCE(catatan, '') || ${' · Bertanya via WhatsApp dari platform Flash Sale ' + hari + ' (ke ' + k.nama + ')'}), updated_at = now() WHERE lead_code = ${d.lead_code}`.catch(() => {});
+        const isi = `${d.nama} · ${d.wa} membuka chat WhatsApp ke ${k.jenis === 'agent' ? 'agent ' + k.nama : k.jenis === 'resmi' ? 'nomor resmi' : k.nama}`;
+        const tujuan = k.jenis === 'resmi' || !d.pemilik ? { role: 'manager' } : { usernames: (await sql`SELECT username FROM users WHERE active = true AND lower(name) = lower(${d.pemilik})`).map(x => x.username) };
+        await kirimPush(sql, tujuan, { judul: '💬 Konsumen Flash Sale bertanya', isi, url: '/flashsale-kelola', tag: 'fst-' + d.id });
+      } catch (e) { console.error('tanya', e); }
+    }
+    return Response.json({ ok: true });
   }
   if (perluVerif(setting, d)) return tolak('Verifikasi nomor WhatsApp Anda dulu untuk melanjutkan.', 403);
 
