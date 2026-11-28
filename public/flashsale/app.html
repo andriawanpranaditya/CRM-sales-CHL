@@ -202,11 +202,11 @@ ul.ticks li::before{content:"";position:absolute;left:2px;top:7px;width:9px;heig
 .field label{font-size:12.5px;font-weight:700;color:var(--muted)}
 .field input,.field select{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;width:100%}
 .simgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.simgrid[data-m="bertahap"]{grid-template-columns:1fr}
+.simgrid[data-m="bertahap"],.simgrid[data-m="easy"]{grid-template-columns:1fr}
 .simgrid[data-m="smart"]{grid-template-columns:1fr 1fr}
 .simgrid[hidden],.sublbl[hidden]{display:none}
-.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 18px}
-@media (max-width:480px){.modes{grid-template-columns:repeat(2,1fr)}}
+.modes{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 18px}
+@media (max-width:640px){.modes{grid-template-columns:repeat(3,1fr)}}
 .mode{border:1.5px solid #d8c79a;background:#fffdf6;border-radius:10px;padding:10px 4px;font-weight:800;font-size:13.5px;color:var(--ink);line-height:1.2}
 .mode[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:#f1cf86}
 .simpanel{padding:0;overflow:hidden;border-color:#c9b27a}
@@ -926,14 +926,17 @@ function gateHTML(){
 /* ---------- halaman produk ---------- */
 const rateOf = s => (typeof s.rate === 'number' ? s.rate : CONFIG.rate);
 const rateStr = r => String(r).replace('.', ',');
-const MODES = [['keras','Cash keras'],['kpr','KPR'],['smart','Bio Smart'],['bertahap','Cash bertahap']];
+const MODES = [['keras','Cash keras'],['kpr','KPR'],['smart','Bio Smart'],['easy','Bio Easy'],['bertahap','Cash bertahap']];
+const isTahap = m => m === 'bertahap' || m === 'easy';   // Bio Easy & cash bertahap memakai hitungan tahapHitung
 const TAHAP = [12,24,36,60,120,180];
 const tahapLbl = m => m < 60 || m % 12 ? m + ' bulan' : m === 60 ? '60 bulan' : m/12 + ' tahun';
 const tahapPendek = m => m < 60 || m % 12 ? m + ' bln' : m === 60 ? '60 bln' : m/12 + ' th';
 const modeOf = s => s.mode || 'kpr';
 // 12 bulan tanpa bunga hanya untuk paket hadiah non-diskon (Paket 1–3)
-const tahapList = p => packOf(p, selOf(p).gift).diskon ? TAHAP.filter(m => m !== 12) : TAHAP;
-const monthsOf = (s, p) => { const l = tahapList(p); return l.includes(s.months) ? s.months : (l.includes(12) ? 12 : l[0]); };
+// Cash bertahap: 12–36 bulan tanpa DP. Bio Easy: 60 bulan–15 tahun dengan DP 10% dicicil 3× (tab sendiri).
+const tahapList = p => modeOf(selOf(p)) === 'easy' ? TAHAP.filter(m => m >= CONFIG.tahapDpMulai)
+  : TAHAP.filter(m => m < CONFIG.tahapDpMulai && !(m === 12 && packOf(p, selOf(p).gift).diskon));
+const monthsOf = (s, p) => { const l = tahapList(p); return l.includes(s.months) ? s.months : modeOf(s) === 'easy' ? l[l.length - 1] : (l.includes(12) ? 12 : l[0]); };
 const modeName = s => MODES.find(m => m[0] === modeOf(s))[1];
 // net = harga transaksi; booking fee dihitung sebagai bagian dari pembayaran pertama
 function tahapHitung(net, n){
@@ -963,7 +966,7 @@ function bulanHadiah(c){
 const adaBarang = g => !g.diskon;   // paket diskon harga tidak punya hadiah barang
 function simCalc(p){
   const s = selOf(p), g = packOf(p, s.gift), mode = modeOf(s), net = s.price - (g.diskon || 0), n = monthsOf(s, p);
-  const t = mode === 'bertahap' ? tahapHitung(net, n) : null, sm = mode === 'smart' ? smartHitung(net) : null;
+  const t = isTahap(mode) ? tahapHitung(net, n) : null, sm = mode === 'smart' ? smartHitung(net) : null;
   const dp = mode === 'keras' ? 0 : t ? t.dp : sm ? sm.masuk : net * s.dp/100, sisa = sm ? sm.sisa : net - dp;
   const pay = mode === 'kpr' || sm ? annuity(sisa, rateOf(s), s.years) : t ? t.pay : 0;
   const dpPct = net ? Math.round(dp / (sm ? dp + sm.sisa : net) * 100) : 0;
@@ -982,18 +985,19 @@ function simCtlHTML(p){
   if (mode === 'keras') return '';
   if (mode === 'smart') return `<div class="field"><label for="simYears">Tenor KPR (bulan ke-${3 + CONFIG.smartKali + 1})</label><select id="simYears">${opt([5,10,15,20,25], s.years, ' tahun')}</select></div>
     <div class="field"><label for="simRate">Bunga KPR % per tahun*</label><input id="simRate" inputmode="decimal" autocomplete="off" value="${rateStr(rateOf(s))}" aria-describedby="simDisc"></div>`;
-  if (mode === 'bertahap') return `<div class="field"><label for="simMonths">Lama cicilan</label><select id="simMonths">${tahapList(p).map(v => `<option value="${v}" ${v===monthsOf(s, p)?'selected':''}>${tahapLbl(v)}${v < CONFIG.tahapDpMulai ? ' · tanpa DP' : ' · DP ' + CONFIG.tahapDp + '% dicicil ' + CONFIG.tahapDpKali + '×'}</option>`).join('')}</select></div>`;
+  if (isTahap(mode)) return `<div class="field"><label for="simMonths">Lama cicilan</label><select id="simMonths">${tahapList(p).map(v => `<option value="${v}" ${v===monthsOf(s, p)?'selected':''}>${tahapLbl(v)}${v < CONFIG.tahapDpMulai ? ' · tanpa DP' : ' · DP ' + CONFIG.tahapDp + '% dicicil ' + CONFIG.tahapDpKali + '×'}</option>`).join('')}</select></div>`;
   return `<div class="field"><label for="simDp">DP</label><select id="simDp">${opt([0,10,20,30], s.dp, '%')}</select></div>
     <div class="field"><label for="simYears">Tenor</label><select id="simYears">${opt([5,10,15,20,25], s.years, ' tahun')}</select></div>
     <div class="field"><label for="simRate">Bunga % per tahun*</label><input id="simRate" inputmode="decimal" autocomplete="off" value="${rateStr(rateOf(s))}" aria-describedby="simDisc"></div>`;
 }
-const SIMLBL = {keras:'', kpr:'Atur DP, tenor, dan bunga', smart:'Atur tenor dan bunga KPR untuk sisa harga', bertahap:'Pilih lama cicilan'};
+const SIMLBL = {keras:'', kpr:'Atur DP, tenor, dan bunga', smart:'Atur tenor dan bunga KPR untuk sisa harga', easy:'Pilih lama cicilan', bertahap:'Pilih lama cicilan'};
 const HADIAH_TX = () => `Hadiah barang (mobil, motor, AC) diserahkan setelah pembayaran mencapai ${CONFIG.hadiahPersen}% dari harga transaksi, untuk semua cara bayar.`;
 function simDiscHTML(p){
   const mode = modeOf(selOf(p));
   if (mode === 'kpr') return `<b>*Disclaimer:</b> angsuran dan suku bunga di atas hanya estimasi dan tidak mengikat. Perhitungan dapat berbeda dengan perhitungan bank, dan suku bunga dapat berubah sewaktu-waktu sebelum akad kredit. Persetujuan, plafon, bunga, dan angsuran yang berlaku sepenuhnya mengikuti ketentuan bank pemberi KPR. Bunga awal ${rateStr(CONFIG.rate)}% mengikuti ilustrasi price list dan bisa Anda ubah. ${HADIAH_TX()}`;
   if (mode === 'smart') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Bio Smart: DP ${CONFIG.smartDp}% dicicil 3×, lalu cicilan tetap ke Bio District ${CONFIG.smartKali}×; sisa harga, yang sudah termasuk biaya pembiayaan selama masa cicilan, dilunasi lewat KPR bank pada bulan ke-${3 + CONFIG.smartKali + 1}, dengan persetujuan, plafon, dan bunga mengikuti ketentuan bank. Booking fee dihitung sebagai bagian dari pembayaran pertama. ${HADIAH_TX()}`;
-  if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Cicilan 12–36 bulan dibayar rata tanpa DP; cicilan 12 bulan tanpa tambahan biaya hanya berlaku untuk paket hadiah selain Diskon Harga. Cicilan 60 bulan–15 tahun (Bio Easy) diawali DP ${CONFIG.tahapDp}% yang dicicil ${CONFIG.tahapDpKali}× dan sudah termasuk dalam lama cicilan, serta sudah termasuk asuransi jiwa kredit. Booking fee dihitung sebagai bagian dari pembayaran pertama. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
+  if (mode === 'easy') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Bio Easy: DP ${CONFIG.tahapDp}% dicicil ${CONFIG.tahapDpKali}× dan sudah termasuk dalam lama cicilan, lalu cicilan tetap ke Bio District sampai lunas, sudah termasuk asuransi jiwa kredit. Booking fee dihitung sebagai bagian dari pembayaran pertama. Nilai cicilan, jadwal, dan ketentuan yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
+  if (mode === 'bertahap') return `<b>*Disclaimer:</b> cicilan di atas hanya estimasi dan tidak mengikat. Cicilan 12–36 bulan dibayar rata tanpa DP; cicilan 12 bulan tanpa tambahan biaya hanya berlaku untuk paket hadiah selain Diskon Harga. Booking fee dihitung sebagai bagian dari pembayaran pertama. Nilai cicilan, jadwal, dan ketentuan cash bertahap yang berlaku mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
   return `<b>*Disclaimer:</b> nilai pelunasan di atas hanya estimasi dan tidak mengikat. Jadwal pelunasan dan ketentuan cash keras mengikuti konfirmasi resmi tim Bio District dan tertuang dalam surat pesanan. ${HADIAH_TX()}`;
 }
 function modesHTML(p){
@@ -1017,10 +1021,10 @@ function simHTML(p){
   const head = mode === 'kpr' ? `<div class="simlbl">Estimasi angsuran KPR per bulan*</div>
       <div class="big num">${rp(pay)}</div>
       <div class="simsub num">Bunga ${rateStr(rateOf(s))}%* · tenor ${s.years} tahun · DP ${s.dp}%</div>`
-    : sm ? `<div class="simlbl">Estimasi cicilan ke Bio District per bulan*</div>
-      <div class="big num">${rp(sm.cicil)}</div>
-      <div class="simsub num">Bio Smart · bulan 4–${3 + CONFIG.smartKali}, setelah DP ${CONFIG.smartDp}% dicicil 3×; sisa lewat KPR bulan ke-${sm.bulanKpr}</div>`
-    : mode === 'bertahap' ? `<div class="simlbl">Estimasi cicilan per bulan*</div>
+    : sm ? `<div class="simlbl">Estimasi angsuran KPR per bulan*</div>
+      <div class="big num">${rp(pay)}</div>
+      <div class="simsub num">Bio Smart · KPR mulai bulan ke-${sm.bulanKpr} · bunga ${rateStr(rateOf(s))}%* · tenor ${s.years} tahun</div>`
+    : isTahap(mode) ? `<div class="simlbl">Estimasi cicilan per bulan*</div>
       <div class="big num">${rp(pay)}</div>
       <div class="simsub num">${t.dp ? `Bio Easy ${tahapLbl(n)} · mulai bulan ke-${CONFIG.tahapDpKali + 1}, setelah DP ${CONFIG.tahapDp}% dicicil ${CONFIG.tahapDpKali}×` : `Cash bertahap ${tahapLbl(n)} · tanpa DP, cicilan rata`}</div>`
     : `<div class="simlbl">Estimasi pelunasan cash keras*</div>
@@ -1032,14 +1036,14 @@ function simHTML(p){
     <dt>Gambaran penghasilan (angsuran 40%)</dt><dd>${rp(pay/0.4)}</dd>`
     : `<dt>Biaya ${sm ? 'KPR, ' : ''}AJB, balik nama, notaris, BPHTB</dt><dd class="${g.biaya ? 'okc' : 'hl'}">${g.biaya ? 'Ditanggung Bio District' : 'Ditanggung pembeli'}</dd>` +
       (sm ? `<dt>DP ${CONFIG.smartDp}% (bulan 1–3)</dt><dd>3 × ${rp(sm.dp1)}</dd><dt>Cicilan ke Bio District (bulan 4–${3 + CONFIG.smartKali})</dt><dd>${CONFIG.smartKali} × ${rp(sm.cicil)}</dd><dt>Sisa dilunasi KPR bank (bulan ke-${sm.bulanKpr}), termasuk biaya pembiayaan</dt><dd>${rp(sm.sisa)}</dd><dt>Estimasi angsuran KPR (${s.years} th, bunga ${rateStr(rateOf(s))}%)</dt><dd>${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(sm.dp1 - CONFIG.bookingFee)}</dd>`
-      : mode === 'bertahap' ? (t.dp
+      : isTahap(mode) ? (t.dp
         ? `<dt>DP ${CONFIG.tahapDp}% (bulan 1–${CONFIG.tahapDpKali})</dt><dd>${CONFIG.tahapDpKali} × ${rp(t.dp1)}</dd><dt>Cicilan (bulan ${CONFIG.tahapDpKali + 1}–${n})</dt><dd>${t.nCicil} × ${rp(pay)}</dd><dt>Pembayaran pertama (dipotong booking fee)</dt><dd>${rp(t.dp1 - CONFIG.bookingFee)}</dd>`
         : `<dt>DP</dt><dd>Tanpa DP</dd><dt>Cicilan</dt><dd>${n} × ${rp(pay)}</dd><dt>Cicilan pertama (dipotong booking fee)</dt><dd>${rp(pay - CONFIG.bookingFee)}</dd>`)
       : `<dt>Pelunasan</dt><dd>${rp(net - CONFIG.bookingFee)}</dd>`);
   const hadiahRow = hadiah ? `<dt class="hl">Hadiah ${esc(g.item.split(' + ')[0])} diserahkan</dt><dd class="hl">${hadiah.teks}</dd>` : '';
   const cmp = mode === 'kpr' || sm ? `<div class="tenlbl">${sm ? 'Bandingkan tenor KPR untuk sisa harga' : 'Bandingkan tenor'} (estimasi per bulan)</div>
     <div class="tenors">${[5,10,15,20,25].map(y => `<button type="button" class="ten" data-years="${y}" aria-pressed="${y === s.years}"><b>${y} th</b><span class="num">${rpShort(annuity(sisa, rateOf(s), y))}</span></button>`).join('')}</div>`
-    : mode === 'bertahap' ? `<div class="tenlbl">Bandingkan lama cicilan (estimasi per bulan)</div>
+    : isTahap(mode) ? `<div class="tenlbl">Bandingkan lama cicilan (estimasi per bulan)</div>
     <div class="tenors${tahapList(p).length > 5 ? ' t6' : ''}">${tahapList(p).map(m => `<button type="button" class="ten" data-months="${m}" aria-pressed="${m === n}"><b>${tahapPendek(m)}</b><span class="num">${rpShort(tahapHitung(net, m).pay)}</span></button>`).join('')}</div>` : '<div style="height:10px"></div>';
   return `<div class="simhead">${head}
       <div class="simest">*Estimasi, tidak mengikat</div>
@@ -1407,7 +1411,7 @@ app.addEventListener('click', e => {
   }
   const p = current(); if (!p) return;
   const g = e.target.closest('[data-gift]');
-  if (g && !g.disabled){ selOf(p).gift = g.dataset.gift; $('#gifts').innerHTML = giftsHTML(p); if (modeOf(selOf(p)) === 'bertahap') $('#simCtl').innerHTML = simCtlHTML(p); $('#simOut').innerHTML = simHTML(p); const dp = $('#dPrice'); if (dp) dp.innerHTML = hargaPaketHTML(p); return; }
+  if (g && !g.disabled){ selOf(p).gift = g.dataset.gift; $('#gifts').innerHTML = giftsHTML(p); if (isTahap(modeOf(selOf(p)))) $('#simCtl').innerHTML = simCtlHTML(p); $('#simOut').innerHTML = simHTML(p); const dp = $('#dPrice'); if (dp) dp.innerHTML = hargaPaketHTML(p); return; }
   const a = e.target.closest('[data-act]'); if (!a) return;
   if (a.dataset.act === 'buy') return openOrder(p);
   const s = selOf(p), gift = packOf(p, s.gift);
