@@ -24,6 +24,15 @@ const KAT_BATAL = [['KPR ditolak / proses KPR', /kpr|bank|slik|bi.?check|\bkol\b
   ['Unit / lokasi / pilihan lain', /unit|lokasi|apartemen|tipe|cocok|rumah lain|beli di/i, '#9A8F7A'], ['Keluarga / tidak bisa dihubungi', /keluarga|orang tua|dihubungi|respon|kontak/i, '#C9C3B4']];
 const kategoriBatal = a => { const t = String(a || '').replace(/·\s*(Non-refund|Refund)\s*$/i, '').trim(); if (!t) return 'Tidak dicatat'; const k = KAT_BATAL.find(([, re]) => re.test(t)); return k ? k[0] : 'Lainnya'; };
 
+// Stok dihitung persis seperti Master Stock: unit Terjual (merah), Reserved (kuning) dan Hold manajemen (biru) tidak tersedia
+function ringkasStokUnit(units, sk, project) {
+  if (!sk || !Array.isArray(sk.status) || !units.length) return null;
+  const ada = new Set(units), warna = {};
+  sk.status.filter(u => u.project === project && ada.has(u.unit)).forEach(u => { warna[u.unit] = u.warna; });
+  const n = w => Object.values(warna).filter(x => x === w).length;
+  const terjual = n('merah'), reserved = n('kuning'), hold = n('biru');
+  return { total: units.length, terjual, reserved, hold, tersedia: Math.max(0, units.length - terjual - reserved - hold), warna };
+}
 export default function PresentasiPage() {
   const [me, setMe] = useState(null);
   const [data, setData] = useState(null);
@@ -55,8 +64,8 @@ export default function PresentasiPage() {
   useEffect(() => {
     if (!me || !bolehPresentasi(me)) return;
     setData(null);
-    Promise.all([api('/api/settings'), ...PROYEK.map(x => Promise.all([api('/api/laporan-penjualan?project=' + encodeURIComponent(x.p)), api(`/api/presentasi?project=${encodeURIComponent(x.p)}&dari=${dari}`)]))])
-      .then(([st, ...h]) => setData(h.map(([lp, pr], i) => ({ ...PROYEK[i], lp, pr, promo: PROMO[PROYEK[i].p], akun: st.sales || [], jumlahUnit: (st.units?.[PROYEK[i].p] || []).length })))).catch(e => toast(e.message));
+    Promise.all([api('/api/settings'), api('/api/stock').catch(() => null), ...PROYEK.map(x => Promise.all([api('/api/laporan-penjualan?project=' + encodeURIComponent(x.p)), api(`/api/presentasi?project=${encodeURIComponent(x.p)}&dari=${dari}`)]))])
+      .then(([st, sk, ...h]) => setData(h.map(([lp, pr], i) => ({ ...PROYEK[i], lp, pr, promo: PROMO[PROYEK[i].p], akun: st.sales || [], jumlahUnit: (st.units?.[PROYEK[i].p] || []).length, stok: ringkasStokUnit(st.units?.[PROYEK[i].p] || [], sk, PROYEK[i].p) })))).catch(e => toast(e.message));
   }, [me, dari]);
   // skala slide mengikuti lebar area
   useEffect(() => {
@@ -681,7 +690,7 @@ function slideProyek(P, dari) {
     const prog = (no, isi) => <Slide bab={`7 · ${PG.nama}`} logo={logo} proj={nama} no={no}>{isi}</Slide>;
     // --- 8.0 Kenapa
     const batalThn = thn.filter(r => r.status === 'Batal'), nilaiBatalThn = batalThn.reduce((a, r) => a + (Number(r.harga) || 0), 0);
-    const tersedia = P.jumlahUnit ? Math.max(0, P.jumlahUnit - (pen.n || 0) - (K.reserved?.n || 0)) : null;
+    const tersedia = P.stok ? P.stok.tersedia : P.jumlahUnit ? Math.max(0, P.jumlahUnit - (pen.n || 0) - (K.reserved?.n || 0)) : null;
     out.push({ judul: 'Program: kenapa dibuat', bagian: false, isi: prog('8.0', <>
       <h2><T k={KT('prog.kenapa.judul')}>Kenapa program ini harus dibuat: {persen(batalThn.length, thn.length)}% transaksi {tahunIni} batal, dan penyebab utamanya kemampuan bayar lewat KPR</T></h2>
       <div className="pz-k4"><Kartu l={`Transaksi ${tahunIni}`} v={thn.length} s={`${bookThn.length} masih berjalan · ${batalThn.length} batal (${persen(batalThn.length, thn.length)}%)`} />
@@ -891,15 +900,16 @@ function slideProyek(P, dari) {
         const P = tx * (1 - PG.dp), bunga = pmt(P, s15.bunga, n15) * n15 - P;
         return { paket: i + 1, lbl: lbl || 'P' + (i + 1), nm, nilai, tx, dasar, easy: dasar + bunga - PG.biayaDana * P / 2 * n15 / 12 }; });
       const PK = FS.paket.corner || [];
-      const COR = Object.entries(BIO_IRREG).filter(([, v]) => /hoek/i.test(v.sub || '') && v.allin && v.standar).map(([unit, v]) => ({ unit, tipe: v.tipe, lt: v.lt, harga: v.standar, terjual: terjualSet.has(unit), pk: paketFS(v.standar, v.allin, PK) }));
+      const statusCor = unit => { const w = P.stok?.warna?.[unit]; return w === 'merah' ? 'Terjual' : w === 'kuning' ? 'Reserved' : w === 'biru' ? 'Hold' : terjualSet.has(unit) ? 'Terjual' : 'Tersedia'; };
+      const COR = Object.entries(BIO_IRREG).filter(([, v]) => /hoek/i.test(v.sub || '') && v.allin && v.standar).map(([unit, v]) => ({ unit, tipe: v.tipe, lt: v.lt, harga: v.standar, status: statusCor(unit), terjual: statusCor(unit) !== 'Tersedia', pk: paketFS(v.standar, v.allin, PK) }));
       const avail = COR.filter(x => !x.terjual);
       if (COR.length) out.push({ judul: 'Harga nett corner per unit', isi: prog('8.6.2', <>
         <h2><T k={KT('prog.nettcfs.judul')}>{`Harga nett unit corner dengan paket hadiah flash sale — harga standar masing-masing unit`}</T></h2>
         <table className="pz-tb s cmp pz-rapat"><colgroup><col style={{ width: '13%' }} /><col style={{ width: '8%' }} /><col style={{ width: '7%' }} /><col style={{ width: '9%' }} />{PK.map((_, i) => <col key={i} style={{ width: (45 / PK.length) + '%' }} />)}<col /></colgroup>
           <thead><tr><th>Unit corner</th><th>Tipe · LT</th><th>Status</th><th>Harga standar</th>{PK.map(([nm, nilai, , , disk, lbl], i) => <th key={i}>Nett {(lbl || 'P' + (i + 1)).replace(' alt', '')}<span className="pz-th2">{disk ? `diskon ${jt(disk)}` : nm.split(' + ')[0]}</span></th>)}<th>Nett Bio Easy {s15.tahun} thn<span className="pz-th2">P4 – P1, stl biaya dana</span></th></tr></thead>
-          <tbody>{COR.map(x => { const lo = Math.min(...x.pk.map(p => p.dasar)); return <tr key={x.unit} style={x.terjual ? { opacity: .5 } : undefined}><td className="kiri">{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.terjual ? R : G, fontWeight: 700 }}>{x.terjual ? 'Terjual' : 'Tersedia'}</td>
+          <tbody>{COR.map(x => { const lo = Math.min(...x.pk.map(p => p.dasar)); return <tr key={x.unit} style={x.terjual ? { opacity: .5 } : undefined}><td className="kiri">{x.unit}</td><td>{x.tipe} · {x.lt} m²</td><td style={{ color: x.status === 'Hold' ? '#3B6FB6' : x.terjual ? R : G, fontWeight: 700 }}>{x.status}</td>
             <td>{M2(x.harga)}</td>{x.pk.map(p => <td key={p.paket} style={p.dasar === lo ? { color: R } : undefined}><b>{M2(p.dasar)}</b></td>)}<td className="sorot">{M2(Math.min(...x.pk.map(p => p.easy)))} – {M2(Math.max(...x.pk.map(p => p.easy)))}</td></tr>; })}</tbody></table>
-        <div className="pz-sub" style={{ fontSize: 10 }}>Nett cash/KPR = harga transaksi − hadiah − bebas biaya (all in − standar) − asuransi P3 ({pc0(FS.asuransi)}). Merah = nett terendah. Hadiah: {PK.map(([nm, nilai, , , , lbl], i) => nilai ? `${(lbl || 'P' + (i + 1)).replace(' alt', '')} ${nm.split(' + ')[0]} ${jt(nilai)}` : `${lbl || 'P' + (i + 1)} diskon`).join(' · ')} (OTR Jakarta Nov 2026). Paket 3: BYD Atto 1 atau Bio Premiere Corner (nilai sementara = BYD Atto 1). Bio Easy: DP {DPp} 3× dalam tenor, bunga {pr1(s15.bunga)}.</div></>) });
+        <div className="pz-sub" style={{ fontSize: 10 }}>Nett cash/KPR = harga transaksi − hadiah − bebas biaya (all in − standar) − asuransi P3 ({pc0(FS.asuransi)}). Merah = nett terendah. Hadiah: {PK.map(([nm, nilai, , , , lbl], i) => nilai ? `${(lbl || 'P' + (i + 1)).replace(' alt', '')} ${nm.split(' + ')[0]} ${jt(nilai)}` : `${lbl || 'P' + (i + 1)} diskon`).join(' · ')} (OTR Jakarta Nov 2026). Paket 3: BYD Atto 1 atau Bio Premiere Corner (nilai sementara = BYD Atto 1). Bio Easy: DP {DPp} 3× dalam tenor, bunga {pr1(s15.bunga)}. Status dari Master Stock (hold manajemen tidak dihitung tersedia).</div></>) });
       // 8.6.3 — kapan hadiah kendaraan (mobil / motor) diserahkan
       {
         const BT = FS.serahKendaraan, H0 = (SIM[1] || A).harga, BF = 5000000, dp = H0 * PG.dp;
@@ -945,7 +955,7 @@ function slideProyek(P, dari) {
           <tbody>{KPI.map(([a, b, c, d], i) => <tr key={i}><td>{a}</td><td><b><T k={KT('prog.kpi.k' + i)}>{b}</T></b></td><td>{c}</td><td style={{ color: G, fontWeight: 800 }}><T k={KT('prog.kpi.t' + i)}>{d}</T></td></tr>)}</tbody></table></div>
         <div className="pz-col" style={{ flex: .75 }}>
           <Kartu cls="emas" l={`Target pilot ${PG.pilot.bulan} bulan`} v={`${PG.pilot.unit} unit`} s={`≥ 2 unit berjalan / bulan · ±${PG.pilot.nilai} nilai penjualan`} />
-          {tersedia != null && <Kartu l="Stok tersedia" v={`${tersedia} unit`} s={`habis ±${Math.ceil(tersedia / 2)} bulan pada laju 2 unit / bulan`} />}
+          {tersedia != null && <Kartu l="Stok tersedia" v={`${tersedia} unit`} s={`${P.stok?.hold ? `di luar ${P.stok.hold} unit hold manajemen · ` : ''}habis ±${Math.ceil(tersedia / 2)} bulan pada laju 2 unit / bulan`} />}
           <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.catatan')}>{`Catatan: begitu program berjalan, dapat langsung ditawarkan juga ke ${proses.length} konsumen yang KPR-nya sedang berproses sebagai jalur cadangan.`}</T></div>
           <div className="pz-ins" style={{ fontSize: 12.5 }}><T k={KT('prog.kpi.pantau')}>Cara pantau: semua KPI terbaca dari CRM (Laporan Penjualan, Collection &amp; KPR); ditinjau bulanan oleh Sales &amp; Marketing dan Keuangan, dilaporkan ke CEO per kuartal. Program dievaluasi di akhir pilot sebelum diperluas.</T></div></div></div></>) });
   }
